@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import timedelta
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -8,10 +9,16 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
+# ─── APPS ────────────────────────────────────────────────────────────────────
+
 SHARED_APPS = [
     'django_tenants',
+
+    # Tenant and auth (must come first)
     'apps.tenants',
     'apps.accounts',
+
+    # Platform apps
     'apps.organisations',
     'apps.jobs',
     'apps.candidates',
@@ -26,13 +33,19 @@ SHARED_APPS = [
     'apps.automation',
     'apps.cafe',
     'apps.marketplace',
+
+    # Django built-ins
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    # Third party
     'rest_framework',
+    'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
 ]
 
 TENANT_APPS = [
@@ -44,10 +57,13 @@ INSTALLED_APPS = list(SHARED_APPS) + [
     app for app in TENANT_APPS if app not in SHARED_APPS
 ]
 
+# ─── TENANT CONFIG ────────────────────────────────────────────────────────────
+
 TENANT_MODEL = "tenants.Client"
 TENANT_DOMAIN_MODEL = "tenants.Domain"
-
 AUTH_USER_MODEL = 'accounts.CustomUser'
+
+# ─── MIDDLEWARE ───────────────────────────────────────────────────────────────
 
 MIDDLEWARE = [
     'django_tenants.middleware.main.TenantMainMiddleware',
@@ -61,6 +77,8 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = 'config.urls'
+
+# ─── TEMPLATES ────────────────────────────────────────────────────────────────
 
 TEMPLATES = [
     {
@@ -80,6 +98,8 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'config.wsgi.application'
 
+# ─── DATABASE ─────────────────────────────────────────────────────────────────
+
 DATABASES = {
     'default': {
         'ENGINE': 'django_tenants.postgresql_backend',
@@ -93,6 +113,8 @@ DATABASES = {
 
 DATABASE_ROUTERS = ('django_tenants.routers.TenantSyncRouter',)
 
+# ─── AUTH ─────────────────────────────────────────────────────────────────────
+
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -100,18 +122,20 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
 ]
 
-LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
-USE_I18N = True
-USE_TZ = True
+# ─── JWT ──────────────────────────────────────────────────────────────────────
 
-STATIC_URL = 'static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'TOKEN_OBTAIN_SERIALIZER': 'rest_framework_simplejwt.serializers.TokenObtainPairSerializer',
+}
 
-MEDIA_URL = 'media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+# ─── REST FRAMEWORK ───────────────────────────────────────────────────────────
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -124,6 +148,24 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20,
 }
 
+# ─── INTERNATIONALISATION ─────────────────────────────────────────────────────
+
+LANGUAGE_CODE = 'en-us'
+TIME_ZONE = 'UTC'
+USE_I18N = True
+USE_TZ = True
+
+# ─── STATIC AND MEDIA ─────────────────────────────────────────────────────────
+
+STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+MEDIA_URL = 'media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ─── REDIS ────────────────────────────────────────────────────────────────────
+
 REDIS_URL = 'redis://localhost:6379'
 
 CACHES = {
@@ -133,12 +175,17 @@ CACHES = {
     }
 }
 
+# ─── CELERY ───────────────────────────────────────────────────────────────────
+
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = REDIS_URL
 CELERY_TIMEZONE = 'UTC'
+
+# ─── MINIO ────────────────────────────────────────────────────────────────────
 
 MINIO_ENDPOINT = 'localhost:9000'
 MINIO_ACCESS_KEY = 'minioadmin'
 MINIO_SECRET_KEY = 'minioadmin123'
 MINIO_USE_HTTPS = False
 MINIO_BUCKET_NAME = 'recruitment-platform'
+

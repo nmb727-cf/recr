@@ -1,8 +1,14 @@
-from shared.models import BaseModel
-from django.db import models
 import uuid
+import hashlib
+from django.db import models
+from django.utils import timezone
 
-class Candidate(BaseModel):
+
+class Candidate(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    # tenant_id is nullable — null means self-registered candidate
+    # not null means added by agency or company
+    tenant_id = models.UUIDField(null=True, blank=True, db_index=True)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     email = models.EmailField(blank=True)
@@ -11,31 +17,64 @@ class Candidate(BaseModel):
     linkedin_url = models.TextField(blank=True)
     current_title = models.CharField(max_length=255, blank=True)
     current_company = models.CharField(max_length=255, blank=True)
-    current_city = models.CharField(max_length=100, blank=True)
-    current_country = models.CharField(max_length=100, blank=True)
-    experience_years = models.DecimalField(max_digits=4, decimal_places=1, default=0)
+    current_location_city = models.CharField(max_length=100, blank=True)
+    current_location_country = models.CharField(max_length=100, blank=True)
+    experience_years = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
     expected_salary_min = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
     expected_salary_max = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
     salary_currency = models.CharField(max_length=10, default='INR')
     notice_period_days = models.IntegerField(null=True, blank=True)
     availability_date = models.DateField(null=True, blank=True)
     is_actively_looking = models.BooleanField(default=True)
-    source = models.CharField(max_length=100, blank=True)
+    source = models.CharField(
+        max_length=100,
+        choices=[
+            ('self', 'Self Registered'),
+            ('agency', 'Agency'),
+            ('company', 'Company'),
+            ('linkedin', 'LinkedIn'),
+            ('referral', 'Referral'),
+            ('job_board', 'Job Board'),
+            ('passport', 'Talent Passport'),
+            ('cafe', 'Interview Cafe'),
+            ('other', 'Other'),
+        ],
+        blank=True
+    )
     source_detail = models.TextField(blank=True)
     passport_id = models.UUIDField(null=True, blank=True)
-    global_hash = models.CharField(max_length=64, blank=True, db_index=True)  # for deduplication
-    is_duplicate = models.BooleanField(default=False)
     duplicate_of = models.UUIDField(null=True, blank=True)
+    is_duplicate = models.BooleanField(default=False)
+    # global_hash links same person across tenants
+    global_hash = models.CharField(max_length=64, blank=True, db_index=True)
     tags = models.JSONField(default=list, blank=True)
     skills = models.JSONField(default=list, blank=True)
     languages = models.JSONField(default=list, blank=True)
     assigned_to = models.UUIDField(null=True, blank=True)
+    # who originally sourced this candidate
     owner_user_id = models.UUIDField(null=True, blank=True)
     owner_tenant_id = models.UUIDField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.UUIDField(null=True, blank=True)
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    def save(self, *args, **kwargs):
+        if self.email or self.phone:
+            hash_input = f"{self.email.lower().strip()}{self.phone.strip()}".encode()
+            self.global_hash = hashlib.sha256(hash_input).hexdigest()
+        super().save(*args, **kwargs)
+
+    def soft_delete(self):
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.save()
 
     @property
     def full_name(self):
-        return f"{self.first_name} {self.last_name}"
+        return f"{self.first_name} {self.last_name}".strip()
 
     def __str__(self):
         return self.full_name
@@ -45,19 +84,35 @@ class Candidate(BaseModel):
         ordering = ['-created_at']
 
 
-class CandidateProfile(BaseModel):
+class CandidateProfile(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_id = models.UUIDField(null=True, blank=True, db_index=True)
     candidate_id = models.UUIDField(unique=True, db_index=True)
     summary = models.TextField(blank=True)
     work_experience = models.JSONField(default=list, blank=True)
     education = models.JSONField(default=list, blank=True)
     certifications = models.JSONField(default=list, blank=True)
     projects = models.JSONField(default=list, blank=True)
+    publications = models.JSONField(default=list, blank=True)
     awards = models.JSONField(default=list, blank=True)
+    references = models.JSONField(default=list, blank=True)
     cv_url = models.TextField(blank=True)
     cv_parsed_data = models.JSONField(default=dict, blank=True)
     cv_uploaded_at = models.DateTimeField(null=True, blank=True)
     portfolio_url = models.TextField(blank=True)
     github_url = models.TextField(blank=True)
+    stackoverflow_url = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.UUIDField(null=True, blank=True)
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    def soft_delete(self):
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.save()
 
     def __str__(self):
         return str(self.candidate_id)
@@ -66,19 +121,35 @@ class CandidateProfile(BaseModel):
         db_table = 'candidates_profile'
 
 
-class CandidateNote(BaseModel):
+class CandidateNote(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_id = models.UUIDField(null=True, blank=True, db_index=True)
     candidate_id = models.UUIDField(db_index=True)
     note_text = models.TextField()
     note_type = models.CharField(
         max_length=50,
         choices=[
-            ('general', 'General'), ('call_log', 'Call Log'),
-            ('email_log', 'Email Log'), ('interview_note', 'Interview Note'),
-            ('warning', 'Warning'), ('positive', 'Positive')
+            ('general', 'General'),
+            ('call_log', 'Call Log'),
+            ('email_log', 'Email Log'),
+            ('interview_note', 'Interview Note'),
+            ('warning', 'Warning'),
+            ('positive', 'Positive'),
         ],
         default='general'
     )
     is_private = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.UUIDField(null=True, blank=True)
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    def soft_delete(self):
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.save()
 
     def __str__(self):
         return self.note_text[:50]

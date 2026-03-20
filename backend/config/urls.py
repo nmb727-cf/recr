@@ -28,4 +28,5 @@ urlpatterns = [
     path('api/v1/interviews/', include('apps.interviews.urls')),
     path('api/v1/candidate/interviews/', include('apps.interviews.candidate_urls')),
     path('api/v1/passport/', include('apps.passport.urls')),
+    path('api/v1/', include('apps.communications.urls')),
 ]

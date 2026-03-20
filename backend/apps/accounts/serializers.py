@@ -21,9 +21,9 @@ class UserSerializer(serializers.ModelSerializer):
             'phone', 'avatar_url', 'role', 'is_active',
             'email_verified', 'mfa_enabled', 'timezone', 'language',
             'notification_preferences', 'ui_preferences',
-            'created_at', 'last_login_at',
+            'tenant_id', 'created_at', 'last_login_at',
         ]
-        read_only_fields = ['id', 'created_at', 'last_login_at', 'email_verified']
+        read_only_fields = ['id', 'tenant_id', 'created_at', 'last_login_at', 'email_verified']
 
     def get_full_name(self, obj):
         return f"{obj.first_name} {obj.last_name}".strip()

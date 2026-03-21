@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.urls import path, include
 
 urlpatterns = [
-   path('admin/', admin.site.urls),
+      path('admin/', admin.site.urls),
     path('api/v1/auth/', include('apps.accounts.urls')),
     path('api/v1/organisation/', include('apps.organisations.urls')),
     path('api/v1/jobs/', include('apps.jobs.urls')),
@@ -30,4 +30,5 @@ urlpatterns = [
     path('api/v1/passport/', include('apps.passport.urls')),
     path('api/v1/', include('apps.communications.urls')),
     path('api/v1/', include('apps.documents.urls')),
+    path('api/v1/analytics/', include('apps.analytics.urls')),
 ]

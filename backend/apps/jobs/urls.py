@@ -21,4 +21,10 @@ urlpatterns = [
     path('postings/<uuid:pk>/', views.JobPostingDetailView.as_view(), name='posting-detail'),
     path('postings/<uuid:pk>/pause/', views.JobPostingPauseView.as_view(), name='posting-pause'),
     path('postings/<uuid:pk>/close/', views.JobPostingCloseView.as_view(), name='posting-close'),
+
+    # Public / Candidate-facing
+    path('search/', views.JobSearchView.as_view(), name='job-search'),
+    path('<uuid:pk>/', views.JobPublicDetailView.as_view(), name='job-public-detail'),
+    path('<uuid:pk>/apply/', views.JobApplyView.as_view(), name='job-apply'),
+    path('<uuid:pk>/save/', views.JobSaveView.as_view(), name='job-save'),
 ]

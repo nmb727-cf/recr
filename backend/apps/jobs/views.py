@@ -474,3 +474,239 @@ class JobStageReorderView(APIView):
             data={'stages': JobStageSerializer(stages, many=True).data},
             message="Stages reordered."
         )
+
+
+# ─── JOB SEARCH (PUBLIC + CANDIDATE SIDE) ────────────────────────────────────
+
+from rest_framework.permissions import AllowAny
+
+
+class JobSearchView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from django.db.models import Q
+        qs = JobPosting.objects.filter(
+            is_active=True,
+            is_deleted=False,
+        )
+
+        # Search
+        q = request.query_params.get('q')
+        if q:
+            qs = qs.filter(
+                Q(title__icontains=q) |
+                Q(description_html__icontains=q)
+            )
+
+        # Filter by work mode - need to join with requisition
+        work_mode = request.query_params.get('work_mode')
+        location = request.query_params.get('location')
+        experience = request.query_params.get('experience')
+
+        if work_mode or location or experience:
+            req_ids = JobRequisition.objects.filter(
+                is_deleted=False,
+                status='active'
+            )
+            if work_mode:
+                req_ids = req_ids.filter(work_mode=work_mode)
+            if experience:
+                req_ids = req_ids.filter(experience_min__lte=experience)
+            qs = qs.filter(requisition_id__in=req_ids.values('id'))
+
+        return success_response(
+            data={'jobs': JobPostingSerializer(qs, many=True).data},
+            message="Jobs retrieved.",
+            meta={'total': qs.count()}
+        )
+
+
+class JobPublicDetailView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, pk):
+        try:
+            posting = JobPosting.objects.get(
+                id=pk,
+                is_active=True,
+                is_deleted=False
+            )
+        except JobPosting.DoesNotExist:
+            return error_response("Job not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        # Increment view count
+        posting.views_count += 1
+        posting.save(update_fields=['views_count'])
+
+        # Get requisition details
+        try:
+            req = JobRequisition.objects.get(id=posting.requisition_id)
+            req_data = JobRequisitionSerializer(req).data
+        except JobRequisition.DoesNotExist:
+            req_data = None
+
+        return success_response(
+            data={
+                'posting': JobPostingSerializer(posting).data,
+                'requisition': req_data,
+            },
+            message="Job retrieved."
+        )
+
+
+class JobApplyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from apps.pipeline.models import Application
+        from apps.jobs.models import JobStage
+
+        try:
+            posting = JobPosting.objects.get(
+                id=pk,
+                is_active=True,
+                is_deleted=False
+            )
+        except JobPosting.DoesNotExist:
+            return error_response("Job not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        # Check duplicate application
+        if Application.objects.filter(
+            candidate_id=request.user.id,
+            requisition_id=posting.requisition_id,
+            is_deleted=False
+        ).exists():
+            return error_response(
+                "You have already applied for this job.",
+                status_code=status.HTTP_409_CONFLICT
+            )
+
+        # Get first stage
+        first_stage = JobStage.objects.filter(
+            requisition_id=posting.requisition_id,
+            is_active=True
+        ).order_by('stage_order').first()
+
+        application = Application.objects.create(
+            tenant_id=posting.tenant_id,
+            candidate_id=request.user.id,
+            requisition_id=posting.requisition_id,
+            current_stage_id=first_stage.id if first_stage else None,
+            status='applied',
+            source='direct',
+            source_detail=request.data.get('cover_note', ''),
+            submitted_by=request.user.id,
+            submitted_by_tenant_id=request.user.tenant_id,
+            created_by=request.user.id,
+        )
+
+        # Increment applications count
+        posting.applications_count += 1
+        posting.save(update_fields=['applications_count'])
+
+        from apps.pipeline.serializers import ApplicationSerializer
+        return success_response(
+            data={'application': ApplicationSerializer(application).data},
+            message="Application submitted successfully.",
+            status_code=status.HTTP_201_CREATED
+        )
+
+
+class JobSaveView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        # TODO: Implement saved jobs with a SavedJob model
+        return success_response(message="Job saved.")
+
+
+class CandidateApplicationListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.pipeline.models import Application
+        from apps.pipeline.serializers import ApplicationSerializer
+
+        applications = Application.objects.filter(
+            candidate_id=request.user.id,
+            is_deleted=False
+        ).order_by('-created_at')
+
+        return success_response(
+            data={'applications': ApplicationSerializer(applications, many=True).data},
+            message="Your applications retrieved.",
+            meta={'total': applications.count()}
+        )
+
+
+class CandidateApplicationDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        from apps.pipeline.models import Application, ApplicationStageHistory
+        from apps.pipeline.serializers import ApplicationSerializer, ApplicationStageHistorySerializer
+
+        try:
+            application = Application.objects.get(
+                id=pk,
+                candidate_id=request.user.id,
+                is_deleted=False
+            )
+        except Application.DoesNotExist:
+            return error_response("Application not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        history = ApplicationStageHistory.objects.filter(
+            application_id=pk
+        ).order_by('moved_at')
+
+        return success_response(
+            data={
+                'application': ApplicationSerializer(application).data,
+                'stage_history': ApplicationStageHistorySerializer(history, many=True).data,
+            },
+            message="Application retrieved."
+        )
+
+
+class RecommendedJobsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.passport.models import TalentPassport
+        from django.db.models import Q
+
+        # Get candidate skills from passport
+        skills = []
+        try:
+            passport = TalentPassport.objects.get(
+                user_id=request.user.id,
+                is_deleted=False
+            )
+            skills = passport.skills
+        except TalentPassport.DoesNotExist:
+            pass
+
+        # Find active postings matching skills
+        qs = JobPosting.objects.filter(
+            is_active=True,
+            is_deleted=False
+        )
+
+        if skills:
+            # Filter requisitions with matching skills
+            matching_reqs = JobRequisition.objects.filter(
+                status='active',
+                is_deleted=False
+            )
+            skill_filter = Q()
+            for skill in skills[:5]:  # top 5 skills
+                skill_filter |= Q(skills_required__contains=[skill])
+            matching_reqs = matching_reqs.filter(skill_filter)
+            qs = qs.filter(requisition_id__in=matching_reqs.values('id'))
+
+        return success_response(
+            data={'jobs': JobPostingSerializer(qs[:20], many=True).data},
+            message="Recommended jobs retrieved.",
+            meta={'total': qs.count()}
+        )

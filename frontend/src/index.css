@@ -84,6 +84,10 @@
   transition: opacity 300ms, transform 300ms;
 }
 
+.panel-transition {
+  transition: width 0.3s ease, opacity 0.3s ease;
+}
+
 /* Ant Design Customizations */
 .ant-btn-primary {
   @apply bg-primary hover:bg-primary/90 border-none shadow-soft-sm !important;

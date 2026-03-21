@@ -7,6 +7,7 @@ export type UserRole =
   | 'hiring_manager'
   | 'interviewer'
   | 'candidate'
+  | 'agency_owner'
   | 'agency_admin'
   | 'agency_recruiter'
 

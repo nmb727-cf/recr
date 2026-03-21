@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Button, Typography,
-  Spin, Empty, message
+  Spin, Empty, message, Tag
 } from 'antd'
 import {
   Briefcase, Users, ArrowRight,
@@ -13,6 +13,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useApiQuery } from '@/hooks/useApiQuery'
 import { requisitionsApi } from '@/api/jobs'
 import { pipelineApi } from '@/api/pipeline'
+import { candidatesApi } from '@/api/candidates'
 import type { JobRequisition, RequisitionStatus, Application, PipelineData } from '@/types'
 import { cn } from '@/utils/cn'
 
@@ -34,9 +35,10 @@ const STATUS_BANNER: Record<RequisitionStatus, { label: string, color: string }>
   cancelled: { label: 'Cancelled', color: 'border-slate-300 bg-slate-50 text-slate-500' },
 }
 
-export default function JobQuickView({ jobId, onOpenFullView, onRefresh }: JobQuickViewProps) {
+export default function JobQuickView({ jobId, onOpenFullView, onClose: _onClose, onRefresh }: JobQuickViewProps) {
   const queryClient = useQueryClient()
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [candidateNames, setCandidateNames] = useState<Record<string, string>>({})
 
   const { data, isLoading } = useApiQuery(
     ['requisition', 'quick', jobId],
@@ -58,6 +60,24 @@ export default function JobQuickView({ jobId, onOpenFullView, onRefresh }: JobQu
   const requisition = (data as any)?.requisition as JobRequisition
   const pipeline = (pipelineData as any) as PipelineData
   const latestApps = (appsData as any)?.applications as Application[]
+
+  useEffect(() => {
+    if (latestApps?.length > 0) {
+      const fetchNames = async () => {
+        const names: Record<string, string> = {}
+        await Promise.all(latestApps.map(async (app) => {
+          try {
+            const res = await candidatesApi.get(app.candidate_id)
+            names[app.candidate_id] = res.data.data.candidate.full_name || 'Unknown Candidate'
+          } catch {
+            names[app.candidate_id] = 'Unknown Candidate'
+          }
+        }))
+        setCandidateNames(prev => ({ ...prev, ...names }))
+      }
+      fetchNames()
+    }
+  }, [latestApps])
 
   const doAction = async (label: string, fn: () => Promise<unknown>) => {
     setActionLoading(label)
@@ -83,8 +103,8 @@ export default function JobQuickView({ jobId, onOpenFullView, onRefresh }: JobQu
   const pipelineStages = pipeline?.pipeline ? Object.values(pipeline.pipeline).sort((a, b) => a.stage.stage_order - b.stage.stage_order) : []
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto pr-1">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', paddingTop: 24 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px' }}>
         {/* SECTION 1: Status Banner */}
         <div className={cn("border-l-4 p-3 rounded-r-xl mb-6 font-semibold text-sm shadow-sm", banner.color)}>
           {banner.label}
@@ -169,7 +189,7 @@ export default function JobQuickView({ jobId, onOpenFullView, onRefresh }: JobQu
         </div>
 
         {/* SECTION 4: 3 Key Stats */}
-        <div className="grid grid-cols-3 gap-3 mb-8">
+        <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="bg-slate-50/50 rounded-2xl p-3 border border-slate-100 flex flex-col items-center justify-center shadow-sm">
             <Calendar className="h-4 w-4 text-slate-400 mb-1" />
             <span className="text-xs font-bold text-slate-900">{daysOpen} Days</span>
@@ -177,7 +197,7 @@ export default function JobQuickView({ jobId, onOpenFullView, onRefresh }: JobQu
           </div>
           <div className="bg-slate-50/50 rounded-2xl p-3 border border-slate-100 flex flex-col items-center justify-center shadow-sm">
             <Users className="h-4 w-4 text-slate-400 mb-1" />
-            <span className="text-xs font-bold text-slate-900">{requisition.headcount} Roles</span>
+            <span className="text-xs font-bold text-slate-900">{requisition.headcount} Headcount</span>
             <span className="text-[9px] font-bold text-slate-400 uppercase">Target</span>
           </div>
           <div className="bg-slate-50/50 rounded-2xl p-3 border border-slate-100 flex flex-col items-center justify-center shadow-sm">
@@ -194,6 +214,16 @@ export default function JobQuickView({ jobId, onOpenFullView, onRefresh }: JobQu
           </div>
         </div>
 
+        {/* SECTION SKILLS */}
+        <div className="mb-8">
+          <p style={{ fontSize: 12, color: '#888', marginBottom: 8 }}>SKILLS REQUIRED</p>
+          <div className="flex flex-wrap gap-1.5">
+            {(requisition.skills_required || []).map(s => 
+              <Tag color="blue" key={s} style={{ marginBottom: 4 }}>{s}</Tag>
+            )}
+          </div>
+        </div>
+
         {/* SECTION 5: Latest 3 Applications */}
         <div className="mb-8">
           <Title level={5} className="!text-[10px] !font-bold !uppercase !tracking-widest !text-slate-400 !mb-3">Latest Applications</Title>
@@ -202,7 +232,9 @@ export default function JobQuickView({ jobId, onOpenFullView, onRefresh }: JobQu
               <div key={app.id} className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-50 bg-white shadow-soft-sm hover:border-blue-100 transition-colors cursor-pointer" onClick={() => onOpenFullView('applications')}>
                 <div className="h-2 w-2 rounded-full bg-blue-500 shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-slate-900 truncate">Candidate {app.candidate_id.slice(0, 4)}</p>
+                  <p className="text-xs font-bold text-slate-900 truncate">
+                    {candidateNames[app.candidate_id] || `Candidate ${app.candidate_id.slice(0, 4)}`}
+                  </p>
                   <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider mt-0.5">
                     {app.status.replace('_', ' ')} · {dayjs(app.created_at).fromNow()}
                   </p>
@@ -220,16 +252,27 @@ export default function JobQuickView({ jobId, onOpenFullView, onRefresh }: JobQu
       </div>
 
       {/* SECTION 6: Footer */}
-      <div className="pt-6 border-t border-slate-100 mt-auto flex gap-3">
+      <div style={{
+        position: 'sticky',
+        bottom: 0,
+        background: 'white',
+        borderTop: '1px solid #f0f0f0',
+        padding: '12px 16px',
+        display: 'flex',
+        gap: 8,
+        marginTop: 'auto'
+      }}>
         <Button 
+          style={{ flex: 1 }}
           icon={<Edit className="h-4 w-4" />} 
-          className="h-12 px-6 rounded-xl font-bold flex items-center justify-center gap-2 border-slate-200 text-slate-600 flex-1"
+          className="h-12 rounded-xl font-bold flex items-center justify-center gap-2 border-slate-200 text-slate-600"
         >
           Edit Job
         </Button>
         <Button 
           type="primary" 
-          className="h-12 px-6 rounded-xl font-bold flex items-center justify-center gap-2 bg-slate-900 hover:!bg-slate-800 border-none shadow-soft-md flex-[1.5]"
+          style={{ flex: 2 }}
+          className="h-12 rounded-xl font-bold flex items-center justify-center gap-2 bg-slate-900 hover:!bg-slate-800 border-none shadow-soft-md"
           onClick={() => onOpenFullView()}
         >
           Open Full View <ArrowRight className="h-4 w-4" />

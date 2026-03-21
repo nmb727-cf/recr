@@ -13,4 +13,7 @@ export const passportApi = {
 
   regenerateShareLink: () =>
     http.post<ApiResponse<{ share_url: string }>>('/passport/my-passport/share-link/regenerate/'),
+
+  importPassport: (token: string) =>
+    http.post<ApiResponse<{ candidate: any }>>('/passport/import/', { token }),
 }

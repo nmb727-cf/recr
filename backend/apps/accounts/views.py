@@ -11,6 +11,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 
 from apps.accounts.models import CustomUser
 from apps.tenants.models import Client, Domain
+from apps.organisations.models import Organisation
 from apps.accounts.serializers import (
     RegisterCompanySerializer, RegisterAgencySerializer, RegisterCandidateSerializer,
     LoginSerializer, UserSerializer, UpdateProfileSerializer,
@@ -18,6 +19,7 @@ from apps.accounts.serializers import (
     ForgotPasswordSerializer, ResetPasswordSerializer, RefreshTokenSerializer,
 )
 from apps.core.responses import success_response, error_response
+from apps.core import events
 
 
 def get_tokens_for_user(user):
@@ -89,6 +91,22 @@ class RegisterCompanyView(APIView):
             tenant_id=tenant.id,
         )
 
+        # Auto-create Organisation record to prevent 404s
+        Organisation.objects.create(
+            tenant_id=tenant.id,
+            name=data['company_name'],
+            org_type='company',
+            created_by=user.id
+        )
+
+        # Emit Event
+        events.company.created.send(
+            sender=self.__class__,
+            tenant=tenant,
+            user=user,
+            request=request
+        )
+
         tokens = get_tokens_for_user(user)
         return success_response(
             data={
@@ -123,6 +141,14 @@ class RegisterAgencyView(APIView):
             last_name=' '.join(data['name'].split()[1:]) or '',
             role='agency_owner',
             tenant_id=tenant.id,
+        )
+
+        # Auto-create Organisation record
+        Organisation.objects.create(
+            tenant_id=tenant.id,
+            name=data['agency_name'],
+            org_type='agency',
+            created_by=user.id
         )
 
         tokens = get_tokens_for_user(user)

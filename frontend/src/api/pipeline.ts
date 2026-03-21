@@ -2,11 +2,14 @@ import http from '@/utils/http'
 import type { ApiResponse, Application, PipelineData } from '@/types'
 
 export const pipelineApi = {
-  listApplications: (params?: { requisition_id?: string; status?: string }) =>
+  listApplications: (params?: { requisition_id?: string; candidate_id?: string; status?: string }) =>
     http.get<ApiResponse<{ applications: Application[]; total: number }>>('/applications/', { params }),
 
   getApplication: (id: string) =>
     http.get<ApiResponse<{ application: Application }>>(`/applications/${id}/`),
+
+  createApplication: (data: { candidate_id: string; requisition_id: string; source?: string; source_detail?: string }) =>
+    http.post<ApiResponse<Application>>('/applications/', data),
 
   moveStage: (id: string, stage_id: string) =>
     http.post<ApiResponse<{ application: Application }>>(`/applications/${id}/move-stage/`, { stage_id }),

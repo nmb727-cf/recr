@@ -1,5 +1,5 @@
 import http from '@/utils/http'
-import type { ApiResponse, AgencyRelationship, AgencyAssignment } from '@/types'
+import type { ApiResponse, AgencyRelationship, AgencyAssignment, JobRequisition, Application } from '@/types'
 
 export const agenciesApi = {
   listRelationships: () =>
@@ -23,6 +23,26 @@ export const agenciesApi = {
   invite: (data: { name: string; email: string; tier: string; commission: number }) =>
     http.post('/agencies/relationships/invite/', data),
 
-  listAssignments: () =>
-    http.get<ApiResponse<{ assignments: AgencyAssignment[] }>>('/agencies/assignments/'),
+  listAssignments: (params?: { agency_id?: string }) =>
+    http.get<ApiResponse<{ assignments: AgencyAssignment[] }>>('/agencies/assignments/', { params }),
+
+  performance: (params?: { agency_id?: string }) =>
+    http.get<ApiResponse<{ performance: Record<string, unknown>[] }>>('/agencies/performance/', { params }),
+
+  createAssignment: (data: {
+    agency_id: string
+    requisition_id: string
+    max_submissions: number
+    deadline: string
+    notes?: string
+  }) => http.post<ApiResponse<{ assignment: AgencyAssignment }>>('/agencies/assignments/', data),
+
+  myJobs: () =>
+    http.get<ApiResponse<{ jobs: { assignment: AgencyAssignment; requisition: JobRequisition }[] }>>('/agencies/my-jobs/'),
+
+  mySubmissions: () =>
+    http.get<ApiResponse<{ submissions: Application[] }>>('/agencies/my-submissions/'),
+
+  submitCandidate: (data: { candidate_id: string; requisition_id: string; cover_note: string }) =>
+    http.post<ApiResponse<Application>>('/agencies/submit-candidate/', data),
 }

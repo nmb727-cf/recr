@@ -182,3 +182,28 @@ class PassportRevocation(models.Model):
     class Meta:
         db_table = 'passport_revocation'
         ordering = ['-revoked_at']
+
+
+class DataWithdrawalRequest(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    candidate_id = models.UUIDField(db_index=True)
+    user_id = models.UUIDField(db_index=True)
+    reason = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('pending','Pending'),
+            ('anonymized','Anonymized'),
+            ('deleted','Deleted'),
+        ],
+        default='pending'
+    )
+    requested_at = models.DateTimeField(auto_now_add=True)
+    anonymized_at = models.DateTimeField(null=True, blank=True)
+    deletion_scheduled_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    notified_tenants = models.JSONField(default=list, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = 'passport_withdrawal_request'

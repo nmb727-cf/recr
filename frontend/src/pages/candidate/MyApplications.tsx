@@ -1,19 +1,17 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Tag, Space, Typography, Card, Steps, Drawer, Descriptions,
-  Spin, Empty, Button, Row, Col,
+  Tag, Space, Typography, Card, Steps,
+  Spin, Button,
 } from 'antd'
 import {
   SyncOutlined, ArrowRightOutlined,
   CalendarOutlined, SolutionOutlined,
-  BriefcaseOutlined,
 } from '@ant-design/icons'
-import dayjs from 'dayjs'
-import http from '@/utils/http'
 import { candidateApi } from '@/api/candidate'
 import { requisitionsApi } from '@/api/jobs'
-import type { Application, JobRequisition, ApplicationStatus } from '@/types'
+import type { JobRequisition, ApplicationStatus } from '@/types'
+import { useDrawerStore } from '@/store/drawerStore'
 
 const { Title, Text, Paragraph } = Typography
 
@@ -43,7 +41,7 @@ const STEPS = [
 export default function MyApplications() {
   const [applicationsWithJobs, setApplicationsWithJobs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedAppId, setSelectedAppId] = useState<string | null>(null)
+  const openQuickView = useDrawerStore(s => s.openQuickView)
 
   const fetchData = async () => {
     try {
@@ -136,13 +134,13 @@ export default function MyApplications() {
                 key={app.id}
                 bordered={false}
                 className="shadow-soft-sm rounded-2xl hover:shadow-soft-md transition-shadow cursor-pointer"
-                onClick={() => setSelectedAppId(app.id)}
+                onClick={() => openQuickView('candidate_application', app)}
               >
                 <div className="flex flex-col gap-6">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-4">
                       <div className="h-12 w-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 font-bold">
-                        <BriefcaseOutlined style={{ fontSize: 24 }} />
+                        <SolutionOutlined style={{ fontSize: 24 }} />
                       </div>
                       <div>
                         <Title level={4} className="!mb-1 text-slate-900">
@@ -207,66 +205,6 @@ export default function MyApplications() {
         </Card>
       )}
 
-      <Drawer
-        title={
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-              <SolutionOutlined />
-            </div>
-            <div>
-              <div className="text-base font-bold text-slate-900">Application History</div>
-              <div className="text-xs text-slate-500 font-medium">Tracking Your Journey</div>
-            </div>
-          </div>
-        }
-        width={480}
-        onClose={() => setSelectedAppId(null)}
-        open={!!selectedAppId}
-        destroyOnClose
-        closeIcon={null}
-        styles={{ body: { padding: '32px 24px' } }}
-      >
-        {selectedAppId && (
-          <div className="space-y-8">
-            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100">
-              <Descriptions column={1} size="small" labelStyle={{ color: '#8c8c8c', width: 120 }}>
-                <Descriptions.Item label="Position">
-                  <Text strong>{applicationsWithJobs.find(a => a.id === selectedAppId)?.jobTitle}</Text>
-                </Descriptions.Item>
-                <Descriptions.Item label="Current Status">
-                  <Tag className="m-0 uppercase font-bold text-[10px]">
-                    {applicationsWithJobs.find(a => a.id === selectedAppId)?.status}
-                  </Tag>
-                </Descriptions.Item>
-                <Descriptions.Item label="Applied Date">
-                  {dayjs(applicationsWithJobs.find(a => a.id === selectedAppId)?.created_at).format('MMMM D, YYYY · HH:mm')}
-                </Descriptions.Item>
-              </Descriptions>
-            </div>
-
-            <div>
-              <Title level={5} className="mb-4">Hiring Timeline</Title>
-              <div className="space-y-6">
-                <div className="flex gap-4">
-                  <div className="flex flex-col items-center">
-                    <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center z-10 shrink-0">
-                      <SyncOutlined />
-                    </div>
-                    <div className="w-[2px] bg-slate-100 h-full mt-2" />
-                  </div>
-                  <div className="pt-1">
-                    <Text strong className="block">Application Received</Text>
-                    <Text type="secondary" className="text-xs">Your application is currently being reviewed by the hiring team.</Text>
-                    <Text className="block text-[10px] text-slate-400 mt-1 uppercase font-bold">
-                      {dayjs(applicationsWithJobs.find(a => a.id === selectedAppId)?.created_at).fromNow()}
-                    </Text>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </Drawer>
     </div>
   )
 }

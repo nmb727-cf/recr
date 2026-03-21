@@ -358,8 +358,9 @@ class AgencySubmitCandidateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        from apps.pipeline.models import Application
-        from apps.candidates.models import Candidate
+        from apps.pipeline.models import Application, ApplicationStageHistory
+        from apps.candidates.models import Candidate, CandidateProfile
+        from apps.core import events
 
         candidate_id = request.data.get('candidate_id')
         requisition_id = request.data.get('requisition_id')
@@ -367,6 +368,16 @@ class AgencySubmitCandidateView(APIView):
 
         if not candidate_id or not requisition_id:
             return error_response("candidate_id and requisition_id are required.")
+
+        # Get agency's candidate record
+        try:
+            agency_candidate = Candidate.objects.get(
+                id=candidate_id,
+                tenant_id=request.user.tenant_id,
+                is_deleted=False
+            )
+        except Candidate.DoesNotExist:
+            return error_response("Candidate not found in your pool.", status_code=status.HTTP_404_NOT_FOUND)
 
         # Verify assignment exists and is active
         assignment = AgencyJobAssignment.objects.filter(
@@ -390,15 +401,85 @@ class AgencySubmitCandidateView(APIView):
                     status_code=status.HTTP_400_BAD_REQUEST
                 )
 
-        # Check duplicate
-        if Application.objects.filter(
-            candidate_id=candidate_id,
-            requisition_id=requisition_id,
-            agency_id=request.user.tenant_id,
+        company_id = assignment.tenant_id
+
+        # 1. Candidate Deduplication / Creation in Company Pool
+        target_candidate = Candidate.objects.filter(
+            global_hash=agency_candidate.global_hash,
+            tenant_id=company_id,
             is_deleted=False
-        ).exists():
+        ).first()
+
+        if not target_candidate:
+            # Create a company-side copy of the candidate
+            target_candidate = Candidate.objects.create(
+                tenant_id=company_id,
+                first_name=agency_candidate.first_name,
+                last_name=agency_candidate.last_name,
+                email=agency_candidate.email,
+                phone=agency_candidate.phone,
+                whatsapp=agency_candidate.whatsapp,
+                linkedin_url=agency_candidate.linkedin_url,
+                current_title=agency_candidate.current_title,
+                current_company=agency_candidate.current_company,
+                current_location_city=agency_candidate.current_location_city,
+                current_location_country=agency_candidate.current_location_country,
+                experience_years=agency_candidate.experience_years,
+                skills=agency_candidate.skills,
+                languages=agency_candidate.languages,
+                source='agency',
+                source_detail=f"Submitted by Agency (Tenant ID: {request.user.tenant_id})",
+                owner_tenant_id=request.user.tenant_id,
+                owner_user_id=request.user.id,
+                created_by=request.user.id
+            )
+            
+            # Copy profile if exists
+            try:
+                agency_profile = CandidateProfile.objects.get(candidate_id=agency_candidate.id)
+                CandidateProfile.objects.create(
+                    tenant_id=company_id,
+                    candidate_id=target_candidate.id,
+                    summary=agency_profile.summary,
+                    work_experience=agency_profile.work_experience,
+                    education=agency_profile.education,
+                    certifications=agency_profile.certifications,
+                    projects=agency_profile.projects,
+                    cv_url=agency_profile.cv_url,
+                    cv_parsed_data=agency_profile.cv_parsed_data,
+                    created_by=request.user.id
+                )
+            except CandidateProfile.DoesNotExist:
+                CandidateProfile.objects.create(
+                    tenant_id=company_id,
+                    candidate_id=target_candidate.id,
+                    created_by=request.user.id
+                )
+
+        # Check if candidate already has an application for this job in company pool
+        existing_app = Application.objects.filter(
+            candidate_id=target_candidate.id,
+            requisition_id=requisition_id,
+            tenant_id=company_id,
+            is_deleted=False
+        ).first()
+
+        if existing_app:
+            # Mark as duplicate attempt in metadata
+            if 'duplicate_attempts' not in existing_app.metadata:
+                existing_app.metadata['duplicate_attempts'] = []
+            
+            existing_app.metadata['duplicate_attempts'].append({
+                'attempted_at': timezone.now().isoformat(),
+                'attempted_by': str(request.user.id),
+                'attempted_by_tenant': str(request.user.tenant_id),
+                'source': 'agency',
+                'cover_note': cover_note
+            })
+            existing_app.save(update_fields=['metadata', 'updated_at'])
+
             return error_response(
-                "This candidate has already been submitted for this job.",
+                "This candidate has already been submitted/applied for this job.",
                 status_code=status.HTTP_409_CONFLICT
             )
 
@@ -409,10 +490,10 @@ class AgencySubmitCandidateView(APIView):
             is_active=True
         ).order_by('stage_order').first()
 
-        # Create application
+        # 2. Create application
         application = Application.objects.create(
-            tenant_id=assignment.tenant_id,
-            candidate_id=candidate_id,
+            tenant_id=company_id,
+            candidate_id=target_candidate.id,
             requisition_id=requisition_id,
             agency_id=request.user.tenant_id,
             is_agency_submission=True,
@@ -425,9 +506,33 @@ class AgencySubmitCandidateView(APIView):
             created_by=request.user.id,
         )
 
+        # 3. Always create ApplicationStageHistory
+        ApplicationStageHistory.objects.create(
+            tenant_id=company_id,
+            application_id=application.id,
+            to_stage_id=first_stage.id if first_stage else None,
+            to_status='applied',
+            moved_by=request.user.id,
+            notes='Candidate submitted by agency'
+        )
+
         # Increment submission count
         assignment.submission_count += 1
         assignment.save(update_fields=['submission_count'])
+
+        # 4. Emit events
+        events.agency.candidate_submitted.send(
+            sender=self.__class__,
+            application=application,
+            agency_user=request.user,
+            request=request
+        )
+        events.application.created.send(
+            sender=self.__class__,
+            application=application,
+            user=request.user,
+            request=request
+        )
 
         from apps.pipeline.serializers import ApplicationSerializer
         return success_response(

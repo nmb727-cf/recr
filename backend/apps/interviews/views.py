@@ -9,7 +9,9 @@ from apps.interviews.serializers import (
     InterviewSerializer, InterviewTemplateSerializer,
     InterviewPanelistSerializer, InterviewQuestionSerializer,
 )
+from apps.pipeline.models import Application
 from apps.core.responses import success_response, error_response
+from apps.core import events
 
 
 class InterviewTemplateListView(APIView):
@@ -282,6 +284,18 @@ class InterviewCompleteView(APIView):
             'status', 'completed_at', 'overall_score',
             'recommendation', 'feedback_summary', 'updated_at'
         ])
+
+        # Emit Event
+        try:
+            application = Application.objects.get(id=interview.application_id)
+            events.application.interviewed.send(
+                sender=self.__class__,
+                application=application,
+                user=request.user,
+                request=request
+            )
+        except Application.DoesNotExist:
+            pass
 
         return success_response(
             data={'interview': InterviewSerializer(interview).data},

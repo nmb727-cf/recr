@@ -11,15 +11,21 @@ import Login from '@/pages/auth/Login'
 import RegisterCompany from '@/pages/auth/RegisterCompany'
 import RegisterCandidate from '@/pages/auth/RegisterCandidate'
 import Onboarding from '@/pages/candidate/Onboarding'
+import ApplyForm from '@/pages/public/ApplyForm'
 
 // App pages
 import Dashboard from '@/pages/dashboard/Dashboard'
 import JobsList from '@/pages/jobs/JobsList'
 import CandidatesList from '@/pages/candidates/CandidatesList'
+import AllApplications from '@/pages/candidates/AllApplications'
 import PipelineBoard from '@/pages/pipeline/PipelineBoard'
 import InterviewsList from '@/pages/interviews/InterviewsList'
 import Analytics from '@/pages/Analytics'
 import AgenciesList from '@/pages/agencies/AgenciesList'
+import MyJobs from '@/pages/agency/MyJobs'
+import MySubmissions from '@/pages/agency/MySubmissions'
+import MyClients from '@/pages/agency/MyClients'
+import SubmitCandidate from '@/pages/agency/SubmitCandidate'
 import JobSearch from '@/pages/candidate/JobSearch'
 import MyApplications from '@/pages/candidate/MyApplications'
 import Settings from '@/pages/Settings'
@@ -145,6 +151,7 @@ export default function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/register/company" element={<RegisterCompany />} />
               <Route path="/register/candidate" element={<RegisterCandidate />} />
+              <Route path="/apply/:token" element={<ApplyForm />} />
               <Route
                 path="/onboarding"
                 element={
@@ -186,6 +193,15 @@ export default function App() {
               />
 
               <Route
+                path="/applications"
+                element={
+                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager']}>
+                    <AllApplications />
+                  </Protected>
+                }
+              />
+
+              <Route
                 path="/pipeline"
                 element={
                   <Protected>
@@ -213,9 +229,42 @@ export default function App() {
               />
 
               <Route
+                path="/agencies/my-jobs"
+                element={
+                  <Protected roles={['agency_owner', 'agency_admin', 'agency_recruiter']}>
+                    <MyJobs />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/agencies/my-submissions"
+                element={
+                  <Protected roles={['agency_owner', 'agency_admin', 'agency_recruiter']}>
+                    <MySubmissions />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/agencies/my-clients"
+                element={
+                  <Protected roles={['agency_owner', 'agency_admin', 'agency_recruiter']}>
+                    <MyClients />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/agencies/submit-candidate"
+                element={
+                  <Protected roles={['agency_owner', 'agency_admin', 'agency_recruiter']}>
+                    <SubmitCandidate />
+                  </Protected>
+                }
+              />
+
+              <Route
                 path="/analytics"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager']}>
+                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
                     <Analytics />
                   </Protected>
                 }
@@ -242,7 +291,7 @@ export default function App() {
               <Route
                 path="/settings"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin']}>
+                  <Protected roles={['tenant_admin', 'super_admin', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
                     <Settings />
                   </Protected>
                 }

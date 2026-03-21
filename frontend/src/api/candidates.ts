@@ -8,6 +8,9 @@ export const candidatesApi = {
   get: (id: string) =>
     http.get<ApiResponse<{ candidate: CandidateDetail }>>(`/candidates/${id}/`),
 
+  profile: (id: string) =>
+    http.get<ApiResponse<{ profile: CandidateDetail['profile'] }>>(`/candidates/${id}/profile/`),
+
   create: (data: Partial<Candidate>) =>
     http.post<ApiResponse<{ candidate: CandidateDetail }>>('/candidates/', data),
 
@@ -25,4 +28,7 @@ export const candidatesApi = {
 
   deleteNote: (candidateId: string, noteId: string) =>
     http.delete(`/candidates/${candidateId}/notes/${noteId}/`),
+
+  crmPipeline: () =>
+    http.get<ApiResponse<Record<string, unknown[]>>>('/crm/pipeline/'),
 }

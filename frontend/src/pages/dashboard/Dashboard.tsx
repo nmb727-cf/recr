@@ -1,8 +1,9 @@
 import { useNavigate } from 'react-router-dom'
-import { Row, Col, Card, Skeleton, Empty, Tag, Button } from 'antd'
+import { Row, Col, Card, Skeleton, Empty, Tag, Button, Typography } from 'antd'
 import {
   Users, Briefcase, ClipboardCheck, Calendar,
-  Search, ArrowRight, Plus, IdCard, Rocket,
+  ArrowRight, Plus, Rocket,
+  AlertCircle, MessageSquare, Send, Search, IdCard
 } from 'lucide-react'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -19,9 +20,11 @@ import { useAuthStore } from '@/store/authStore'
 import http from '@/utils/http'
 import type { ApiResponse, JobRequisition, CandidateApplication } from '@/types'
 import { cn } from '@/utils/cn'
+import AgencyDashboard from '../agency/AgencyDashboard'
+import RemindersWidget from '@/components/RemindersWidget'
 
 dayjs.extend(relativeTime)
-
+const { Text, Title } = Typography
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -93,6 +96,16 @@ function CompanyDashboard() {
     analyticsApi.dashboard
   )
 
+  const { data: pipelineData } = useApiQuery<any>(
+    ['analytics', 'pipeline-overview'],
+    analyticsApi.pipeline
+  )
+
+  const { data: pendingInterviews } = useApiQuery<any>(
+    ['interviews', 'pending-feedback'],
+    () => interviewsApi.list({ status: 'pending_feedback' })
+  )
+
   const { data: reqData, isLoading: reqLoading } = useApiQuery<{ requisitions: JobRequisition[] }>(
     ['jobs', 'recent-active'],
     () => requisitionsApi.list({ status: 'active' })
@@ -100,8 +113,8 @@ function CompanyDashboard() {
 
   const stats = [
     {
-      title: 'Total Jobs',
-      value: analytics?.jobs?.total ?? 0,
+      title: 'Active Jobs',
+      value: analytics?.jobs?.active ?? 0,
       icon: Briefcase,
       color: 'bg-blue-50 text-blue-600',
     },
@@ -112,7 +125,7 @@ function CompanyDashboard() {
       color: 'bg-emerald-50 text-emerald-600',
     },
     {
-      title: 'Applications This Month',
+      title: 'Active Pipeline',
       value: analytics?.applications?.total ?? 0,
       icon: ClipboardCheck,
       color: 'bg-orange-50 text-orange-600',
@@ -125,13 +138,15 @@ function CompanyDashboard() {
     },
   ]
 
-  // Transform for chart: [{status, count}] → [{name, value}]
   const chartData = (analytics?.applications?.by_status ?? []).map((item) => ({
     name: item.status.replace(/_/g, ' '),
     value: item.count,
   }))
 
   const recentJobs = reqData?.requisitions?.slice(0, 5) ?? []
+  const staleCount = pipelineData?.stale_applications || 0
+  const pendingFeedbackCount = (pendingInterviews as any)?.interviews?.length || 0
+  const offersPendingCount = analytics?.applications?.by_status?.find(s => s.status === 'offer')?.count || 0
 
   return (
     <div className="space-y-6">
@@ -144,94 +159,132 @@ function CompanyDashboard() {
       </Row>
 
       <Row gutter={[24, 24]}>
-        {/* Applications by status chart */}
+        {/* Needs Attention & Chart */}
         <Col xs={24} lg={16}>
-          <Card
-            title={
-              <div className="flex items-center justify-between py-1">
-                <span className="text-lg font-bold text-slate-900">Applications by Status</span>
-                <Button
-                  type="link"
-                  className="flex items-center gap-1 group"
-                  onClick={() => navigate('/pipeline')}
-                >
-                  View pipeline <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </Button>
-              </div>
-            }
-            bordered={false}
-            className="h-full shadow-soft-sm"
-          >
-            {isLoading ? (
-              <Skeleton active paragraph={{ rows: 5 }} />
-            ) : chartData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={320}>
-                <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip />
-                  <Area type="monotone" dataKey="value" stroke="#3b82f6" fill="url(#colorValue)" strokeWidth={2} />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description="No application data yet"
-                style={{ padding: '60px 0' }}
-              />
-            )}
-          </Card>
+          <div className="space-y-6 h-full flex flex-col">
+            <Card 
+              title={<span className="text-lg font-bold text-slate-900">Needs Attention</span>}
+              bordered={false}
+              className="shadow-soft-sm"
+            >
+              <Row gutter={16}>
+                <Col span={8}>
+                  <div 
+                    className="p-4 rounded-2xl bg-rose-50 border border-rose-100 cursor-pointer hover:shadow-soft-md transition-all"
+                    onClick={() => navigate('/pipeline')}
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <AlertCircle className="h-5 w-5 text-rose-600" />
+                      <Text className="font-bold text-rose-900">Stale Apps</Text>
+                    </div>
+                    <Title level={2} className="!m-0 text-rose-600">{staleCount}</Title>
+                    <Text className="text-[10px] uppercase font-bold text-rose-400">Stuck &gt; 7 days</Text>
+                  </div>
+                </Col>
+                <Col span={8}>
+                  <div 
+                    className="p-4 rounded-2xl bg-amber-50 border border-amber-100 cursor-pointer hover:shadow-soft-md transition-all"
+                    onClick={() => navigate('/interviews')}
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <MessageSquare className="h-5 w-5 text-amber-600" />
+                      <Text className="font-bold text-amber-900">Feedback</Text>
+                    </div>
+                    <Title level={2} className="!m-0 text-amber-600">{pendingFeedbackCount}</Title>
+                    <Text className="text-[10px] uppercase font-bold text-amber-400">Pending Input</Text>
+                  </div>
+                </Col>
+                <Col span={8}>
+                  <div 
+                    className="p-4 rounded-2xl bg-blue-50 border border-blue-100 cursor-pointer hover:shadow-soft-md transition-all"
+                    onClick={() => navigate('/pipeline')}
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <Send className="h-5 w-5 text-blue-600" />
+                      <Text className="font-bold text-blue-900">Offers</Text>
+                    </div>
+                    <Title level={2} className="!m-0 text-blue-600">{offersPendingCount}</Title>
+                    <Text className="text-[10px] uppercase font-bold text-blue-400">Awaiting Response</Text>
+                  </div>
+                </Col>
+              </Row>
+            </Card>
+
+            <Card
+              title={<span className="text-lg font-bold text-slate-900">Pipeline Distribution</span>}
+              bordered={false}
+              className="flex-1 shadow-soft-sm"
+            >
+              {isLoading ? (
+                <Skeleton active paragraph={{ rows: 5 }} />
+              ) : chartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={240}>
+                  <AreaChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 10 }} />
+                    <Tooltip />
+                    <Area type="monotone" dataKey="value" stroke="#3b82f6" fill="url(#colorValue)" strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No pipeline data" />
+              )}
+            </Card>
+          </div>
         </Col>
 
-        {/* Active jobs list */}
+        {/* Sidebar widgets */}
         <Col xs={24} lg={8}>
-          <Card
-            title={<span className="text-lg font-bold text-slate-900">Active Jobs</span>}
-            bordered={false}
-            className="h-full shadow-soft-sm"
-            extra={
-              <Button type="text" size="small" onClick={() => navigate('/jobs')}>
-                View all
-              </Button>
-            }
-          >
-            {reqLoading ? (
-              <Skeleton active paragraph={{ rows: 4 }} />
-            ) : recentJobs.length > 0 ? (
-              <div className="divide-y divide-slate-100">
-                {recentJobs.map((job) => (
-                  <div
-                    key={job.id}
-                    className="flex items-center justify-between py-3 cursor-pointer hover:bg-slate-50 rounded-lg px-2 transition-colors"
-                    onClick={() => navigate('/jobs')}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-slate-900 truncate">{job.title}</p>
-                      <p className="text-xs text-slate-500 capitalize">{job.work_mode} · {job.job_type.replace(/_/g, ' ')}</p>
-                    </div>
-                    <Tag color="green" className="ml-2 shrink-0">Active</Tag>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <Empty
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                description="No active jobs"
-                style={{ padding: '40px 0' }}
-              >
-                <Button type="primary" size="small" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => navigate('/jobs')}>
-                  Post a Job
+          <div className="space-y-6">
+            <RemindersWidget />
+            <Card
+              title={<span className="text-lg font-bold text-slate-900">Recent Active Jobs</span>}
+              bordered={false}
+              className="shadow-soft-sm"
+              extra={
+                <Button type="text" size="small" onClick={() => navigate('/jobs')}>
+                  View all
                 </Button>
-              </Empty>
-            )}
-          </Card>
+              }
+            >
+              {reqLoading ? (
+                <Skeleton active paragraph={{ rows: 4 }} />
+              ) : recentJobs.length > 0 ? (
+                <div className="divide-y divide-slate-100">
+                  {recentJobs.map((job) => (
+                    <div
+                      key={job.id}
+                      className="flex items-center justify-between py-3 cursor-pointer hover:bg-slate-50 rounded-lg px-2 transition-colors"
+                      onClick={() => navigate(`/jobs?id=${job.id}`)}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-slate-900 truncate">{job.title}</p>
+                        <p className="text-xs text-slate-500 capitalize">{job.location_id || 'Remote'} · {job.job_type.replace(/_/g, ' ')}</p>
+                      </div>
+                      <Tag color="green" className="ml-2 shrink-0 border-none font-bold text-[10px] uppercase rounded-full px-2">Active</Tag>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description="No active jobs"
+                  style={{ padding: '40px 0' }}
+                >
+                  <Button type="primary" size="small" icon={<Plus className="h-3.5 w-3.5" />} onClick={() => navigate('/jobs')}>
+                    Post a Job
+                  </Button>
+                </Empty>
+              )}
+            </Card>
+          </div>
         </Col>
       </Row>
     </div>
@@ -409,6 +462,7 @@ function CandidateDashboard() {
 
 export default function Dashboard() {
   const user = useAuthStore((state) => state.user)
+  const isAgency = user?.role === 'agency_owner' || user?.role === 'agency_recruiter'
 
   return (
     <motion.div
@@ -426,19 +480,27 @@ export default function Dashboard() {
           <p className="text-slate-500 mt-1">
             {user?.role === 'candidate'
               ? 'Track your applications and upcoming interviews.'
-              : 'Here\'s what\'s happening with your recruitment pipeline today.'}
+              : isAgency
+                ? 'Here\'s your agency activity today.'
+                : 'Here\'s what\'s happening with your recruitment pipeline today.'}
           </p>
         </div>
-        {user?.role !== 'candidate' && (
+        {user?.role !== 'candidate' && !isAgency && (
           <div className="flex items-center gap-3">
-            <Button type="primary" icon={<Plus className="h-4 w-4" />} href="/jobs">
+            <Button type="primary" icon={<Plus className="h-4 w-4" />} onClick={() => window.location.href = '/jobs'}>
               Create Job
             </Button>
           </div>
         )}
       </div>
 
-      {user?.role === 'candidate' ? <CandidateDashboard /> : <CompanyDashboard />}
+      {user?.role === 'candidate' ? (
+        <CandidateDashboard />
+      ) : isAgency ? (
+        <AgencyDashboard />
+      ) : (
+        <CompanyDashboard />
+      )}
     </motion.div>
   )
 }

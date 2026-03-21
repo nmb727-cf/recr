@@ -12,6 +12,120 @@ from apps.pipeline.serializers import (
 from apps.jobs.models import JobRequisition, JobStage
 from apps.candidates.models import Candidate
 from apps.core.responses import success_response, error_response
+from apps.core import events
+
+
+def validate_application_move(application, target_stage, reason=None):
+    """
+    Validates if an application can move to the target stage.
+    Returns (True, None) if valid, (False, error_message) if invalid.
+    """
+    from apps.interviews.models import Interview
+    from apps.jobs.models import JobStage
+
+    # 1. State Machine Enforcement (Dynamic)
+    current_stage = None
+    if application.current_stage_id:
+        try:
+            current_stage = JobStage.objects.get(id=application.current_stage_id)
+        except JobStage.DoesNotExist:
+            pass
+
+    if current_stage:
+        # Forward movement check
+        if target_stage.stage_order > current_stage.stage_order:
+            skipped_stages = JobStage.objects.filter(
+                requisition_id=application.requisition_id,
+                is_active=True,
+                stage_order__gt=current_stage.stage_order,
+                stage_order__lt=target_stage.stage_order
+            ).exists()
+
+            if skipped_stages:
+                return False, f"Cannot skip stages for {application.id}. Please move through each stage in order."
+
+        # Backward movement requirement
+        elif target_stage.stage_order < current_stage.stage_order:
+            if not reason:
+                return False, f"A reason is required for backward stage movement of {application.id}."
+
+    # 2. Interview Validation
+    if target_stage.stage_type in ['offer', 'joined']:
+        completed_interviews = Interview.objects.filter(
+            application_id=application.id,
+            status='completed'
+        ).exists()
+        if not completed_interviews:
+            return False, f"Cannot move {application.id} to Offer/Hired stage without at least one completed interview."
+
+    return True, None
+
+
+def perform_application_move(application, target_stage, user, notes=None, reason=None, request=None):
+    """
+    Performs the actual database updates, history recording, and event emission.
+    """
+    from apps.jobs.models import JobRequisition, JobStage
+    
+    current_stage = None
+    if application.current_stage_id:
+        try:
+            current_stage = JobStage.objects.get(id=application.current_stage_id)
+        except JobStage.DoesNotExist:
+            pass
+
+    old_stage_id = application.current_stage_id
+    old_status = application.status
+
+    # Update Application
+    application.current_stage_id = target_stage.id
+    application.status = target_stage.stage_type
+    application.save(update_fields=['current_stage_id', 'status', 'updated_at'])
+
+    # Record history
+    ApplicationStageHistory.objects.create(
+        tenant_id=user.tenant_id,
+        application_id=application.id,
+        from_stage_id=old_stage_id,
+        to_stage_id=target_stage.id,
+        from_status=old_status,
+        to_status=target_stage.stage_type,
+        moved_by=user.id,
+        notes=notes or reason,
+    )
+
+    # Hire Logic
+    if target_stage.stage_type == 'joined':
+        try:
+            job = JobRequisition.objects.get(id=application.requisition_id)
+            if job.headcount > 0:
+                job.headcount -= 1
+                if job.headcount == 0:
+                    job.status = 'closed'
+                    job.closed_at = timezone.now()
+                    job.closed_reason = "Headcount reached"
+                job.save(update_fields=['headcount', 'status', 'closed_at', 'closed_reason', 'updated_at'])
+        except JobRequisition.DoesNotExist:
+            pass
+
+    # Event Emission
+    events.application.stage_changed.send(
+        sender=application.__class__,
+        application=application,
+        from_stage=current_stage,
+        to_stage=target_stage,
+        user=user,
+        request=request
+    )
+
+    if target_stage.stage_type == 'interview':
+        events.application.interviewed.send(sender=application.__class__, application=application, user=user, request=request)
+    elif target_stage.stage_type == 'offer':
+        events.application.offer_made.send(sender=application.__class__, application=application, user=user, request=request)
+    elif target_stage.stage_type == 'joined':
+        events.application.hired.send(sender=application.__class__, application=application, user=user, request=request)
+
+    return application
 
 
 class ApplicationListView(APIView):
@@ -54,12 +168,25 @@ class ApplicationListView(APIView):
         data = serializer.validated_data
 
         # Check duplicate application
-        if Application.objects.filter(
+        existing_app = Application.objects.filter(
             tenant_id=request.user.tenant_id,
             candidate_id=data['candidate_id'],
             requisition_id=data['requisition_id'],
             is_deleted=False
-        ).exists():
+        ).first()
+
+        if existing_app:
+            # Mark as duplicate attempt in metadata
+            if 'duplicate_attempts' not in existing_app.metadata:
+                existing_app.metadata['duplicate_attempts'] = []
+            
+            existing_app.metadata['duplicate_attempts'].append({
+                'attempted_at': timezone.now().isoformat(),
+                'attempted_by': str(request.user.id),
+                'source': data.get('source', 'direct')
+            })
+            existing_app.save(update_fields=['metadata', 'updated_at'])
+
             return error_response(
                 "Candidate has already applied for this job.",
                 status_code=status.HTTP_409_CONFLICT
@@ -110,7 +237,27 @@ class ApplicationListView(APIView):
             deadline_at=timezone.now() + timedelta(hours=24),
         )
 
+        # Update CRM status if candidate exists in CRM pipeline
+        from apps.candidates.crm_models import CandidatePipelineStatus
+        CandidatePipelineStatus.objects.filter(
+            tenant_id=request.user.tenant_id,
+            candidate_id=data['candidate_id'],
+            status__in=['ready_to_submit', 'in_process']
+        ).update(
+            status='submitted',
+            updated_at=timezone.now()
+        )
+
+        # Emit Event
+        events.application.created.send(
+            sender=self.__class__,
+            application=application,
+            user=request.user,
+            request=request
+        )
+
         return success_response(
+
             data={'application': ApplicationSerializer(application).data},
             message="Application created.",
             status_code=status.HTTP_201_CREATED
@@ -168,6 +315,8 @@ class ApplicationMoveStageView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        from apps.jobs.models import JobStage
+
         try:
             application = Application.objects.get(
                 id=pk,
@@ -179,52 +328,35 @@ class ApplicationMoveStageView(APIView):
 
         stage_id = request.data.get('stage_id')
         notes = request.data.get('notes', '')
+        reason = request.data.get('reason', '')
 
         if not stage_id:
             return error_response("stage_id is required.")
 
-        # Verify stage belongs to same requisition
+        # Verify stage
         try:
-            stage = JobStage.objects.get(
+            target_stage = JobStage.objects.get(
                 id=stage_id,
                 requisition_id=application.requisition_id,
                 is_active=True
             )
         except JobStage.DoesNotExist:
-            return error_response("Stage not found.", status_code=status.HTTP_404_NOT_FOUND)
+            return error_response("Target stage not found.", status_code=status.HTTP_404_NOT_FOUND)
 
-        old_stage_id = application.current_stage_id
-        old_status = application.status
+        # 1. Validate Move
+        is_valid, error_msg = validate_application_move(application, target_stage, reason)
+        if not is_valid:
+            return error_response(error_msg)
 
-        application.current_stage_id = stage_id
-        application.status = stage.stage_type
-        application.save(update_fields=['current_stage_id', 'status', 'updated_at'])
-
-        # Record history
-        ApplicationStageHistory.objects.create(
-            tenant_id=request.user.tenant_id,
-            application_id=application.id,
-            from_stage_id=old_stage_id,
-            to_stage_id=stage_id,
-            from_status=old_status,
-            to_status=stage.stage_type,
-            moved_by=request.user.id,
-            notes=notes,
-        )
-
-        # Create deadline for new stage
-        ActionDeadline.objects.create(
-            tenant_id=request.user.tenant_id,
-            entity_type='application',
-            entity_id=application.id,
-            action_required=f'Take action on {stage.name} stage',
-            assigned_to=request.user.id,
-            deadline_at=timezone.now() + timedelta(hours=stage.action_deadline_hours),
+        # 2. Perform Move
+        application = perform_application_move(
+            application, target_stage, request.user, 
+            notes=notes, reason=reason, request=request
         )
 
         return success_response(
             data={'application': ApplicationSerializer(application).data},
-            message=f"Moved to {stage.name}."
+            message=f"Moved to {target_stage.name}."
         )
 
 
@@ -264,6 +396,14 @@ class ApplicationShortlistView(APIView):
             action_required='Schedule interview for shortlisted candidate',
             assigned_to=request.user.id,
             deadline_at=timezone.now() + timedelta(hours=48),
+        )
+
+        # Emit Event
+        events.application.shortlisted.send(
+            sender=self.__class__,
+            application=application,
+            user=request.user,
+            request=request
         )
 
         return success_response(
@@ -396,6 +536,14 @@ class ApplicationMakeOfferView(APIView):
             deadline_at=timezone.now() + timedelta(hours=48),
         )
 
+        # Emit Event
+        events.application.offer_made.send(
+            sender=self.__class__,
+            application=application,
+            user=request.user,
+            request=request
+        )
+
         return success_response(
             data={'application': ApplicationSerializer(application).data},
             message="Offer made."
@@ -458,6 +606,8 @@ class BulkActionView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        from apps.jobs.models import JobStage
+        
         application_ids = request.data.get('application_ids', [])
         action = request.data.get('action')
         data = request.data.get('data', {})
@@ -474,29 +624,55 @@ class BulkActionView(APIView):
             is_deleted=False
         )
 
+        target_stage = None
+        if action == 'move_stage':
+            stage_id = data.get('stage_id')
+            if not stage_id:
+                return error_response("stage_id is required for move_stage action.")
+            try:
+                target_stage = JobStage.objects.get(id=stage_id, tenant_id=request.user.tenant_id)
+            except JobStage.DoesNotExist:
+                return error_response("Target stage not found.")
+
         updated_count = 0
+        errors = []
+
         for application in applications:
-            if action == 'reject':
-                application.status = 'rejected'
-                application.rejection_reason = data.get('reason', '')
-                application.save(update_fields=['status', 'rejection_reason', 'updated_at'])
-                updated_count += 1
-
-            elif action == 'shortlist':
-                application.status = 'shortlisted'
-                application.save(update_fields=['status', 'updated_at'])
-                updated_count += 1
-
-            elif action == 'move_stage':
-                stage_id = data.get('stage_id')
-                if stage_id:
-                    application.current_stage_id = stage_id
-                    application.save(update_fields=['current_stage_id', 'updated_at'])
+            try:
+                if action == 'reject':
+                    application.status = 'rejected'
+                    application.rejection_reason = data.get('reason', '')
+                    application.save(update_fields=['status', 'rejection_reason', 'updated_at'])
                     updated_count += 1
 
+                elif action == 'shortlist':
+                    # We can't easily use move helpers here without a target stage ID, 
+                    # but we can at least emit the event if we want standard behavior.
+                    application.status = 'shortlisted'
+                    application.save(update_fields=['status', 'updated_at'])
+                    events.application.shortlisted.send(sender=self.__class__, application=application, user=request.user, request=request)
+                    updated_count += 1
+
+                elif action == 'move_stage' and target_stage:
+                    # ENFORCE VALIDATION IN BULK
+                    is_valid, error_msg = validate_application_move(application, target_stage, reason=data.get('reason'))
+                    if is_valid:
+                        perform_application_move(
+                            application, target_stage, request.user, 
+                            notes=data.get('notes'), reason=data.get('reason'), request=request
+                        )
+                        updated_count += 1
+                    else:
+                        errors.append(error_msg)
+            except Exception as e:
+                errors.append(f"Error processing {application.id}: {str(e)}")
+
         return success_response(
-            data={'updated_count': updated_count},
-            message=f"Bulk action '{action}' applied to {updated_count} applications."
+            data={
+                'updated_count': updated_count,
+                'errors': errors
+            },
+            message=f"Bulk action '{action}' processed. {updated_count} applications updated."
         )
 
 

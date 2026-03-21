@@ -157,3 +157,60 @@ class CandidateNote(models.Model):
     class Meta:
         db_table = 'candidates_note'
         ordering = ['-created_at']
+
+
+class CandidateInviteLink(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_id = models.UUIDField(db_index=True)
+    created_by = models.UUIDField(null=True, blank=True)
+    token = models.CharField(max_length=100, unique=True)
+    form_config = models.JSONField(default=dict, blank=True)
+    job_id = models.UUIDField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    max_uses = models.IntegerField(null=True, blank=True)
+    use_count = models.IntegerField(default=0)
+    status = models.CharField(
+        max_length=20,
+        choices=[('active','Active'),('expired','Expired'),('disabled','Disabled')],
+        default='active'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    def save(self, *args, **kwargs):
+        if not self.token:
+            import secrets
+            self.token = secrets.token_urlsafe(32)
+        super().save(*args, **kwargs)
+
+    class Meta:
+        db_table = 'candidates_invite_link'
+
+
+class CandidateFormSubmission(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    invite_link_id = models.UUIDField(db_index=True)
+    tenant_id = models.UUIDField(db_index=True)
+    first_name = models.CharField(max_length=100)
+    last_name = models.CharField(max_length=100)
+    email = models.EmailField(blank=True)
+    phone = models.CharField(max_length=20, blank=True)
+    cv_url = models.TextField(blank=True)
+    cv_filename = models.CharField(max_length=255, blank=True)
+    form_data = models.JSONField(default=dict, blank=True)
+    candidate_id = models.UUIDField(null=True, blank=True)
+    user_id = models.UUIDField(null=True, blank=True)
+    ip_address = models.CharField(max_length=45, blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[('submitted','Submitted'),('processed','Processed'),('converted','Converted')],
+        default='submitted'
+    )
+    wants_account = models.BooleanField(default=False)
+    account_created = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = 'candidates_form_submission'

@@ -1,5 +1,6 @@
 from django.urls import path
 from apps.passport import views
+from apps.passport.withdrawal_views import DataWithdrawalView
 
 urlpatterns = [
     # Candidate passport management
@@ -15,4 +16,8 @@ urlpatterns = [
 
     # Import by company/agency
     path('import/', views.PassportImportView.as_view(), name='passport-import'),
+
+    # Data Withdrawal
+    path('withdraw-data/', DataWithdrawalView.as_view(), name='withdraw-data'),
+    path('withdrawal-status/', DataWithdrawalView.as_view(), name='withdrawal-status'),
 ]

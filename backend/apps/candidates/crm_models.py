@@ -1,0 +1,80 @@
+import uuid
+from django.db import models
+
+
+class CandidatePipelineStatus(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_id = models.UUIDField(db_index=True)
+    candidate_id = models.UUIDField(db_index=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('new_lead','New Lead'),
+            ('nurturing','Nurturing'),
+            ('in_process','In Process'),
+            ('ready_to_submit', 'Ready to Submit'),
+            ('submitted', 'Submitted'),
+            ('offer_stage','Offer Stage'),
+            ('placed','Placed'),
+            ('lost','Lost'),
+        ],
+        default='new_lead'
+    )
+    assigned_to = models.UUIDField(null=True, blank=True)
+    next_action = models.CharField(max_length=255, blank=True)
+    next_action_date = models.DateField(null=True, blank=True)
+    last_contacted_at = models.DateTimeField(null=True, blank=True)
+    contact_count = models.IntegerField(default=0)
+    sentiment = models.CharField(
+        max_length=20,
+        choices=[('positive','Positive'),('neutral','Neutral'),('negative','Negative')],
+        default='neutral'
+    )
+    source_job_id = models.UUIDField(null=True, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.UUIDField(null=True, blank=True)
+    is_deleted = models.BooleanField(default=False)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = 'crm_pipeline_status'
+        unique_together = ['tenant_id', 'candidate_id']
+
+
+class CandidateInteraction(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_id = models.UUIDField(db_index=True)
+    candidate_id = models.UUIDField(db_index=True)
+    interaction_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('call','Call'),('email','Email'),('whatsapp','WhatsApp'),
+            ('note','Note'),('meeting','Meeting'),('linkedin','LinkedIn'),
+        ],
+        default='note'
+    )
+    direction = models.CharField(
+        max_length=10,
+        choices=[('inbound','Inbound'),('outbound','Outbound')],
+        default='outbound'
+    )
+    subject = models.CharField(max_length=255, blank=True)
+    content = models.TextField(blank=True)
+    outcome = models.CharField(
+        max_length=20,
+        choices=[
+            ('positive','Positive'),('neutral','Neutral'),
+            ('negative','Negative'),('no_response','No Response'),
+        ],
+        blank=True
+    )
+    next_followup_date = models.DateField(null=True, blank=True)
+    created_by = models.UUIDField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = 'crm_interaction'
+        ordering = ['-created_at']

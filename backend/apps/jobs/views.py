@@ -9,6 +9,7 @@ from apps.jobs.serializers import (
     JobRequisitionSerializer, JobPostingSerializer, JobStageSerializer
 )
 from apps.core.responses import success_response, error_response
+from apps.core import events
 
 
 class JobRequisitionListView(APIView):
@@ -64,6 +65,14 @@ class JobRequisitionListView(APIView):
                 **stage_data
             )
 
+        # Emit Event
+        events.job.created.send(
+            sender=self.__class__,
+            requisition=requisition,
+            user=request.user,
+            request=request
+        )
+
         return success_response(
             data={'requisition': JobRequisitionSerializer(requisition).data},
             message="Requisition created.",
@@ -82,7 +91,16 @@ class JobRequisitionDetailView(APIView):
                 is_deleted=False
             )
         except JobRequisition.DoesNotExist:
-            return None
+            # Candidates may belong to a different tenant than the hiring company.
+            # Allow reading any active (published) requisition regardless of tenant.
+            try:
+                return JobRequisition.objects.get(
+                    id=pk,
+                    status='active',
+                    is_deleted=False
+                )
+            except JobRequisition.DoesNotExist:
+                return None
 
     def get(self, request, pk):
         req = self.get_object(request, pk)
@@ -165,6 +183,15 @@ class JobRequisitionApproveView(APIView):
         req.approved_at = timezone.now()
         req.approved_by = request.user.id
         req.save(update_fields=['status', 'approved_at', 'approved_by', 'updated_at'])
+
+        # Emit Event
+        events.job.approved.send(
+            sender=self.__class__,
+            requisition=req,
+            user=request.user,
+            request=request
+        )
+
         return success_response(
             data={'requisition': JobRequisitionSerializer(req).data},
             message="Requisition approved."
@@ -226,6 +253,15 @@ class JobRequisitionPublishView(APIView):
             posted_at=timezone.now(),
             is_active=True,
             created_by=request.user.id,
+        )
+
+        # Emit Event
+        events.job.published.send(
+            sender=self.__class__,
+            requisition=req,
+            posting=posting,
+            user=request.user,
+            request=request
         )
 
         return success_response(
@@ -292,7 +328,15 @@ class JobPostingDetailView(APIView):
                 is_deleted=False
             )
         except JobPosting.DoesNotExist:
-            return None
+            # Candidates may belong to a different tenant — allow reading active postings.
+            try:
+                return JobPosting.objects.get(
+                    id=pk,
+                    is_active=True,
+                    is_deleted=False
+                )
+            except JobPosting.DoesNotExist:
+                return None
 
     def get(self, request, pk):
         posting = self.get_object(request, pk)
@@ -572,11 +616,24 @@ class JobApplyView(APIView):
             return error_response("Job not found.", status_code=status.HTTP_404_NOT_FOUND)
 
         # Check duplicate application
-        if Application.objects.filter(
+        existing_app = Application.objects.filter(
             candidate_id=request.user.id,
             requisition_id=posting.requisition_id,
             is_deleted=False
-        ).exists():
+        ).first()
+
+        if existing_app:
+            # Mark as duplicate attempt in metadata
+            if 'duplicate_attempts' not in existing_app.metadata:
+                existing_app.metadata['duplicate_attempts'] = []
+            
+            existing_app.metadata['duplicate_attempts'].append({
+                'attempted_at': timezone.now().isoformat(),
+                'attempted_by': str(request.user.id),
+                'source': 'direct'
+            })
+            existing_app.save(update_fields=['metadata', 'updated_at'])
+
             return error_response(
                 "You have already applied for this job.",
                 status_code=status.HTTP_409_CONFLICT
@@ -599,6 +656,14 @@ class JobApplyView(APIView):
             submitted_by=request.user.id,
             submitted_by_tenant_id=request.user.tenant_id,
             created_by=request.user.id,
+        )
+
+        # Emit Event
+        events.application.created.send(
+            sender=self.__class__,
+            application=application,
+            user=request.user,
+            request=request
         )
 
         # Increment applications count

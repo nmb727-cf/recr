@@ -16,9 +16,10 @@ interface CandidateQuickViewProps {
   candidateId: string
   onClose: () => void
   onOpenFullView: () => void
+  extraActions?: React.ReactNode
 }
 
-export default function CandidateQuickView({ candidateId, onOpenFullView }: CandidateQuickViewProps) {
+export default function CandidateQuickView({ candidateId, onOpenFullView, extraActions }: CandidateQuickViewProps) {
   const { data, isLoading } = useApiQuery(
     ['candidate', 'quick', candidateId],
     () => candidatesApi.get(candidateId)
@@ -103,6 +104,8 @@ export default function CandidateQuickView({ candidateId, onOpenFullView }: Cand
             <p className="text-[10px] text-slate-400 font-bold mt-2 uppercase">Added by Nirav · 2 days ago</p>
           </div>
         </div>
+
+        {extraActions}
       </div>
 
       {/* Footer */}

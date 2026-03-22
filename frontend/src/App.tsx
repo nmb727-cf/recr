@@ -5,26 +5,31 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import ProtectedRoute from '@/components/common/ProtectedRoute'
 import OnboardingGuard from '@/components/common/OnboardingGuard'
 import AppLayout from '@/layouts/AppLayout'
+import OnboardingLayout from '@/layouts/OnboardingLayout'
 
 // Auth pages
 import Login from '@/pages/auth/Login'
 import RegisterCompany from '@/pages/auth/RegisterCompany'
+import RegisterAgency from '@/pages/auth/RegisterAgency'
 import RegisterCandidate from '@/pages/auth/RegisterCandidate'
 import Onboarding from '@/pages/candidate/Onboarding'
+import CompanyOnboarding from '@/pages/onboarding/CompanyOnboarding'
+import AgencyOnboarding from '@/pages/onboarding/AgencyOnboarding'
 import ApplyForm from '@/pages/public/ApplyForm'
 
 // App pages
 import Dashboard from '@/pages/dashboard/Dashboard'
 import JobsList from '@/pages/jobs/JobsList'
 import CandidatesList from '@/pages/candidates/CandidatesList'
+import Leads from '@/pages/leads/Leads'
 import AllApplications from '@/pages/candidates/AllApplications'
 import PipelineBoard from '@/pages/pipeline/PipelineBoard'
 import InterviewsList from '@/pages/interviews/InterviewsList'
 import Analytics from '@/pages/Analytics'
-import AgenciesList from '@/pages/agencies/AgenciesList'
+import CompanyAgencies from '@/pages/agencies/CompanyAgencies'
+import AgencyClients from '@/pages/agencies/AgencyClients'
 import MyJobs from '@/pages/agency/MyJobs'
 import MySubmissions from '@/pages/agency/MySubmissions'
-import MyClients from '@/pages/agency/MyClients'
 import SubmitCandidate from '@/pages/agency/SubmitCandidate'
 import JobSearch from '@/pages/candidate/JobSearch'
 import MyApplications from '@/pages/candidate/MyApplications'
@@ -150,13 +155,47 @@ export default function App() {
               {/* ── Public / auth ─────────────────────────────────── */}
               <Route path="/login" element={<Login />} />
               <Route path="/register/company" element={<RegisterCompany />} />
+              <Route path="/register/agency" element={<RegisterAgency />} />
               <Route path="/register/candidate" element={<RegisterCandidate />} />
               <Route path="/apply/:token" element={<ApplyForm />} />
+              
+              {/* ── Onboarding (Outside AppLayout) ──────────────── */}
               <Route
                 path="/onboarding"
                 element={
                   <ProtectedRoute allowedRoles={['candidate']}>
-                    <Onboarding />
+                    <OnboardingLayout 
+                      title="Complete your profile" 
+                      subtitle="Help us find the best opportunities for you"
+                    >
+                      <Onboarding />
+                    </OnboardingLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/company-onboarding"
+                element={
+                  <ProtectedRoute allowedRoles={['tenant_admin', 'recruiter', 'hiring_manager']}>
+                    <OnboardingLayout 
+                      title="Complete Organisation Setup" 
+                      subtitle="Finish the required details to continue using all company workflows."
+                    >
+                      <CompanyOnboarding />
+                    </OnboardingLayout>
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/agency-onboarding"
+                element={
+                  <ProtectedRoute allowedRoles={['agency_owner', 'agency_admin', 'agency_recruiter']}>
+                    <OnboardingLayout 
+                      title="Complete Agency Setup" 
+                      subtitle="Finish your agency profile to unlock all Phase 1 workflows."
+                    >
+                      <AgencyOnboarding />
+                    </OnboardingLayout>
                   </ProtectedRoute>
                 }
               />
@@ -192,6 +231,16 @@ export default function App() {
                 }
               />
 
+
+              <Route
+                path="/leads"
+                element={
+                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
+                    <Leads />
+                  </Protected>
+                }
+              />
+
               <Route
                 path="/applications"
                 element={
@@ -220,10 +269,19 @@ export default function App() {
               />
 
               <Route
+                path="/offers"
+                element={
+                  <Protected>
+                    <Navigate to="/interviews?tab=offers" replace />
+                  </Protected>
+                }
+              />
+
+              <Route
                 path="/agencies"
                 element={
                   <Protected roles={['tenant_admin', 'super_admin', 'recruiter']}>
-                    <AgenciesList />
+                    <CompanyAgencies />
                   </Protected>
                 }
               />
@@ -248,7 +306,7 @@ export default function App() {
                 path="/agencies/my-clients"
                 element={
                   <Protected roles={['agency_owner', 'agency_admin', 'agency_recruiter']}>
-                    <MyClients />
+                    <AgencyClients />
                   </Protected>
                 }
               />

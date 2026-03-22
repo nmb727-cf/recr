@@ -457,7 +457,8 @@ export default function JobFullView({ jobId, onRefresh, initialTab }: { jobId: s
   return (
     <div className="space-y-8">
       {/* Header Info */}
-      <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+      <div className="sticky top-0 z-20 -mx-2 rounded-xl border border-slate-100 bg-white/95 px-2 py-3 backdrop-blur">
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
         <div className="flex items-start gap-5">
           <div className="flex h-16 w-14 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-soft-lg">
             <Briefcase className="h-8 w-8" />
@@ -488,6 +489,7 @@ export default function JobFullView({ jobId, onRefresh, initialTab }: { jobId: s
             Edit Requisition
           </Button>
         </div>
+      </div>
       </div>
 
       {/* Tabs Area */}

@@ -1,295 +1,392 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import {
-  Card, Steps, Form, Input, Button, Row, Col, Select, 
-  Switch, InputNumber, Upload, message, Typography, 
-  Result, Spin
+  Form, Input, Button, Typography, Spin, 
+  message, Result, Checkbox, Select, Divider, InputNumber, Row, Col
 } from 'antd'
-import { 
-  UserOutlined, 
-  SolutionOutlined, 
-  InboxOutlined,
-  CheckCircleOutlined,
-  LockOutlined,
-  ArrowRightOutlined,
-  ArrowLeftOutlined
-} from '@ant-design/icons'
-import http from '@/utils/http'
+import { candidatesApi } from '@/api/candidates'
+import { Globe, Briefcase, Zap, FileText } from 'lucide-react'
 
 const { Title, Text } = Typography
-const { Dragger } = Upload
 
 export default function ApplyForm() {
   const { token } = useParams<{ token: string }>()
-  const [currentStep, setCurrentStep] = useState(0)
+  const [form] = Form.useForm()
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const [config, setConfig] = useState<any>(null)
-  const [formData, setFormData] = useState<any>({})
+  const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [, setIsSubmitted] = useState(false)
-  const [form] = Form.useForm()
+  const [formConfig, setFormConfig] = useState<{
+    company_name: string
+    job_title: string | null
+  } | null>(null)
+  const [wantsAccount, setWantsAccount] = useState(false)
+
+  // Skill search state (local for public form)
+  const [skillOptions, setSkillOptions] = useState<{value: string, label: string}[]>([])
+  const [skillSearching, setSkillSearching] = useState(false)
 
   useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        const res = await http.get(`/apply/${token}/`, {
-          headers: { 'X-Skip-Auth': 'true' }
-        })
-        setConfig(res.data.data)
-      } catch (err: any) {
-        if (err.response?.status === 404) {
-          setError("This invite link has expired or is invalid")
-        } else if (err.response?.status === 400) {
-          setError("You have already submitted your application")
-        } else {
-          setError("Something went wrong. Please try again later.")
-        }
-      } finally {
-        setLoading(false)
-      }
-    }
-    fetchConfig()
+    if (!token) return
+    candidatesApi.getPublicForm(token)
+      .then(res => {
+        setFormConfig((res as any).data.data)
+      })
+      .catch(err => {
+        setError(
+          err?.response?.data?.message || 
+          'This link is invalid or expired.'
+        )
+      })
+      .finally(() => setLoading(false))
   }, [token])
 
-  const next = async () => {
+  const handleSkillSearch = async (q: string) => {
+    if (!q || q.length < 1) return
+    setSkillSearching(true)
     try {
-      const values = await form.validateFields()
-      setFormData({ ...formData, ...values })
-      setCurrentStep(currentStep + 1)
-    } catch (err) {
-      // validation failed
+      const res = await candidatesApi.searchSkills(q)
+      const skills = (res as any)?.data?.data?.skills || []
+      setSkillOptions(skills.map((s: any) => ({ value: s.name, label: s.name })))
+    } catch {
+      setSkillOptions([])
+    } finally {
+      setSkillSearching(false)
     }
-  }
-
-  const prev = () => {
-    setCurrentStep(currentStep - 1)
   }
 
   const onFinish = async (values: any) => {
-    const finalData = { ...formData, ...values }
+    if (!token) return
     setSubmitting(true)
     try {
-      await http.post(`/apply/${token}/submit/`, finalData, {
-        headers: { 'X-Skip-Auth': 'true' }
+      await candidatesApi.submitPublicForm(token, {
+        ...values,
+        highest_education: values.highest_education || '',
+        graduation_year: values.graduation_year || null,
+        nationality: values.nationality || '',
+        work_authorization: values.work_authorization || 'not_specified',
+        wants_account: wantsAccount,
       })
-      setIsSubmitted(true)
-      setCurrentStep(3)
+      setSubmitted(true)
     } catch (err: any) {
-      message.error(err.response?.data?.message || "Failed to submit application")
+      message.error(
+        err?.response?.data?.message || 'Submission failed'
+      )
     } finally {
-      setSubmitting(true)
+      setSubmitting(false)
     }
   }
 
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><Spin size="large" tip="Loading application form..." /></div>
-  
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-        <Card bordered={false} className="w-full max-w-md shadow-soft-lg rounded-3xl text-center">
-          <Result
-            status="warning"
-            title="Unable to proceed"
-            subTitle={error}
-            extra={<Button type="primary" size="large" className="rounded-xl font-bold bg-slate-900 border-none px-8" onClick={() => window.location.href = '/'}>Go Home</Button>}
-          />
-        </Card>
-      </div>
-    )
-  }
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <Spin size="large" />
+    </div>
+  )
 
-  const steps = [
-    { title: 'Personal Info', icon: <UserOutlined /> },
-    { title: 'Skills & Exp', icon: <SolutionOutlined /> },
-    { title: 'CV Upload', icon: <InboxOutlined /> },
-    { title: 'Done', icon: <CheckCircleOutlined /> },
-  ]
+  if (error) return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <Result status="error" title="Invalid Link" subTitle={error} />
+    </div>
+  )
+
+  if (submitted) return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="bg-white rounded-2xl shadow-lg p-10 max-w-md w-full text-center border border-slate-100">
+        <div className="h-16 w-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6">
+          <span className="text-3xl text-emerald-500">✓</span>
+        </div>
+        <Title level={3} className="font-bold text-slate-900">Application Received!</Title>
+        <Text className="text-slate-500 text-base block mb-6">
+          Your details have been sent to {formConfig?.company_name}. 
+          The team will review your profile and get in touch if there's a fit.
+        </Text>
+        {wantsAccount ? (
+          <div className="mt-4 p-4 bg-indigo-50 rounded-2xl border border-indigo-100 text-left">
+            <div className="flex items-center gap-2 mb-2">
+              <Zap size={16} className="text-indigo-600" />
+              <Text className="font-bold text-indigo-900">TalentOS Account Created</Text>
+            </div>
+            <Text className="text-xs text-indigo-700 leading-relaxed">
+              We've created your secure profile. Check your email to set a password. 
+              You can now reuse this data for any future applications.
+            </Text>
+          </div>
+        ) : (
+          <Button block size="large" className="rounded-xl border-slate-200" onClick={() => window.location.reload()}>
+            Finish
+          </Button>
+        )}
+      </div>
+    </div>
+  )
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 py-12">
-      <div className="w-full max-w-[680px]">
-        {/* Company Header */}
+    <div className="min-h-screen bg-[#F8FAFC] py-12 px-4">
+      <div className="max-w-2xl mx-auto">
+
+        {/* Header */}
         <div className="text-center mb-10">
-          <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-soft-md text-blue-600 font-black text-3xl mb-4 border border-slate-100 overflow-hidden">
-            {config?.company_logo ? <img src={config.company_logo} alt="logo" /> : config?.company_name?.charAt(0)}
+          <div className="h-16 w-16 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-indigo-200 shadow-xl">
+            <span className="text-white font-black text-2xl uppercase">
+              {formConfig?.company_name?.charAt(0)}
+            </span>
           </div>
-          <Title level={3} className="!mb-1">{config?.company_name}</Title>
-          <Text type="secondary" className="text-base">has invited you to apply</Text>
-          {config?.job_title && (
-            <div className="mt-4 inline-block bg-blue-50 text-blue-700 px-4 py-1.5 rounded-full font-bold text-sm border border-blue-100">
-              Applying for: {config.job_title}
+          <Title level={2} className="!mb-2 font-black tracking-tight text-slate-900">
+            {formConfig?.company_name}
+          </Title>
+          {formConfig?.job_title ? (
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-indigo-50 text-indigo-700 rounded-full font-bold text-sm border border-indigo-100">
+              <Briefcase size={14} />
+              Applying for {formConfig.job_title}
             </div>
+          ) : (
+            <Text className="text-slate-500 text-base font-medium">
+              Join our talent network and share your profile
+            </Text>
           )}
         </div>
 
-        <Steps 
-          current={currentStep} 
-          items={steps} 
-          className="mb-10 px-4"
-        />
-
-        <Card bordered={false} className="shadow-soft-xl rounded-3xl p-4 sm:p-8">
-          <Form
-            form={form}
-            layout="vertical"
-            requiredMark={false}
-            onFinish={onFinish}
-          >
-            {currentStep === 0 && (
-              <div className="space-y-4">
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Form.Item name="first_name" label="First Name" rules={[{ required: true }]}>
-                      <Input placeholder="John" className="h-11 rounded-xl" />
-                    </Form.Item>
-                  </Col>
-                  <Col span={12}>
-                    <Form.Item name="last_name" label="Last Name" rules={[{ required: true }]}>
-                      <Input placeholder="Doe" className="h-11 rounded-xl" />
-                    </Form.Item>
-                  </Col>
-                </Row>
-                <Form.Item name="email" label="Email Address" rules={[{ required: true, type: 'email' }]}>
-                  <Input placeholder="john@example.com" className="h-11 rounded-xl" />
-                </Form.Item>
-                <Form.Item name="phone" label="Phone Number">
-                  <Input placeholder="+1 (555) 000-0000" className="h-11 rounded-xl" />
-                </Form.Item>
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Form.Item name="current_title" label="Current Title">
-                      <Input placeholder="Product Designer" className="h-11 rounded-xl" />
-                    </Form.Item>
-                  </Col>
-                  <Col span={12}>
-                    <Form.Item name="current_company" label="Current Company">
-                      <Input placeholder="Acme Corp" className="h-11 rounded-xl" />
-                    </Form.Item>
-                  </Col>
-                </Row>
-                <Form.Item name="current_location_city" label="City">
-                  <Input placeholder="London" className="h-11 rounded-xl" />
-                </Form.Item>
-                <Button type="primary" block size="large" onClick={next} className="h-12 rounded-xl font-bold bg-blue-600 border-none mt-4">
-                  Next Step <ArrowRightOutlined />
-                </Button>
+        {/* Form */}
+        <div className="bg-white rounded-[24px] shadow-sm p-8 md:p-10 border border-slate-100">
+          <Form form={form} layout="vertical" onFinish={onFinish} className="space-y-8">
+            
+            {/* ── Basic Info ── */}
+            <section>
+              <div className="flex items-center gap-2 mb-6">
+                <div className="h-8 w-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">1</div>
+                <Text className="text-base font-bold text-slate-800">Basic Information</Text>
               </div>
-            )}
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item name="first_name" label="First Name" rules={[{ required: true }]}>
+                    <Input placeholder="Jane" className="h-11 rounded-xl" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="last_name" label="Last Name" rules={[{ required: true }]}>
+                    <Input placeholder="Doe" className="h-11 rounded-xl" />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item name="email" label="Email Address" rules={[{ required: true, type: 'email' }]}>
+                <Input type="email" placeholder="jane@example.com" className="h-11 rounded-xl" />
+              </Form.Item>
+              <Form.Item name="phone" label="Phone Number" rules={[{ required: true }]}>
+                <Input placeholder="+91 98765 43210" className="h-11 rounded-xl" />
+              </Form.Item>
+              <Form.Item name="linkedin_url" label="LinkedIn Profile URL">
+                <Input placeholder="https://linkedin.com/in/yourname" className="h-11 rounded-xl" />
+              </Form.Item>
+            </section>
 
-            {currentStep === 1 && (
-              <div className="space-y-4">
-                <Form.Item name="skills" label="Key Skills" rules={[{ required: true }]}>
-                  <Select mode="tags" placeholder="Type a skill and press enter" className="min-h-11" />
-                </Form.Item>
-                <Form.Item name="experience_years" label="Years of Experience">
-                  <InputNumber min={0} step={0.5} style={{ width: '100%' }} className="h-11 rounded-xl pt-1" />
-                </Form.Item>
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Form.Item name="expected_salary_min" label="Expected Min Salary">
-                      <InputNumber min={0} style={{ width: '100%' }} className="h-11 rounded-xl pt-1" />
-                    </Form.Item>
-                  </Col>
-                  <Col span={12}>
-                    <Form.Item name="expected_salary_max" label="Expected Max Salary">
-                      <InputNumber min={0} style={{ width: '100%' }} className="h-11 rounded-xl pt-1" />
-                    </Form.Item>
-                  </Col>
-                </Row>
-                <Row gutter={16} align="middle">
-                  <Col span={12}>
-                    <Form.Item name="notice_period_days" label="Notice Period (Days)">
-                      <InputNumber min={0} style={{ width: '100%' }} className="h-11 rounded-xl pt-1" />
-                    </Form.Item>
-                  </Col>
-                  <Col span={12}>
-                    <Form.Item name="is_actively_looking" label="Actively Looking?" valuePropName="checked">
-                      <Switch />
-                    </Form.Item>
-                  </Col>
-                </Row>
-                <div className="flex gap-3 pt-4">
-                  <Button block size="large" onClick={prev} className="h-12 rounded-xl font-bold border-slate-200">
-                    <ArrowLeftOutlined /> Back
-                  </Button>
-                  <Button type="primary" block size="large" onClick={next} className="h-12 rounded-xl font-bold bg-blue-600 border-none">
-                    Next Step <ArrowRightOutlined />
-                  </Button>
-                </div>
+            <Divider className="!m-0" />
+
+            {/* ── Professional Info ── */}
+            <section>
+              <div className="flex items-center gap-2 mb-6">
+                <div className="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">2</div>
+                <Text className="text-base font-bold text-slate-800">Professional Experience</Text>
               </div>
-            )}
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item name="current_title" label="Current Job Title">
+                    <Input placeholder="e.g. Senior Software Engineer" className="h-11 rounded-xl" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="current_company" label="Current Company">
+                    <Input placeholder="e.g. Acme Corp" className="h-11 rounded-xl" />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item name="experience_years" label="Total Years of Exp">
+                    <InputNumber min={0} step={0.5} placeholder="5" className="w-full h-11 rounded-xl flex items-center" />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="relevant_experience_years" label="Relevant Exp (Optional)">
+                    <InputNumber min={0} step={0.5} placeholder="3" className="w-full h-11 rounded-xl flex items-center" />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item name="highest_education" label="Highest Education">
+                    <Select placeholder="Select education level" 
+                            className="h-11" options={[
+                      { value: 'high_school', label: 'High School' },
+                      { value: 'diploma', label: 'Diploma' },
+                      { value: 'bachelor', label: "Bachelor's Degree" },
+                      { value: 'master', label: "Master's Degree" },
+                      { value: 'phd', label: 'PhD / Doctorate' },
+                      { value: 'other', label: 'Other' },
+                    ]} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="graduation_year" label="Graduation Year">
+                    <InputNumber 
+                      min={1970} 
+                      max={2030} 
+                      placeholder="2020" 
+                      className="w-full h-11 rounded-xl flex items-center" 
+                    />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item name="skills" label="Key Skills (Type and press Enter)">
+                <Select
+                  mode="tags"
+                  placeholder="Search or add skills (e.g. Python, React, Sales)"
+                  onSearch={handleSkillSearch}
+                  options={skillOptions}
+                  loading={skillSearching}
+                  className="rounded-xl overflow-hidden"
+                  size="large"
+                />
+              </Form.Item>
+            </section>
 
-            {currentStep === 2 && (
-              <div className="space-y-6">
-                <Form.Item name="cv_filename">
-                  <Dragger 
-                    multiple={false} 
-                    accept=".pdf,.doc,.docx"
-                    beforeUpload={(file) => {
-                      setFormData({ ...formData, cv_filename: file.name });
-                      return false;
-                    }}
-                  >
-                    <p className="ant-upload-drag-icon">
-                      <InboxOutlined className="text-blue-600" />
+            <Divider className="!m-0" />
+
+            {/* ── Location & Preferences ── */}
+            <section>
+              <div className="flex items-center gap-2 mb-6">
+                <div className="h-8 w-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">3</div>
+                <Text className="text-base font-bold text-slate-800">Preferences & Availability</Text>
+              </div>
+              <Form.Item name="current_location_city" label="Current City">
+                <Input placeholder="e.g. Bengaluru, India" className="h-11 rounded-xl" />
+              </Form.Item>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item name="nationality" label="Nationality">
+                    <Input 
+                      placeholder="e.g. Indian, American" 
+                      className="h-11 rounded-xl" 
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="work_authorization" 
+                             label="Work Authorization">
+                    <Select placeholder="Select status" 
+                            className="h-11" options={[
+                      { value: 'citizen', label: 'Citizen' },
+                      { value: 'permanent_resident', 
+                        label: 'Permanent Resident' },
+                      { value: 'work_visa', label: 'Work Visa' },
+                      { value: 'need_sponsorship', 
+                        label: 'Needs Sponsorship' },
+                      { value: 'not_specified', 
+                        label: 'Prefer not to say' },
+                    ]} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Form.Item name="availability_status" label="Availability">
+                    <Select placeholder="Select status" className="h-11" options={[
+                      { value: 'available_now', label: 'Available Now' },
+                      { value: 'notice_period', label: 'Serving Notice' },
+                      { value: 'open_to_offers', label: 'Open to Offers' },
+                      { value: 'not_looking', label: 'Not Looking' },
+                    ]} />
+                  </Form.Item>
+                </Col>
+                <Col span={12}>
+                  <Form.Item name="notice_period_days" label="Notice Period (Days)">
+                    <Select placeholder="Select days" className="h-11" options={[
+                      { value: 0, label: 'Immediate' },
+                      { value: 15, label: '15 Days' },
+                      { value: 30, label: '30 Days' },
+                      { value: 60, label: '60 Days' },
+                      { value: 90, label: '90 Days' },
+                    ]} />
+                  </Form.Item>
+                </Col>
+              </Row>
+              <Form.Item name="work_mode_preference" label="Work Mode Preference">
+                <Select placeholder="Select preference" className="h-11" options={[
+                  { value: 'any', label: 'Any (Remote/On-site/Hybrid)' },
+                  { value: 'remote', label: 'Remote Only' },
+                  { value: 'hybrid', label: 'Hybrid' },
+                  { value: 'onsite', label: 'On-site' },
+                ]} />
+              </Form.Item>
+            </section>
+
+            <Divider className="!m-0" />
+
+            {/* ── Documents ── */}
+            <section>
+              <div className="flex items-center gap-2 mb-6">
+                <div className="h-8 w-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center font-bold">4</div>
+                <Text className="text-base font-bold text-slate-800">Resume & Documents</Text>
+              </div>
+              <Form.Item name="resume_url" label="Public Resume Link (e.g. Google Drive, Dropbox)" rules={[{ required: true }]}>
+                <Input placeholder="https://drive.google.com/..." className="h-11 rounded-xl" prefix={<FileText size={14} className="text-slate-400 mr-1" />} />
+              </Form.Item>
+              <Text className="text-[11px] text-slate-400 block -mt-4">
+                Please ensure the link is shared with "Anyone with the link" permissions.
+              </Text>
+            </section>
+
+            <Divider className="!m-0" />
+
+            {/* ── Account ── */}
+            <section>
+              <div className={`p-5 rounded-2xl border-2 cursor-pointer transition-all ${
+                wantsAccount ? 'border-indigo-200 bg-indigo-50/30' : 'border-slate-100 hover:border-slate-200 bg-slate-50/50'
+              }`}
+                onClick={() => setWantsAccount(!wantsAccount)}
+              >
+                <div className="flex items-start gap-4">
+                  <Checkbox checked={wantsAccount} 
+                    onChange={e => setWantsAccount(e.target.checked)}
+                    onClick={e => e.stopPropagation()}
+                    className="mt-1"
+                  />
+                  <div>
+                    <p className="font-bold text-slate-900 text-sm m-0">Create a Secure TalentOS Profile</p>
+                    <p className="text-slate-500 text-xs m-0 mt-1 leading-relaxed">
+                      Join our talent network to save your details securely. Your profile can be reused for any company using TalentOS, and you'll get a personal dashboard to track your applications.
                     </p>
-                    <p className="ant-upload-text font-bold">Click or drag resume to this area to upload</p>
-                    <p className="ant-upload-hint text-xs text-slate-400">Support for PDF, DOC or DOCX only.</p>
-                  </Dragger>
-                </Form.Item>
-                <div className="flex flex-col gap-3 pt-4">
-                  <div className="flex gap-3 w-full">
-                    <Button block size="large" onClick={prev} className="h-12 rounded-xl font-bold border-slate-200">
-                      <ArrowLeftOutlined /> Back
-                    </Button>
-                    <Button type="primary" block size="large" onClick={next} className="h-12 rounded-xl font-bold bg-blue-600 border-none">
-                      Continue to Final Step
-                    </Button>
                   </div>
-                  <Button type="text" block className="text-slate-400" onClick={next}>Skip for now</Button>
                 </div>
               </div>
-            )}
 
-            {currentStep === 3 && (
-              <div className="text-center py-4">
-                <div className="mb-8">
-                  <div className="h-20 w-20 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <CheckCircleOutlined style={{ fontSize: 40 }} />
-                  </div>
-                  <Title level={3}>Almost done!</Title>
-                  <Text type="secondary" className="text-base">Your profile has been submitted to {config?.company_name}</Text>
-                </div>
-
-                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 mb-8 text-left">
-                  <Form.Item name="wants_account" valuePropName="checked" className="!mb-0">
-                    <Switch defaultChecked /> <span className="ml-3 font-bold text-slate-700">Create an account to track your application updates</span>
-                  </Form.Item>
-                  
-                  <Form.Item 
-                    noStyle
-                    shouldUpdate={(prevValues, currentValues) => prevValues.wants_account !== currentValues.wants_account}
-                  >
-                    {({ getFieldValue }) => 
-                      getFieldValue('wants_account') ? (
-                        <div className="mt-6">
-                          <Form.Item name="password" label="Create Password" rules={[{ required: true, min: 8 }]}>
-                            <Input.Password prefix={<LockOutlined className="text-slate-400 mr-2" />} placeholder="Minimum 8 characters" className="h-11 rounded-xl" />
-                          </Form.Item>
-                        </div>
-                      ) : null
-                    }
+              {wantsAccount && (
+                <div className="mt-6 pt-2">
+                  <Form.Item name="password" label="Create a Secure Password"
+                    rules={[{ required: true }, { min: 8, message: 'Minimum 8 characters required' }]}>
+                    <Input.Password placeholder="At least 8 characters" className="h-11 rounded-xl" />
                   </Form.Item>
                 </div>
+              )}
+            </section>
 
-                <Button type="primary" htmlType="submit" block size="large" loading={submitting} className="h-14 rounded-xl font-bold bg-slate-900 border-none shadow-soft-md">
-                  {form.getFieldValue('wants_account') ? 'Create Account & Complete' : 'Complete Application'}
-                </Button>
-              </div>
-            )}
+            <Button
+              type="primary"
+              htmlType="submit"
+              block
+              loading={submitting}
+              className="h-14 rounded-2xl font-bold text-base bg-[#4F46E5] hover:bg-[#4338CA] border-none shadow-indigo-100 shadow-lg mt-4"
+            >
+              Submit Application
+            </Button>
+
           </Form>
-        </Card>
+        </div>
+
+        <div className="text-center mt-10">
+          <p className="text-xs text-slate-400 font-medium flex items-center justify-center gap-1.5 uppercase tracking-widest">
+            <Globe size={12} /> Securely Powered by TalentOS
+          </p>
+        </div>
       </div>
     </div>
   )

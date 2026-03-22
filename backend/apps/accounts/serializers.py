@@ -30,11 +30,19 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class RegisterCompanySerializer(serializers.Serializer):
-    name = serializers.CharField(max_length=100)
+    name = serializers.CharField(max_length=255)  # Company Name
+    first_name = serializers.CharField(max_length=100)
+    last_name = serializers.CharField(max_length=100)
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True, validators=[validate_password])
-    company_name = serializers.CharField(max_length=255)
+    password_confirm = serializers.CharField(write_only=True)
     country_code = serializers.CharField(max_length=5, required=False, default='IN')
+    timezone = serializers.CharField(max_length=50, required=False, default='UTC')
+
+    def validate(self, data):
+        if data['password'] != data['password_confirm']:
+            raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
+        return data
 
     def validate_email(self, value):
         if CustomUser.objects.filter(email=value.lower()).exists():
@@ -43,11 +51,19 @@ class RegisterCompanySerializer(serializers.Serializer):
 
 
 class RegisterAgencySerializer(serializers.Serializer):
-    name = serializers.CharField(max_length=100)
+    name = serializers.CharField(max_length=255)  # Agency Name
+    first_name = serializers.CharField(max_length=100)
+    last_name = serializers.CharField(max_length=100)
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True, validators=[validate_password])
-    agency_name = serializers.CharField(max_length=255)
+    password_confirm = serializers.CharField(write_only=True)
     country_code = serializers.CharField(max_length=5, required=False, default='IN')
+    timezone = serializers.CharField(max_length=50, required=False, default='UTC')
+
+    def validate(self, data):
+        if data['password'] != data['password_confirm']:
+            raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
+        return data
 
     def validate_email(self, value):
         if CustomUser.objects.filter(email=value.lower()).exists():
@@ -60,6 +76,12 @@ class RegisterCandidateSerializer(serializers.Serializer):
     last_name = serializers.CharField(max_length=100)
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True, validators=[validate_password])
+    password_confirm = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        if data['password'] != data['password_confirm']:
+            raise serializers.ValidationError({"password_confirm": "Passwords do not match."})
+        return data
 
     def validate_email(self, value):
         if CustomUser.objects.filter(email=value.lower()).exists():

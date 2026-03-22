@@ -8,6 +8,7 @@ import JobQuickView from '../../pages/jobs/JobQuickView'
 import CandidateQuickView from '../../pages/candidates/CandidateQuickView'
 import ApplicationQuickView from '../../pages/pipeline/ApplicationQuickView'
 import AgencySubmissionQuickView from '../../pages/agency/AgencySubmissionQuickView'
+import AgencyJobQuickView from '../../pages/agency/AgencyJobQuickView'
 
 const JobFullView = ({ data }: { data: any }) => {
   if (!data) return <Spin />
@@ -412,6 +413,13 @@ export const GlobalDrawer = () => {
         <AgencySubmissionQuickView
           submission={quickViewData.submission}
           jobTitle={quickViewData.jobTitle}
+          onClose={closeQuickView}
+        />
+      )}
+
+      {quickViewType === 'agency_job' && quickViewData && (
+        <AgencyJobQuickView
+          data={quickViewData}
           onClose={closeQuickView}
         />
       )}

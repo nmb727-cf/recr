@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Table, Tag, Button, Typography, Card, Tabs, Spin, Badge,
-  Input, Modal, Form, InputNumber, DatePicker, Select, message
+  Input, Modal, Form, InputNumber, DatePicker, Select, message, Space, Row, Col
 } from 'antd'
 import {
-  Plus, X, RefreshCw, ChevronRight, Mail, Phone, Search, BriefcaseIcon
+  Plus, X, RefreshCw, ChevronRight, Mail, Phone, Search, BriefcaseIcon, ChevronLeft
 } from 'lucide-react'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -16,6 +16,8 @@ import type { AgencyRelationship, AgencyAssignment, AgencyStatus, AgencyTier, Jo
 import { cn } from '@/utils/cn'
 import { StandardSplitView } from '@/components/layout/StandardSplitView'
 import { formatStatusLabel, getStatusStyle } from '@/utils/status'
+import { useAuth } from '@/hooks/useAuth'
+import { readKnownAgencies } from '@/utils/companyOnboarding'
 
 const { Title, Text } = Typography
 
@@ -28,7 +30,188 @@ const TIER_COLOR: Record<AgencyTier, string> = {
   platinum: 'purple',
 }
 
-// ─── Assign Job Modal ────────────────────────────────────────────────────────
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function normalizeAgencyTenantId(value: unknown): string | null {
+  if (value === null || value === undefined) return null
+  const raw = String(value).trim()
+  if (!raw) return null
+  if (UUID_RE.test(raw)) return raw
+  if (!/^\d+$/.test(raw)) return null
+  try {
+    const hex = BigInt(raw).toString(16).padStart(32, '0')
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+  } catch {
+    return null
+  }
+}
+
+// ─── Modals ──────────────────────────────────────────────────────────────────
+
+function InviteAgencyModal({
+  open,
+  companyTenantId,
+  onClose,
+  onSuccess,
+}: {
+  open: boolean
+  companyTenantId?: string
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [form] = Form.useForm()
+  const [loading, setLoading] = useState(false)
+  const { data: availableData, isLoading: availableLoading, refetch: refetchAvailable } = useApiQuery(
+    ['agencies-link-options'],
+    () => agenciesApi.listAvailableAgencies(),
+    { enabled: open }
+  )
+  const { data: linkedData, isLoading: linkedLoading, refetch: refetchLinked } = useApiQuery(
+    ['agencies-link-options-linked'],
+    () => agenciesApi.listRelationships(),
+    { enabled: open }
+  )
+  const [knownAgencies, setKnownAgencies] = useState(() => readKnownAgencies())
+
+  useEffect(() => {
+    if (!open) return
+    refetchAvailable()
+    refetchLinked()
+    setKnownAgencies(readKnownAgencies())
+  }, [open, refetchAvailable, refetchLinked])
+
+  const availableAgencies = (
+    (availableData as any)?.agencies ??
+    (availableData as any)?.data?.agencies ??
+    []
+  ) as any[]
+  const linkedAgencies = (
+    (linkedData as any)?.relationships ??
+    (linkedData as any)?.data?.relationships ??
+    []
+  ) as any[]
+
+  const agencyOptions = useMemo(
+    () => {
+      const entries = (
+        [
+          ...availableAgencies.map((agency: any) => {
+            const normalizedId = normalizeAgencyTenantId(agency?.agency_tenant_id)
+            if (!normalizedId) return null
+            const label = agency?.name || `Agency ${normalizedId.slice(0, 8)}`
+            return [normalizedId, { value: normalizedId, label }] as const
+          }),
+          ...linkedAgencies.map((rel: any) => {
+            const normalizedId = normalizeAgencyTenantId(rel?.agency_tenant_id || rel?.agency_id)
+            if (!normalizedId) return null
+            const label = rel?.agency?.name || rel?.agency_name || `Agency ${normalizedId.slice(0, 8)}`
+            return [normalizedId, { value: normalizedId, label }] as const
+          }),
+          ...knownAgencies
+            .map((agency) => {
+              const normalizedId = normalizeAgencyTenantId(agency.agency_tenant_id)
+              if (!normalizedId) return null
+              return [normalizedId, { value: normalizedId, label: agency.name }] as const
+            }),
+        ]
+          .filter(Boolean)
+      ) as Array<readonly [string, { value: string; label: string }]>
+
+      return Array.from(new Map(entries).values())
+    },
+    [availableAgencies, linkedAgencies, knownAgencies]
+  )
+
+  const onFinish = async (values: any) => {
+    if (!companyTenantId) {
+      message.error('Unable to resolve company tenant id')
+      return
+    }
+    const agencyTenantId = normalizeAgencyTenantId(values.agency_tenant_id)
+    if (!agencyTenantId) {
+      message.error('Selected agency is invalid. Please reselect.')
+      return
+    }
+
+    setLoading(true)
+    try {
+      await agenciesApi.createRelationship({
+        agency_tenant_id: agencyTenantId,
+        company_tenant_id: companyTenantId,
+        tier: values.tier || 'standard',
+        commission_percentage: values.commission_percentage,
+        commission_type: 'percentage',
+        notes: values.notes ? String(values.notes).trim() : undefined,
+      })
+      message.success('Agency relationship created')
+      form.resetFields()
+      onSuccess()
+    } catch (err: any) {
+      const errorMsg = err?.response?.data?.message || 'Failed to create relationship'
+      const fieldErrors = err?.response?.data?.errors
+      if (fieldErrors && typeof fieldErrors === 'object') {
+        const formErrors = Object.entries(fieldErrors).map(([name, msgs]: [string, any]) => ({
+          name,
+          errors: Array.isArray(msgs) ? msgs : [String(msgs)],
+        }))
+        form.setFields(formErrors)
+        const first = Object.values(fieldErrors)[0]
+        const firstMsg = Array.isArray(first) ? first[0] : String(first)
+        message.error(firstMsg || errorMsg)
+      } else {
+        message.error(errorMsg)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Modal
+      title={<span className="text-lg font-bold text-slate-900">Link Agency</span>}
+      open={open}
+      onCancel={onClose}
+      onOk={() => form.submit()}
+      okText="Link Agency"
+      confirmLoading={loading}
+      destroyOnClose
+    >
+      <Form form={form} layout="vertical" onFinish={onFinish} className="mt-4">
+        <Form.Item name="agency_tenant_id" label="Select Agency" rules={[{ required: true, message: 'Select an agency' }]}>
+          <Select
+            showSearch
+            optionFilterProp="label"
+            placeholder="Choose agency"
+            loading={availableLoading || linkedLoading}
+            options={agencyOptions}
+            notFoundContent={(availableLoading || linkedLoading) ? 'Loading agencies...' : 'No agencies available'}
+            className="h-10"
+          />
+        </Form.Item>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Item name="commission_percentage" label="Commission %" initialValue={15}>
+              <InputNumber min={1} max={100} className="w-full h-10 rounded-xl" />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item name="tier" label="Partnership Tier" initialValue="standard">
+              <Select className="h-10" options={[
+                { value: 'preferred', label: 'Preferred' },
+                { value: 'standard', label: 'Standard' },
+                { value: 'probation', label: 'Probation' },
+                { value: 'blacklisted', label: 'Blacklisted' },
+              ]} />
+            </Form.Item>
+          </Col>
+        </Row>
+        <Form.Item name="notes" label="Notes (Optional)">
+          <Input.TextArea rows={3} placeholder="Context about this partnership..." />
+        </Form.Item>
+      </Form>
+    </Modal>
+  )
+}
 
 function AssignJobModal({
   open,
@@ -50,14 +233,18 @@ function AssignJobModal({
     { enabled: open }
   )
 
-  const jobs: JobRequisition[] = ((jobsData as any)?.requisitions ?? []) as JobRequisition[]
+  const jobs: JobRequisition[] = (
+    (jobsData as any)?.requisitions ??
+    (jobsData as any)?.data?.requisitions ??
+    []
+  ) as JobRequisition[]
 
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields()
       setSubmitting(true)
       await agenciesApi.createAssignment({
-        agency_id: agencyId,
+        agency_tenant_id: agencyId,
         requisition_id: values.requisition_id,
         max_submissions: values.max_submissions,
         deadline: values.deadline.format('YYYY-MM-DD'),
@@ -67,7 +254,7 @@ function AssignJobModal({
       form.resetFields()
       onSuccess()
     } catch (err: any) {
-      if (err?.errorFields) return // validation error
+      if (err?.errorFields) return
       message.error(err?.response?.data?.message || 'Failed to assign job')
     } finally {
       setSubmitting(false)
@@ -92,9 +279,6 @@ function AssignJobModal({
             placeholder="Select active job..."
             loading={jobsLoading}
             showSearch
-            filterOption={(input, option) =>
-              String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-            }
             options={jobs.map(j => ({ value: j.id, label: j.title }))}
             className="h-10"
           />
@@ -108,7 +292,7 @@ function AssignJobModal({
           </Form.Item>
         </div>
         <Form.Item name="notes" label="Notes">
-          <Input.TextArea rows={3} placeholder="Any special instructions for this assignment..." className="rounded-xl" />
+          <Input.TextArea rows={3} placeholder="Instructions..." />
         </Form.Item>
       </Form>
     </Modal>
@@ -155,7 +339,8 @@ const FullAgencyList = ({ relationships, onSelect, selectedId, isLoading, assign
       title: 'Active Jobs',
       key: 'active_jobs',
       render: (_, r) => {
-        const count = assignmentCounts[r.agency_id] ?? 0
+        const agencyKey = (r as any).agency_tenant_id || r.agency_id
+        const count = assignmentCounts[agencyKey] ?? 0
         return (
           <div className="flex items-center gap-1.5">
             <BriefcaseIcon className="h-3.5 w-3.5 text-slate-400" />
@@ -169,12 +354,6 @@ const FullAgencyList = ({ relationships, onSelect, selectedId, isLoading, assign
       dataIndex: 'commission_percentage',
       key: 'commission',
       render: (c) => <span className="font-bold text-slate-700">{c}%</span>,
-    },
-    {
-      title: 'Joined',
-      dataIndex: 'created_at',
-      key: 'created',
-      render: (d) => <span className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">{d ? dayjs(d).format('MMM D, YYYY') : 'N/A'}</span>,
     },
     {
       title: '',
@@ -250,7 +429,7 @@ const AgencyDetailPanel = ({
   onClose: () => void
   onRefresh: () => void
 }) => {
-  const agencyId = relationship.agency_id
+  const agencyId = (relationship as any).agency_tenant_id || relationship.agency_id
   const queryClient = useQueryClient()
   const [assignOpen, setAssignOpen] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
@@ -261,15 +440,7 @@ const AgencyDetailPanel = ({
     { enabled: !!agencyId }
   )
 
-  const { data: performanceData } = useApiQuery(
-    ['agency-performance', agencyId],
-    () => agenciesApi.performance({ agency_id: agencyId }),
-    { enabled: !!agencyId }
-  )
-
-  const assignments: AgencyAssignment[] = Array.isArray((assignmentsData as any)?.assignments) ? (assignmentsData as any).assignments : []
-  const performanceList = Array.isArray((performanceData as any)?.performance) ? (performanceData as any).performance : []
-  const performance = performanceList[0] ?? null
+  const assignments: AgencyAssignment[] = Array.isArray((assignmentsData as any)?.data?.assignments) ? (assignmentsData as any).data.assignments : []
 
   const activeAssignments = assignments.filter(a => a.status === 'active').length
   const totalSubmissions = assignments.reduce((sum, a) => sum + (a.submissions_count ?? 0), 0)
@@ -277,12 +448,16 @@ const AgencyDetailPanel = ({
   const handleActivate = async () => {
     setActionLoading('activate')
     try {
-      await agenciesApi.accept(relationship.id)
+      if (relationship.status === 'pending') {
+        await agenciesApi.accept(relationship.id)
+      } else {
+        await agenciesApi.updateRelationship(relationship.id, { status: 'active' } as any)
+      }
       message.success('Agency activated')
       onRefresh()
       queryClient.invalidateQueries({ queryKey: ['agencies'] })
-    } catch {
-      message.error('Failed to activate')
+    } catch (err: any) {
+      message.error(err?.response?.data?.message || 'Failed to activate')
     } finally {
       setActionLoading(null)
     }
@@ -308,7 +483,6 @@ const AgencyDetailPanel = ({
       label: 'Overview',
       children: (
         <div className="p-6">
-          {/* Stats grid */}
           <div className="grid grid-cols-3 gap-4 mb-8">
             {[
               { label: 'Commission', value: `${relationship.commission_percentage}%` },
@@ -316,7 +490,6 @@ const AgencyDetailPanel = ({
               { label: 'SLA', value: `${relationship.sla_hours || 48}h` },
               { label: 'Active Jobs', value: activeAssignments },
               { label: 'Total Submissions', value: totalSubmissions },
-              { label: 'Overall Score', value: `${performance?.overall_score || 0}/100` },
             ].map((stat, i) => (
               <div key={i} className="bg-slate-50/50 rounded-xl p-4 border border-slate-100">
                 <Text className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{stat.label}</Text>
@@ -331,7 +504,7 @@ const AgencyDetailPanel = ({
 
           <div className="space-y-6">
             <div>
-              <Title level={5} className="!text-xs !font-bold !uppercase !tracking-widest !text-slate-400 !mb-4">Contact Person</Title>
+              <Title level={5} className="!text-xs !font-bold !uppercase !tracking-widest !text-slate-400 !mb-4">Agency Contact</Title>
               <div className="flex items-center gap-4 bg-white border border-slate-100 p-4 rounded-2xl shadow-soft-sm">
                 <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-400 text-sm">
                   {relationship.agency?.name?.charAt(0)}
@@ -342,31 +515,17 @@ const AgencyDetailPanel = ({
                     <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
                       <Mail className="h-3 w-3" /> {relationship.agency?.contact_email || 'N/A'}
                     </div>
-                    {relationship.agency?.contact_phone && (
-                      <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-                        <Phone className="h-3 w-3" /> {relationship.agency.contact_phone}
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
             </div>
-
-            {relationship.notes && (
-              <div>
-                <Title level={5} className="!text-xs !font-bold !uppercase !tracking-widest !text-slate-400 !mb-4">Internal Notes</Title>
-                <Text className="text-slate-600 leading-relaxed block bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
-                  {relationship.notes}
-                </Text>
-              </div>
-            )}
           </div>
         </div>
       )
     },
     {
       key: 'assignments',
-      label: `Job Assignments (${assignments.length})`,
+      label: `Jobs (${assignments.length})`,
       children: (
         <div className="p-0">
           {assignmentsLoading ? <div className="p-10 text-center"><Spin /></div> : (
@@ -383,18 +542,9 @@ const AgencyDetailPanel = ({
                   render: (t) => <Text className="font-bold text-slate-700">{t || 'Unknown Role'}</Text>
                 },
                 {
-                  title: 'Submissions',
+                  title: 'Limit',
                   key: 'limit',
-                  render: (_, r) => (
-                    <Text className="font-medium text-slate-500 text-xs">
-                      {r.submissions_count} / {r.max_submissions}
-                    </Text>
-                  )
-                },
-                {
-                  title: 'Deadline',
-                  dataIndex: 'deadline',
-                  render: (d) => <Text className="text-slate-400 text-[10px] font-bold uppercase">{dayjs(d).format('MMM D, YYYY')}</Text>
+                  render: (_, r) => <Text className="font-medium text-slate-500 text-xs">{r.submissions_count} / {r.max_submissions}</Text>
                 },
                 {
                   title: 'Status',
@@ -415,12 +565,10 @@ const AgencyDetailPanel = ({
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Header */}
-      <div className="p-6 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-20">
+      {/* Header - Consistent UX */}
+      <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-20">
         <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center font-bold text-xl shadow-soft-md">
-            {relationship.agency?.name?.charAt(0)}
-          </div>
+          <Button icon={<ChevronLeft className="h-4 w-4" />} onClick={onClose} className="h-8 w-8 flex items-center justify-center rounded-lg border-slate-200" />
           <div>
             <div className="flex items-center gap-3 mb-0.5">
               <Title level={4} className="!m-0 text-slate-900">{relationship.agency?.name}</Title>
@@ -429,46 +577,18 @@ const AgencyDetailPanel = ({
               </Tag>
             </div>
             <Text className="text-slate-400 font-medium text-xs uppercase tracking-wider">
-              Partner since {dayjs(relationship.created_at).format('YYYY')} · {relationship.tier} Tier
+              {relationship.tier} Tier Partner
             </Text>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Activate / Deactivate */}
           {relationship.status === 'active' ? (
-            <Button
-              danger
-              loading={actionLoading === 'deactivate'}
-              onClick={handleDeactivate}
-              className="h-10 font-bold px-4 rounded-xl"
-            >
-              Deactivate
-            </Button>
-          ) : relationship.status === 'pending' || relationship.status === 'suspended' ? (
-            <Button
-              loading={actionLoading === 'activate'}
-              onClick={handleActivate}
-              className="h-10 font-bold px-4 rounded-xl border-emerald-300 text-emerald-600 hover:border-emerald-400"
-            >
-              Activate
-            </Button>
-          ) : null}
-
-          <Button
-            type="primary"
-            icon={<Plus className="h-4 w-4" />}
-            onClick={() => setAssignOpen(true)}
-            className="h-10 font-bold px-4 rounded-xl bg-blue-600 border-none shadow-soft-sm"
-          >
-            Assign Job
-          </Button>
-
-          <Button
-            icon={<X className="h-4 w-4" />}
-            onClick={onClose}
-            className="h-10 w-10 flex items-center justify-center rounded-xl border-slate-200"
-          />
+            <Button danger size="small" className="h-8 font-bold px-3 rounded-lg" onClick={handleDeactivate}>Suspend</Button>
+          ) : (
+            <Button size="small" className="h-8 font-bold px-3 rounded-lg border-emerald-300 text-emerald-600" onClick={handleActivate}>Activate</Button>
+          )}
+          <Button type="primary" size="small" icon={<Plus className="h-3 w-3" />} onClick={() => setAssignOpen(true)} className="h-8 font-bold px-3 rounded-lg bg-blue-600 border-none shadow-soft-sm">Assign Job</Button>
         </div>
       </div>
 
@@ -498,25 +618,69 @@ const AgencyDetailPanel = ({
 // ─── Main Agencies Page ───────────────────────────────────────────────────────
 
 export default function AgenciesList() {
+  const { user } = useAuth()
   const [selectedRel, setSelectedRel] = useState<AgencyRelationship | null>(null)
   const [search, setSearch] = useState('')
   const [viewTab, setViewTab] = useState('agencies')
+  const [inviteModalOpen, setInviteModalOpen] = useState(false)
 
   const { data, isLoading, refetch } = useApiQuery(['agencies'], () => agenciesApi.listRelationships())
-  const relationships = (data as { relationships: AgencyRelationship[] } | undefined)?.relationships ?? []
+  const relationships = (
+    (data as any)?.relationships ??
+    (data as any)?.data?.relationships ??
+    []
+  ) as AgencyRelationship[]
+  const { data: availableData } = useApiQuery(['agencies-available-main'], () => agenciesApi.listAvailableAgencies())
+  const availableAgencies = (
+    (availableData as any)?.agencies ??
+    (availableData as any)?.data?.agencies ??
+    []
+  ) as Array<{ agency_tenant_id?: string; name?: string }>
+  const agencyNameByTenantId = useMemo(
+    () =>
+      Object.fromEntries(
+        availableAgencies
+          .filter((a) => a?.agency_tenant_id && a?.name)
+          .map((a) => [String(a.agency_tenant_id), String(a.name)])
+      ) as Record<string, string>,
+    [availableAgencies]
+  )
+  const relationshipsResolved = useMemo(
+    () =>
+      relationships.map((r: any) => {
+        const agencyTenantId = String(r?.agency_tenant_id || r?.agency_id || '')
+        const resolvedName =
+          r?.agency?.name ||
+          r?.agency_name ||
+          agencyNameByTenantId[agencyTenantId] ||
+          'N/A'
+        return {
+          ...r,
+          agency: {
+            ...(r?.agency || {}),
+            name: resolvedName,
+          },
+        }
+      }) as AgencyRelationship[],
+    [relationships, agencyNameByTenantId]
+  )
 
   const { data: assignmentsData, isLoading: assignmentsLoading } = useApiQuery(['agency_assignments_all'], () => agenciesApi.listAssignments())
-  const allAssignments = (assignmentsData as { assignments: AgencyAssignment[] } | undefined)?.assignments ?? []
+  const allAssignments = (
+    (assignmentsData as any)?.assignments ??
+    (assignmentsData as any)?.data?.assignments ??
+    []
+  ) as AgencyAssignment[]
 
-  // Compute active job count per agency for the list columns
   const assignmentCounts = allAssignments.reduce<Record<string, number>>((acc, a) => {
-    if (a.status === 'active') acc[a.agency_id] = (acc[a.agency_id] ?? 0) + 1
+    const key = (a as any).agency_tenant_id || a.agency_id
+    if (a.status === 'active' && key) acc[key] = (acc[key] ?? 0) + 1
     return acc
   }, {})
 
   const filtered = search
-    ? relationships.filter(r => r.agency?.name?.toLowerCase().includes(search.toLowerCase()))
-    : relationships
+    ? relationshipsResolved.filter((r: any) => r.agency?.name?.toLowerCase().includes(search.toLowerCase()))
+    : relationshipsResolved
 
   return (
     <div className="h-[calc(100vh-100px)] flex flex-col -m-6 overflow-hidden">
@@ -545,19 +709,19 @@ export default function AgenciesList() {
               type="primary"
               icon={<Plus className="h-4 w-4" />}
               className="h-10 rounded-xl font-bold bg-blue-600 border-none shadow-soft-md px-6"
+              onClick={() => setInviteModalOpen(true)}
             >
-              Invite Partner
+              Link Agency
             </Button>
           </div>
         </div>
       )}
 
-      {/* Main Content */}
       <StandardSplitView
         isDetailOpen={!!selectedRel}
         compactListContent={
           <CompressedAgencyList
-            relationships={relationships}
+            relationships={relationshipsResolved}
             selectedId={selectedRel?.id}
             onSelect={setSelectedRel}
           />
@@ -577,7 +741,7 @@ export default function AgenciesList() {
                       <FullAgencyList
                         relationships={filtered}
                         onSelect={setSelectedRel}
-                        selectedId={selectedRel}
+                        selectedId={selectedRel?.id}
                         isLoading={isLoading}
                         assignmentCounts={assignmentCounts}
                       />
@@ -627,6 +791,16 @@ export default function AgenciesList() {
             />
           ) : null
         }
+      />
+
+      <InviteAgencyModal
+        open={inviteModalOpen}
+        companyTenantId={user?.tenant_id}
+        onClose={() => setInviteModalOpen(false)}
+        onSuccess={() => {
+          setInviteModalOpen(false)
+          refetch()
+        }}
       />
     </div>
   )

@@ -3,6 +3,8 @@ from apps.agencies import views
 
 urlpatterns = [
     # Company side
+    path('lookup/', views.AgencyLookupView.as_view(), name='agency-lookup'),
+    path('available/', views.AvailableAgencyListView.as_view(), name='agency-available-list'),
     path('relationships/', views.AgencyRelationshipListView.as_view(), name='agency-relationship-list'),
     path('relationships/<uuid:pk>/', views.AgencyRelationshipDetailView.as_view(), name='agency-relationship-detail'),
     path('relationships/<uuid:pk>/invite/', views.AgencyRelationshipInviteView.as_view(), name='agency-relationship-invite'),

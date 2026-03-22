@@ -61,7 +61,33 @@ class CandidateListView(APIView):
         )
 
     def post(self, request):
-        serializer = CandidateSerializer(data=request.data)
+        # Deduplication check
+        email = request.data.get('email', '').strip().lower()
+        phone = request.data.get('phone', '').strip()
+
+        existing = None
+        if email:
+            existing = Candidate.objects.filter(
+                email__iexact=email, is_deleted=False
+            ).first()
+        if not existing and phone:
+            existing = Candidate.objects.filter(
+                phone=phone, is_deleted=False
+            ).first()
+
+        if existing:
+            return error_response(
+                f"Candidate already exists with this "
+                f"{'email' if email else 'phone'}.",
+                status_code=status.HTTP_409_CONFLICT,
+                data={'candidate_id': str(existing.id)}
+            )
+
+        payload = request.data.copy()
+        entry_type = payload.pop('entry_type', 'manual')
+        send_invite = payload.pop('send_invite', False)
+
+        serializer = CandidateSerializer(data=payload)
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors)
 
@@ -79,8 +105,46 @@ class CandidateListView(APIView):
             created_by=request.user.id,
         )
 
+        if entry_type in ['invite', 'quick_add']:
+            import secrets
+            from datetime import timedelta
+            from django.utils import timezone
+            candidate.profile_status = 'draft'
+            candidate.initial_entry_type = 'invite'
+            candidate.claim_token = secrets.token_urlsafe(32)
+            candidate.claim_token_expires_at = (
+                timezone.now() + timedelta(days=30)
+            )
+        else:
+            candidate.profile_status = 'partial'
+            candidate.initial_entry_type = 'manual'
+
+        send_invite_bool = send_invite
+        if isinstance(send_invite, str):
+            send_invite_bool = send_invite.lower() in ['1', 'true', 'yes', 'on']
+
+        if send_invite_bool and candidate.claim_token:
+            from django.utils import timezone
+            candidate.account_status = 'invited'
+            candidate.invite_sent_at = timezone.now()
+            print(
+                f"[STUB] Invite: "
+                f"/candidate/complete/{candidate.claim_token}"
+            )
+
+        candidate.save()
+
+        response_data = {
+            'candidate': CandidateSerializer(candidate).data
+        }
+        if candidate.claim_token:
+            response_data['claim_token'] = candidate.claim_token
+            response_data['claim_link'] = (
+                f"/candidate/complete/{candidate.claim_token}"
+            )
+
         return success_response(
-            data={'candidate': CandidateDetailSerializer(candidate).data},
+            data=response_data,
             message="Candidate created.",
             status_code=status.HTTP_201_CREATED
         )
@@ -341,4 +405,89 @@ class CandidateNoteDetailView(APIView):
         return success_response(
             message="Note deleted.",
             status_code=status.HTTP_204_NO_CONTENT
+        )
+
+
+class SkillSearchView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.candidates.models import Skill
+        q = request.query_params.get('q', '').strip()
+        limit = int(request.query_params.get('limit', 20))
+
+        if q:
+            skills = Skill.objects.filter(
+                name__icontains=q,
+                is_active=True
+            ).order_by('-usage_count', 'name')[:limit]
+        else:
+            skills = Skill.objects.filter(
+                is_active=True
+            ).order_by('-usage_count')[:limit]
+
+        return success_response(
+            data={
+                'skills': [
+                    {
+                        'id': str(s.id),
+                        'name': s.name,
+                        'category': s.category
+                    }
+                    for s in skills
+                ]
+            },
+            message="Skills retrieved."
+        )
+
+
+GLOBAL_CITIES = [
+    'Mumbai', 'Delhi', 'Bangalore', 'Hyderabad', 'Chennai',
+    'Pune', 'Kolkata', 'Ahmedabad', 'Jaipur', 'Surat',
+    'New York', 'San Francisco', 'Los Angeles', 'Chicago',
+    'Seattle', 'Austin', 'Boston', 'Miami', 'Denver',
+    'London', 'Manchester', 'Birmingham', 'Edinburgh',
+    'Dubai', 'Abu Dhabi', 'Singapore', 'Sydney', 'Melbourne',
+    'Toronto', 'Vancouver', 'Berlin', 'Amsterdam', 'Paris',
+    'Remote', 'Hybrid', 'Open to Relocation',
+]
+
+
+class LocationSearchView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.organisations.models import Location
+        q = request.query_params.get('q', '').strip().lower()
+
+        results = []
+
+        # Tenant office locations first
+        tenant_locations = Location.objects.filter(
+            tenant_id=request.user.tenant_id,
+            is_active=True,
+            is_deleted=False
+        )
+        if q:
+            tenant_locations = tenant_locations.filter(
+                name__icontains=q
+            ) | tenant_locations.filter(
+                city__icontains=q
+            )
+        for loc in tenant_locations[:5]:
+            label = loc.city or loc.name
+            if label and label not in results:
+                results.append(label)
+
+        # Global cities
+        for city in GLOBAL_CITIES:
+            if not q or q in city.lower():
+                if city not in results:
+                    results.append(city)
+            if len(results) >= 20:
+                break
+
+        return success_response(
+            data={'locations': results},
+            message="Locations retrieved."
         )

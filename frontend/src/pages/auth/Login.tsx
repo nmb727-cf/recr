@@ -67,6 +67,8 @@ export default function Login() {
             placeholder="you@company.com"
             size="large"
             autoComplete="email"
+            type="email"
+            name="email"
           />
         </Form.Item>
 
@@ -90,6 +92,7 @@ export default function Login() {
             placeholder="••••••••"
             size="large"
             autoComplete="current-password"
+            name="password"
           />
         </Form.Item>
 
@@ -117,6 +120,11 @@ export default function Login() {
         <Link to="/register/company">
           <Button block size="large" style={{ height: 40 }}>
             Register your company
+          </Button>
+        </Link>
+        <Link to="/register/agency">
+          <Button block size="large" style={{ height: 40 }}>
+            Register as an agency
           </Button>
         </Link>
         <Link to="/register/candidate">

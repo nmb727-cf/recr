@@ -418,7 +418,18 @@ def save_results():
 
     return out_path, passed, failed
 
-
+# Add after existing results saving logic
+import json
+json_file = f"qa_results/{datetime.now().strftime('%Y-%m-%d')}.json"
+with open(json_file, "w") as f:
+    json.dump({
+        "run_at": datetime.now().isoformat(),
+        "total": len(results),
+        "passed": sum(1 for r in results if r["status"] == "PASS"),
+        "failed": sum(1 for r in results if r["status"] == "FAIL"),
+        "results": results
+    }, f, indent=2)
+    
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main():

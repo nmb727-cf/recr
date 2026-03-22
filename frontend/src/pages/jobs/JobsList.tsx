@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Table, Button, Input, Select, Typography, Row, Col, Card,
-  Drawer, Tag, Tabs, Spin, Badge, message, Space
+  Drawer, Tag, Tabs, Spin, Badge, message, Space, Modal, InputNumber, DatePicker, Form
 } from 'antd'
 import {
   Plus,
@@ -10,13 +10,13 @@ import {
   Briefcase,
   Download,
   RefreshCw,
-  X,
   ChevronRight,
   ArrowRight,
   Send,
   CheckCircle,
   Globe,
-  LayoutGrid
+  LayoutGrid,
+  ChevronLeft
 } from 'lucide-react'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -25,8 +25,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { requisitionsApi } from '@/api/jobs'
 import { agenciesApi } from '@/api/agencies'
 import { pipelineApi } from '@/api/pipeline'
-import { interviewsApi } from '@/api/interviews'
-import type { JobRequisition } from '@/types'
+import type { JobRequisition, AgencyRelationship } from '@/types'
 import { cn } from '@/utils/cn'
 import JobCreateForm from '@/components/forms/JobCreateForm'
 import { StandardSplitView } from '@/components/layout/StandardSplitView'
@@ -36,7 +35,108 @@ const { Title, Text } = Typography
 
 // ─── Status Config ──────────────────────────────────────────────────────────
 
+const JOB_STATUS_OPTIONS = [
+  { value: 'active', label: 'Active / Published' },
+  { value: 'pending_approval', label: 'Pending Approval' },
+  { value: 'approved', label: 'Approved (Not Published)' },
+  { value: 'draft', label: 'Drafts' },
+  { value: 'closed', label: 'Closed' },
+]
+
 // ─── Sub-components ─────────────────────────────────────────────────────────
+
+function AssignAgencyModal({
+  open,
+  jobId,
+  onClose,
+  onSuccess,
+}: {
+  open: boolean
+  jobId: string
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [form] = Form.useForm()
+  const [submitting, setSubmitting] = useState(false)
+
+  const { data: agenciesData, isLoading: agenciesLoading } = useApiQuery(
+    ['agencies-active'],
+    () => agenciesApi.listRelationships(),
+    { enabled: open }
+  )
+
+  const agencies = (
+    (agenciesData as any)?.relationships ??
+    (agenciesData as any)?.data?.relationships ??
+    []
+  ) as AgencyRelationship[]
+
+  const handleSubmit = async () => {
+    try {
+      const values = await form.validateFields()
+      setSubmitting(true)
+      await agenciesApi.createAssignment({
+        agency_tenant_id: values.agency_tenant_id,
+        requisition_id: jobId,
+        max_submissions: values.max_submissions,
+        deadline: values.deadline.format('YYYY-MM-DD'),
+        notes: values.notes,
+      })
+      message.success('Job assigned to agency successfully')
+      form.resetFields()
+      onSuccess()
+    } catch (err: any) {
+      if (err?.errorFields) return
+      message.error(err?.response?.data?.message || 'Failed to assign agency')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <Modal
+      title={<span className="font-bold text-slate-900">Assign Agency to this Job</span>}
+      open={open}
+      onCancel={onClose}
+      onOk={handleSubmit}
+      okText="Assign Agency"
+      confirmLoading={submitting}
+      okButtonProps={{ className: 'bg-blue-600 border-none font-bold' }}
+      width={520}
+      destroyOnClose
+    >
+      <Form form={form} layout="vertical" className="mt-4">
+        <Form.Item name="agency_tenant_id" label="Agency Partner" rules={[{ required: true, message: 'Select an agency' }]}>
+          <Select
+            placeholder="Select partner agency..."
+            loading={agenciesLoading}
+            showSearch
+            options={agencies
+              .map((a: any) => {
+                const agencyId = a?.agency_tenant_id || a?.agency_id
+                if (!agencyId) return null
+                const label = a?.agency?.name || a?.agency_name || `Agency ${String(agencyId).slice(0, 8)}`
+                return { value: agencyId, label }
+              })
+              .filter(Boolean) as Array<{ value: string; label: string }>}
+            className="h-10"
+          />
+        </Form.Item>
+        <div className="grid grid-cols-2 gap-4">
+          <Form.Item name="max_submissions" label="Submission Limit" rules={[{ required: true }]} initialValue={5}>
+            <InputNumber min={1} max={100} className="w-full h-10" />
+          </Form.Item>
+          <Form.Item name="deadline" label="Deadline" rules={[{ required: true }]}>
+            <DatePicker className="w-full h-10" disabledDate={d => d.isBefore(dayjs())} />
+          </Form.Item>
+        </div>
+        <Form.Item name="notes" label="Special Instructions">
+          <Input.TextArea rows={3} placeholder="Any specific requirements for this agency..." />
+        </Form.Item>
+      </Form>
+    </Modal>
+  )
+}
 
 const FullJobList = ({ jobs, onSelect, selectedJobId, isLoading }: any) => {
   const jobList = Array.isArray(jobs) ? jobs : []
@@ -64,7 +164,7 @@ const FullJobList = ({ jobs, onSelect, selectedJobId, isLoading }: any) => {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      width: 120,
+      width: 140,
       render: (status: string) => {
         const config = getStatusStyle(status, 'job')
         return (
@@ -100,7 +200,6 @@ const FullJobList = ({ jobs, onSelect, selectedJobId, isLoading }: any) => {
                      style={{ backgroundColor: '#3b82f6', fontSize: '10px' }} />
               <Text className="text-[11px] font-bold text-slate-400 uppercase">Total</Text>
             </div>
-            {/* Pipeline Mini-stats */}
             <div className="flex gap-1 mt-1">
                <div className="bg-slate-100 rounded px-1.5 py-0.5 text-[9px] font-bold text-slate-500">APP {Number(metadata?.applied) || 0}</div>
                <div className="bg-blue-50 rounded px-1.5 py-0.5 text-[9px] font-bold text-blue-600">INT {Number(metadata?.interview) || 0}</div>
@@ -111,19 +210,11 @@ const FullJobList = ({ jobs, onSelect, selectedJobId, isLoading }: any) => {
       }
     },
     {
-      title: 'Days Open',
+      title: 'Created',
       dataIndex: 'created_at',
-      key: 'days_open',
+      key: 'created',
       width: 120,
-      render: (date) => {
-        const days = date ? dayjs().diff(dayjs(date), 'day') : 0
-        return (
-          <div className="flex flex-col">
-            <Text className="text-sm font-bold text-slate-700">{days} Days</Text>
-            <Text className="text-[10px] text-slate-400 font-medium uppercase">Since Posted</Text>
-          </div>
-        )
-      }
+      render: (date) => <Text className="text-slate-400 text-[11px] font-bold uppercase tracking-wider">{date ? dayjs(date).format('MMM D, YYYY') : 'N/A'}</Text>
     },
     {
       title: '',
@@ -192,36 +283,29 @@ const CompressedJobList = ({ jobs, onSelect, selectedJobId }: any) => {
   )
 }
 
-const JobDetailPanel = ({ job, onClose }: { job: JobRequisition, onClose: () => void }) => {
+const JobDetailPanel = ({
+  job,
+  onClose,
+  onEdit,
+}: {
+  job: JobRequisition
+  onClose: () => void
+  onEdit: (job: JobRequisition) => void
+}) => {
   const jobId = job?.id
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [assignModalOpen, setAssignModalOpen] = useState(false)
 
-  // Fetch applications for this job
-  const { data: appsData, isLoading: appsLoading } = useApiQuery(
-    ['job-applications', jobId],
-    () => pipelineApi.listApplications({ requisition_id: jobId }),
-    { enabled: !!jobId }
-  )
-
-  // Fetch pipeline for this job
   const { data: pipelineData, isLoading: pipelineLoading } = useApiQuery(
     ['job-pipeline', jobId],
     () => pipelineApi.getPipeline(jobId),
     { enabled: !!jobId }
   )
 
-  // Fetch interviews for this job
-  const { data: interviewsData } = useApiQuery(
-    ['job-interviews', jobId],
-    () => interviewsApi.list({ requisition_id: jobId }),
-    { enabled: !!jobId }
-  )
-
-  // Fetch assigned agencies
-  const { data: agenciesData } = useApiQuery(
+  const { data: agenciesData, refetch: refetchAgencies } = useApiQuery(
     ['job-agencies', jobId],
-    () => agenciesApi.listAssignments(),
+    () => agenciesApi.listAssignments({ requisition_id: jobId }),
     { enabled: !!jobId }
   )
 
@@ -250,11 +334,8 @@ const JobDetailPanel = ({ job, onClose }: { job: JobRequisition, onClose: () => 
     }
   })
 
-  const applications = Array.isArray((appsData as any)?.applications) ? (appsData as any).applications : []
-  const interviews = Array.isArray((interviewsData as any)?.interviews) ? (interviewsData as any).interviews : []
-  const pipeline = (pipelineData as any)?.pipeline || {}
-  const allAssignments = Array.isArray((agenciesData as any)?.assignments) ? (agenciesData as any).assignments : []
-  const assignedAgenciesCount = allAssignments.filter((a: any) => a.requisition_id === jobId).length
+  const pipeline = (pipelineData as any)?.data?.pipeline || {}
+  const assignments = Array.isArray((agenciesData as any)?.data?.assignments) ? (agenciesData as any).data.assignments : []
 
   const formatSalary = (amount: any) => {
     if (!amount) return 'N/A'
@@ -279,7 +360,7 @@ const JobDetailPanel = ({ job, onClose }: { job: JobRequisition, onClose: () => 
               { label: 'Job Type', value: job?.job_type?.replace('_', ' ') || 'N/A' },
               { label: 'Work Mode', value: job?.work_mode || 'N/A' },
               { label: 'Priority', value: job?.priority || 'Medium', type: 'tag' },
-              { label: 'Assigned Agencies', value: assignedAgenciesCount }
+              { label: 'Agencies', value: assignments.length }
             ].map((stat, i) => (
               <div key={i} className="bg-slate-50/50 rounded-xl p-4 border border-slate-100">
                 <Text className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{stat.label}</Text>
@@ -300,14 +381,6 @@ const JobDetailPanel = ({ job, onClose }: { job: JobRequisition, onClose: () => 
             <div>
               <Title level={5} className="!text-xs !font-bold !uppercase !tracking-widest !text-slate-400 !mb-3">Requirements</Title>
               <Text className="text-slate-600 leading-relaxed block whitespace-pre-wrap">{job?.requirements || 'No requirements specified.'}</Text>
-            </div>
-            <div>
-              <Title level={5} className="!text-xs !font-bold !uppercase !tracking-widest !text-slate-400 !mb-3">Skills Required</Title>
-              <div className="flex flex-wrap gap-2">
-                {(job?.skills_required || []).map((s: string) => (
-                  <Tag key={s} className="bg-blue-50 text-blue-600 border-none font-bold rounded-lg px-3 py-1 m-0">{s}</Tag>
-                ))}
-              </div>
             </div>
           </div>
         </div>
@@ -342,93 +415,8 @@ const JobDetailPanel = ({ job, onClose }: { job: JobRequisition, onClose: () => 
                   </div>
                 </div>
               ))}
-              {Object.keys(pipeline).length === 0 && <div className="py-20 text-center w-full text-slate-400">No pipeline stages defined.</div>}
             </div>
           )}
-        </div>
-      )
-    },
-    {
-      key: 'applications',
-      label: `Applications`,
-      children: (
-        <div className="p-0">
-          {appsLoading ? <div className="p-10 text-center"><Spin /></div> : (
-            <Table
-              dataSource={applications}
-              rowKey="id"
-              size="small"
-              pagination={false}
-              className="modern-table"
-              columns={[
-                {
-                  title: 'Candidate',
-                  dataIndex: 'candidate_name',
-                  render: (name, _record) => (
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-500 text-xs uppercase">
-                        {name?.charAt(0) || 'C'}
-                      </div>
-                      <Text className="font-bold text-slate-700">{name || 'Candidate'}</Text>
-                    </div>
-                  )
-                },
-                {
-                  title: 'Status',
-                  dataIndex: 'status',
-                  render: (status) => <Tag className="m-0 uppercase font-bold text-[10px] rounded-full px-2" color="blue">{status || 'Applied'}</Tag>
-                },
-                {
-                  title: 'Applied',
-                  dataIndex: 'created_at',
-                  render: (date) => <Text className="text-slate-500 text-xs">{date ? dayjs(date).format('MMM D, YYYY') : 'N/A'}</Text>
-                },
-                {
-                  title: '',
-                  key: 'actions',
-                  render: (_, _record) => (
-                    <div className="flex gap-2 justify-end">
-                      <Button size="small" type="primary" className="text-[10px] font-bold uppercase h-7 px-3 rounded-lg bg-blue-600 border-none">Shortlist</Button>
-                      <Button size="small" danger className="text-[10px] font-bold uppercase h-7 px-3 rounded-lg">Reject</Button>
-                    </div>
-                  )
-                }
-              ]}
-            />
-          )}
-        </div>
-      )
-    },
-    {
-      key: 'interviews',
-      label: `Interviews`,
-      children: (
-        <div className="p-0">
-          <Table
-            dataSource={interviews}
-            rowKey="id"
-            size="small"
-            pagination={false}
-            className="modern-table"
-            columns={[
-              { 
-                title: 'Type', 
-                dataIndex: 'interview_type',
-                render: (t) => <Text className="font-bold text-slate-700 capitalize text-xs">{t?.replace('_', ' ') || 'Interview'}</Text>
-              },
-              { title: 'Round', dataIndex: 'interview_round', align: 'center', render: (r) => <Badge count={`R${r || 1}`} style={{ backgroundColor: '#f8fafc', color: '#64748b', border: '1px solid #e2e8f0', boxShadow: 'none', fontWeight: 'bold', fontSize: '10px' }} /> },
-              {
-                title: 'Scheduled',
-                dataIndex: 'scheduled_at',
-                render: (date) => <Text className="text-slate-500 text-xs">{date ? dayjs(date).format('MMM D, h:mm A') : 'TBD'}</Text>
-              },
-              {
-                title: 'Status',
-                dataIndex: 'status',
-                render: (status) => <Tag color={status === 'completed' ? 'green' : 'blue'} className="m-0 uppercase font-bold text-[10px] rounded-full px-2">{status || 'scheduled'}</Tag>
-              }
-            ]}
-          />
         </div>
       )
     }
@@ -436,36 +424,44 @@ const JobDetailPanel = ({ job, onClose }: { job: JobRequisition, onClose: () => 
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Detail Header */}
-      <div className="p-6 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-20">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-             <Title level={4} className="!m-0 text-slate-900">{job?.title || 'Untitled'}</Title>
-             <Tag className={cn("m-0 border-none font-bold text-[10px] uppercase rounded-full px-2", getStatusStyle(job?.status || 'draft', 'job').softClass)}>
-                {formatStatusLabel(job?.status || 'draft')}
-             </Tag>
+      {/* Detail Header - Consistent UX */}
+      <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-20">
+        <div className="flex items-center gap-4">
+          <Button icon={<ChevronLeft className="h-4 w-4" />} onClick={onClose} className="h-8 w-8 flex items-center justify-center rounded-lg border-slate-200" />
+          <div>
+            <div className="flex items-center gap-3 mb-0.5">
+               <Title level={4} className="!m-0 text-slate-900">{job?.title || 'Untitled'}</Title>
+               <Tag className={cn("m-0 border-none font-bold text-[9px] uppercase rounded-full px-2", getStatusStyle(job?.status || 'draft', 'job').softClass)}>
+                  {formatStatusLabel(job?.status || 'draft')}
+               </Tag>
+            </div>
+            <Text className="text-slate-400 font-medium text-xs uppercase tracking-wider">
+              {job?.location_id || 'Remote'} · {job?.priority || 'Medium'} Priority
+            </Text>
           </div>
-          <Text className="text-slate-400 font-medium text-xs uppercase tracking-wider">
-            {job?.department_id || 'Engineering'} • {job?.location_id || 'Remote'}
-          </Text>
         </div>
         <div className="flex items-center gap-2">
-          <Button icon={<X className="h-4 w-4" />} onClick={onClose} className="h-9 w-9 flex items-center justify-center rounded-lg border-slate-200" />
+          <Button
+            className="h-9 font-bold px-4 rounded-lg"
+            onClick={() => onEdit(job)}
+          >
+            Edit
+          </Button>
           <Button 
             type="primary" 
             className="h-9 font-bold px-4 rounded-lg bg-blue-600 border-none shadow-soft-sm"
             onClick={() => navigate(`/pipeline?job=${jobId}`)}
             icon={<LayoutGrid className="h-4 w-4" />}
           >
-            Open Pipeline
+            Pipeline
           </Button>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {/* Quick Actions Bar */}
-        <div className="px-6 py-3 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
-           <Text className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Quick Actions</Text>
+        <div className="px-6 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+           <Text className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Workflow Actions</Text>
            <Space>
               {job?.status === 'draft' && (
                 <Button 
@@ -475,7 +471,7 @@ const JobDetailPanel = ({ job, onClose }: { job: JobRequisition, onClose: () => 
                   loading={submitMutation.isPending}
                   onClick={() => submitMutation.mutate()}
                 >
-                  Submit for Approval
+                  Submit
                 </Button>
               )}
               {job?.status === 'pending_approval' && (
@@ -487,7 +483,7 @@ const JobDetailPanel = ({ job, onClose }: { job: JobRequisition, onClose: () => 
                   loading={approveMutation.isPending}
                   onClick={() => approveMutation.mutate()}
                 >
-                  Approve Requisition
+                  Approve
                 </Button>
               )}
               {job?.status === 'approved' && (
@@ -499,10 +495,19 @@ const JobDetailPanel = ({ job, onClose }: { job: JobRequisition, onClose: () => 
                   loading={publishMutation.isPending}
                   onClick={() => publishMutation.mutate()}
                 >
-                  Publish to Active
+                  Publish
                 </Button>
               )}
-              <Button size="small" icon={<Plus className="h-3 w-3" />} className="text-[10px] font-bold uppercase h-7 rounded-lg">Assign Agency</Button>
+              {job?.status === 'active' && (
+                <Button 
+                  size="small" 
+                  icon={<Plus className="h-3 w-3" />} 
+                  className="text-[10px] font-bold uppercase h-7 rounded-lg"
+                  onClick={() => setAssignModalOpen(true)}
+                >
+                  Assign Agency
+                </Button>
+              )}
            </Space>
         </div>
 
@@ -513,6 +518,16 @@ const JobDetailPanel = ({ job, onClose }: { job: JobRequisition, onClose: () => 
           tabBarStyle={{ padding: '0 24px', marginBottom: 0, borderBottom: '1px solid #f1f5f9' }}
         />
       </div>
+
+      <AssignAgencyModal
+        open={assignModalOpen}
+        jobId={jobId!}
+        onClose={() => setAssignModalOpen(false)}
+        onSuccess={() => {
+          setAssignModalOpen(false)
+          refetchAgencies()
+        }}
+      />
     </div>
   )
 }
@@ -524,6 +539,7 @@ export default function JobsList() {
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [selectedJob, setSelectedJob] = useState<JobRequisition | null>(null)
   const [createDrawerOpen, setCreateDrawerOpen] = useState(false)
+  const [editingJob, setEditingJob] = useState<JobRequisition | null>(null)
 
   const { data, isLoading, refetch } = useApiQuery(
     ['jobs', statusFilter, search],
@@ -533,13 +549,26 @@ export default function JobsList() {
     })
   )
 
-  const requisitions = (data as { requisitions: JobRequisition[] } | undefined)?.requisitions ?? []
+  // useApiQuery already unwraps ApiResponse -> data, so requisitions are usually at data.requisitions.
+  // Keep a fallback for older nested usage to avoid regressions during API contract transitions.
+  const requisitions =
+    ((data as any)?.requisitions as JobRequisition[] | undefined) ??
+    ((data as any)?.data?.requisitions as JobRequisition[] | undefined) ??
+    []
+
+  useEffect(() => {
+    // Temporary debug visibility to validate backend payload vs UI rendering.
+    if (import.meta.env.DEV) {
+      console.debug('[JobsList] requisitions response', data)
+      console.debug('[JobsList] rendered requisitions count', requisitions.length)
+    }
+  }, [data, requisitions.length])
 
   return (
     <div className="h-[calc(100vh-100px)] flex flex-col -m-6">
-      {/* Top Header / Actions - Only show if no job selected or in header above list */}
+      {/* Top Header / Actions */}
       {!selectedJob && (
-        <div className="p-6 pb-0 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="p-6 pb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Job Requisitions</h1>
             <p className="text-slate-500 mt-1">Manage and track all open roles across your organization.</p>
@@ -558,34 +587,29 @@ export default function JobsList() {
         </div>
       )}
 
-      {/* Filter Toolbar - Sticky below header */}
+      {/* Filter Toolbar */}
       {!selectedJob && (
-        <div className="p-6 pb-4">
+        <div className="px-6 pb-6">
           <Card bordered={false} className="shadow-soft-sm bg-white/50 backdrop-blur-sm" styles={{ body: { padding: '12px' } }}>
             <Row gutter={[12, 12]} align="middle">
-              <Col xs={24} md={14}>
+              <Col xs={24} md={12}>
                 <Input
                   prefix={<Search className="h-4 w-4 text-slate-400 mr-2" />}
                   placeholder="Search by role, location, or department..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="h-10 text-sm border-slate-200"
+                  className="h-10 text-sm border-slate-200 rounded-xl"
                   allowClear
                 />
               </Col>
-              <Col xs={12} md={6}>
+              <Col xs={12} md={8}>
                 <Select
                   className="w-full h-10"
                   placeholder="Status"
                   value={statusFilter}
                   onChange={setStatusFilter}
                   allowClear
-                  options={[
-                    { value: 'active', label: 'Active Roles' },
-                    { value: 'pending_approval', label: 'Pending Approval' },
-                    { value: 'draft', label: 'Drafts' },
-                    { value: 'closed', label: 'Closed' },
-                  ]}
+                  options={JOB_STATUS_OPTIONS}
                 />
               </Col>
               <Col xs={12} md={4}>
@@ -627,6 +651,10 @@ export default function JobsList() {
             <JobDetailPanel
               job={selectedJob}
               onClose={() => setSelectedJob(null)}
+              onEdit={(job) => {
+                setEditingJob(job)
+                setCreateDrawerOpen(true)
+              }}
             />
           ) : null
         }
@@ -635,15 +663,19 @@ export default function JobsList() {
       {/* Create Job Drawer */}
       <Drawer
         open={createDrawerOpen}
-        onClose={() => setCreateDrawerOpen(false)}
+        onClose={() => {
+          setCreateDrawerOpen(false)
+          setEditingJob(null)
+        }}
         width={640}
-        title={<span className="text-lg font-bold">Create New Job Requisition</span>}
+        title={<span className="text-lg font-bold">{editingJob ? 'Edit Job Requisition' : 'Create New Job Requisition'}</span>}
         destroyOnClose
       >
         <JobCreateForm onSuccess={() => {
           setCreateDrawerOpen(false)
+          setEditingJob(null)
           refetch()
-        }} />
+        }} initialValues={editingJob} />
       </Drawer>
     </div>
   )

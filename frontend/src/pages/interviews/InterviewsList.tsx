@@ -7,7 +7,7 @@ import {
 import {
   Search, RefreshCw, Clock, X, ChevronRight, Video,
   MapPin, Calendar, Briefcase, CheckCircle2, MessageSquare,
-  Play, CheckCheck, DollarSign, UserCheck
+  Play, CheckCheck, DollarSign, UserCheck, Globe
 } from 'lucide-react'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -22,6 +22,7 @@ import { cn } from '@/utils/cn'
 import http from '@/utils/http'
 import { StandardSplitView } from '@/components/layout/StandardSplitView'
 import { formatStatusLabel, getStatusStyle } from '@/utils/status'
+import { useAuthStore } from '@/store/authStore'
 
 dayjs.extend(relativeTime)
 const { Title, Text } = Typography
@@ -103,6 +104,8 @@ const FeedbackModal = ({ interviewId, open, onClose }: { interviewId: string; op
 // ─── Interview Sub-components ─────────────────────────────────────────────────
 
 const FullInterviewList = ({ interviews, onSelect, selectedInterviewId, isLoading }: any) => {
+  const user = useAuthStore(s => s.user)
+  
   const columns: ColumnsType<Interview> = [
     {
       title: 'Candidate Name',
@@ -150,6 +153,7 @@ const FullInterviewList = ({ interviews, onSelect, selectedInterviewId, isLoadin
           <div className="flex items-center gap-2 text-slate-400 font-medium text-[11px] mt-0.5">
             <Clock className="h-3 w-3" />
             {date ? dayjs(date).format('h:mm A') : ''}
+            <span className="text-[9px] bg-slate-100 px-1 rounded">{user?.timezone || 'UTC'}</span>
           </div>
         </div>
       ),
@@ -236,6 +240,7 @@ const CompressedInterviewList = ({ interviews, onSelect, selectedInterviewId }: 
 
 const InterviewDetailPanel = ({ interview, onClose, onRefetch }: { interview: Interview; onClose: () => void; onRefetch: () => void }) => {
   const interviewId = interview?.id
+  const user = useAuthStore(s => s.user)
   const [feedbackModal, setFeedbackModal] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
@@ -298,7 +303,10 @@ const InterviewDetailPanel = ({ interview, onClose, onRefetch }: { interview: In
 
           <div className="grid grid-cols-2 gap-4 mb-8">
             <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100">
-              <Text className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Time & Date</Text>
+              <div className="flex justify-between items-start mb-2">
+                <Text className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest">Time & Date</Text>
+                <Tag className="m-0 border-none bg-blue-50 text-blue-600 font-bold text-[9px] uppercase">{user?.timezone || 'UTC'}</Tag>
+              </div>
               <div className="flex items-center gap-3">
                 <Calendar className="h-4 w-4 text-blue-600" />
                 <Text className="font-bold text-slate-700">

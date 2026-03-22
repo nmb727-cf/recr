@@ -33,4 +33,9 @@ urlpatterns = [
     path('crm/candidates/<uuid:candidate_id>/interactions/', CRMInteractionListView.as_view(), name='crm-interactions'),
     path('crm/reminders/', CRMRemindersView.as_view(), name='crm-reminders'),
     path('crm/suggestions/<uuid:job_id>/', CRMSuggestionsView.as_view(), name='crm-suggestions'),
+
+    path('skills/search/', views.SkillSearchView.as_view(),
+         name='skill-search'),
+    path('locations/search/', views.LocationSearchView.as_view(),
+         name='location-search'),
 ]

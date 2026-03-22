@@ -2,12 +2,15 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 
-from apps.organisations.models import Organisation, Department, Location, Team
+from apps.organisations.models import Organisation, Department, Location, Team, TeamMembership
 from apps.organisations.serializers import (
     OrganisationSerializer, DepartmentSerializer,
-    LocationSerializer, TeamSerializer,
+    LocationSerializer, TeamSerializer, TeamMembershipSerializer,
 )
 from apps.core.responses import success_response, error_response
+from apps.accounts.models import CustomUser
+from apps.accounts.serializers import UserSerializer
+from django.db.models import Count
 
 
 class OrganisationProfileView(APIView):
@@ -210,9 +213,15 @@ class TeamListView(APIView):
         teams = Team.objects.filter(
             tenant_id=request.user.tenant_id,
             is_deleted=False
-        ).order_by('name')
+        ).annotate(member_count=Count('memberships')).order_by('name')
+        
+        # Include member_count in the serialized data
+        data = TeamSerializer(teams, many=True).data
+        for i, team in enumerate(teams):
+            data[i]['member_count'] = team.member_count
+            
         return success_response(
-            data={'teams': TeamSerializer(teams, many=True).data},
+            data={'teams': data},
             message="Teams retrieved."
         )
 
@@ -230,6 +239,86 @@ class TeamListView(APIView):
             message="Team created.",
             status_code=status.HTTP_201_CREATED
         )
+
+
+class TeamMemberListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, team_id):
+        memberships = TeamMembership.objects.filter(
+            team_id=team_id,
+            tenant_id=request.user.tenant_id
+        )
+        
+        # Fetch user details for each membership
+        user_ids = [m.user_id for m in memberships]
+        users = CustomUser.objects.filter(id__in=user_ids)
+        user_map = {str(u.id): UserSerializer(u).data for u in users}
+        
+        data = []
+        for m in memberships:
+            member_data = TeamMembershipSerializer(m).data
+            member_data['user'] = user_map.get(str(m.user_id))
+            data.append(member_data)
+            
+        return success_response(
+            data={'members': data},
+            message="Team members retrieved."
+        )
+
+    def post(self, request, team_id):
+        user_id = request.data.get('user_id')
+        role = request.data.get('role', '')
+        
+        if not user_id:
+            return error_response("user_id is required.")
+            
+        # Verify team exists and belongs to tenant
+        try:
+            team = Team.objects.get(id=team_id, tenant_id=request.user.tenant_id)
+        except Team.DoesNotExist:
+            return error_response("Team not found.", status_code=status.HTTP_404_NOT_FOUND)
+            
+        # Verify user belongs to tenant
+        try:
+            user = CustomUser.objects.get(id=user_id, tenant_id=request.user.tenant_id)
+        except CustomUser.DoesNotExist:
+            return error_response("User not found.", status_code=status.HTTP_404_NOT_FOUND)
+            
+        membership, created = TeamMembership.objects.get_or_create(
+            team=team,
+            user_id=user_id,
+            defaults={
+                'tenant_id': request.user.tenant_id,
+                'role': role,
+                'created_by': request.user.id
+            }
+        )
+        
+        if not created:
+            return error_response("User is already a member of this team.")
+            
+        return success_response(
+            data={'membership': TeamMembershipSerializer(membership).data},
+            message="Member added to team.",
+            status_code=status.HTTP_201_CREATED
+        )
+
+
+class TeamMemberDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, team_id, user_id):
+        try:
+            membership = TeamMembership.objects.get(
+                team_id=team_id,
+                user_id=user_id,
+                tenant_id=request.user.tenant_id
+            )
+            membership.delete()
+            return success_response(message="Member removed from team.", status_code=status.HTTP_204_NO_CONTENT)
+        except TeamMembership.DoesNotExist:
+            return error_response("Membership not found.", status_code=status.HTTP_404_NOT_FOUND)
 
 
 class TeamDetailView(APIView):

@@ -43,6 +43,28 @@ class AgencyClientRelationship(models.Model):
         blank=True
     )
     notes = models.TextField(blank=True)
+
+    # Contact details
+    contact_person_name = models.CharField(max_length=255, blank=True)
+    contact_email = models.EmailField(blank=True)
+    contact_phone = models.CharField(max_length=20, blank=True)
+    industry = models.CharField(max_length=100, blank=True)
+
+    # Contract files (store URL, upload wired later)
+    contract_file_url = models.TextField(blank=True)
+    recruitment_policy_url = models.TextField(blank=True)
+
+    # Payment terms — stored as JSON list of selected options
+    payment_terms = models.JSONField(default=list, blank=True)
+
+    # Invite tracking
+    invited_by = models.CharField(
+        max_length=10,
+        choices=[('company', 'Company'), ('agency', 'Agency')],
+        blank=True
+    )
+    invited_via = models.CharField(max_length=255, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.UUIDField(null=True, blank=True)

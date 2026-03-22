@@ -20,12 +20,106 @@ class Candidate(models.Model):
     current_location_city = models.CharField(max_length=100, blank=True)
     current_location_country = models.CharField(max_length=100, blank=True)
     experience_years = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
+    # Professional details
+    designation = models.CharField(max_length=255, blank=True)
+    relevant_experience_years = models.DecimalField(
+        max_digits=4, decimal_places=1, null=True, blank=True
+    )
+
+    # Compensation
+    current_ctc = models.DecimalField(
+        max_digits=15, decimal_places=2, null=True, blank=True
+    )
+    current_ctc_currency = models.CharField(
+        max_length=10, default='INR', blank=True
+    )
+    offer_in_hand = models.BooleanField(default=False)
+    offer_in_hand_amount = models.DecimalField(
+        max_digits=15, decimal_places=2, null=True, blank=True
+    )
+    counter_offer = models.DecimalField(
+        max_digits=15, decimal_places=2, null=True, blank=True
+    )
+
+    # Availability
+    availability_status = models.CharField(
+        max_length=50,
+        choices=[
+            ('available_now', 'Available Now'),
+            ('notice_period', 'Serving Notice Period'),
+            ('not_looking', 'Not Looking'),
+            ('open_to_offers', 'Open to Offers'),
+        ],
+        blank=True
+    )
+    last_working_day = models.DateField(null=True, blank=True)
+    work_mode_preference = models.CharField(
+        max_length=20,
+        choices=[
+            ('any', 'Any'),
+            ('remote', 'Remote Only'),
+            ('hybrid', 'Hybrid'),
+            ('onsite', 'On-site Only'),
+        ],
+        default='any',
+        blank=True
+    )
+
+    # Scoring
+    fitment_score = models.IntegerField(null=True, blank=True)
+
+    # Profile lifecycle
+    profile_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('draft', 'Draft'),
+            ('partial', 'Partial'),
+            ('complete', 'Complete'),
+            ('claimed', 'Claimed'),
+        ],
+        default='partial'
+    )
+    initial_entry_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('self', 'Self Registered'),
+            ('invite', 'Invite Link'),
+            ('manual', 'Manual Add'),
+            ('passport_import', 'Passport Import'),
+            ('agency_submission', 'Agency Submission'),
+        ],
+        blank=True
+    )
+    claim_token = models.CharField(max_length=100, blank=True, db_index=True)
+    claim_token_expires_at = models.DateTimeField(null=True, blank=True)
+    claimed_at = models.DateTimeField(null=True, blank=True)
+    account_status = models.CharField(
+        max_length=20,
+        choices=[
+            ('none', 'No Account'),
+            ('invited', 'Invite Sent'),
+            ('claimed', 'Account Claimed'),
+            ('active', 'Active User'),
+        ],
+        default='none'
+    )
+    invite_sent_at = models.DateTimeField(null=True, blank=True)
     expected_salary_min = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
     expected_salary_max = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
     salary_currency = models.CharField(max_length=10, default='INR')
     notice_period_days = models.IntegerField(null=True, blank=True)
     availability_date = models.DateField(null=True, blank=True)
     is_actively_looking = models.BooleanField(default=True)
+    
+    # New fields
+    nationality = models.CharField(max_length=100, blank=True)
+    work_authorization = models.CharField(max_length=100, blank=True)
+    highest_education = models.CharField(max_length=100, blank=True)
+    graduation_year = models.IntegerField(null=True, blank=True)
+    relocation_willing = models.CharField(max_length=50, blank=True)
+    preferred_locations = models.JSONField(default=list, blank=True)
+    resume_url = models.TextField(blank=True)
+
     source = models.CharField(
         max_length=100,
         choices=[
@@ -214,3 +308,22 @@ class CandidateFormSubmission(models.Model):
 
     class Meta:
         db_table = 'candidates_form_submission'
+
+
+class Skill(models.Model):
+    id = models.UUIDField(
+        primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=100, unique=True)
+    category = models.CharField(
+        max_length=100, blank=True)  # e.g. Programming, Design, etc
+    aliases = models.JSONField(default=list, blank=True)
+    is_active = models.BooleanField(default=True)
+    usage_count = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'candidates_skill'
+        ordering = ['-usage_count', 'name']
+
+    def __str__(self):
+        return self.name

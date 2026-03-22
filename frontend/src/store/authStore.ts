@@ -45,10 +45,20 @@ export const useAuthStore = create<AuthState>()(
       login: async (email, password) => {
         set({ isLoading: true })
         try {
-          const { data: res } = await authApi.login({ email, password })
-          const { user, access_token, refresh_token } = res.data
-          get().setTokens(access_token, refresh_token)
-          set({ user, isAuthenticated: true })
+          const axiosResponse = await authApi.login({ email, password })
+          const access_token = axiosResponse.data.data.access_token
+          const refresh_token = axiosResponse.data.data.refresh_token
+          const user = axiosResponse.data.data.user
+          localStorage.setItem('access_token', access_token)
+          localStorage.setItem('refresh_token', refresh_token)
+          set({
+            user,
+            accessToken: access_token,
+            refreshToken: refresh_token,
+            isAuthenticated: true,
+          })
+        } catch (err) {
+          throw err
         } finally {
           set({ isLoading: false })
         }

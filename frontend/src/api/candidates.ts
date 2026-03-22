@@ -31,4 +31,31 @@ export const candidatesApi = {
 
   crmPipeline: () =>
     http.get<ApiResponse<Record<string, unknown[]>>>('/crm/pipeline/'),
+
+  searchSkills: (q: string) =>
+    http.get(`/candidates/skills/search/?q=${encodeURIComponent(q)}`),
+
+  searchLocations: (q: string) =>
+    http.get(`/candidates/locations/search/?q=${encodeURIComponent(q)}`),
+
+  update: (id: string, data: any) =>
+    http.put(`/candidates/${id}/`, data),
+
+  createInviteLink: (data: {
+    job_id?: string
+    expires_days?: number
+    max_uses?: number
+  }) =>
+    http.post('/organisation/invite-links/', data),
+
+  listInviteLinks: () =>
+    http.get('/organisation/invite-links/'),
+
+  getPublicForm: (token: string) =>
+    http.get(`/apply/${token}/`, { headers: { 'X-Skip-Auth': '1' } }),
+
+  submitPublicForm: (token: string, data: any) =>
+    http.post(`/apply/${token}/submit/`, data, { 
+      headers: { 'X-Skip-Auth': '1' } 
+    }),
 }

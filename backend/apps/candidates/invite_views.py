@@ -144,9 +144,30 @@ class PublicApplyFormView(APIView):
             last_name=request.data.get('last_name', ''),
             email=request.data.get('email', ''),
             phone=request.data.get('phone', ''),
-            skills=request.data.get('skills', []),
+            linkedin_url=request.data.get('linkedin_url', ''),
+            current_title=request.data.get('current_title', ''),
+            current_company=request.data.get('current_company', ''),
+            current_location_city=request.data.get(
+                'current_location_city', ''),
             experience_years=request.data.get('experience_years'),
+            relevant_experience_years=request.data.get(
+                'relevant_experience_years'),
+            skills=request.data.get('skills', []),
+            nationality=request.data.get('nationality', ''),
+            work_authorization=request.data.get(
+                'work_authorization', 'not_specified'),
+            highest_education=request.data.get(
+                'highest_education', ''),
+            graduation_year=request.data.get('graduation_year'),
+            availability_status=request.data.get(
+                'availability_status', ''),
+            notice_period_days=request.data.get('notice_period_days'),
+            work_mode_preference=request.data.get(
+                'work_mode_preference', 'any'),
+            resume_url=request.data.get('resume_url', ''),
             source='invite_link',
+            initial_entry_type='invite',
+            profile_status='partial',
             owner_tenant_id=link.tenant_id,
         )
 

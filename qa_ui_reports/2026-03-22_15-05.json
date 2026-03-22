@@ -1,0 +1,49 @@
+{
+  "run_at": "2026-03-22T15:05:10.148049",
+  "total": 5,
+  "passed": 2,
+  "failed": 2,
+  "skipped": 1,
+  "results": [
+    {
+      "scenario": "1. Company Onboarding",
+      "step": "Register page loads",
+      "status": "PASS",
+      "detail": "",
+      "screenshot": "",
+      "time": "2026-03-22T15:04:42.401623"
+    },
+    {
+      "scenario": "1. Company Onboarding",
+      "step": "Registration form submit",
+      "status": "PASS",
+      "detail": "Landed on: http://localhost:5173/register/company",
+      "screenshot": "",
+      "time": "2026-03-22T15:05:04.024893"
+    },
+    {
+      "scenario": "1. Company Onboarding",
+      "step": "Post-register redirect",
+      "status": "FAIL",
+      "detail": "Still on register page \u2014 likely form error. URL: http://localhost:5173/register/company",
+      "screenshot": "/home/nirav/projects/SaaS_Project/qa_ui_reports/screenshots/150504_1._Company_Onboarding_post_register.png",
+      "time": "2026-03-22T15:05:04.090600"
+    },
+    {
+      "scenario": "1. Company Onboarding",
+      "step": "Onboarding form save",
+      "status": "SKIP",
+      "detail": "Onboarding screen not shown",
+      "screenshot": "",
+      "time": "2026-03-22T15:05:04.090641"
+    },
+    {
+      "scenario": "1. Company Onboarding",
+      "step": "Re-login skips onboarding",
+      "status": "FAIL",
+      "detail": "Locator.fill: Timeout 5000ms exceeded.\nCall log:\n  - waiting for locator(\"input[type='email'], input[placeholder*='email' i], input[name='email']\").first\n",
+      "screenshot": "",
+      "time": "2026-03-22T15:05:09.884673"
+    }
+  ]
+}

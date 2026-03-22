@@ -77,7 +77,7 @@ class RegisterCompanyView(APIView):
         data = serializer.validated_data
 
         tenant = create_tenant(
-            name=data['company_name'],
+            name=data['name'],
             tenant_type='company',
             country_code=data.get('country_code', 'IN')
         )
@@ -85,16 +85,17 @@ class RegisterCompanyView(APIView):
         user = CustomUser.objects.create_user(
             email=data['email'],
             password=data['password'],
-            first_name=data['name'].split()[0],
-            last_name=' '.join(data['name'].split()[1:]) or '',
+            first_name=data['first_name'],
+            last_name=data['last_name'],
             role='tenant_admin',
             tenant_id=tenant.id,
+            timezone=data.get('timezone', 'UTC'),
         )
 
         # Auto-create Organisation record to prevent 404s
         Organisation.objects.create(
             tenant_id=tenant.id,
-            name=data['company_name'],
+            name=data['name'],
             org_type='company',
             created_by=user.id
         )
@@ -129,7 +130,7 @@ class RegisterAgencyView(APIView):
         data = serializer.validated_data
 
         tenant = create_tenant(
-            name=data['agency_name'],
+            name=data['name'],
             tenant_type='agency',
             country_code=data.get('country_code', 'IN')
         )
@@ -137,16 +138,17 @@ class RegisterAgencyView(APIView):
         user = CustomUser.objects.create_user(
             email=data['email'],
             password=data['password'],
-            first_name=data['name'].split()[0],
-            last_name=' '.join(data['name'].split()[1:]) or '',
+            first_name=data['first_name'],
+            last_name=data['last_name'],
             role='agency_owner',
             tenant_id=tenant.id,
+            timezone=data.get('timezone', 'UTC'),
         )
 
         # Auto-create Organisation record
         Organisation.objects.create(
             tenant_id=tenant.id,
-            name=data['agency_name'],
+            name=data['name'],
             org_type='agency',
             created_by=user.id
         )

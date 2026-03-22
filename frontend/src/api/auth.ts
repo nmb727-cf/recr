@@ -1,5 +1,5 @@
 import http from '@/utils/http'
-import type { ApiResponse, User, AuthTokens, LoginPayload, RegisterCompanyPayload, RegisterCandidatePayload } from '@/types'
+import type { ApiResponse, User, AuthTokens, LoginPayload, RegisterCompanyPayload, RegisterAgencyPayload, RegisterCandidatePayload } from '@/types'
 
 interface LoginResponse {
   user: User
@@ -13,6 +13,9 @@ export const authApi = {
 
   registerCompany: (payload: RegisterCompanyPayload) =>
     http.post<ApiResponse<LoginResponse>>('/auth/register/company/', payload),
+
+  registerAgency: (payload: RegisterAgencyPayload) =>
+    http.post<ApiResponse<LoginResponse>>('/auth/register/agency/', payload),
 
   registerCandidate: (payload: RegisterCandidatePayload) =>
     http.post<ApiResponse<LoginResponse>>('/auth/register/candidate/', payload),

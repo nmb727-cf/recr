@@ -1,6 +1,9 @@
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+import uuid
+from django.db.models import Q
+from apps.accounts.models import CustomUser
 
 from apps.agencies.models import (
     AgencyClientRelationship, AgencyJobAssignment, AgencyPerformanceScore
@@ -12,16 +15,130 @@ from apps.agencies.serializers import (
 from apps.core.responses import success_response, error_response
 
 
+class AvailableAgencyListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.tenants.models import Client
+        from apps.organisations.models import Organisation
+
+        def normalize_tenant_id(value):
+            if value is None:
+                return ''
+            if isinstance(value, uuid.UUID):
+                return str(value)
+            if isinstance(value, int):
+                return str(uuid.UUID(int=value))
+            raw = str(value).strip()
+            if not raw:
+                return ''
+            try:
+                return str(uuid.UUID(raw))
+            except Exception:
+                if raw.isdigit():
+                    return str(uuid.UUID(int=int(raw)))
+                return ''
+
+        agencies = Client.objects.filter(
+            tenant_type='agency',
+            is_deleted=False,
+        ).order_by('name')
+
+        by_id = {}
+        for a in agencies:
+            agency_tenant_id = normalize_tenant_id(a.id)
+            if not agency_tenant_id:
+                continue
+            by_id[agency_tenant_id] = {
+                'agency_tenant_id': agency_tenant_id,
+                'name': a.name,
+                'status': a.status,
+                'country_code': a.country_code,
+            }
+
+        # Fallback/source-merge for Phase 1:
+        # include agency org records in case tenant listing visibility is limited.
+        agency_orgs = Organisation.objects.filter(
+            org_type='agency',
+            is_deleted=False
+        ).values('tenant_id', 'name', 'country_code')
+
+        for org in agency_orgs:
+            tenant_id = normalize_tenant_id(org.get('tenant_id'))
+            if not tenant_id:
+                continue
+            existing = by_id.get(tenant_id)
+            if existing:
+                if not existing.get('name') and org.get('name'):
+                    existing['name'] = org['name']
+                if not existing.get('country_code') and org.get('country_code'):
+                    existing['country_code'] = org['country_code']
+                continue
+            by_id[tenant_id] = {
+                'agency_tenant_id': tenant_id,
+                'name': org.get('name') or f"Agency {tenant_id[:8]}",
+                'status': 'active',
+                'country_code': org.get('country_code') or '',
+            }
+
+        data = sorted(by_id.values(), key=lambda x: (x.get('name') or '').lower())
+
+        return success_response(
+            data={'agencies': data},
+            message="Available agencies retrieved.",
+            meta={'total': len(data)}
+        )
+
+
+class AgencyLookupView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        q = request.query_params.get('q', '').strip()
+        if not q:
+            return error_response("Search query required.")
+
+        from apps.accounts.models import CustomUser
+        from apps.tenants.models import Client
+        from django.db.models import Q
+
+        user = CustomUser.objects.filter(
+            Q(email__iexact=q) | Q(phone=q)
+        ).first()
+
+        if not user:
+            return error_response(
+                "No user found with that email or phone.",
+                status_code=status.HTTP_404_NOT_FOUND
+            )
+
+        from apps.organisations.models import Organisation
+        org = Organisation.objects.filter(tenant_id=user.tenant_id).first()
+        if not org:
+            return error_response("Account found but no organisation details linked.")
+
+        return success_response(
+            data={
+                'tenant_id': str(user.tenant_id),
+                'name': org.name,
+                'tenant_type': org.org_type,
+                'industry': org.industry or '',
+                'email': user.email,
+            },
+            message="Found."
+        )
+
+
 class AgencyRelationshipListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         # Company sees relationships where they are the company
         # Agency sees relationships where they are the agency
-        from apps.tenants.models import Client
+        from apps.organisations.models import Organisation
         try:
-            tenant = Client.objects.get(id=request.user.tenant_id)
-            if tenant.tenant_type == 'agency':
+            org = Organisation.objects.filter(tenant_id=request.user.tenant_id).first()
+            if org and org.org_type == 'agency':
                 qs = AgencyClientRelationship.objects.filter(
                     agency_tenant_id=request.user.tenant_id,
                     is_deleted=False
@@ -50,11 +167,51 @@ class AgencyRelationshipListView(APIView):
             return error_response("Validation failed.", serializer.errors)
 
         data = serializer.validated_data
+        agency_tenant_id = data.get('agency_tenant_id')
+        company_tenant_id = data.get('company_tenant_id')
+        invited_via = data.get('invited_via')
+
+        # Determine if company is inviting agency or vice-versa
+        if request.user.role in ['tenant_admin', 'hr_manager', 'recruiter']:
+            invited_by = 'company'
+            company_tenant_id = request.user.tenant_id
+            
+            # Look up agency if not provided
+            if not agency_tenant_id and invited_via:
+                try:
+                    user = CustomUser.objects.filter(
+                        Q(email=invited_via) | Q(phone=invited_via)
+                    ).first()
+                    if user:
+                        agency_tenant_id = user.tenant_id
+                    else:
+                        return error_response("No agency found with that email or phone number.")
+                except Exception:
+                    return error_response("Could not find agency.")
+        else:
+            invited_by = 'agency'
+            agency_tenant_id = request.user.tenant_id
+
+            # Look up company if not provided
+            if not company_tenant_id and invited_via:
+                try:
+                    user = CustomUser.objects.filter(
+                        Q(email=invited_via) | Q(phone=invited_via)
+                    ).first()
+                    if user:
+                        company_tenant_id = user.tenant_id
+                    else:
+                        return error_response("No company found with that email or phone number.")
+                except Exception:
+                    return error_response("Could not find company.")
+
+        if not agency_tenant_id or not company_tenant_id:
+            return error_response("Both agency and company tenant IDs are required.")
 
         # Check duplicate
         if AgencyClientRelationship.objects.filter(
-            agency_tenant_id=data['agency_tenant_id'],
-            company_tenant_id=data['company_tenant_id'],
+            agency_tenant_id=agency_tenant_id,
+            company_tenant_id=company_tenant_id,
             is_deleted=False
         ).exists():
             return error_response(
@@ -64,6 +221,9 @@ class AgencyRelationshipListView(APIView):
 
         relationship = serializer.save(
             tenant_id=request.user.tenant_id,
+            agency_tenant_id=agency_tenant_id,
+            company_tenant_id=company_tenant_id,
+            invited_by=invited_by,
             created_by=request.user.id,
             status='pending'
         )

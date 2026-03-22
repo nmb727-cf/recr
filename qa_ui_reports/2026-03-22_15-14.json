@@ -1,0 +1,49 @@
+{
+  "run_at": "2026-03-22T15:14:41.350422",
+  "total": 5,
+  "passed": 3,
+  "failed": 1,
+  "skipped": 1,
+  "results": [
+    {
+      "scenario": "1. Company Onboarding",
+      "step": "Register page loads",
+      "status": "PASS",
+      "detail": "",
+      "screenshot": "",
+      "time": "2026-03-22T15:14:21.832344"
+    },
+    {
+      "scenario": "1. Company Onboarding",
+      "step": "Registration form submit",
+      "status": "PASS",
+      "detail": "Landed on: http://localhost:5173/register/company",
+      "screenshot": "",
+      "time": "2026-03-22T15:14:38.549655"
+    },
+    {
+      "scenario": "1. Company Onboarding",
+      "step": "Post-register redirect",
+      "status": "FAIL",
+      "detail": "Still on register page \u2014 likely form error. URL: http://localhost:5173/register/company",
+      "screenshot": "/home/nirav/projects/SaaS_Project/qa_ui_reports/screenshots/151438_1._Company_Onboarding_post_register.png",
+      "time": "2026-03-22T15:14:38.614203"
+    },
+    {
+      "scenario": "1. Company Onboarding",
+      "step": "Onboarding form save",
+      "status": "SKIP",
+      "detail": "Onboarding screen not shown",
+      "screenshot": "",
+      "time": "2026-03-22T15:14:38.614246"
+    },
+    {
+      "scenario": "1. Company Onboarding",
+      "step": "Re-login skips onboarding",
+      "status": "PASS",
+      "detail": "Landed: http://localhost:5173/dashboard",
+      "screenshot": "",
+      "time": "2026-03-22T15:14:41.241538"
+    }
+  ]
+}

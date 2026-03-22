@@ -41,11 +41,25 @@ export interface LoginPayload {
 }
 
 export interface RegisterCompanyPayload {
-  name: string
-  company_name: string
+  name: string // Company Name
+  first_name: string
+  last_name: string
   email: string
   password: string
+  password_confirm: string
   country_code?: string
+  timezone?: string
+}
+
+export interface RegisterAgencyPayload {
+  name: string // Agency Name
+  first_name: string
+  last_name: string
+  email: string
+  password: string
+  password_confirm: string
+  country_code?: string
+  timezone?: string
 }
 
 export interface RegisterCandidatePayload {
@@ -53,7 +67,9 @@ export interface RegisterCandidatePayload {
   last_name: string
   email: string
   password: string
+  password_confirm: string
   phone?: string
+  timezone?: string
 }
 
 // ─── API response wrapper ─────────────────────────────────────────────────────

@@ -161,7 +161,7 @@ const getMenuItems = (role: string) => {
   }
   
   // ─── 2. AGENCY SIDEBAR ─────────────────────────────────────────────────────
-  if (role === 'agency_owner' || role === 'agency_recruiter') {
+  if (role === 'agency_owner' || role === 'agency_admin' || role === 'agency_recruiter') {
     return [
       { key: '/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
       { 
@@ -178,11 +178,12 @@ const getMenuItems = (role: string) => {
         icon: <TeamOutlined />, 
         label: 'Candidates',
         children: [
-          { key: '/candidates', label: 'Talent Pool' },
-          { key: '/agencies/my-submissions', label: 'Submissions' },
+          { key: '/candidates', label: 'Database' },
         ]
       },
-      { key: '/pipeline', icon: <ApartmentOutlined />, label: 'Pipeline' },
+      { key: '/leads', icon: <UserOutlined />, label: 'Leads' },
+      { key: '/agencies/my-submissions', icon: <FileSearchOutlined />, label: 'Submissions' },
+      { key: '/agencies/my-clients', icon: <BankOutlined />, label: 'Clients' },
       { 
         key: 'agency-team', 
         icon: <TeamOutlined />, 
@@ -202,10 +203,18 @@ const getMenuItems = (role: string) => {
     { key: '/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
     { key: '/jobs', icon: <ProjectOutlined />, label: 'Jobs' },
     { key: '/pipeline', icon: <ApartmentOutlined />, label: 'Pipeline' },
-    { key: '/candidates', icon: <TeamOutlined />, label: 'Candidates' },
+    {
+      key: 'company-candidates',
+      icon: <TeamOutlined />,
+      label: 'Candidates',
+      children: [
+        { key: '/candidates', label: 'Database' },
+      ],
+    },
+    { key: '/leads', icon: <TeamOutlined />, label: 'Leads' },
     { key: '/agencies', icon: <BankOutlined />, label: 'Agencies' },
     { key: '/interviews', icon: <CalendarOutlined />, label: 'Interviews' },
-    { key: '/interviews?tab=offers', icon: <FileDoneOutlined />, label: 'Offers' },
+    { key: '/offers', icon: <FileDoneOutlined />, label: 'Offers' },
     { key: '/analytics', icon: <BarChartOutlined />, label: 'Reports' },
     { key: '/settings', icon: <SettingOutlined />, label: 'Settings' },
   ]

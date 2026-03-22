@@ -1,15 +1,16 @@
-import { Form, Input, Button, Typography, Alert, Row, Col } from 'antd'
+import { Form, Input, Button, Typography, Alert, Row, Col, Select } from 'antd'
 import {
   UserOutlined,
   MailOutlined,
   LockOutlined,
-  PhoneOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons'
 import { Link, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import AuthLayout from '@/layouts/AuthLayout'
 import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/store/authStore'
+import { TIMEZONES } from '@/utils/locale'
 
 const { Title, Text } = Typography
 
@@ -18,15 +19,17 @@ interface RegisterForm {
   last_name: string
   email: string
   phone?: string
+  timezone: string
   password: string
-  confirm_password: string
+  password_confirm: string
 }
 
 export default function RegisterCandidate() {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const navigate = useNavigate()
-  const { setTokens, setUser } = useAuthStore()
+  const setTokens = useAuthStore(state => state.setTokens)
+  const setUser = useAuthStore(state => state.setUser)
 
   const handleSubmit = async (values: RegisterForm) => {
     setError(null)
@@ -37,16 +40,27 @@ export default function RegisterCandidate() {
         last_name: values.last_name,
         email: values.email,
         password: values.password,
+        password_confirm: values.password_confirm,
         phone: values.phone,
+        timezone: values.timezone,
       })
       setTokens(res.data.access_token, res.data.refresh_token)
       setUser(res.data.user)
       navigate('/dashboard')
     } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        'Registration failed. Please try again.'
-      setError(msg)
+      const errData = (err as { response?: { data?: { message?: string; errors?: Record<string, string | string[]> } } })
+        ?.response?.data
+      
+      const fieldErrors = errData?.errors
+      if (fieldErrors) {
+        const errorMessages = Object.entries(fieldErrors).map(([field, error]) => {
+          const message = Array.isArray(error) ? error[0] : error
+          return `${field}: ${message}`
+        })
+        setError(errorMessages.join(' | '))
+      } else {
+        setError(errData?.message ?? 'Registration failed. Please try again.')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -72,7 +86,12 @@ export default function RegisterCandidate() {
         />
       )}
 
-      <Form layout="vertical" onFinish={handleSubmit} requiredMark={false}>
+      <Form 
+        layout="vertical" 
+        onFinish={handleSubmit} 
+        requiredMark={false}
+        initialValues={{ timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' }}
+      >
         <Row gutter={12}>
           <Col span={12}>
             <Form.Item
@@ -84,6 +103,7 @@ export default function RegisterCandidate() {
                 prefix={<UserOutlined className="text-gray-400" />}
                 placeholder="Jane"
                 size="large"
+                autoComplete="given-name"
               />
             </Form.Item>
           </Col>
@@ -93,7 +113,7 @@ export default function RegisterCandidate() {
               label="Last name"
               rules={[{ required: true, message: 'Required' }]}
             >
-              <Input placeholder="Doe" size="large" />
+              <Input placeholder="Doe" size="large" autoComplete="family-name" />
             </Form.Item>
           </Col>
         </Row>
@@ -103,21 +123,31 @@ export default function RegisterCandidate() {
           label="Email"
           rules={[
             { required: true, message: 'Email is required' },
-            { type: 'email', message: 'Enter a valid email' },
+            { type: 'email', message: 'Enter a valid email address' },
           ]}
         >
           <Input
             prefix={<MailOutlined className="text-gray-400" />}
             placeholder="jane@example.com"
             size="large"
+            autoComplete="email"
+            type="email"
+            name="email"
           />
         </Form.Item>
 
-        <Form.Item name="phone" label="Phone (optional)">
-          <Input
-            prefix={<PhoneOutlined className="text-gray-400" />}
-            placeholder="+91 98765 43210"
+        <Form.Item
+          name="timezone"
+          label="Timezone"
+          rules={[{ required: true, message: 'Required' }]}
+        >
+          <Select
             size="large"
+            placeholder="Select timezone"
+            suffixIcon={<ClockCircleOutlined className="text-gray-400" />}
+            showSearch
+            optionFilterProp="label"
+            options={TIMEZONES}
           />
         </Form.Item>
 
@@ -133,11 +163,13 @@ export default function RegisterCandidate() {
             prefix={<LockOutlined className="text-gray-400" />}
             placeholder="••••••••"
             size="large"
+            autoComplete="new-password"
+            name="password"
           />
         </Form.Item>
 
         <Form.Item
-          name="confirm_password"
+          name="password_confirm"
           label="Confirm password"
           dependencies={['password']}
           rules={[
@@ -156,6 +188,7 @@ export default function RegisterCandidate() {
             prefix={<LockOutlined className="text-gray-400" />}
             placeholder="••••••••"
             size="large"
+            autoComplete="new-password"
           />
         </Form.Item>
 

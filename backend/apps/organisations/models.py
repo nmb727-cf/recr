@@ -139,3 +139,20 @@ class Team(models.Model):
 
     class Meta:
         db_table = 'organisations_team'
+
+
+class TeamMembership(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_id = models.UUIDField(db_index=True)
+    team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='memberships')
+    user_id = models.UUIDField(db_index=True)  # Linking to accounts.CustomUser id
+    role = models.CharField(max_length=50, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.UUIDField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'organisations_team_membership'
+        unique_together = ('team', 'user_id')
+
+    def __str__(self):
+        return f"User {self.user_id} in {self.team.name}"

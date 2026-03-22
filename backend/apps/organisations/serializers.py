@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from apps.organisations.models import Organisation, Department, Location, Team
+from apps.organisations.models import Organisation, Department, Location, Team, TeamMembership
 
 
 class OrganisationSerializer(serializers.ModelSerializer):
@@ -47,3 +47,10 @@ class TeamSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at', 'metadata',
         ]
         read_only_fields = ['id', 'tenant_id', 'created_at', 'updated_at']
+
+
+class TeamMembershipSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TeamMembership
+        fields = ['id', 'tenant_id', 'team', 'user_id', 'role', 'created_at']
+        read_only_fields = ['id', 'tenant_id', 'created_at']

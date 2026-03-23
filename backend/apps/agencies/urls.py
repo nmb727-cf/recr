@@ -3,7 +3,7 @@ from apps.agencies import views
 
 urlpatterns = [
     # Company side
-    path('lookup/', views.AgencyLookupView.as_view(), name='agency-lookup'),
+    path('lookup/', views.TenantLookupView.as_view(), name='tenant-lookup'),
     path('available/', views.AvailableAgencyListView.as_view(), name='agency-available-list'),
     path('relationships/', views.AgencyRelationshipListView.as_view(), name='agency-relationship-list'),
     path('relationships/<uuid:pk>/', views.AgencyRelationshipDetailView.as_view(), name='agency-relationship-detail'),
@@ -13,6 +13,12 @@ urlpatterns = [
     path('assignments/', views.AgencyJobAssignmentListView.as_view(), name='agency-assignment-list'),
     path('assignments/<uuid:pk>/', views.AgencyJobAssignmentDetailView.as_view(), name='agency-assignment-detail'),
     path('performance/', views.AgencyPerformanceListView.as_view(), name='agency-performance'),
+
+    # New connection system
+    path('guest-portals/', views.GuestPortalCreateView.as_view(), name='guest-portal-create'),
+    path('guest-portals/<uuid:pk>/resend/', views.GuestPortalResendInviteView.as_view(), name='guest-portal-resend'),
+    path('email-tracking/', views.EmailTrackingCreateView.as_view(), name='email-tracking-create'),
+    path('offline-clients/', views.OfflineClientCreateView.as_view(), name='offline-client-create'),
 
     # Agency side
     path('my-jobs/', views.AgencyMyJobsView.as_view(), name='agency-my-jobs'),

@@ -69,7 +69,7 @@ export default function Onboarding() {
         current_location_city: values.current_location_city,
         current_location_country: values.current_location_country,
         experience_years: values.experience_years
-      })
+      } as any)
 
       await fetchMe()
       const res = await passportApi.get()
@@ -105,7 +105,7 @@ export default function Onboarding() {
     try {
       const res = await passportApi.update({
         current_cv_url: values.current_cv_url
-      })
+      } as any)
       setPassport(res.data.data.passport)
       message.success('Profile updated!')
       navigate('/dashboard')
@@ -140,9 +140,9 @@ export default function Onboarding() {
     timezone: user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
     current_title: passport?.current_title,
     current_company: passport?.current_company,
-    current_location_city: passport?.current_location_city,
-    current_location_country: passport?.current_location_country,
-    experience_years: passport?.experience_years
+    current_location_city: (passport as any)?.current_location_city,
+    current_location_country: (passport as any)?.current_location_country,
+    experience_years: (passport as any)?.experience_years
   }
 
   return (

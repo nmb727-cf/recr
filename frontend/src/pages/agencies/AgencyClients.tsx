@@ -1,19 +1,19 @@
 import { useState } from 'react'
 import {
   Table, Button, Typography, Tag, Space, Drawer, Form,
-  Input, InputNumber, Select, message, Card, Divider, Checkbox, DatePicker, Upload, Empty
+  Input, message, Card, Divider, Dropdown
 } from 'antd'
 import { 
   CheckOutlined, 
   CloseOutlined, 
   EyeOutlined, 
   PlusOutlined,
-  SearchOutlined,
-  UploadOutlined,
-  FileTextOutlined,
-  InboxOutlined,
   CheckCircleFilled,
-  CloseCircleFilled
+  MailOutlined,
+  LinkOutlined,
+  SendOutlined,
+  MoreOutlined,
+  InfoCircleOutlined
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -28,7 +28,6 @@ import { cn } from '@/utils/cn'
 dayjs.extend(relativeTime)
 
 const { Title, Text } = Typography
-const { Option } = Select
 
 interface AgencyRelationship {
   id: string
@@ -56,21 +55,13 @@ interface AgencyRelationship {
   payment_terms?: string[]
   invited_by?: 'company' | 'agency'
   invited_via?: string
+
+  connection_type?: 'full_full' | 'agency_guest' | 'client_guest' | 'email_tracking' | 'offline'
+  guest_portal_id?: string
+  email_tracking_id?: string
+  their_ats_url?: string
+  last_activity_at?: string
 }
-
-const PAYMENT_TERM_OPTIONS = [
-  'Full payment after candidate joins',
-  'Full payment after 3 months retention',
-  'Full payment after 6 months retention',
-  '25% on joining + 75% after 3 months',
-  '50% on joining + 50% after 3 months',
-  'Custom terms'
-]
-
-const INDUSTRY_OPTIONS = [
-  'Technology', 'Finance', 'Healthcare', 'Manufacturing',
-  'Retail', 'Education', 'Consulting', 'Real Estate', 'Other'
-]
 
 export default function AgencyClients() {
   const queryClient = useQueryClient()
@@ -81,14 +72,10 @@ export default function AgencyClients() {
   
   const [searchQuery, setSearchQuery] = useState('')
   const [searchLoading, setSearchLoading] = useState(false)
-  const [foundTenant, setFoundTenant] = useState<{
-    tenant_id: string
-    name: string
-    tenant_type: string
-    industry: string
-    email: string
-  } | null>(null)
-  const [searchError, setSearchError] = useState<string | null>(null)
+  const [lookupResult, setLookupResult] = useState<any>(null)
+  
+  const [addPath, setAddPath] = useState<'email' | 'offline' | 'portal' | null>(null)
+  const [successData, setSuccessData] = useState<any>(null)
 
   const [form] = Form.useForm()
 
@@ -110,55 +97,77 @@ export default function AgencyClients() {
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
-      message.warning('Enter an email or phone number')
+      message.warning('Enter an email address')
       return
     }
     setSearchLoading(true)
-    setFoundTenant(null)
-    setSearchError(null)
+    setLookupResult(null)
+    setAddPath(null)
     try {
       const res = await agenciesApi.lookup(searchQuery)
-      const tenant = res.data.data
-      setFoundTenant(tenant)
-      form.setFieldsValue({ 
-        industry: tenant.industry || undefined 
-      })
+      setLookupResult(res.data.data)
+      if (!res.data.data.found) {
+        // Pre-fill slug if not found
+        form.setFieldsValue({ slug: res.data.data.suggested_slug })
+      }
     } catch (err: any) {
-      const msg = err.response?.data?.message || 'Not found'
-      setSearchError(msg)
+      message.error(err.response?.data?.message || 'Search failed')
     } finally {
       setSearchLoading(false)
     }
   }
 
   const handleSubmit = async (values: any) => {
-    if (!foundTenant) return
     try {
       setSubmitting(true)
-      await agenciesApi.createRelationship({
-        company_tenant_id: foundTenant.tenant_id,
-        contact_person_name: values.contact_person_name || '',
-        contact_email: foundTenant.email,
-        industry: values.industry || '',
-        commission_percentage: values.commission_percentage,
-        commission_type: values.commission_type,
-        payment_terms: values.payment_terms || [],
-        sla_submission_hours: values.sla_submission_hours || 48,
-        sla_feedback_hours: values.sla_feedback_hours || 72,
-        contract_start_date: values.contract_start_date?.format('YYYY-MM-DD') || null,
-        contract_end_date: values.contract_end_date?.format('YYYY-MM-DD') || null,
-        notes: values.notes || '',
+      if (lookupResult?.found) {
+        // Scenario 1: Both full tenants
+        await agenciesApi.createRelationship({
+          company_tenant_id: lookupResult.tenant_id,
+          contact_email: lookupResult.email,
+          ...values
+        })
+      } else {
+        // Scenario 3: Branching paths
+        if (addPath === 'email') {
+          await agenciesApi.createEmailTracking({
+            client_name: values.company_name,
+            contact_email: searchQuery,
+            contact_name: values.contact_name,
+            notes: values.notes
+          })
+        } else if (addPath === 'offline') {
+          await agenciesApi.createOfflineClient({
+            client_name: values.company_name,
+            contact_email: searchQuery,
+            contact_name: values.contact_name,
+            contact_phone: values.contact_phone,
+            their_ats_url: values.their_ats_url,
+            notes: values.notes,
+            receive_via_email: true
+          })
+        } else if (addPath === 'portal') {
+          await agenciesApi.createGuestPortal({
+            portal_type: 'client_guest',
+            name: values.company_name,
+            contact_email: searchQuery,
+            contact_name: values.contact_name,
+            contact_phone: values.contact_phone,
+            invite_message: values.invite_message,
+            slug: values.slug
+          })
+        }
+      }
+      
+      setSuccessData({
+        name: values.company_name || lookupResult?.name,
+        path: addPath,
+        email: searchQuery,
+        slug: values.slug
       })
-      message.success(`Invitation sent to ${foundTenant.name}`)
-      setAddClientDrawerOpen(false)
-      setFoundTenant(null)
-      setSearchQuery('')
-      setSearchError(null)
-      form.resetFields()
       queryClient.invalidateQueries({ queryKey: ['agency-client-relationships'] })
     } catch (err: any) {
-      console.error('[AgencyClients] invite error:', err)
-      message.error(err.response?.data?.message || 'Failed to send invitation')
+      message.error(err.response?.data?.message || 'Action failed')
     } finally {
       setSubmitting(false)
     }
@@ -170,7 +179,6 @@ export default function AgencyClients() {
       message.success('Client accepted')
       queryClient.invalidateQueries({ queryKey: ['agency-client-relationships'] })
     } catch (err) {
-      console.error('[AgencyClients] Accept error:', err)
       message.error('Failed to accept client')
     }
   }
@@ -181,58 +189,81 @@ export default function AgencyClients() {
       message.success('Invitation declined')
       queryClient.invalidateQueries({ queryKey: ['agency-client-relationships'] })
     } catch (err) {
-      console.error('[AgencyClients] Decline error:', err)
       message.error('Failed to decline invitation')
     }
   }
 
   const columns: ColumnsType<AgencyRelationship> = [
     {
-      title: 'Company Name',
-      dataIndex: 'company_name',
-      key: 'company_name',
-      render: (text) => <span className="font-bold text-[#111827]">{text}</span>,
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => {
-        const statusMap: Record<string, "success" | "warning" | "error" | "default"> = {
-          active: 'success',
-          pending: 'warning',
-          suspended: 'error',
-          terminated: 'default'
+      title: 'Client',
+      key: 'client',
+      render: (_, record) => {
+        let dotColor = '#CBD5E1' // Gray
+        if (record.connection_type === 'full_full' || (record.connection_type === 'client_guest' && record.status === 'active')) {
+          dotColor = '#10B981' // Green
+        } else if (record.status === 'pending') {
+          dotColor = '#F59E0B' // Yellow
+        } else if (record.connection_type === 'email_tracking') {
+          dotColor = '#6366F1' // Indigo
+        } else if (record.connection_type === 'offline') {
+          dotColor = '#64748B' // Slate
         }
-        return <Tag color={statusMap[status] || 'default'}>{status?.toUpperCase() || 'UNKNOWN'}</Tag>
+
+        return (
+          <Space>
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: dotColor }} />
+            <Text strong className="text-[#111827]">{record.company_name || 'Unnamed Client'}</Text>
+          </Space>
+        )
       }
     },
     {
-      title: 'Commission %',
-      dataIndex: 'commission_percentage',
-      key: 'commission_percentage',
-      render: (val, record) => `${val}${record.commission_type === 'percentage' ? '%' : ''}`,
+      title: 'Connection',
+      key: 'connection',
+      render: (_, record) => {
+        const type = record.connection_type || 'full_full'
+        if (type === 'full_full') return <Tag color="green">Connected</Tag>
+        if (type === 'client_guest') {
+          if (record.status === 'active') return <Tag color="blue">Portal Active</Tag>
+          if (record.status === 'pending') return <Tag color="warning">Invite Pending</Tag>
+          return <Tag color="error">Invite Expired</Tag>
+        }
+        if (type === 'email_tracking') return <Tag color="indigo">Email Tracking</Tag>
+        if (type === 'offline') return <Tag color="default">Offline</Tag>
+        return <Tag>{type}</Tag>
+      }
     },
     {
-      title: 'Connected since',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      render: (date) => dayjs(date).format('MMM D, YYYY'),
+      title: 'Contact Email',
+      dataIndex: 'contact_email',
+      key: 'contact_email',
+      render: (email) => email || '—'
     },
     {
-      title: 'Actions',
+      title: 'Jobs',
+      key: 'jobs',
+      render: () => '—'
+    },
+    {
+      title: '',
       key: 'actions',
+      width: 50,
       render: (_, record) => (
-        <Button
-          type="text"
-          icon={<EyeOutlined />}
-          onClick={(e) => {
-            e.stopPropagation()
-            setSelectedId(record.id)
+        <Dropdown
+          menu={{
+            items: [
+              { key: 'view', label: 'View Profile', icon: <EyeOutlined /> },
+              { key: 'assign', label: 'Assign Job', icon: <PlusOutlined />, disabled: record.status !== 'active' },
+              { key: 'message', label: 'Message', icon: <MailOutlined />, disabled: record.status !== 'active' },
+            ],
+            onClick: ({ key }) => {
+              if (key === 'view') setSelectedId(record.id)
+            }
           }}
+          trigger={['click']}
         >
-          View Details
-        </Button>
+          <Button type="text" icon={<MoreOutlined />} onClick={e => e.stopPropagation()} />
+        </Dropdown>
       ),
     },
   ]
@@ -244,7 +275,12 @@ export default function AgencyClients() {
         <Button
           type="primary"
           icon={<PlusOutlined />}
-          onClick={() => setAddClientDrawerOpen(true)}
+          onClick={() => {
+            setAddClientDrawerOpen(true)
+            setSuccessData(null)
+            setLookupResult(null)
+            setSearchQuery('')
+          }}
           className="bg-[#4F46E5] hover:bg-[#3730A3] border-none h-10 px-6 rounded-lg font-semibold"
         >
           Add Client
@@ -292,13 +328,6 @@ export default function AgencyClients() {
                   )
                 }
               ]}
-              components={{
-                header: {
-                  cell: (props: any) => (
-                    <th {...props} style={{ ...props.style, backgroundColor: 'transparent', color: '#9A3412', fontWeight: 600, fontSize: 11, textTransform: 'uppercase' }} />
-                  )
-                }
-              }}
             />
           </Card>
         )}
@@ -323,15 +352,6 @@ export default function AgencyClients() {
                   <th {...props} style={{ ...props.style, backgroundColor: '#F9FAFB', color: '#6B7280', fontWeight: 600, fontSize: 12, textTransform: 'uppercase' }} />
                 )
               }
-            }}
-            locale={{ 
-              emptyText: (
-                <div className="py-12 flex flex-col items-center justify-center text-slate-400">
-                  <InboxOutlined style={{ fontSize: 48 }} />
-                  <p className="mt-4 text-sm font-medium">No active clients yet</p>
-                  <p className="text-xs">Connect with companies to start receiving job assignments.</p>
-                </div>
-              )
             }}
           />
         </div>
@@ -427,46 +447,6 @@ export default function AgencyClients() {
                 <div className="text-[14px] font-semibold text-[#111827]">{selectedRelationship?.sla_feedback_hours || 72}h</div>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-[12px] text-slate-500">Contract Start</div>
-                <div className="text-[14px] font-semibold text-[#111827]">
-                  {selectedRelationship?.contract_start_date ? dayjs(selectedRelationship.contract_start_date).format('MMM D, YYYY') : 'Not set'}
-                </div>
-              </div>
-              <div>
-                <div className="text-[12px] text-slate-500">Contract End</div>
-                <div className="text-[14px] font-semibold text-[#111827]">
-                  {selectedRelationship?.contract_end_date ? dayjs(selectedRelationship.contract_end_date).format('MMM D, YYYY') : 'Not set'}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <Divider style={{ margin: 0 }} />
-
-          <section>
-            <div className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">Legal Documents</div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
-                <div className="flex items-center gap-2">
-                  <FileTextOutlined className="text-blue-500" />
-                  <span className="text-[13px] font-medium text-slate-700">Service Agreement</span>
-                </div>
-                {selectedRelationship?.contract_file_url ? (
-                  <Button type="link" size="small" href={selectedRelationship.contract_file_url} target="_blank">View</Button>
-                ) : <span className="text-[11px] text-slate-400">Not uploaded</span>}
-              </div>
-              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
-                <div className="flex items-center gap-2">
-                  <FileTextOutlined className="text-blue-500" />
-                  <span className="text-[13px] font-medium text-slate-700">Compliance Doc</span>
-                </div>
-                {selectedRelationship?.recruitment_policy_url ? (
-                  <Button type="link" size="small" href={selectedRelationship.recruitment_policy_url} target="_blank">View</Button>
-                ) : <span className="text-[11px] text-slate-400">Not uploaded</span>}
-              </div>
-            </div>
           </section>
 
           <Divider style={{ margin: 0 }} />
@@ -477,31 +457,6 @@ export default function AgencyClients() {
               {selectedRelationship?.notes || 'No notes shared for this client relationship.'}
             </div>
           </section>
-
-          {selectedRelationship?.status === 'pending' && selectedRelationship?.invited_by === 'company' && (
-            <div className="pt-6 border-t border-slate-100">
-               <Space direction="vertical" className="w-full">
-                <Button
-                  type="primary"
-                  block
-                  icon={<CheckOutlined />}
-                  onClick={() => handleAccept(selectedRelationship.id)}
-                  className="bg-green-600 border-green-600 h-10 rounded-lg font-medium shadow-sm"
-                >
-                  Accept Client Invitation
-                </Button>
-                <Button
-                  danger
-                  block
-                  icon={<CloseOutlined />}
-                  onClick={() => handleDecline(selectedRelationship.id)}
-                  className="h-10 rounded-lg font-medium"
-                >
-                  Decline Invitation
-                </Button>
-              </Space>
-            </div>
-          )}
         </div>
       </div>
     </div>
@@ -521,169 +476,224 @@ export default function AgencyClients() {
       <Drawer
         title={<span className="font-bold font-['Outfit'] text-lg">Add Client</span>}
         width={560}
-        onClose={() => {
-          setAddClientDrawerOpen(false)
-          setFoundTenant(null)
-          setSearchQuery('')
-          setSearchError(null)
-          form.resetFields()
-        }}
+        onClose={() => setAddClientDrawerOpen(false)}
         open={addClientDrawerOpen}
-        extra={
-          <Space>
-            <Button onClick={() => setAddClientDrawerOpen(false)}>Cancel</Button>
-            <Button 
-              type="primary" 
-              onClick={() => form.submit()} 
-              loading={submitting}
-              disabled={!foundTenant}
-              className="bg-[#4F46E5]"
-            >
-              Send Invitation
-            </Button>
-          </Space>
-        }
+        footer={null}
       >
-        <Form 
-          form={form} 
-          layout="vertical" 
-          onFinish={handleSubmit}
-          initialValues={{ 
-            commission_percentage: 10, 
-            commission_type: 'percentage',
-            sla_submission_hours: 48,
-            sla_feedback_hours: 72,
-            payment_terms: ['Full payment after candidate joins'],
-          }}
-        >
-          <div className="p-4 bg-slate-50 rounded-xl mb-6 border border-slate-100">
-            <Text strong className="block mb-3">Find Client</Text>
-            
-            <Input.Search
-              placeholder="Email or phone number"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value)
-                setFoundTenant(null)
-                setSearchError(null)
-              }}
-              onSearch={handleSearch}
-              enterButton={<Button loading={searchLoading}>Search</Button>}
-              onPressEnter={handleSearch}
-            />
-
-            {/* Found result */}
-            {foundTenant && (
-              <div className="mt-3 p-3 bg-green-50 border border-green-200 
-                              rounded-lg flex items-center gap-3">
-                <CheckCircleFilled className="text-green-500 text-lg" />
-                <div>
-                  <Text strong className="block">{foundTenant.name}</Text>
-                  <Text type="secondary" className="text-xs">
-                    {foundTenant.tenant_type} · {foundTenant.email}
-                  </Text>
-                </div>
-              </div>
-            )}
-
-            {/* Not found error */}
-            {searchError && (
-              <div className="mt-3 p-3 bg-red-50 border border-red-200 
-                              rounded-lg flex items-center gap-2">
-                <CloseCircleFilled className="text-red-500" />
-                <Text type="danger" className="text-sm">{searchError}</Text>
-              </div>
-            )}
-          </div>
-
-          {foundTenant && (
-            <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-              <div className="p-4 border border-slate-100 rounded-xl">
-                <Title level={5} className="!mb-4">Contract Details</Title>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <Form.Item name="contact_person_name" label="Contact Person">
-                    <Input placeholder="Full name" />
-                  </Form.Item>
-                  <Form.Item name="industry" label="Industry">
-                    <Select placeholder="Select industry">
-                      {INDUSTRY_OPTIONS.map(opt => <Option key={opt} value={opt}>{opt}</Option>)}
-                    </Select>
-                  </Form.Item>
-                </div>
-
-                <Divider className="my-4" />
-
-                <div className="grid grid-cols-2 gap-4">
-                  <Form.Item name="commission_percentage" label="Commission Rate (%)">
-                    <InputNumber min={0} max={100} className="w-full" />
-                  </Form.Item>
-                  <Form.Item name="commission_type" label="Commission Type">
-                    <Select>
-                      <Option value="percentage">Percentage of CTC</Option>
-                      <Option value="fixed">Fixed Amount per Hire</Option>
-                      <Option value="milestone">Milestone Based</Option>
-                    </Select>
-                  </Form.Item>
-                </div>
-
-                <Form.Item name="payment_terms" label="Payment Terms">
-                  <Checkbox.Group className="flex flex-col gap-2">
-                    {PAYMENT_TERM_OPTIONS.map(opt => (
-                      <Checkbox key={opt} value={opt}>{opt}</Checkbox>
-                    ))}
-                  </Checkbox.Group>
-                </Form.Item>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <Form.Item name="sla_submission_hours" label="Submission SLA (hours)">
-                    <InputNumber min={1} className="w-full" />
-                  </Form.Item>
-                  <Form.Item name="sla_feedback_hours" label="Feedback SLA (hours)">
-                    <InputNumber min={1} className="w-full" />
-                  </Form.Item>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <Form.Item name="contract_start_date" label="Contract Start Date">
-                    <DatePicker className="w-full" />
-                  </Form.Item>
-                  <Form.Item name="contract_end_date" label="Contract End Date">
-                    <DatePicker className="w-full" />
-                  </Form.Item>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <Form.Item label="Contract File">
-                    <Upload disabled>
-                      <Button icon={<UploadOutlined />} disabled block>File upload coming soon</Button>
-                    </Upload>
-                  </Form.Item>
-                  <Form.Item label="Recruitment Policy">
-                    <Upload disabled>
-                      <Button icon={<UploadOutlined />} disabled block>File upload coming soon</Button>
-                    </Upload>
-                  </Form.Item>
-                </div>
-
-                <Form.Item name="notes" label="Notes">
-                  <Input.TextArea rows={3} placeholder="Add terms or personalized message..." />
-                </Form.Item>
-
-                <Button
-                  type="primary"
-                  htmlType="submit"
-                  loading={submitting}
-                  block
-                  style={{ height: 44, background: '#4F46E5' }}
-                  className="mt-4"
+        {!successData ? (
+          <div className="space-y-6">
+            {/* Section A: Search */}
+            <div>
+              <Text className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider block mb-2">Search by email</Text>
+              <div className="flex gap-2">
+                <Input 
+                  placeholder="client@company.com" 
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  onPressEnter={handleSearch}
+                  className="h-10 rounded-lg"
+                />
+                <Button 
+                  type="primary" 
+                  onClick={handleSearch} 
+                  loading={searchLoading}
+                  className="bg-[#4F46E5] h-10 px-6 rounded-lg"
                 >
-                  Send Invitation to {foundTenant?.name || 'Client'}
+                  Search
                 </Button>
               </div>
             </div>
-          )}
-        </Form>
+
+            {lookupResult && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
+                {lookupResult.found ? (
+                  <Card className="border-green-100 bg-green-50/30 rounded-xl">
+                    <div className="flex items-start gap-3">
+                      <CheckCircleFilled className="text-green-500 mt-1" />
+                      <div>
+                        <Text strong className="block text-lg">{lookupResult.name}</Text>
+                        <Text type="secondary">{lookupResult.tenant_type} · {lookupResult.email}</Text>
+                        <Button 
+                          type="primary" 
+                          block 
+                          className="mt-4 bg-[#4F46E5] h-10 rounded-lg"
+                          onClick={() => handleSubmit({})}
+                          loading={submitting}
+                        >
+                          Send Connection Request
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ) : (
+                  <>
+                    <Card className="border-blue-100 bg-blue-50/30 rounded-xl py-3">
+                      <Space>
+                        <InfoCircleOutlined className="text-blue-500" />
+                        <Text strong>Not on RecruitOS yet</Text>
+                      </Space>
+                    </Card>
+
+                    <div className="space-y-3">
+                      <Text className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider block">Choose connection path</Text>
+                      
+                      {/* Path 1: Email Tracking */}
+                      <div 
+                        className={cn(
+                          "border rounded-xl p-4 cursor-pointer transition-all",
+                          addPath === 'email' ? "border-[#4F46E5] bg-[#EEF2FF]" : "border-slate-200 hover:border-[#4F46E5] hover:bg-[#EEF2FF]"
+                        )}
+                        onClick={() => setAddPath('email')}
+                      >
+                        <div className="flex items-center gap-3">
+                          <MailOutlined className={cn("text-xl", addPath === 'email' ? "text-[#4F46E5]" : "text-slate-400")} />
+                          <div>
+                            <Text strong className="block">They email us requirements</Text>
+                            <Text type="secondary" className="text-xs">Auto-detect job requirements from their emails</Text>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Path 2: Offline */}
+                      <div 
+                        className={cn(
+                          "border rounded-xl p-4 cursor-pointer transition-all",
+                          addPath === 'offline' ? "border-[#4F46E5] bg-[#EEF2FF]" : "border-slate-200 hover:border-[#4F46E5] hover:bg-[#EEF2FF]"
+                        )}
+                        onClick={() => setAddPath('offline')}
+                      >
+                        <div className="flex items-center gap-3">
+                          <LinkOutlined className={cn("text-xl", addPath === 'offline' ? "text-[#4F46E5]" : "text-slate-400")} />
+                          <div>
+                            <Text strong className="block">They have their own ATS or portal</Text>
+                            <Text type="secondary" className="text-xs">Track this client manually, no invite needed</Text>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Path 3: Guest Portal */}
+                      <div 
+                        className={cn(
+                          "border rounded-xl p-4 cursor-pointer transition-all",
+                          addPath === 'portal' ? "border-[#4F46E5] bg-[#EEF2FF]" : "border-slate-200 hover:border-[#4F46E5] hover:bg-[#EEF2FF]"
+                        )}
+                        onClick={() => setAddPath('portal')}
+                      >
+                        <div className="flex items-center gap-3">
+                          <SendOutlined className={cn("text-xl", addPath === 'portal' ? "text-[#4F46E5]" : "text-slate-400")} />
+                          <div>
+                            <Text strong className="block">Invite them to a free client portal</Text>
+                            <Text type="secondary" className="text-xs">Give them visibility into submissions and pipeline</Text>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Conditional Form Fields */}
+                    {addPath && (
+                      <Form 
+                        form={form} 
+                        layout="vertical" 
+                        onFinish={handleSubmit}
+                        className="animate-in fade-in slide-in-from-top-2 duration-300 pt-4"
+                      >
+                        <Form.Item name="company_name" label="Company Name" rules={[{ required: true }]}>
+                          <Input placeholder="Acme Corp" />
+                        </Form.Item>
+                        <div className="grid grid-cols-2 gap-4">
+                          <Form.Item name="contact_name" label="Contact Name">
+                            <Input placeholder="John Doe" />
+                          </Form.Item>
+                          {addPath !== 'email' && (
+                            <Form.Item name="contact_phone" label="Contact Phone">
+                              <Input placeholder="+1..." />
+                            </Form.Item>
+                          )}
+                        </div>
+
+                        {addPath === 'email' && (
+                          <Form.Item label="Email Domain" tooltip="We'll monitor emails from this domain">
+                            <Input value={`@${searchQuery.split('@')[1]}`} readOnly className="bg-slate-50" />
+                          </Form.Item>
+                        )}
+
+                        {addPath === 'offline' && (
+                          <Form.Item name="their_ats_url" label="Their portal or ATS URL">
+                            <Input placeholder="https://jobs.acme.com" />
+                          </Form.Item>
+                        )}
+
+                        {addPath === 'portal' && (
+                          <>
+                            <Form.Item name="slug" label="Portal URL" rules={[{ required: true }]}>
+                              <Input addonAfter=".recruitos.com" placeholder="acme-corp" />
+                            </Form.Item>
+                            <Form.Item name="invite_message" label="Invite Message" initialValue={`Hi, we use RecruitOS to manage your hiring requirements. Here's a free portal to track candidates we submit to you.`}>
+                              <Input.TextArea rows={4} />
+                            </Form.Item>
+                            <div className="p-3 bg-amber-50 rounded-lg flex gap-2 mb-6">
+                              <InfoCircleOutlined className="text-amber-500 mt-1" />
+                              <Text className="text-xs text-amber-700">They can ignore this invite. You can still work with them normally.</Text>
+                            </div>
+                          </>
+                        )}
+
+                        <Form.Item name="notes" label="Internal Notes">
+                          <Input.TextArea rows={2} />
+                        </Form.Item>
+
+                        <Button 
+                          type="primary" 
+                          htmlType="submit" 
+                          block 
+                          loading={submitting}
+                          className="bg-[#4F46E5] h-12 rounded-lg text-lg font-semibold"
+                        >
+                          {addPath === 'email' ? 'Set Up Email Tracking' : 
+                           addPath === 'offline' ? 'Save as Offline Client' : 'Send Invite'}
+                        </Button>
+                      </Form>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Success State */
+          <div className="text-center py-12 px-6 animate-in zoom-in duration-300">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckOutlined className="text-3xl text-green-600" />
+            </div>
+            <Title level={3}>{successData.name} added</Title>
+            
+            <div className="bg-slate-50 rounded-xl p-6 my-8 text-left">
+              {successData.path === 'email' && (
+                <Text>We'll auto-detect requirements from <b>@{successData.email.split('@')[1]}</b></Text>
+              )}
+              {successData.path === 'offline' && (
+                <Text>Added as offline client. You can invite them later.</Text>
+              )}
+              {successData.path === 'portal' && (
+                <div className="space-y-2">
+                  <Text className="block">Invite sent to <b>{successData.email}</b></Text>
+                  <Text className="block">Portal: <b>{successData.slug}.recruitos.com</b></Text>
+                  <Text className="block">Status: <Tag color="warning">Invite Pending</Tag></Text>
+                  <Text type="secondary" className="text-xs block mt-4 italic">You can start assigning jobs right away.</Text>
+                </div>
+              )}
+            </div>
+
+            <Button 
+              type="primary" 
+              block 
+              onClick={() => setAddClientDrawerOpen(false)}
+              className="bg-[#4F46E5] h-12 rounded-xl text-lg font-semibold"
+            >
+              Go to Client List
+            </Button>
+          </div>
+        )}
       </Drawer>
     </>
   )

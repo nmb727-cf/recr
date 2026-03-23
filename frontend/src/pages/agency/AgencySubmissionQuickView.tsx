@@ -46,7 +46,7 @@ export default function AgencySubmissionQuickView({ submission: initialSubmissio
     () => pipelineApi.getApplication(applicationId)
   )
 
-  const application = (appData as { data: ApplicationResponse } | undefined)?.data?.application || initialSubmission
+  const application = (appData as unknown as { data: ApplicationResponse } | undefined)?.data?.application || initialSubmission
 
   const { data: candidateData, isLoading: candidateLoading } = useApiQuery(
     ['candidate', application.candidate_id],
@@ -54,7 +54,7 @@ export default function AgencySubmissionQuickView({ submission: initialSubmissio
     { enabled: !!application.candidate_id }
   )
 
-  const candidate = (candidateData as { data: CandidateResponse } | undefined)?.data?.candidate
+  const candidate = (candidateData as unknown as { data: CandidateResponse } | undefined)?.data?.candidate
 
   const { data: jobData, isLoading: jobLoading } = useApiQuery(
     ['requisition', application.requisition_id],
@@ -62,7 +62,7 @@ export default function AgencySubmissionQuickView({ submission: initialSubmissio
     { enabled: !!application.requisition_id }
   )
 
-  const requisition = (jobData as { data: RequisitionResponse } | undefined)?.data?.requisition
+  const requisition = (jobData as unknown as unknown as { data: RequisitionResponse } | undefined)?.data?.requisition
   const jobTitle = initialJobTitle || requisition?.title || 'Unknown Position'
 
   const { data: timelineData } = useApiQuery(
@@ -70,7 +70,7 @@ export default function AgencySubmissionQuickView({ submission: initialSubmissio
     () => candidatesApi.timeline(application.candidate_id),
     { enabled: !!application.candidate_id }
   )
-  const timeline = (timelineData as { data: TimelineResponse } | undefined)?.data?.events || []
+  const timeline = (timelineData as unknown as unknown as { data: TimelineResponse } | undefined)?.data?.events || []
 
   if ((appLoading && !initialSubmission) || candidateLoading || jobLoading) {
     return (

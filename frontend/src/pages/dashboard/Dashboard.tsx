@@ -316,7 +316,7 @@ function CandidateDashboard() {
     () => http.get<ApiResponse<{ passport: { completeness_score: number } }>>('/passport/my-passport/')
   )
 
-  const applications = (appsData as { applications: CandidateApplication[] } | undefined)?.applications ?? []
+  const applications = (appsData as unknown as { applications: CandidateApplication[] } | undefined)?.applications ?? []
   const interviews = (interviewsData as { interviews: unknown[] } | undefined)?.interviews ?? []
   const availableJobs = (jobsData as { jobs: unknown[] } | undefined)?.jobs ?? []
   const completeness = (passportData as { passport?: { completeness_score?: number } } | undefined)?.passport?.completeness_score ?? 0

@@ -97,17 +97,17 @@ function OrganisationTab() {
             <div>
               <Text className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Country</Text>
               <Text className="text-sm font-semibold text-slate-700">
-                {COUNTRIES.find(c => c.code === org.country_code)?.name || org.country_code || 'Not set'}
+                {COUNTRIES.find(c => c.code === (org as any).country_code)?.name || (org as any).country_code || 'Not set'}
               </Text>
             </div>
             <div>
               <Text className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Timezone</Text>
-              <Text className="text-sm font-semibold text-slate-700">{org.timezone || 'Not set'}</Text>
+              <Text className="text-sm font-semibold text-slate-700">{(org as any).timezone || 'Not set'}</Text>
             </div>
             <div>
               <Text className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Default Currency</Text>
               <Text className="text-sm font-semibold text-slate-700">
-                {org.settings?.default_currency || 'INR'}
+                {(org as any).settings?.default_currency || 'INR'}
               </Text>
             </div>
           </div>
@@ -121,7 +121,7 @@ function OrganisationTab() {
             </div>
             <div>
               <Text className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Company Size</Text>
-              <Text className="text-sm font-semibold text-slate-700">{org.size_range || 'Not set'}</Text>
+              <Text className="text-sm font-semibold text-slate-700">{(org as any).size_range || 'Not set'}</Text>
             </div>
           </div>
 

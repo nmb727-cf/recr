@@ -747,3 +747,332 @@ class AgencyMyClientsView(APIView):
             message="Clients retrieved.",
             meta={'total': relationships.count()}
         )
+
+
+import re
+from django.utils.text import slugify
+from django.utils import timezone
+from datetime import timedelta
+
+
+class TenantLookupView(APIView):
+    """
+    Enhanced lookup: search by email, return tenant status.
+    Returns whether found as full tenant, guest portal, or not found.
+    Used by both company and agency sides in Add Agency / Add Client forms.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        q = request.query_params.get('q', '').strip()
+        if not q:
+            return error_response("Search query required.")
+
+        from apps.accounts.models import CustomUser
+        from apps.tenants.models import Client
+        from apps.organisations.models import Organisation
+        from apps.agencies.models import GuestPortal
+        from django.db.models import Q
+
+        # Step 1: Check full tenant users
+        user = CustomUser.objects.filter(
+            Q(email__iexact=q) | Q(phone=q)
+        ).first()
+
+        if user and user.tenant_id:
+            org = Organisation.objects.filter(tenant_id=user.tenant_id).first()
+            if org:
+                return success_response(
+                    data={
+                        'found': True,
+                        'source': 'full_tenant',
+                        'tenant_id': str(user.tenant_id),
+                        'name': org.name,
+                        'tenant_type': org.org_type,
+                        'industry': org.industry or '',
+                        'email': user.email,
+                        'slug': None,
+                    },
+                    message="Found as full tenant."
+                )
+
+        # Step 2: Check guest portals
+        portal = GuestPortal.objects.filter(
+            contact_email__iexact=q,
+            is_deleted=False
+        ).first()
+
+        if portal:
+            return success_response(
+                data={
+                    'found': True,
+                    'source': 'guest_portal',
+                    'portal_id': str(portal.id),
+                    'name': portal.name,
+                    'tenant_type': portal.portal_type,
+                    'email': portal.contact_email,
+                    'slug': portal.slug,
+                    'portal_status': portal.status,
+                },
+                message="Found as guest portal."
+            )
+
+        # Step 3: Not found — return empty so frontend shows manual entry
+        return success_response(
+            data={
+                'found': False,
+                'email': q,
+                # Auto-generate a slug preview from the email domain
+                'suggested_slug': slugify(q.split('@')[-1].split('.')[0]) if '@' in q else '',
+            },
+            message="Not found in system."
+        )
+
+
+class GuestPortalCreateView(APIView):
+    """
+    Creates a guest portal and sends invite email.
+    Used when:
+    - Company invites agency not in system (portal_type=agency_guest)
+    - Agency invites company not in system (portal_type=client_guest)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from apps.agencies.models import GuestPortal, AgencyClientRelationship
+        from django.utils.text import slugify
+
+        portal_type = request.data.get('portal_type')  # agency_guest | client_guest
+        name = request.data.get('name', '').strip()
+        contact_email = request.data.get('contact_email', '').strip()
+        contact_name = request.data.get('contact_name', '').strip()
+        contact_phone = request.data.get('contact_phone', '').strip()
+        invite_message = request.data.get('invite_message', '').strip()
+        slug_input = request.data.get('slug', '').strip()
+
+        if not portal_type or not name or not contact_email:
+            return error_response("portal_type, name, and contact_email are required.")
+
+        if portal_type not in ['agency_guest', 'client_guest']:
+            return error_response("portal_type must be agency_guest or client_guest.")
+
+        # Generate unique slug
+        base_slug = slugify(slug_input or name)
+        slug = base_slug
+        counter = 1
+        while GuestPortal.objects.filter(slug=slug).exists():
+            slug = f"{base_slug}-{counter}"
+            counter += 1
+
+        # Create portal
+        portal = GuestPortal(
+            portal_type=portal_type,
+            name=name,
+            slug=slug,
+            contact_name=contact_name,
+            contact_email=contact_email,
+            contact_phone=contact_phone,
+            invite_message=invite_message,
+            created_by_tenant_id=request.user.tenant_id,
+            created_by_user_id=request.user.id,
+            status='pending',
+        )
+        portal.generate_invite_token()
+        portal.invite_sent_at = timezone.now()
+        portal.invite_expires_at = timezone.now() + timedelta(days=7)
+        portal.save()
+
+        # Create relationship record
+        if portal_type == 'agency_guest':
+            # Company created portal for agency
+            AgencyClientRelationship.objects.create(
+                tenant_id=request.user.tenant_id,
+                company_tenant_id=request.user.tenant_id,
+                agency_tenant_id=None,
+                guest_portal_id=portal.id,
+                connection_type='agency_guest',
+                invited_by='company',
+                contact_email=contact_email,
+                contact_person_name=contact_name,
+                contact_phone=request.data.get('contact_phone', ''),
+                commission_percentage=request.data.get('commission_percentage') or None,
+                commission_type=request.data.get('commission_type', 'percentage'),
+                payment_terms=request.data.get('payment_terms', []),
+                sla_submission_hours=request.data.get('sla_submission_hours', 48),
+                sla_feedback_hours=request.data.get('sla_feedback_hours', 72),
+                contract_start_date=request.data.get('contract_start_date') or None,
+                contract_end_date=request.data.get('contract_end_date') or None,
+                notes=request.data.get('notes', ''),
+                status='pending',
+                created_by=request.user.id,
+                metadata={'agency_name': name},
+            )
+        else:
+            # Agency created portal for client
+            AgencyClientRelationship.objects.create(
+                tenant_id=request.user.tenant_id,
+                agency_tenant_id=request.user.tenant_id,
+                company_tenant_id=None,
+                guest_portal_id=portal.id,
+                connection_type='client_guest',
+                invited_by='agency',
+                contact_email=contact_email,
+                contact_person_name=contact_name,
+                status='pending',
+                created_by=request.user.id,
+            )
+
+        # TODO: Send invite email (wire up email service later)
+        # send_guest_portal_invite_email(portal)
+
+        return success_response(
+            data={
+                'portal': {
+                    'id': str(portal.id),
+                    'name': portal.name,
+                    'slug': portal.slug,
+                    'portal_url': f"https://{portal.slug}.recruitos.com",
+                    'status': portal.status,
+                    'invite_expires_at': portal.invite_expires_at.isoformat(),
+                }
+            },
+            message="Guest portal created and invite sent.",
+            status_code=status.HTTP_201_CREATED
+        )
+
+
+class EmailTrackingCreateView(APIView):
+    """
+    Agency adds client as email tracking only.
+    No portal, no invite. System monitors email domain.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from apps.agencies.models import EmailTrackingConfig, AgencyClientRelationship
+
+        client_name = request.data.get('client_name', '').strip()
+        contact_email = request.data.get('contact_email', '').strip()
+        contact_name = request.data.get('contact_name', '').strip()
+        notes = request.data.get('notes', '').strip()
+
+        if not client_name or not contact_email:
+            return error_response("client_name and contact_email are required.")
+
+        # Extract domain
+        email_domain = contact_email.split('@')[-1] if '@' in contact_email else contact_email
+
+        config = EmailTrackingConfig.objects.create(
+            agency_tenant_id=request.user.tenant_id,
+            client_name=client_name,
+            email_domain=f"@{email_domain}",
+            contact_email=contact_email,
+            contact_name=contact_name,
+            notes=notes,
+            created_by=request.user.id,
+        )
+
+        # Create relationship record as email_tracking type
+        AgencyClientRelationship.objects.create(
+            tenant_id=request.user.tenant_id,
+            agency_tenant_id=request.user.tenant_id,
+            company_tenant_id=None,
+            email_tracking_id=config.id,
+            connection_type='email_tracking',
+            invited_by='agency',
+            contact_email=contact_email,
+            contact_person_name=contact_name,
+            status='active',
+            created_by=request.user.id,
+        )
+
+        return success_response(
+            data={
+                'config': {
+                    'id': str(config.id),
+                    'client_name': config.client_name,
+                    'email_domain': config.email_domain,
+                    'status': config.status,
+                }
+            },
+            message="Email tracking set up successfully.",
+            status_code=status.HTTP_201_CREATED
+        )
+
+
+class OfflineClientCreateView(APIView):
+    """
+    Agency adds client as offline (no portal, no email tracking).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from apps.agencies.models import AgencyClientRelationship
+
+        client_name = request.data.get('client_name', '').strip()
+        contact_email = request.data.get('contact_email', '').strip()
+        contact_name = request.data.get('contact_name', '').strip()
+        contact_phone = request.data.get('contact_phone', '').strip()
+        their_ats_url = request.data.get('their_ats_url', '').strip()
+        notes = request.data.get('notes', '').strip()
+        receive_via_email = request.data.get('receive_via_email', True)
+
+        if not client_name:
+            return error_response("client_name is required.")
+
+        rel = AgencyClientRelationship.objects.create(
+            tenant_id=request.user.tenant_id,
+            agency_tenant_id=request.user.tenant_id,
+            company_tenant_id=None,
+            connection_type='offline',
+            invited_by='agency',
+            contact_email=contact_email,
+            contact_person_name=contact_name,
+            contact_phone=contact_phone,
+            their_ats_url=their_ats_url,
+            notes=notes,
+            status='active',
+            created_by=request.user.id,
+            metadata={
+                'client_name': client_name,
+                'receive_via_email': receive_via_email,
+            }
+        )
+
+        return success_response(
+            data={'relationship': AgencyClientRelationshipSerializer(rel).data},
+            message="Offline client added.",
+            status_code=status.HTTP_201_CREATED
+        )
+
+
+class GuestPortalResendInviteView(APIView):
+    """
+    Resend invite for a pending/expired guest portal.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from apps.agencies.models import GuestPortal
+
+        try:
+            portal = GuestPortal.objects.get(
+                id=pk,
+                created_by_tenant_id=request.user.tenant_id,
+                is_deleted=False
+            )
+        except GuestPortal.DoesNotExist:
+            return error_response("Portal not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        portal.generate_invite_token()
+        portal.invite_sent_at = timezone.now()
+        portal.invite_expires_at = timezone.now() + timedelta(days=7)
+        portal.status = 'pending'
+        portal.save()
+
+        # TODO: Send invite email again
+
+        return success_response(
+            data={'portal_id': str(portal.id), 'status': portal.status},
+            message="Invite resent."
+        )

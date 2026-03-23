@@ -33,6 +33,15 @@ class AgencyClientRelationshipSerializer(serializers.ModelSerializer):
             return 'Unknown Company'
 
     def get_agency_name(self, obj):
+        # For guest portals, agency_tenant_id is null
+        # Return contact name or extract from metadata
+        if not obj.agency_tenant_id:
+            if obj.contact_person_name:
+                return obj.contact_person_name
+            meta_name = obj.metadata.get('agency_name') if obj.metadata else None
+            if meta_name:
+                return meta_name
+            return obj.contact_email or 'Guest Portal'
         try:
             from apps.organisations.models import Organisation
             org = Organisation.objects.filter(

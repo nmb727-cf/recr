@@ -338,7 +338,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="mx-2 h-6 w-[1px] bg-slate-200" />
 
             <Dropdown
-              menu={{ items: userMenuItems.map(i => i.type === 'divider' ? i : { ...i, icon: i.icon, label: i.label, onClick: i.onClick }) }}
+              menu={{ items: (userMenuItems as any[]).map(i => i.type === 'divider' ? i : { ...i, icon: i.icon, label: i.label, onClick: i.onClick }) }}
               placement="bottomRight"
               trigger={['click']}
             >

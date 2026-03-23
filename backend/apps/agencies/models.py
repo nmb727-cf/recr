@@ -65,6 +65,23 @@ class AgencyClientRelationship(models.Model):
     )
     invited_via = models.CharField(max_length=255, blank=True)
 
+    connection_type = models.CharField(
+        max_length=20,
+        choices=[
+            ('full_full', 'Both Full Tenants'),
+            ('agency_guest', 'Agency on Guest Portal'),
+            ('client_guest', 'Client on Guest Portal'),
+            ('email_tracking', 'Email Tracking Only'),
+            ('offline', 'Offline Client'),
+        ],
+        default='full_full',
+        blank=True
+    )
+    guest_portal_id = models.UUIDField(null=True, blank=True)         # FK to GuestPortal if applicable
+    email_tracking_id = models.UUIDField(null=True, blank=True)       # FK to EmailTrackingConfig if applicable
+    their_ats_url = models.CharField(max_length=500, blank=True)      # for offline clients with own ATS
+    last_activity_at = models.DateTimeField(null=True, blank=True)    # last login / email / action
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.UUIDField(null=True, blank=True)
@@ -150,3 +167,105 @@ class AgencyPerformanceScore(models.Model):
 
     class Meta:
         db_table = 'agencies_performance_score'
+
+
+import secrets
+
+class GuestPortal(models.Model):
+    PORTAL_TYPE_CHOICES = [
+        ('agency_guest', 'Agency Guest Portal'),
+        ('client_guest', 'Client Guest Portal'),
+    ]
+    STATUS_CHOICES = [
+        ('pending', 'Invite Pending'),
+        ('active', 'Active'),
+        ('expired', 'Invite Expired'),
+        ('upgraded', 'Upgraded to Full Tenant'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    portal_type = models.CharField(max_length=20, choices=PORTAL_TYPE_CHOICES)
+    name = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=100, unique=True)
+    contact_name = models.CharField(max_length=255, blank=True)
+    contact_email = models.EmailField()
+    contact_phone = models.CharField(max_length=20, blank=True)
+    created_by_tenant_id = models.UUIDField(db_index=True)
+    created_by_user_id = models.UUIDField(null=True, blank=True)
+    invite_token = models.CharField(max_length=64, unique=True, blank=True)
+    invite_sent_at = models.DateTimeField(null=True, blank=True)
+    invite_expires_at = models.DateTimeField(null=True, blank=True)
+    invite_accepted_at = models.DateTimeField(null=True, blank=True)
+    invite_message = models.TextField(blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    upgraded_tenant_id = models.UUIDField(null=True, blank=True)
+    upgraded_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    def generate_invite_token(self):
+        self.invite_token = secrets.token_urlsafe(48)
+        return self.invite_token
+
+    def is_invite_expired(self):
+        if not self.invite_expires_at:
+            return False
+        return timezone.now() > self.invite_expires_at
+
+    def soft_delete(self):
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.save()
+
+    def __str__(self):
+        return f"{self.name} ({self.portal_type}) — {self.status}"
+
+    class Meta:
+        db_table = 'agencies_guest_portal'
+        ordering = ['-created_at']
+
+
+class EmailTrackingConfig(models.Model):
+    """
+    Stores which email domains to monitor for a given agency-client relationship.
+    When agency adds client as "email tracking", we store the domain here.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    agency_tenant_id = models.UUIDField(db_index=True)
+    client_name = models.CharField(max_length=255)
+    email_domain = models.CharField(max_length=255)           # e.g. @acmecorp.com
+    contact_email = models.EmailField(blank=True)
+    contact_name = models.CharField(max_length=255, blank=True)
+    their_ats_url = models.CharField(max_length=500, blank=True)
+    receive_via_email = models.BooleanField(default=True)
+    receive_via_portal = models.BooleanField(default=False)
+    notes = models.TextField(blank=True)
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('active', 'Active'),
+            ('paused', 'Paused'),
+        ],
+        default='active'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.UUIDField(null=True, blank=True)
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    def soft_delete(self):
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.save()
+
+    def __str__(self):
+        return f"{self.client_name} — {self.email_domain}"
+
+    class Meta:
+        db_table = 'agencies_email_tracking'
+        ordering = ['-created_at']

@@ -86,9 +86,9 @@ export default function CandidateQuickView({
   const handleResumeClick = () => {
     if (!resumeUrl) return
     if (onDocOpen) {
-      onDocOpen(resumeUrl)
+      onDocOpen(resumeUrl as string)
     } else {
-      window.open(resumeUrl, '_blank')
+      window.open(resumeUrl as string, '_blank')
     }
   }
 

@@ -491,3 +491,288 @@ class LocationSearchView(APIView):
             data={'locations': results},
             message="Locations retrieved."
         )
+
+
+from .models import CandidateWorkspace, CandidateEngagement, CandidateTimelineEvent
+from .serializers import (
+    CandidateWorkspaceSerializer,
+    CandidateEngagementSerializer,
+    CandidateTimelineEventSerializer
+)
+from django.utils import timezone
+
+
+class CandidateWorkspaceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, candidate_id):
+        try:
+            workspace = CandidateWorkspace.objects.get(
+                candidate_id=candidate_id,
+                tenant_id=request.user.tenant_id,
+                is_deleted=False
+            )
+            serializer = CandidateWorkspaceSerializer(workspace)
+            return success_response(serializer.data)
+        except CandidateWorkspace.DoesNotExist:
+            return error_response("Workspace not found", status_code=404)
+
+    def put(self, request, candidate_id):
+        workspace, created = CandidateWorkspace.objects.get_or_create(
+            candidate_id=candidate_id,
+            tenant_id=request.user.tenant_id,
+            defaults={'created_by': request.user}
+        )
+        serializer = CandidateWorkspaceSerializer(
+            workspace, data=request.data, partial=True
+        )
+        if serializer.is_valid():
+            serializer.save(updated_at=timezone.now())
+            return success_response(serializer.data)
+        return error_response(serializer.errors)
+
+
+class CandidateEngagementListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, candidate_id):
+        # active=true returns only active engagements
+        # active=false returns only closed/historical
+        # no param returns all
+        active_param = request.query_params.get('active', None)
+        qs = CandidateEngagement.objects.filter(
+            candidate_id=candidate_id,
+            tenant_id=request.user.tenant_id,
+            is_deleted=False
+        ).order_by('-started_at')
+
+        if active_param == 'true':
+            qs = qs.filter(is_active=True)
+        elif active_param == 'false':
+            qs = qs.filter(is_active=False)
+
+        serializer = CandidateEngagementSerializer(qs, many=True)
+        return success_response(serializer.data)
+
+    def post(self, request, candidate_id):
+        data = request.data.copy()
+        data['candidate'] = candidate_id
+        serializer = CandidateEngagementSerializer(data=data)
+        if serializer.is_valid():
+            engagement = serializer.save(
+                tenant_id=request.user.tenant_id,
+                created_by=request.user,
+                owner_user=request.user,
+                last_activity_at=timezone.now()
+            )
+            # Emit timeline event
+            CandidateTimelineEvent.objects.create(
+                tenant_id=request.user.tenant_id,
+                candidate_id=candidate_id,
+                engagement=engagement,
+                event_type='engagement.opened',
+                actor=request.user,
+                payload={
+                    'engagement_type': engagement.engagement_type,
+                    'stage': engagement.stage,
+                    'priority': engagement.priority
+                },
+                source='user'
+            )
+            return success_response(
+                CandidateEngagementSerializer(engagement).data,
+                status_code=201
+            )
+        return error_response(serializer.errors)
+
+
+class CandidateEngagementDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, candidate_id, engagement_id, tenant_id):
+        try:
+            return CandidateEngagement.objects.get(
+                id=engagement_id,
+                candidate_id=candidate_id,
+                tenant_id=tenant_id,
+                is_deleted=False
+            )
+        except CandidateEngagement.DoesNotExist:
+            return None
+
+    def get(self, request, candidate_id, engagement_id):
+        engagement = self.get_object(
+            candidate_id, engagement_id, request.user.tenant_id
+        )
+        if not engagement:
+            return error_response("Engagement not found", status_code=404)
+        serializer = CandidateEngagementSerializer(engagement)
+        return success_response(serializer.data)
+
+    def put(self, request, candidate_id, engagement_id):
+        engagement = self.get_object(
+            candidate_id, engagement_id, request.user.tenant_id
+        )
+        if not engagement:
+            return error_response("Engagement not found", status_code=404)
+
+        old_stage = engagement.stage
+        serializer = CandidateEngagementSerializer(
+            engagement, data=request.data, partial=True
+        )
+        if serializer.is_valid():
+            updated = serializer.save(last_activity_at=timezone.now())
+            # Emit stage change event if stage changed
+            if 'stage' in request.data and request.data['stage'] != old_stage:
+                CandidateTimelineEvent.objects.create(
+                    tenant_id=request.user.tenant_id,
+                    candidate_id=candidate_id,
+                    engagement=updated,
+                    event_type='engagement.stage_changed',
+                    actor=request.user,
+                    payload={
+                        'from_stage': old_stage,
+                        'to_stage': updated.stage
+                    },
+                    source='user'
+                )
+            return success_response(serializer.data)
+        return error_response(serializer.errors)
+
+
+class CandidateEngagementCloseView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, candidate_id, engagement_id):
+        try:
+            engagement = CandidateEngagement.objects.get(
+                id=engagement_id,
+                candidate_id=candidate_id,
+                tenant_id=request.user.tenant_id,
+                is_deleted=False
+            )
+        except CandidateEngagement.DoesNotExist:
+            return error_response("Engagement not found", status_code=404)
+
+        engagement.is_active = False
+        engagement.closed_at = timezone.now()
+        engagement.closure_reason = request.data.get('closure_reason', '')
+        engagement.stage = request.data.get('final_stage', 'closed')
+        engagement.save()
+
+        CandidateTimelineEvent.objects.create(
+            tenant_id=request.user.tenant_id,
+            candidate_id=candidate_id,
+            engagement=engagement,
+            event_type='engagement.closed',
+            actor=request.user,
+            payload={'closure_reason': engagement.closure_reason},
+            source='user'
+        )
+        return success_response(
+            CandidateEngagementSerializer(engagement).data
+        )
+
+
+class CandidateEngagementReviveView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, candidate_id, engagement_id):
+        try:
+            old_engagement = CandidateEngagement.objects.get(
+                id=engagement_id,
+                candidate_id=candidate_id,
+                tenant_id=request.user.tenant_id,
+                is_deleted=False
+            )
+        except CandidateEngagement.DoesNotExist:
+            return error_response("Engagement not found", status_code=404)
+
+        # Create new active engagement linked to old one
+        new_engagement = CandidateEngagement.objects.create(
+            tenant_id=request.user.tenant_id,
+            candidate_id=candidate_id,
+            engagement_type='revival',
+            stage='revived',
+            priority=request.data.get('priority', 'warm'),
+            is_active=True,
+            owner_user=request.user,
+            resurrected_from=old_engagement,
+            created_by=request.user,
+            last_activity_at=timezone.now()
+        )
+
+        CandidateTimelineEvent.objects.create(
+            tenant_id=request.user.tenant_id,
+            candidate_id=candidate_id,
+            engagement=new_engagement,
+            event_type='engagement.revived',
+            actor=request.user,
+            payload={
+                'revived_from_engagement': str(old_engagement.id),
+                'original_stage': old_engagement.stage
+            },
+            source='user'
+        )
+        return success_response(
+            CandidateEngagementSerializer(new_engagement).data,
+            status_code=201
+        )
+
+
+class ActiveCandidatesView(APIView):
+    """Work Mode — candidates with active engagements requiring attention"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.db.models import Prefetch
+
+        priority = request.query_params.get('priority')
+        stage = request.query_params.get('stage')
+        follow_up_overdue = request.query_params.get('follow_up_overdue')
+        owner = request.query_params.get('owner')
+
+        qs = CandidateEngagement.objects.filter(
+            tenant_id=request.user.tenant_id,
+            is_active=True,
+            is_deleted=False
+        ).select_related('candidate', 'owner_user', 'job')
+
+        if priority:
+            qs = qs.filter(priority=priority)
+        if stage:
+            qs = qs.filter(stage=stage)
+        if follow_up_overdue == 'true':
+            qs = qs.filter(follow_up_at__lt=timezone.now())
+        if owner == 'me':
+            qs = qs.filter(owner_user=request.user)
+
+        qs = qs.order_by('-last_activity_at')
+
+        serializer = CandidateEngagementSerializer(qs, many=True)
+        return success_response({
+            'count': qs.count(),
+            'engagements': serializer.data
+        })
+
+
+class CandidateEngagementTimelineView(APIView):
+    """Full immutable timeline for a candidate"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, candidate_id):
+        engagement_id = request.query_params.get('engagement_id')
+
+        qs = CandidateTimelineEvent.objects.filter(
+            candidate_id=candidate_id,
+            tenant_id=request.user.tenant_id
+        ).select_related('actor', 'engagement')
+
+        if engagement_id:
+            qs = qs.filter(engagement_id=engagement_id)
+
+        qs = qs.order_by('-created_at')
+
+        serializer = CandidateTimelineEventSerializer(qs, many=True)
+        return success_response(serializer.data)
+

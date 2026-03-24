@@ -13,6 +13,13 @@ from apps.jobs.models import JobRequisition, JobStage
 from apps.candidates.models import Candidate
 from apps.core.responses import success_response, error_response
 from apps.core import events
+from apps.candidates.pipeline_hooks import (
+    on_application_created,
+    on_application_stage_changed,
+    on_application_rejected,
+    on_offer_made,
+    on_candidate_hired,
+)
 
 
 def validate_application_move(application, target_stage, reason=None):
@@ -106,6 +113,12 @@ def perform_application_move(application, target_stage, user, notes=None, reason
                     job.closed_reason = "Headcount reached"
                 job.save(update_fields=['headcount', 'status', 'closed_at', 'closed_reason', 'updated_at'])
         except JobRequisition.DoesNotExist:
+            pass
+
+        # Engagement Layer Hook
+        try:
+            on_candidate_hired(application, user)
+        except Exception:
             pass
 
     # Event Emission
@@ -248,6 +261,12 @@ class ApplicationListView(APIView):
             updated_at=timezone.now()
         )
 
+        # Engagement Layer Hook
+        try:
+            on_application_created(application, request.user)
+        except Exception:
+            pass
+
         # Emit Event
         events.application.created.send(
             sender=self.__class__,
@@ -349,10 +368,17 @@ class ApplicationMoveStageView(APIView):
             return error_response(error_msg)
 
         # 2. Perform Move
+        old_status = application.status
         application = perform_application_move(
             application, target_stage, request.user, 
             notes=notes, reason=reason, request=request
         )
+
+        # Engagement Layer Hook
+        try:
+            on_application_stage_changed(application, old_status, application.status, request.user)
+        except Exception:
+            pass
 
         return success_response(
             data={'application': ApplicationSerializer(application).data},
@@ -442,6 +468,12 @@ class ApplicationRejectView(APIView):
             moved_by=request.user.id,
             reason=reason,
         )
+
+        # Engagement Layer Hook
+        try:
+            on_application_rejected(application, reason, request.user)
+        except Exception:
+            pass
 
         return success_response(
             data={'application': ApplicationSerializer(application).data},
@@ -535,6 +567,12 @@ class ApplicationMakeOfferView(APIView):
             assigned_to=request.user.id,
             deadline_at=timezone.now() + timedelta(hours=48),
         )
+
+        # Engagement Layer Hook
+        try:
+            on_offer_made(application, request.data, request.user)
+        except Exception:
+            pass
 
         # Emit Event
         events.application.offer_made.send(

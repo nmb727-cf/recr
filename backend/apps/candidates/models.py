@@ -2,6 +2,7 @@ import uuid
 import hashlib
 from django.db import models
 from django.utils import timezone
+from django.conf import settings
 
 
 class Candidate(models.Model):
@@ -242,6 +243,40 @@ class CandidateNote(models.Model):
     deleted_at = models.DateTimeField(null=True, blank=True)
     metadata = models.JSONField(default=dict, blank=True)
 
+    engagement = models.ForeignKey(
+        'CandidateEngagement', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='notes'
+    )
+    application = models.ForeignKey(
+        'pipeline.Application', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='candidate_notes'
+    )
+    note_context = models.CharField(
+        max_length=50,
+        choices=[
+            ('general', 'General'),
+            ('call', 'Call Note'),
+            ('email', 'Email Note'),
+            ('submission', 'Submission Note'),
+            ('client_visible', 'Client Visible'),
+            ('interview', 'Interview Feedback'),
+            ('offer', 'Offer / Negotiation'),
+        ],
+        default='general'
+    )
+    visibility = models.CharField(
+        max_length=50,
+        choices=[
+            ('internal', 'Internal Only'),
+            ('client', 'Client Visible'),
+            ('panel', 'Interview Panel'),
+            ('system', 'System Generated'),
+            ('private', 'Private to Author'),
+        ],
+        default='internal'
+    )
+    is_pinned = models.BooleanField(default=False)
+
     def soft_delete(self):
         self.is_deleted = True
         self.deleted_at = timezone.now()
@@ -329,3 +364,190 @@ class Skill(models.Model):
 
     def __str__(self):
         return self.name
+
+
+class CandidateWorkspace(models.Model):
+    PRIORITY_CHOICES = [
+        ('hot', 'Hot'),
+        ('warm', 'Warm'),
+        ('cold', 'Cold'),
+    ]
+    RELATIONSHIP_STATUS = [
+        ('active', 'Active'),
+        ('archived', 'Archived'),
+        ('do_not_contact', 'Do Not Contact'),
+        ('blacklisted', 'Blacklisted'),
+        ('favourite', 'Favourite'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_id = models.UUIDField(db_index=True)
+    candidate = models.ForeignKey(
+        Candidate, on_delete=models.PROTECT, related_name='workspaces'
+    )
+    owner_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='owned_workspaces'
+    )
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='warm')
+    relationship_status = models.CharField(
+        max_length=50, choices=RELATIONSHIP_STATUS, default='active'
+    )
+    tags = models.JSONField(default=list)
+    local_rating = models.IntegerField(null=True, blank=True)  # 1-5
+    source_for_tenant = models.CharField(max_length=100, null=True, blank=True)
+    talent_pool_ids = models.JSONField(default=list)
+    last_worked_at = models.DateTimeField(null=True, blank=True)
+    custom_fields = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='created_workspaces'
+    )
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    metadata = models.JSONField(default=dict)
+
+    class Meta:
+        db_table = 'candidate_workspaces'
+        unique_together = [['tenant_id', 'candidate']]
+        indexes = [
+            models.Index(fields=['tenant_id', 'priority']),
+            models.Index(fields=['tenant_id', 'relationship_status']),
+            models.Index(fields=['tenant_id', 'owner_user']),
+        ]
+
+    def __str__(self):
+        return f"Workspace: {self.candidate} in tenant {self.tenant_id}"
+
+
+class CandidateEngagement(models.Model):
+    ENGAGEMENT_TYPE = [
+        ('lead', 'New Lead'),
+        ('job_sourced', 'Sourced for Job'),
+        ('reapplied', 'Reapplied'),
+        ('resurface', 'Resurfaced from Database'),
+        ('revival', 'Revived Previous Candidate'),
+        ('referral', 'Referral'),
+        ('direct_approach', 'Direct Approach'),
+    ]
+    STAGE_CHOICES = [
+        ('new', 'New Lead'),
+        ('contacted', 'Contacted'),
+        ('interested', 'Interested'),
+        ('not_interested', 'Not Interested'),
+        ('follow_up', 'Follow Up Due'),
+        ('shortlisted', 'Shortlisted Internally'),
+        ('submitted', 'Submitted to Client'),
+        ('client_review', 'Client Review'),
+        ('interviewing', 'Interviewing'),
+        ('offered', 'Offered'),
+        ('placed', 'Placed'),
+        ('closed', 'Closed'),
+        ('lost', 'Lost'),
+        ('revived', 'Revived'),
+    ]
+    PRIORITY_CHOICES = [
+        ('hot', 'Hot'),
+        ('warm', 'Warm'),
+        ('cold', 'Cold'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_id = models.UUIDField(db_index=True)
+    candidate = models.ForeignKey(
+        Candidate, on_delete=models.PROTECT, related_name='engagements'
+    )
+    workspace = models.ForeignKey(
+        CandidateWorkspace, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='engagements'
+    )
+    job = models.ForeignKey(
+        'jobs.JobRequisition', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='engagements'
+    )
+    engagement_type = models.CharField(max_length=50, choices=ENGAGEMENT_TYPE, default='lead')
+    stage = models.CharField(max_length=50, choices=STAGE_CHOICES, default='new')
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='warm')
+    is_active = models.BooleanField(default=True, db_index=True)
+    owner_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='owned_engagements'
+    )
+    source_channel = models.CharField(max_length=100, null=True, blank=True)
+    follow_up_at = models.DateTimeField(null=True, blank=True)
+    last_activity_at = models.DateTimeField(null=True, blank=True)
+    resurrected_from = models.ForeignKey(
+        'self', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='resurrections'
+    )
+    closure_reason = models.TextField(null=True, blank=True)
+    started_at = models.DateTimeField(auto_now_add=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='created_engagements'
+    )
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    metadata = models.JSONField(default=dict)
+
+    class Meta:
+        db_table = 'candidate_engagements'
+        indexes = [
+            models.Index(fields=['tenant_id', 'is_active']),
+            models.Index(fields=['tenant_id', 'stage']),
+            models.Index(fields=['tenant_id', 'priority', 'is_active']),
+            models.Index(fields=['tenant_id', 'owner_user', 'is_active']),
+            models.Index(fields=['tenant_id', 'follow_up_at']),
+            models.Index(fields=['candidate', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f"Engagement: {self.candidate} [{self.stage}]"
+
+
+class CandidateTimelineEvent(models.Model):
+    SOURCE_CHOICES = [
+        ('user', 'User Action'),
+        ('system', 'System'),
+        ('agency', 'Agency'),
+        ('import', 'Import'),
+        ('candidate', 'Candidate'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_id = models.UUIDField(db_index=True)
+    candidate = models.ForeignKey(
+        Candidate, on_delete=models.PROTECT, related_name='timeline_events'
+    )
+    engagement = models.ForeignKey(
+        CandidateEngagement, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='timeline_events'
+    )
+    event_type = models.CharField(max_length=100, db_index=True)
+    # Examples: candidate.created / engagement.opened / engagement.stage_changed
+    # note.added / submitted / interview.scheduled / offer.made / placed / revived
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL, null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='candidate_timeline_actions'
+    )
+    payload = models.JSONField(default=dict)
+    source = models.CharField(max_length=50, choices=SOURCE_CHOICES, default='user')
+    created_at = models.DateTimeField(auto_now_add=True)
+    # NO is_deleted — timeline is intentionally immutable
+
+    class Meta:
+        db_table = 'candidate_timeline_events'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant_id', 'candidate', '-created_at']),
+            models.Index(fields=['tenant_id', 'engagement']),
+            models.Index(fields=['event_type']),
+        ]
+
+    def __str__(self):
+        return f"{self.event_type} — {self.candidate} at {self.created_at}"

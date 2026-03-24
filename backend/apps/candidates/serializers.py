@@ -73,3 +73,84 @@ class CandidateDetailSerializer(CandidateSerializer):
         return CandidateNote.objects.filter(
             candidate_id=obj.id, is_deleted=False
         ).count()
+
+
+from .models import CandidateWorkspace, CandidateEngagement, CandidateTimelineEvent
+
+
+class CandidateWorkspaceSerializer(serializers.ModelSerializer):
+    owner_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CandidateWorkspace
+        fields = [
+            'id', 'tenant_id', 'candidate', 'owner_user', 'owner_name',
+            'priority', 'relationship_status', 'tags', 'local_rating',
+            'source_for_tenant', 'talent_pool_ids', 'last_worked_at',
+            'custom_fields', 'created_at', 'updated_at', 'metadata'
+        ]
+        read_only_fields = ['id', 'tenant_id', 'created_at', 'updated_at']
+
+    def get_owner_name(self, obj):
+        if obj.owner_user:
+            return f"{obj.owner_user.first_name} {obj.owner_user.last_name}".strip()
+        return None
+
+
+class CandidateEngagementSerializer(serializers.ModelSerializer):
+    candidate_name = serializers.SerializerMethodField()
+    owner_name = serializers.SerializerMethodField()
+    job_title = serializers.SerializerMethodField()
+    is_follow_up_overdue = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CandidateEngagement
+        fields = [
+            'id', 'tenant_id', 'candidate', 'candidate_name',
+            'workspace', 'job', 'job_title',
+            'engagement_type', 'stage', 'priority', 'is_active',
+            'owner_user', 'owner_name', 'source_channel',
+            'follow_up_at', 'is_follow_up_overdue',
+            'last_activity_at', 'resurrected_from',
+            'closure_reason', 'started_at', 'closed_at',
+            'created_at', 'updated_at', 'metadata'
+        ]
+        read_only_fields = ['id', 'tenant_id', 'created_at', 'updated_at', 'started_at']
+
+    def get_candidate_name(self, obj):
+        return f"{obj.candidate.first_name} {obj.candidate.last_name}".strip()
+
+    def get_owner_name(self, obj):
+        if obj.owner_user:
+            return f"{obj.owner_user.first_name} {obj.owner_user.last_name}".strip()
+        return None
+
+    def get_job_title(self, obj):
+        if obj.job:
+            return obj.job.title
+        return None
+
+    def get_is_follow_up_overdue(self, obj):
+        if obj.follow_up_at:
+            from django.utils import timezone
+            return obj.follow_up_at < timezone.now()
+        return False
+
+
+class CandidateTimelineEventSerializer(serializers.ModelSerializer):
+    actor_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CandidateTimelineEvent
+        fields = [
+            'id', 'tenant_id', 'candidate', 'engagement',
+            'event_type', 'actor', 'actor_name',
+            'payload', 'source', 'created_at'
+        ]
+        read_only_fields = ['id', 'tenant_id', 'created_at']
+
+    def get_actor_name(self, obj):
+        if obj.actor:
+            return f"{obj.actor.first_name} {obj.actor.last_name}".strip()
+        return 'System'
+

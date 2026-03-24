@@ -38,4 +38,27 @@ urlpatterns = [
          name='skill-search'),
     path('locations/search/', views.LocationSearchView.as_view(),
          name='location-search'),
+
+    # Engagement domain
+    path('<uuid:candidate_id>/workspace/',
+         views.CandidateWorkspaceView.as_view(), name='candidate-workspace'),
+
+    path('<uuid:candidate_id>/engagements/',
+         views.CandidateEngagementListView.as_view(), name='candidate-engagements'),
+
+    path('<uuid:candidate_id>/engagements/<uuid:engagement_id>/',
+         views.CandidateEngagementDetailView.as_view(), name='candidate-engagement-detail'),
+
+    path('<uuid:candidate_id>/engagements/<uuid:engagement_id>/close/',
+         views.CandidateEngagementCloseView.as_view(), name='candidate-engagement-close'),
+
+    path('<uuid:candidate_id>/engagements/<uuid:engagement_id>/revive/',
+         views.CandidateEngagementReviveView.as_view(), name='candidate-engagement-revive'),
+
+    path('<uuid:candidate_id>/timeline-events/',
+         views.CandidateEngagementTimelineView.as_view(), name='candidate-timeline-events'),
+
+    path('active/',
+         views.ActiveCandidatesView.as_view(), name='candidates-active'),
 ]
+

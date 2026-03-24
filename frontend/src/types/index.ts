@@ -18,6 +18,8 @@ export interface User {
   last_name: string
   full_name: string
   phone: string
+  phone_country_code?: string
+  phone_number?: string
   avatar_url: string
   role: UserRole
   is_active: boolean
@@ -171,6 +173,8 @@ export interface Candidate {
   full_name: string
   email: string
   phone: string
+  phone_country_code?: string
+  phone_number?: string
   whatsapp: string
   linkedin_url: string
   current_title: string

@@ -17,6 +17,7 @@ import { getSalaryConfig, formatSalaryDisplay } from '@/utils/salary'
 import { organisationApi } from '@/api/organisation'
 import { DEMO_ASSETS } from '@/utils/demo'
 import type { CandidateDetail } from '@/types'
+import PhoneInput, { formatPhoneDisplay, getPhoneValidationRule, PhoneValue } from '@/components/common/PhoneInput'
 
 dayjs.extend(relativeTime)
 
@@ -146,7 +147,10 @@ export default function CandidateQuickView({
               first_name: candidate.first_name,
               last_name: candidate.last_name,
               email: candidate.email,
-              phone: candidate.phone,
+              phone_field: {
+                country_code: (candidate as any).phone_country_code || 'IN',
+                phone_number: (candidate as any).phone_number || candidate.phone || '',
+              } as PhoneValue,
               whatsapp: candidate.whatsapp || '',
               linkedin_url: candidate.linkedin_url,
               current_title: candidate.current_title,
@@ -246,8 +250,12 @@ export default function CandidateQuickView({
                       </Form.Item>
                       <Row gutter={12}>
                         <Col span={12}>
-                          <Form.Item name="phone" label="Phone">
-                            <Input size="small" />
+                          <Form.Item 
+                            name="phone_field" 
+                            label="Phone"
+                            rules={[getPhoneValidationRule()]}
+                          >
+                            <PhoneInput size="small" />
                           </Form.Item>
                         </Col>
                         <Col span={12}>
@@ -574,7 +582,9 @@ export default function CandidateQuickView({
                       first_name: values.first_name,
                       last_name: values.last_name,
                       email: values.email,
-                      phone: values.phone,
+                      phone: values.phone_field ? `${values.phone_field.country_code}:${values.phone_field.phone_number}` : '',
+                      phone_country_code: values.phone_field?.country_code || 'IN',
+                      phone_number: values.phone_field?.phone_number || '',
                       whatsapp: values.whatsapp || '',
                       linkedin_url: values.linkedin_url || '',
                       current_title: values.current_title || '',
@@ -825,7 +835,14 @@ export default function CandidateQuickView({
                   : null
               } 
             />
-            <DataPoint label="Phone" value={candidate.phone} />
+            <DataPoint 
+              label="Phone" 
+              value={
+                (candidate as any).phone_number
+                  ? formatPhoneDisplay((candidate as any).phone_country_code || 'IN', (candidate as any).phone_number)
+                  : candidate.phone || null
+              } 
+            />
             <DataPoint label="Location"
               value={candidate.current_location_city} />
             {candidate.linkedin_url && (

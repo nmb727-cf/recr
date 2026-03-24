@@ -20,6 +20,7 @@ import { authApi } from '@/api/auth'
 import { passportApi } from '@/api/passport'
 import type { Passport } from '@/types'
 import { COUNTRIES, TIMEZONES } from '@/utils/locale'
+import PhoneInput, { getPhoneValidationRule, PhoneValue } from '@/components/common/PhoneInput'
 
 const { Title, Text } = Typography
 
@@ -58,7 +59,9 @@ export default function Onboarding() {
       await authApi.updateMe({
         first_name: values.first_name,
         last_name: values.last_name,
-        phone: values.phone,
+        phone: values.phone_field ? `${values.phone_field.country_code}:${values.phone_field.phone_number}` : '',
+        phone_country_code: values.phone_field?.country_code || 'IN',
+        phone_number: values.phone_field?.phone_number || '',
         timezone: values.timezone
       })
       
@@ -137,6 +140,10 @@ export default function Onboarding() {
 
   const step0InitialValues = {
     ...user,
+    phone_field: {
+      country_code: (user as any)?.phone_country_code || 'IN',
+      phone_number: (user as any)?.phone_number || user?.phone || '',
+    } as PhoneValue,
     timezone: user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
     current_title: passport?.current_title,
     current_company: passport?.current_company,
@@ -179,14 +186,14 @@ export default function Onboarding() {
               <Row gutter={16}>
                 <Col span={12}>
                   <Form.Item 
-                    name="phone" 
+                    name="phone_field" 
                     label="Phone Number" 
                     rules={[
                       { required: true, message: 'Phone number is required' },
-                      { pattern: /^\+?[\d\s-]{10,15}$/, message: 'Numbers only (10-15 digits)' }
+                      getPhoneValidationRule()
                     ]}
                   >
-                    <Input placeholder="+1 555 000 0000" className="h-11 rounded-xl" />
+                    <PhoneInput placeholder="Phone number" />
                   </Form.Item>
                 </Col>
                 <Col span={12}>

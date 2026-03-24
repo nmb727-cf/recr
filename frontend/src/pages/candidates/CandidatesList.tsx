@@ -30,6 +30,7 @@ import CandidateInteractionDrawer from '@/components/CandidateInteractionDrawer'
 import CandidateQuickView from './CandidateQuickView'
 import { formatStatusLabel, getStatusStyle } from '@/utils/status'
 import { getSalaryConfig, formatSalaryLabel, formatSalaryDisplay } from '@/utils/salary'
+import PhoneInput, { getPhoneValidationRule, formatPhoneDisplay } from '@/components/common/PhoneInput'
 
 dayjs.extend(relativeTime)
 const { Text, Title } = Typography
@@ -158,7 +159,9 @@ function QuickAddModal({
         first_name: values.first_name,
         last_name: values.last_name,
         email: values.email || '',
-        phone: values.phone || '',
+        phone: values.phone_field ? `${values.phone_field.country_code}:${values.phone_field.phone_number}` : '',
+        phone_country_code: values.phone_field?.country_code || 'IN',
+        phone_number: values.phone_field?.phone_number || '',
         current_company: values.current_company || '',
         current_title: values.current_title || '',
         current_ctc: values.current_ctc,
@@ -261,11 +264,12 @@ function QuickAddModal({
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="phone" label="Phone">
-              <Input
-                placeholder="+91 98765 43210"
-                className="h-10 rounded-xl"
-              />
+            <Form.Item
+              name="phone_field"
+              label="Phone"
+              rules={[getPhoneValidationRule()]}
+            >
+              <PhoneInput placeholder="Phone number" />
             </Form.Item>
           </Col>
         </Row>
@@ -555,7 +559,9 @@ function AddCandidateModal({
         first_name: (values.first_name || '').trim(),
         last_name: (values.last_name || '').trim(),
         email: (values.email || '').trim(),
-        phone: (values.phone || '').trim(),
+        phone: values.phone_field ? `${values.phone_field.country_code}:${values.phone_field.phone_number}` : '',
+        phone_country_code: values.phone_field?.country_code || 'IN',
+        phone_number: values.phone_field?.phone_number || '',
         linkedin_url: (values.linkedin_url || '').trim(),
         current_title: (values.current_title || '').trim(),
         current_company: (values.current_company || '').trim(),
@@ -685,11 +691,12 @@ function AddCandidateModal({
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="phone" label="Phone">
-                <Input
-                  placeholder="+91 98765 43210"
-                  className="h-10 rounded-xl"
-                />
+              <Form.Item
+                name="phone_field"
+                label="Phone"
+                rules={[getPhoneValidationRule()]}
+              >
+                <PhoneInput placeholder="Phone number" />
               </Form.Item>
             </Col>
           </Row>

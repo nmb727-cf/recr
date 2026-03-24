@@ -16,8 +16,11 @@ class AgencyClientRelationshipSerializer(serializers.ModelSerializer):
             'sla_submission_hours', 'sla_feedback_hours',
             'commission_percentage', 'commission_type', 'notes',
             'contact_person_name', 'contact_email', 'contact_phone',
+            'contact_country_code', 'contact_phone_number',
             'industry', 'contract_file_url', 'recruitment_policy_url',
-            'payment_terms', 'invited_by', 'invited_via',
+            'payment_terms', 'payment_schedule', 'connection_type',
+            'guest_portal_id', 'email_tracking_id', 'their_ats_url',
+            'invited_by', 'invited_via',
             'created_at', 'updated_at', 'created_by', 'metadata',
         ]
         read_only_fields = ['id', 'tenant_id', 'created_at', 'updated_at']

@@ -13,6 +13,8 @@ class Candidate(models.Model):
     last_name = models.CharField(max_length=100)
     email = models.EmailField(blank=True)
     phone = models.CharField(max_length=20, blank=True)
+    phone_country_code = models.CharField(max_length=10, blank=True, default='IN')
+    phone_number = models.CharField(max_length=20, blank=True)
     whatsapp = models.CharField(max_length=20, blank=True)
     linkedin_url = models.TextField(blank=True)
     current_title = models.CharField(max_length=255, blank=True)

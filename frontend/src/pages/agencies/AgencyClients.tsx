@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import {
   Table, Button, Typography, Tag, Space, Drawer, Form,
-  Input, message, Card, Divider, Dropdown
+  Input, InputNumber, Select, message, Card, Divider,
+  Dropdown, DatePicker, Checkbox
 } from 'antd'
 import { 
   CheckOutlined, 
@@ -13,7 +14,9 @@ import {
   LinkOutlined,
   SendOutlined,
   MoreOutlined,
-  InfoCircleOutlined
+  InfoCircleOutlined,
+  EditOutlined,
+  FileTextOutlined
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
@@ -24,10 +27,13 @@ import { agenciesApi } from '@/api/agencies'
 import { useAuth } from '@/hooks/useAuth'
 import { StandardSplitView } from '@/components/layout/StandardSplitView'
 import { cn } from '@/utils/cn'
+import PaymentTermsField from '@/components/agencies/PaymentTermsField'
+import PhoneInput, { formatPhoneDisplay, getPhoneValidationRule, PhoneValue } from '@/components/common/PhoneInput'
 
 dayjs.extend(relativeTime)
 
 const { Title, Text } = Typography
+const { Option } = Select
 
 interface AgencyRelationship {
   id: string
@@ -45,14 +51,20 @@ interface AgencyRelationship {
   sla_feedback_hours?: number
   notes?: string
   
-  // New fields
   contact_person_name?: string
   contact_email?: string
   contact_phone?: string
+  contact_country_code?: string
+  contact_phone_number?: string
   industry?: string
   contract_file_url?: string
   recruitment_policy_url?: string
   payment_terms?: string[]
+  payment_schedule?: Array<{
+    trigger: 'on_joining' | 'days_after_joining'
+    days?: number
+    percentage: number
+  }>
   invited_by?: 'company' | 'agency'
   invited_via?: string
 
@@ -61,6 +73,36 @@ interface AgencyRelationship {
   email_tracking_id?: string
   their_ats_url?: string
   last_activity_at?: string
+}
+
+const INDUSTRY_OPTIONS = [
+  'Technology', 'Finance', 'Healthcare', 'Manufacturing', 'Retail', 
+  'Energy', 'Education', 'Construction', 'Logistics', 'Real Estate', 
+  'Consulting', 'Other'
+]
+
+function getClientDisplayName(r: AgencyRelationship): string {
+  if (!r.company_tenant_id || r.company_name === 'Unknown Company' || !r.company_name) {
+    if (r.contact_person_name) return r.contact_person_name
+    if (r.contact_email) return r.contact_email.split('@')[0]
+    return 'Unnamed Client'
+  }
+  return r.company_name
+}
+
+function getConnectionBadge(r: AgencyRelationship) {
+  const type = r.connection_type || 'full_full'
+  if (type === 'client_guest') {
+    if (r.status === 'active') return { color: 'blue', label: 'Portal Active' }
+    if (r.status === 'pending') return { color: 'gold', label: 'Invite Pending' }
+    return { color: 'red', label: 'Invite Expired' }
+  }
+  if (type === 'email_tracking') return { color: 'purple', label: 'Email Tracking' }
+  if (type === 'offline') return { color: 'default', label: 'Offline' }
+  if (r.status === 'active') return { color: 'green', label: 'Connected' }
+  if (r.status === 'pending') return { color: 'gold', label: 'Pending' }
+  if (r.status === 'suspended') return { color: 'orange', label: 'Suspended' }
+  return { color: 'default', label: r.status }
 }
 
 export default function AgencyClients() {
@@ -76,6 +118,11 @@ export default function AgencyClients() {
   
   const [addPath, setAddPath] = useState<'email' | 'offline' | 'portal' | null>(null)
   const [successData, setSuccessData] = useState<any>(null)
+
+  const [editDrawerOpen, setEditDrawerOpen] = useState(false)
+  const [editingRelationship, setEditingRelationship] = useState<AgencyRelationship | null>(null)
+  const [editForm] = Form.useForm()
+  const [editSubmitting, setEditSubmitting] = useState(false)
 
   const [form] = Form.useForm()
 
@@ -106,10 +153,7 @@ export default function AgencyClients() {
     try {
       const res = await agenciesApi.lookup(searchQuery)
       setLookupResult(res.data.data)
-      if (!res.data.data.found) {
-        // Pre-fill slug if not found
-        form.setFieldsValue({ slug: res.data.data.suggested_slug })
-      }
+      form.setFieldsValue({ contact_email: searchQuery })
     } catch (err: any) {
       message.error(err.response?.data?.message || 'Search failed')
     } finally {
@@ -120,41 +164,53 @@ export default function AgencyClients() {
   const handleSubmit = async (values: any) => {
     try {
       setSubmitting(true)
+      const payload = {
+        contact_person_name: values.contact_person_name,
+        contact_email: values.contact_email || searchQuery,
+        contact_phone: values.contact_phone_field
+          ? `${values.contact_phone_field.country_code}:${values.contact_phone_field.phone_number}`
+          : '',
+        contact_country_code: values.contact_phone_field?.country_code || 'IN',
+        contact_phone_number: values.contact_phone_field?.phone_number || '',
+        industry: values.industry || '',
+        commission_percentage: values.commission_percentage,
+        commission_type: values.commission_type || 'percentage',
+        payment_terms: values.payment_terms_field?.terms || [],
+        payment_schedule: values.payment_terms_field?.schedule || [],
+        sla_submission_hours: values.sla_submission_hours || 48,
+        sla_feedback_hours: values.sla_feedback_hours || 72,
+        contract_start_date: values.contract_start_date?.format('YYYY-MM-DD') || null,
+        contract_end_date: values.contract_end_date?.format('YYYY-MM-DD') || null,
+        notes: values.notes || '',
+      }
+
       if (lookupResult?.found) {
-        // Scenario 1: Both full tenants
         await agenciesApi.createRelationship({
           company_tenant_id: lookupResult.tenant_id,
-          contact_email: lookupResult.email,
-          ...values
+          ...payload
         })
       } else {
-        // Scenario 3: Branching paths
         if (addPath === 'email') {
           await agenciesApi.createEmailTracking({
             client_name: values.company_name,
-            contact_email: searchQuery,
-            contact_name: values.contact_name,
-            notes: values.notes
+            contact_name: values.contact_person_name, // Backend expects contact_name
+            ...payload
           })
         } else if (addPath === 'offline') {
           await agenciesApi.createOfflineClient({
             client_name: values.company_name,
-            contact_email: searchQuery,
-            contact_name: values.contact_name,
-            contact_phone: values.contact_phone,
+            contact_name: values.contact_person_name,
             their_ats_url: values.their_ats_url,
-            notes: values.notes,
-            receive_via_email: true
+            receive_via_email: true,
+            ...payload
           })
         } else if (addPath === 'portal') {
           await agenciesApi.createGuestPortal({
             portal_type: 'client_guest',
             name: values.company_name,
-            contact_email: searchQuery,
-            contact_name: values.contact_name,
-            contact_phone: values.contact_phone,
+            contact_name: values.contact_person_name,
             invite_message: values.invite_message,
-            slug: values.slug
+            ...payload
           })
         }
       }
@@ -162,14 +218,73 @@ export default function AgencyClients() {
       setSuccessData({
         name: values.company_name || lookupResult?.name,
         path: addPath,
-        email: searchQuery,
-        slug: values.slug
+        email: values.contact_email || searchQuery,
       })
       queryClient.invalidateQueries({ queryKey: ['agency-client-relationships'] })
     } catch (err: any) {
       message.error(err.response?.data?.message || 'Action failed')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleEdit = (rel: AgencyRelationship) => {
+    setEditingRelationship(rel)
+    editForm.setFieldsValue({
+      contact_person_name: rel.contact_person_name || '',
+      contact_email: rel.contact_email || '',
+      contact_phone_field: {
+        country_code: rel.contact_country_code || 'IN',
+        phone_number: rel.contact_phone_number || rel.contact_phone || '',
+      } as PhoneValue,
+      industry: rel.industry || undefined,
+      commission_percentage: rel.commission_percentage ?? null,
+      commission_type: rel.commission_type || 'percentage',
+      payment_terms_field: {
+        terms: rel.payment_terms || [],
+        schedule: rel.payment_schedule || [],
+      },
+      sla_submission_hours: rel.sla_submission_hours || 48,
+      sla_feedback_hours: rel.sla_feedback_hours || 72,
+      contract_start_date: rel.contract_start_date ? dayjs(rel.contract_start_date) : null,
+      contract_end_date: rel.contract_end_date ? dayjs(rel.contract_end_date) : null,
+      notes: rel.notes || '',
+    })
+    setEditDrawerOpen(true)
+  }
+
+  const handleEditSubmit = async (values: any) => {
+    if (!editingRelationship) return
+    try {
+      setEditSubmitting(true)
+      await agenciesApi.updateRelationship(editingRelationship.id, {
+        contact_person_name: values.contact_person_name,
+        contact_email: values.contact_email,
+        contact_phone: values.contact_phone_field
+          ? `${values.contact_phone_field.country_code}:${values.contact_phone_field.phone_number}`
+          : '',
+        contact_country_code: values.contact_phone_field?.country_code || 'IN',
+        contact_phone_number: values.contact_phone_field?.phone_number || '',
+        industry: values.industry,
+        commission_percentage: values.commission_percentage,
+        commission_type: values.commission_type,
+        payment_terms: values.payment_terms_field?.terms || [],
+        payment_schedule: values.payment_terms_field?.schedule || [],
+        sla_submission_hours: values.sla_submission_hours,
+        sla_feedback_hours: values.sla_feedback_hours,
+        contract_start_date: values.contract_start_date?.format('YYYY-MM-DD') || null,
+        contract_end_date: values.contract_end_date?.format('YYYY-MM-DD') || null,
+        notes: values.notes,
+      })
+      message.success('Client details updated')
+      setEditDrawerOpen(false)
+      setEditingRelationship(null)
+      editForm.resetFields()
+      queryClient.invalidateQueries({ queryKey: ['agency-client-relationships'] })
+    } catch (err: any) {
+      message.error(err.response?.data?.message || 'Failed to update')
+    } finally {
+      setEditSubmitting(false)
     }
   }
 
@@ -198,22 +313,14 @@ export default function AgencyClients() {
       title: 'Client',
       key: 'client',
       render: (_, record) => {
-        let dotColor = '#CBD5E1' // Gray
-        if (record.connection_type === 'full_full' || (record.connection_type === 'client_guest' && record.status === 'active')) {
-          dotColor = '#10B981' // Green
-        } else if (record.status === 'pending') {
-          dotColor = '#F59E0B' // Yellow
-        } else if (record.connection_type === 'email_tracking') {
-          dotColor = '#6366F1' // Indigo
-        } else if (record.connection_type === 'offline') {
-          dotColor = '#64748B' // Slate
-        }
-
+        const name = getClientDisplayName(record)
         return (
-          <Space>
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: dotColor }} />
-            <Text strong className="text-[#111827]">{record.company_name || 'Unnamed Client'}</Text>
-          </Space>
+          <div>
+            <div className="font-semibold text-[#111827] text-[14px]">{name}</div>
+            <div className="text-[12px] text-slate-400 mt-0.5">
+              {record.contact_email || '—'}
+            </div>
+          </div>
         )
       }
     },
@@ -221,50 +328,63 @@ export default function AgencyClients() {
       title: 'Connection',
       key: 'connection',
       render: (_, record) => {
-        const type = record.connection_type || 'full_full'
-        if (type === 'full_full') return <Tag color="green">Connected</Tag>
-        if (type === 'client_guest') {
-          if (record.status === 'active') return <Tag color="blue">Portal Active</Tag>
-          if (record.status === 'pending') return <Tag color="warning">Invite Pending</Tag>
-          return <Tag color="error">Invite Expired</Tag>
-        }
-        if (type === 'email_tracking') return <Tag color="indigo">Email Tracking</Tag>
-        if (type === 'offline') return <Tag color="default">Offline</Tag>
-        return <Tag>{type}</Tag>
+        const badge = getConnectionBadge(record)
+        return <Tag color={badge.color}>{badge.label}</Tag>
       }
     },
     {
-      title: 'Contact Email',
-      dataIndex: 'contact_email',
-      key: 'contact_email',
-      render: (email) => email || '—'
+      title: 'Contact',
+      key: 'contact',
+      render: (_, record) => (
+        <div>
+          <div className="text-[13px] text-slate-600">{record.contact_person_name || '—'}</div>
+          <div className="text-[12px] text-slate-400">
+            {record.contact_phone_number
+              ? formatPhoneDisplay(record.contact_country_code || 'IN', record.contact_phone_number)
+              : record.contact_phone || '—'}
+          </div>
+        </div>
+      ),
     },
     {
-      title: 'Jobs',
-      key: 'jobs',
-      render: () => '—'
+      title: 'Commission',
+      key: 'commission',
+      render: (_, record) => {
+        if (!record.commission_percentage) return <span className="text-slate-400">—</span>
+        return (
+          <span className="text-[13px]">
+            {record.commission_percentage}
+            {record.commission_type === 'percentage' ? '%' : ' fixed'}
+          </span>
+        )
+      }
+    },
+    {
+      title: 'Since',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      render: (date) => (
+        <span className="text-[13px] text-slate-500">
+          {dayjs(date).format('MMM D, YYYY')}
+        </span>
+      )
     },
     {
       title: '',
       key: 'actions',
-      width: 50,
+      width: 80,
       render: (_, record) => (
-        <Dropdown
-          menu={{
-            items: [
-              { key: 'view', label: 'View Profile', icon: <EyeOutlined /> },
-              { key: 'assign', label: 'Assign Job', icon: <PlusOutlined />, disabled: record.status !== 'active' },
-              { key: 'message', label: 'Message', icon: <MailOutlined />, disabled: record.status !== 'active' },
-            ],
-            onClick: ({ key }) => {
-              if (key === 'view') setSelectedId(record.id)
-            }
+        <Button
+          type="text"
+          size="small"
+          icon={<EditOutlined />}
+          onClick={(e) => {
+            e.stopPropagation()
+            handleEdit(record)
           }}
-          trigger={['click']}
-        >
-          <Button type="text" icon={<MoreOutlined />} onClick={e => e.stopPropagation()} />
-        </Dropdown>
-      ),
+          className="text-slate-400 hover:text-[#4F46E5]"
+        />
+      )
     },
   ]
 
@@ -280,6 +400,7 @@ export default function AgencyClients() {
             setSuccessData(null)
             setLookupResult(null)
             setSearchQuery('')
+            form.resetFields()
           }}
           className="bg-[#4F46E5] hover:bg-[#3730A3] border-none h-10 px-6 rounded-lg font-semibold"
         >
@@ -361,24 +482,49 @@ export default function AgencyClients() {
 
   const detailContent = selectedRelationship && (
     <div className="h-full flex flex-col bg-white border-l border-[#F3F4F6]">
-      <div className="p-6 border-b border-slate-100 flex justify-between items-center">
-        <div>
-          <Title level={4} style={{ margin: 0, color: '#111827', fontWeight: 700 }}>{selectedRelationship?.company_name || 'N/A'}</Title>
-          <div className="mt-1 flex items-center gap-2">
-            <Tag color={
-              selectedRelationship?.status === 'active' ? 'success' :
-              selectedRelationship?.status === 'pending' ? 'warning' : 
-              selectedRelationship?.status === 'suspended' ? 'error' : 'default'
-            }>
-              {selectedRelationship?.status?.toUpperCase() || 'UNKNOWN'}
+      <div className="p-6 border-b border-slate-100 flex justify-between items-start">
+        <div className="flex-1 min-w-0">
+          <Title level={4} style={{ margin: 0, color: '#111827', fontWeight: 700 }}>
+            {getClientDisplayName(selectedRelationship)}
+          </Title>
+          <div className="mt-1 flex items-center gap-2 flex-wrap">
+            <Tag color={getConnectionBadge(selectedRelationship).color}>
+              {getConnectionBadge(selectedRelationship).label}
             </Tag>
-            <Text type="secondary" className="text-[12px]">Partner since {selectedRelationship?.created_at ? dayjs(selectedRelationship.created_at).format('MMM YYYY') : 'N/A'}</Text>
+            <Text type="secondary" className="text-[12px]">
+              Added {dayjs(selectedRelationship.created_at).format('MMM D, YYYY')}
+            </Text>
           </div>
         </div>
-        <Button type="text" onClick={() => setSelectedId(null)}>Close</Button>
+        <div className="flex items-center gap-1 ml-2 shrink-0">
+          <Button
+            type="text"
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => handleEdit(selectedRelationship)}
+            className="text-slate-400 hover:text-[#4F46E5]"
+          >
+            Edit
+          </Button>
+          <Button type="text" size="small" onClick={() => setSelectedId(null)}>
+            Close
+          </Button>
+        </div>
       </div>
 
       <div className="p-6 overflow-y-auto flex-1">
+        {selectedRelationship.connection_type === 'client_guest' && selectedRelationship.status === 'pending' && (
+          <div className="mb-6 p-4 bg-amber-50 rounded-xl border border-amber-100 flex gap-3">
+            <InfoCircleOutlined className="text-amber-500 mt-1" />
+            <div>
+              <div className="text-[13px] font-bold text-amber-900">Invite Pending</div>
+              <div className="text-[12px] text-amber-700 mt-0.5">
+                The client hasn't accepted the portal invitation yet. You can still submit candidates.
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-6">
           <section>
             <div className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">Company Contact</div>
@@ -394,7 +540,11 @@ export default function AgencyClients() {
                 </div>
                 <div>
                   <div className="text-[12px] text-slate-500">Phone</div>
-                  <div className="text-[14px] font-semibold text-[#111827]">{selectedRelationship?.contact_phone || 'N/A'}</div>
+                  <div className="text-[14px] font-semibold text-[#111827]">
+                    {selectedRelationship?.contact_phone_number
+                      ? formatPhoneDisplay(selectedRelationship.contact_country_code || 'IN', selectedRelationship.contact_phone_number)
+                      : selectedRelationship?.contact_phone || '—'}
+                  </div>
                 </div>
               </div>
               <div>
@@ -425,12 +575,30 @@ export default function AgencyClients() {
               <div className="text-[12px] text-slate-500 mb-1">Payment Terms</div>
               <Space wrap size={[4, 4]}>
                 {Array.isArray(selectedRelationship?.payment_terms) && selectedRelationship.payment_terms.length > 0 ? (
-                  selectedRelationship.payment_terms.map(term => (
+                  selectedRelationship.payment_terms.filter(t => t !== 'custom').map(term => (
                     <Tag key={term} className="bg-slate-50 border-slate-200 text-slate-600 rounded-md m-0">{term}</Tag>
                   ))
-                ) : <span className="text-slate-400 italic text-[13px]">No terms specified</span>}
+                ) : <span className="text-slate-400 italic text-[13px]">No standard terms specified</span>}
               </Space>
             </div>
+
+            {Array.isArray(selectedRelationship.payment_schedule) && selectedRelationship.payment_schedule.length > 0 && (
+              <div className="mt-3">
+                <div className="text-[12px] text-slate-500 mb-2">Payment Schedule</div>
+                <div className="space-y-1">
+                  {selectedRelationship.payment_schedule.map((item, i) => (
+                    <div key={i} className="text-[13px] text-slate-700 flex gap-2">
+                      <span className="font-semibold text-[#4F46E5]">{item.percentage}%</span>
+                      <span>
+                        {item.trigger === 'on_joining'
+                          ? 'on joining date'
+                          : `${item.days} days after joining`}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </section>
 
           <Divider style={{ margin: 0 }} />
@@ -445,6 +613,20 @@ export default function AgencyClients() {
               <div>
                 <div className="text-[12px] text-slate-500">Feedback Expectation</div>
                 <div className="text-[14px] font-semibold text-[#111827]">{selectedRelationship?.sla_feedback_hours || 72}h</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-[12px] text-slate-500">Contract Start</div>
+                <div className="text-[14px] font-semibold text-[#111827]">
+                  {selectedRelationship?.contract_start_date ? dayjs(selectedRelationship.contract_start_date).format('MMM D, YYYY') : '—'}
+                </div>
+              </div>
+              <div>
+                <div className="text-[12px] text-slate-500">Contract End</div>
+                <div className="text-[14px] font-semibold text-[#111827]">
+                  {selectedRelationship?.contract_end_date ? dayjs(selectedRelationship.contract_end_date).format('MMM D, YYYY') : '—'}
+                </div>
               </div>
             </div>
           </section>
@@ -462,6 +644,56 @@ export default function AgencyClients() {
     </div>
   )
 
+  const contractDetailsFields = (
+    <>
+      <Divider titlePlacement="left" plain><span className="text-[12px] text-slate-400 font-medium">Contract Details (Optional)</span></Divider>
+      
+      <Form.Item name="industry" label="Industry">
+        <Select placeholder="Select industry">
+          {INDUSTRY_OPTIONS.map(opt => <Option key={opt} value={opt}>{opt}</Option>)}
+        </Select>
+      </Form.Item>
+
+      <div className="grid grid-cols-2 gap-4">
+        <Form.Item name="commission_percentage" label="Commission">
+          <InputNumber className="w-full" placeholder="20" />
+        </Form.Item>
+        <Form.Item name="commission_type" label="Type" initialValue="percentage">
+          <Select>
+            <Option value="percentage">Percentage (%)</Option>
+            <Option value="fixed">Fixed Amount</Option>
+          </Select>
+        </Form.Item>
+      </div>
+
+      <Form.Item name="payment_terms_field" label="Payment Terms">
+        <PaymentTermsField />
+      </Form.Item>
+
+      <div className="grid grid-cols-2 gap-4">
+        <Form.Item name="sla_submission_hours" label="SLA Submission (hrs)" initialValue={48}>
+          <InputNumber className="w-full" />
+        </Form.Item>
+        <Form.Item name="sla_feedback_hours" label="SLA Feedback (hrs)" initialValue={72}>
+          <InputNumber className="w-full" />
+        </Form.Item>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <Form.Item name="contract_start_date" label="Start Date">
+          <DatePicker className="w-full" />
+        </Form.Item>
+        <Form.Item name="contract_end_date" label="End Date">
+          <DatePicker className="w-full" />
+        </Form.Item>
+      </div>
+
+      <Form.Item name="notes" label="Internal Notes">
+        <Input.TextArea rows={2} />
+      </Form.Item>
+    </>
+  )
+
   return (
     <>
       <StandardSplitView
@@ -469,8 +701,8 @@ export default function AgencyClients() {
         fullListContent={listContent}
         compactListContent={listContent}
         detailContent={detailContent}
-        leftOpenWidthClass="w-full lg:w-[calc(100%-360px)]"
-        rightOpenWidthClass="w-[360px]"
+        leftOpenWidthClass="w-full lg:w-[calc(100%-400px)]"
+        rightOpenWidthClass="w-[400px]"
       />
 
       <Drawer
@@ -482,7 +714,6 @@ export default function AgencyClients() {
       >
         {!successData ? (
           <div className="space-y-6">
-            {/* Section A: Search */}
             <div>
               <Text className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider block mb-2">Search by email</Text>
               <div className="flex gap-2">
@@ -510,18 +741,37 @@ export default function AgencyClients() {
                   <Card className="border-green-100 bg-green-50/30 rounded-xl">
                     <div className="flex items-start gap-3">
                       <CheckCircleFilled className="text-green-500 mt-1" />
-                      <div>
+                      <div className="flex-1">
                         <Text strong className="block text-lg">{lookupResult.name}</Text>
                         <Text type="secondary">{lookupResult.tenant_type} · {lookupResult.email}</Text>
-                        <Button 
-                          type="primary" 
-                          block 
-                          className="mt-4 bg-[#4F46E5] h-10 rounded-lg"
-                          onClick={() => handleSubmit({})}
-                          loading={submitting}
-                        >
-                          Send Connection Request
-                        </Button>
+                        
+                        <Form form={form} layout="vertical" onFinish={handleSubmit} className="mt-4">
+                          <Form.Item name="contact_person_name" label="Contact Person Name" rules={[{ required: true }]}>
+                            <Input placeholder="John Doe" />
+                          </Form.Item>
+                          <Form.Item name="contact_email" label="Contact Email" rules={[{ required: true, message: "Email is required" }, { type: "email", message: "Enter a valid email address" }]} initialValue={lookupResult.email}>
+                            <Input />
+                          </Form.Item>
+                          <Form.Item
+                            name="contact_phone_field"
+                            label="Contact Phone"
+                            rules={[{ required: true, message: 'Phone is required' }, getPhoneValidationRule()]}
+                          >
+                            <PhoneInput placeholder="Phone number" />
+                          </Form.Item>
+                          
+                          {contractDetailsFields}
+
+                          <Button 
+                            type="primary" 
+                            htmlType="submit"
+                            block 
+                            className="mt-4 bg-[#4F46E5] h-10 rounded-lg"
+                            loading={submitting}
+                          >
+                            Send Connection Request
+                          </Button>
+                        </Form>
                       </div>
                     </div>
                   </Card>
@@ -537,7 +787,6 @@ export default function AgencyClients() {
                     <div className="space-y-3">
                       <Text className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider block">Choose connection path</Text>
                       
-                      {/* Path 1: Email Tracking */}
                       <div 
                         className={cn(
                           "border rounded-xl p-4 cursor-pointer transition-all",
@@ -554,7 +803,6 @@ export default function AgencyClients() {
                         </div>
                       </div>
 
-                      {/* Path 2: Offline */}
                       <div 
                         className={cn(
                           "border rounded-xl p-4 cursor-pointer transition-all",
@@ -571,7 +819,6 @@ export default function AgencyClients() {
                         </div>
                       </div>
 
-                      {/* Path 3: Guest Portal */}
                       <div 
                         className={cn(
                           "border rounded-xl p-4 cursor-pointer transition-all",
@@ -589,7 +836,6 @@ export default function AgencyClients() {
                       </div>
                     </div>
 
-                    {/* Conditional Form Fields */}
                     {addPath && (
                       <Form 
                         form={form} 
@@ -600,20 +846,26 @@ export default function AgencyClients() {
                         <Form.Item name="company_name" label="Company Name" rules={[{ required: true }]}>
                           <Input placeholder="Acme Corp" />
                         </Form.Item>
-                        <div className="grid grid-cols-2 gap-4">
-                          <Form.Item name="contact_name" label="Contact Name">
-                            <Input placeholder="John Doe" />
-                          </Form.Item>
-                          {addPath !== 'email' && (
-                            <Form.Item name="contact_phone" label="Contact Phone">
-                              <Input placeholder="+1..." />
-                            </Form.Item>
-                          )}
-                        </div>
+                        
+                        <Form.Item name="contact_person_name" label="Contact Person Name" rules={[{ required: true }]}>
+                          <Input placeholder="John Doe" />
+                        </Form.Item>
+                        
+                        <Form.Item name="contact_email" label="Contact Email" rules={[{ required: true, message: "Email is required" }, { type: "email", message: "Enter a valid email address" }]} initialValue={searchQuery}>
+                          <Input />
+                        </Form.Item>
+                        
+                        <Form.Item
+                          name="contact_phone_field"
+                          label="Contact Phone"
+                          rules={[{ required: true, message: 'Phone is required' }, getPhoneValidationRule()]}
+                        >
+                          <PhoneInput placeholder="Phone number" />
+                        </Form.Item>
 
                         {addPath === 'email' && (
                           <Form.Item label="Email Domain" tooltip="We'll monitor emails from this domain">
-                            <Input value={`@${searchQuery.split('@')[1]}`} readOnly className="bg-slate-50" />
+                            <Input value={`@${searchQuery.split('@')[1] || searchQuery}`} readOnly className="bg-slate-50" />
                           </Form.Item>
                         )}
 
@@ -625,9 +877,6 @@ export default function AgencyClients() {
 
                         {addPath === 'portal' && (
                           <>
-                            <Form.Item name="slug" label="Portal URL" rules={[{ required: true }]}>
-                              <Input addonAfter=".recruitos.com" placeholder="acme-corp" />
-                            </Form.Item>
                             <Form.Item name="invite_message" label="Invite Message" initialValue={`Hi, we use RecruitOS to manage your hiring requirements. Here's a free portal to track candidates we submit to you.`}>
                               <Input.TextArea rows={4} />
                             </Form.Item>
@@ -638,9 +887,7 @@ export default function AgencyClients() {
                           </>
                         )}
 
-                        <Form.Item name="notes" label="Internal Notes">
-                          <Input.TextArea rows={2} />
-                        </Form.Item>
+                        {contractDetailsFields}
 
                         <Button 
                           type="primary" 
@@ -660,7 +907,6 @@ export default function AgencyClients() {
             )}
           </div>
         ) : (
-          /* Success State */
           <div className="text-center py-12 px-6 animate-in zoom-in duration-300">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <CheckOutlined className="text-3xl text-green-600" />
@@ -669,7 +915,7 @@ export default function AgencyClients() {
             
             <div className="bg-slate-50 rounded-xl p-6 my-8 text-left">
               {successData.path === 'email' && (
-                <Text>We'll auto-detect requirements from <b>@{successData.email.split('@')[1]}</b></Text>
+                <Text>We'll auto-detect requirements from <b>@{successData.email.split('@')[1] || successData.email}</b></Text>
               )}
               {successData.path === 'offline' && (
                 <Text>Added as offline client. You can invite them later.</Text>
@@ -677,23 +923,119 @@ export default function AgencyClients() {
               {successData.path === 'portal' && (
                 <div className="space-y-2">
                   <Text className="block">Invite sent to <b>{successData.email}</b></Text>
-                  <Text className="block">Portal: <b>{successData.slug}.recruitos.com</b></Text>
                   <Text className="block">Status: <Tag color="warning">Invite Pending</Tag></Text>
                   <Text type="secondary" className="text-xs block mt-4 italic">You can start assigning jobs right away.</Text>
                 </div>
+              )}
+              {!successData.path && (
+                <Text>Connection request sent to <b>{successData.email}</b></Text>
               )}
             </div>
 
             <Button 
               type="primary" 
               block 
-              onClick={() => setAddClientDrawerOpen(false)}
+              onClick={() => {
+                setAddClientDrawerOpen(false)
+                queryClient.invalidateQueries({ queryKey: ['agency-client-relationships'] })
+              }}
               className="bg-[#4F46E5] h-12 rounded-xl text-lg font-semibold"
             >
               Go to Client List
             </Button>
           </div>
         )}
+      </Drawer>
+
+      <Drawer
+        title={<span className="font-bold font-['Outfit'] text-lg">Edit Client Details</span>}
+        width={500}
+        onClose={() => setEditDrawerOpen(false)}
+        open={editDrawerOpen}
+        footer={null}
+      >
+        <Form
+          form={editForm}
+          layout="vertical"
+          onFinish={handleEditSubmit}
+          className="space-y-4"
+        >
+          <Form.Item name="contact_person_name" label="Contact Person Name" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          
+          <Form.Item name="contact_email" label="Contact Email" rules={[{ required: true, message: "Email is required" }, { type: "email", message: "Enter a valid email address" }]}>
+            <Input />
+          </Form.Item>
+          
+          <Form.Item
+            name="contact_phone_field"
+            label="Contact Phone"
+            rules={[getPhoneValidationRule()]}
+          >
+            <PhoneInput placeholder="Phone number" />
+          </Form.Item>
+
+          <Form.Item name="industry" label="Industry">
+            <Select placeholder="Select industry">
+              {INDUSTRY_OPTIONS.map(opt => <Option key={opt} value={opt}>{opt}</Option>)}
+            </Select>
+          </Form.Item>
+
+          <Divider titlePlacement="left" plain><span className="text-[12px] text-slate-400 font-medium">Contract Terms</span></Divider>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Form.Item name="commission_percentage" label="Commission">
+              <InputNumber className="w-full" />
+            </Form.Item>
+            <Form.Item name="commission_type" label="Type">
+              <Select>
+                <Option value="percentage">Percentage (%)</Option>
+                <Option value="fixed">Fixed Amount</Option>
+              </Select>
+            </Form.Item>
+          </div>
+
+          <Form.Item name="payment_terms_field" label="Payment Terms">
+            <PaymentTermsField />
+          </Form.Item>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Form.Item name="sla_submission_hours" label="SLA Submission (hrs)">
+              <InputNumber className="w-full" />
+            </Form.Item>
+            <Form.Item name="sla_feedback_hours" label="SLA Feedback (hrs)">
+              <InputNumber className="w-full" />
+            </Form.Item>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <Form.Item name="contract_start_date" label="Start Date">
+              <DatePicker className="w-full" />
+            </Form.Item>
+            <Form.Item name="contract_end_date" label="End Date">
+              <DatePicker className="w-full" />
+            </Form.Item>
+          </div>
+
+          <Form.Item name="notes" label="Internal Notes">
+            <Input.TextArea rows={4} />
+          </Form.Item>
+
+          <div className="flex gap-3 pt-6">
+            <Button className="flex-1 h-11 rounded-lg" onClick={() => setEditDrawerOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              className="flex-1 h-11 bg-[#4F46E5] rounded-lg"
+              loading={editSubmitting}
+            >
+              Save Changes
+            </Button>
+          </div>
+        </Form>
       </Drawer>
     </>
   )

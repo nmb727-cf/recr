@@ -30,6 +30,8 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     last_name = models.CharField(max_length=100, blank=True)
     phone = models.CharField(max_length=20, blank=True)
     phone_verified = models.BooleanField(default=False)
+    phone_country_code = models.CharField(max_length=10, blank=True, default='IN')
+    phone_number = models.CharField(max_length=20, blank=True)
     avatar_url = models.TextField(blank=True)
     role = models.CharField(
         max_length=50,

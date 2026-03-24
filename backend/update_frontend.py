@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import sys
+
+content = r"""import { useState } from 'react'
 import {
   Table, Button, Typography, Tag, Space, Drawer, Form,
   Input, InputNumber, Select, message, Card, Divider, Checkbox, DatePicker, Upload, Collapse
@@ -26,8 +28,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { agenciesApi } from '@/api/agencies'
 import { StandardSplitView } from '@/components/layout/StandardSplitView'
 import { cn } from '@/utils/cn'
-import PaymentTermsField from '@/components/agencies/PaymentTermsField'
-import PhoneInput, { formatPhoneDisplay, getPhoneValidationRule, PhoneValue } from '@/components/common/PhoneInput'
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -50,17 +50,10 @@ interface AgencyRelationship {
   contact_person_name?: string
   contact_email?: string
   contact_phone?: string
-  contact_country_code?: string
-  contact_phone_number?: string
   industry?: string
   contract_file_url?: string
   recruitment_policy_url?: string
   payment_terms?: string[]
-  payment_schedule?: Array<{
-    trigger: 'on_joining' | 'days_after_joining'
-    days?: number
-    percentage: number
-  }>
   invited_by?: 'company' | 'agency'
   invited_via?: string
   connection_type?: 'full_full' | 'agency_guest' | 'client_guest' | 'email_tracking' | 'offline'
@@ -73,6 +66,8 @@ interface AgencyRelationship {
 }
 
 function getAgencyDisplayName(r: AgencyRelationship): string {
+  // For guest portals, agency_name comes back as "Unknown Agency"
+  // Use contact info as the display name instead
   if (!r.agency_tenant_id || r.agency_name === 'Unknown Agency' || !r.agency_name) {
     if (r.contact_person_name) return r.contact_person_name
     if (r.contact_email) return r.contact_email.split('@')[0]
@@ -93,6 +88,15 @@ function getConnectionBadge(r: AgencyRelationship) {
   if (r.status === 'suspended') return { color: 'orange', label: 'Suspended' }
   return { color: 'default', label: r.status }
 }
+
+const PAYMENT_TERM_OPTIONS = [
+  'Full payment after candidate joins',
+  'Full payment after 3 months retention',
+  'Full payment after 6 months retention',
+  '25% on joining + 75% after 3 months',
+  '50% on joining + 50% after 3 months',
+  'Custom terms'
+]
 
 const INDUSTRY_OPTIONS = [
   'Technology', 'Finance', 'Healthcare', 'Manufacturing',
@@ -145,17 +149,11 @@ export default function CompanyAgencies() {
     editForm.setFieldsValue({
       contact_person_name: rel.contact_person_name || '',
       contact_email: rel.contact_email || '',
-      contact_phone_field: {
-        country_code: rel.contact_country_code || 'IN',
-        phone_number: rel.contact_phone_number || rel.contact_phone || '',
-      } as PhoneValue,
+      contact_phone: rel.contact_phone || '',
       industry: rel.industry || undefined,
       commission_percentage: rel.commission_percentage ?? 10,
       commission_type: rel.commission_type || 'percentage',
-      payment_terms_field: {
-        terms: rel.payment_terms || [],
-        schedule: rel.payment_schedule || [],
-      },
+      payment_terms: rel.payment_terms || [],
       sla_submission_hours: rel.sla_submission_hours || 48,
       sla_feedback_hours: rel.sla_feedback_hours || 72,
       contract_start_date: rel.contract_start_date ? dayjs(rel.contract_start_date) : null,
@@ -172,16 +170,11 @@ export default function CompanyAgencies() {
       await agenciesApi.updateRelationship(editingRelationship.id, {
         contact_person_name: values.contact_person_name,
         contact_email: values.contact_email,
-        contact_phone: values.contact_phone_field
-          ? `${values.contact_phone_field.country_code}:${values.contact_phone_field.phone_number}`
-          : '',
-        contact_country_code: values.contact_phone_field?.country_code || 'IN',
-        contact_phone_number: values.contact_phone_field?.phone_number || '',
+        contact_phone: values.contact_phone,
         industry: values.industry,
         commission_percentage: values.commission_percentage,
         commission_type: values.commission_type,
-        payment_terms: values.payment_terms_field?.terms || [],
-        payment_schedule: values.payment_terms_field?.schedule || [],
+        payment_terms: values.payment_terms || [],
         sla_submission_hours: values.sla_submission_hours,
         sla_feedback_hours: values.sla_feedback_hours,
         contract_start_date: values.contract_start_date?.format('YYYY-MM-DD') || null,
@@ -193,6 +186,10 @@ export default function CompanyAgencies() {
       setEditingRelationship(null)
       editForm.resetFields()
       queryClient.invalidateQueries({ queryKey: ['agency-relationships'] })
+      // Refresh selected panel if open
+      if (selectedId === editingRelationship.id) {
+        queryClient.invalidateQueries({ queryKey: ['agency-relationships'] })
+      }
     } catch (err: any) {
       message.error(err.response?.data?.message || 'Failed to update')
     } finally {
@@ -206,6 +203,7 @@ export default function CompanyAgencies() {
       message.success('Agency accepted successfully')
       queryClient.invalidateQueries({ queryKey: ['agency-relationships'] })
     } catch (err: any) {
+      console.error('[CompanyAgencies] accept error:', err)
       message.error(err.response?.data?.message || 'Failed to accept')
     }
   }
@@ -216,6 +214,7 @@ export default function CompanyAgencies() {
       message.success('Invitation declined')
       queryClient.invalidateQueries({ queryKey: ['agency-relationships'] })
     } catch (err: any) {
+      console.error('[CompanyAgencies] decline error:', err)
       message.error(err.response?.data?.message || 'Failed to decline')
     }
   }
@@ -231,10 +230,15 @@ export default function CompanyAgencies() {
       const res = await agenciesApi.lookup(searchQuery)
       const result = res.data.data
       setFoundTenant(result)
-      form.setFieldsValue({ 
-        contact_email: result.email || searchQuery,
-        industry: result.industry || undefined 
-      })
+      if (result.found) {
+        form.setFieldsValue({ 
+          industry: result.industry || undefined 
+        })
+      } else {
+        form.setFieldsValue({
+          slug: result.suggested_slug
+        })
+      }
     } catch (err: any) {
       message.error(err.response?.data?.message || 'Search failed')
     } finally {
@@ -246,40 +250,45 @@ export default function CompanyAgencies() {
     if (!foundTenant) return
     try {
       setSubmitting(true)
-      const commonPayload = {
-        contact_person_name: values.contact_person_name || '',
-        contact_email: values.contact_email || foundTenant.email || searchQuery,
-        contact_phone: values.contact_phone_field
-          ? `${values.contact_phone_field.country_code}:${values.contact_phone_field.phone_number}`
-          : '',
-        contact_country_code: values.contact_phone_field?.country_code || 'IN',
-        contact_phone_number: values.contact_phone_field?.phone_number || '',
-        industry: values.industry || '',
-        commission_percentage: values.commission_percentage,
-        commission_type: values.commission_type || 'percentage',
-        payment_terms: values.payment_terms_field?.terms || [],
-        payment_schedule: values.payment_terms_field?.schedule || [],
-        sla_submission_hours: values.sla_submission_hours || 48,
-        sla_feedback_hours: values.sla_feedback_hours || 72,
-        contract_start_date: values.contract_start_date?.format('YYYY-MM-DD') || null,
-        contract_end_date: values.contract_end_date?.format('YYYY-MM-DD') || null,
-        notes: values.notes || '',
-      }
-
       if (foundTenant.found) {
+        // Full tenant or existing guest portal
         await agenciesApi.createRelationship({
           agency_tenant_id: foundTenant.tenant_id,
-          ...commonPayload
+          contact_person_name: values.contact_person_name || '',
+          contact_email: foundTenant.email,
+          industry: values.industry || '',
+          commission_percentage: values.commission_percentage,
+          commission_type: values.commission_type,
+          payment_terms: values.payment_terms || [],
+          sla_submission_hours: values.sla_submission_hours || 48,
+          sla_feedback_hours: values.sla_feedback_hours || 72,
+          contract_start_date: values.contract_start_date?.format('YYYY-MM-DD') || null,
+          contract_end_date: values.contract_end_date?.format('YYYY-MM-DD') || null,
+          notes: values.notes || '',
         })
+        message.success(`Invitation sent to ${foundTenant.name}`)
       } else {
+        // Create Guest Portal + store contract details on relationship
         await agenciesApi.createGuestPortal({
           portal_type: 'agency_guest',
           name: values.agency_name,
+          contact_email: searchQuery,
+          contact_name: values.contact_person_name || '',
+          contact_phone: values.contact_phone || '',
           invite_message: values.invite_message || '',
-          ...commonPayload
+          slug: values.slug,
+          // Contract details passed through to relationship
+          commission_percentage: values.commission_percentage || null,
+          commission_type: values.commission_type || 'percentage',
+          payment_terms: values.payment_terms || [],
+          sla_submission_hours: values.sla_submission_hours || 48,
+          sla_feedback_hours: values.sla_feedback_hours || 72,
+          contract_start_date: values.contract_start_date?.format('YYYY-MM-DD') || null,
+          contract_end_date: values.contract_end_date?.format('YYYY-MM-DD') || null,
+          notes: values.notes || '',
         })
+        message.success(`Guest portal created for ${values.agency_name}. Invite sent to ${searchQuery}.`)
       }
-      message.success(`Relationship created`)
       setInviteDrawerOpen(false)
       setFoundTenant(null)
       setSearchQuery('')
@@ -299,10 +308,11 @@ export default function CompanyAgencies() {
       } else {
         await agenciesApi.reactivateRelationship(id)
       }
-      message.success(`Relationship updated`)
+      message.success(`Relationship ${action}ed`)
       queryClient.invalidateQueries({ queryKey: ['agency-relationships'] })
     } catch (err) {
-      message.error(`Failed to update relationship`)
+      console.error(`[CompanyAgencies] ${action} error:`, err)
+      message.error(`Failed to ${action} relationship`)
     }
   }
 
@@ -312,11 +322,15 @@ export default function CompanyAgencies() {
       key: 'agency',
       render: (_, record) => {
         const name = getAgencyDisplayName(record)
+        const badge = getConnectionBadge(record)
+        const isGuest = record.connection_type === 'agency_guest'
         return (
           <div>
             <div className="font-semibold text-[#111827] text-[14px]">{name}</div>
             <div className="text-[12px] text-slate-400 mt-0.5">
-              {record.contact_email || '—'}
+              {isGuest
+                ? record.contact_email || 'Guest Portal'
+                : record.contact_email || '—'}
             </div>
           </div>
         )
@@ -334,14 +348,9 @@ export default function CompanyAgencies() {
       title: 'Contact',
       key: 'contact',
       render: (_, record) => (
-        <div>
-          <div className="text-[13px] text-slate-600">{record.contact_person_name || '—'}</div>
-          <div className="text-[12px] text-slate-400">
-            {record.contact_phone_number
-              ? formatPhoneDisplay(record.contact_country_code || 'IN', record.contact_phone_number)
-              : record.contact_phone || '—'}
-          </div>
-        </div>
+        <span className="text-[13px] text-slate-600">
+          {record.contact_person_name || '—'}
+        </span>
       ),
     },
     {
@@ -393,12 +402,7 @@ export default function CompanyAgencies() {
         <Button
           type="primary"
           icon={<PlusOutlined />}
-          onClick={() => {
-            setInviteDrawerOpen(true)
-            setFoundTenant(null)
-            setSearchQuery('')
-            form.resetFields()
-          }}
+          onClick={() => setInviteDrawerOpen(true)}
           className="bg-[#4F46E5] hover:bg-[#3730A3] border-none h-10 px-6 rounded-lg font-semibold"
         >
           Invite Agency
@@ -436,7 +440,7 @@ export default function CompanyAgencies() {
               {
                 title: 'Commission',
                 render: (_, r) => r.commission_percentage
-                  ? `${r.commission_percentage}${r.commission_type === 'percentage' ? '%' : ' fixed'}`
+                  ? `${r.commission_percentage}% (${r.commission_type})`
                   : '-'
               },
               {
@@ -600,6 +604,11 @@ export default function CompanyAgencies() {
                 Added {selectedRelationship.created_at ? dayjs(selectedRelationship.created_at).format('MMM D, YYYY') : 'N/A'}
               </Text>
             </div>
+            {isGuest && selectedRelationship.contact_email && (
+              <div className="mt-2 text-[12px] text-slate-400">
+                Portal invite sent to: <span className="font-medium text-slate-600">{selectedRelationship.contact_email}</span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-1 ml-2 shrink-0">
             <Button
@@ -676,9 +685,7 @@ export default function CompanyAgencies() {
                   <div>
                     <div className="text-[12px] text-slate-500">Phone</div>
                     <div className="text-[14px] font-semibold text-[#111827]">
-                      {selectedRelationship.contact_phone_number
-                        ? formatPhoneDisplay(selectedRelationship.contact_country_code || 'IN', selectedRelationship.contact_phone_number)
-                        : selectedRelationship.contact_phone || '—'}
+                      {selectedRelationship.contact_phone || '—'}
                     </div>
                   </div>
                 </div>
@@ -712,7 +719,7 @@ export default function CompanyAgencies() {
                 <div className="text-[12px] text-slate-500 mb-2">Payment Terms</div>
                 <Space wrap size={[4, 4]}>
                   {Array.isArray(selectedRelationship.payment_terms) && selectedRelationship.payment_terms.length > 0
-                    ? selectedRelationship.payment_terms.filter(t => t !== 'custom').map(term => (
+                    ? selectedRelationship.payment_terms.map(term => (
                         <Tag key={term} className="bg-slate-50 border-slate-200 text-slate-600 rounded-md m-0 text-[12px]">
                           {term}
                         </Tag>
@@ -720,24 +727,6 @@ export default function CompanyAgencies() {
                     : <span className="text-slate-400 italic text-[13px]">Not specified</span>}
                 </Space>
               </div>
-
-              {Array.isArray(selectedRelationship.payment_schedule) && selectedRelationship.payment_schedule.length > 0 && (
-                <div className="mt-3">
-                  <div className="text-[12px] text-slate-500 mb-2">Payment Schedule</div>
-                  <div className="space-y-1">
-                    {selectedRelationship.payment_schedule.map((item, i) => (
-                      <div key={i} className="text-[13px] text-slate-700 flex gap-2">
-                        <span className="font-semibold text-[#4F46E5]">{item.percentage}%</span>
-                        <span>
-                          {item.trigger === 'on_joining'
-                            ? 'on joining date'
-                            : `${item.days} days after joining`}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </section>
 
             <Divider style={{ margin: 0 }} />
@@ -853,8 +842,8 @@ export default function CompanyAgencies() {
         fullListContent={listContent}
         compactListContent={listContent}
         detailContent={detailContent}
-        leftOpenWidthClass="w-full lg:w-[calc(100%-400px)]"
-        rightOpenWidthClass="w-[400px]"
+        leftOpenWidthClass="w-full lg:w-[calc(100%-360px)]"
+        rightOpenWidthClass="w-[360px]"
       />
 
       <Drawer
@@ -867,7 +856,20 @@ export default function CompanyAgencies() {
           form.resetFields()
         }}
         open={inviteDrawerOpen}
-        footer={null}
+        extra={
+          <Space>
+            <Button onClick={() => setInviteDrawerOpen(false)}>Cancel</Button>
+            <Button 
+              type="primary" 
+              onClick={() => form.submit()} 
+              loading={submitting}
+              disabled={!foundTenant}
+              className="bg-[#4F46E5]"
+            >
+              Send Invitation
+            </Button>
+          </Space>
+        }
       >
         <Form 
           form={form} 
@@ -878,6 +880,7 @@ export default function CompanyAgencies() {
             commission_type: 'percentage',
             sla_submission_hours: 48,
             sla_feedback_hours: 72,
+            payment_terms: ['Full payment after candidate joins'],
           }}
         >
           <div className="p-4 bg-slate-50 rounded-xl mb-6 border border-slate-100">
@@ -900,7 +903,7 @@ export default function CompanyAgencies() {
               <div className="mt-3 p-3 bg-green-50 border border-green-200 
                               rounded-lg flex items-center gap-3">
                 <CheckCircleFilled className="text-green-500 text-lg" />
-                <div className="flex-1">
+                <div>
                   <Text strong className="block">{foundTenant.name}</Text>
                   <Text type="secondary" className="text-xs">
                     {foundTenant.tenant_type} · {foundTenant.email}
@@ -932,29 +935,29 @@ export default function CompanyAgencies() {
                 </Title>
 
                 {!foundTenant.found && (
-                  <Form.Item name="agency_name" label="Agency Name" rules={[{ required: true, message: 'Agency name is required' }]}>
-                    <Input placeholder="e.g. Acme Recruiting" />
-                  </Form.Item>
-                )}
-
-                <Form.Item name="contact_person_name" label="Contact Person Name" rules={[{ required: true }]}>
-                  <Input placeholder="Full name" />
-                </Form.Item>
-
-                <Form.Item name="contact_email" label="Contact Email" rules={[{ required: true }]}>
-                  <Input />
-                </Form.Item>
-
-                <Form.Item
-                  name="contact_phone_field"
-                  label="Contact Phone"
-                  rules={[{ required: true, message: 'Phone is required' }, getPhoneValidationRule()]}
-                >
-                  <PhoneInput placeholder="Phone number" />
-                </Form.Item>
-
-                {!foundTenant.found && (
                   <>
+                    <Form.Item name="agency_name" label="Agency Name" rules={[{ required: true, message: 'Agency name is required' }]}>
+                      <Input placeholder="e.g. Acme Recruiting" />
+                    </Form.Item>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <Form.Item name="contact_person_name" label="Contact Person">
+                        <Input placeholder="Full name" />
+                      </Form.Item>
+                      <Form.Item name="contact_phone" label="Contact Phone">
+                        <Input placeholder="+91..." />
+                      </Form.Item>
+                    </div>
+
+                    <Form.Item
+                      name="slug"
+                      label="Portal URL"
+                      rules={[{ required: true, message: 'Portal URL is required' }]}
+                      extra={<span className="text-[11px] text-slate-400">Will be accessible at slug.recruitos.com</span>}
+                    >
+                      <Input addonAfter=".recruitos.com" placeholder="acme-agency" />
+                    </Form.Item>
+
                     <Form.Item
                       name="invite_message"
                       label="Invite Message"
@@ -970,51 +973,117 @@ export default function CompanyAgencies() {
                         You can still assign jobs right away.
                       </Text>
                     </div>
+
+                    <Divider className="my-4">
+                      <span className="text-[11px] text-slate-400 uppercase tracking-wider">Contract Details (Optional)</span>
+                    </Divider>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <Form.Item name="commission_percentage" label="Commission Rate (%)">
+                        <InputNumber min={0} max={100} className="w-full" placeholder="10" />
+                      </Form.Item>
+                      <Form.Item name="commission_type" label="Commission Type">
+                        <Select>
+                          <Option value="percentage">Percentage of CTC</Option>
+                          <Option value="fixed">Fixed Amount per Hire</Option>
+                          <Option value="milestone">Milestone Based</Option>
+                        </Select>
+                      </Form.Item>
+                    </div>
+
+                    <Form.Item name="payment_terms" label="Payment Terms">
+                      <Checkbox.Group className="flex flex-col gap-2">
+                        {PAYMENT_TERM_OPTIONS.map(opt => (
+                          <Checkbox key={opt} value={opt}>{opt}</Checkbox>
+                        ))}
+                      </Checkbox.Group>
+                    </Form.Item>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <Form.Item name="sla_submission_hours" label="Submission SLA (hours)">
+                        <InputNumber min={1} className="w-full" />
+                      </Form.Item>
+                      <Form.Item name="sla_feedback_hours" label="Feedback SLA (hours)">
+                        <InputNumber min={1} className="w-full" />
+                      </Form.Item>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <Form.Item name="contract_start_date" label="Contract Start Date">
+                        <DatePicker className="w-full" />
+                      </Form.Item>
+                      <Form.Item name="contract_end_date" label="Contract End Date">
+                        <DatePicker className="w-full" />
+                      </Form.Item>
+                    </div>
+
+                    <Form.Item name="notes" label="Notes">
+                      <Input.TextArea rows={2} placeholder="Internal notes about this agency..." />
+                    </Form.Item>
                   </>
                 )}
 
-                <Divider className="my-4" titlePlacement="left" plain>
-                  <span className="text-[11px] text-slate-400 uppercase tracking-wider">Contract Details (Optional)</span>
-                </Divider>
+                {foundTenant.found && (
+                  <>
+                    <Divider className="my-4" />
 
-                <div className="grid grid-cols-2 gap-4">
-                  <Form.Item name="commission_percentage" label="Commission Rate (%)">
-                    <InputNumber min={0} max={100} className="w-full" placeholder="10" />
-                  </Form.Item>
-                  <Form.Item name="commission_type" label="Commission Type">
-                    <Select>
-                      <Option value="percentage">Percentage of CTC</Option>
-                      <Option value="fixed">Fixed Amount per Hire</Option>
-                      <Option value="milestone">Milestone Based</Option>
-                    </Select>
-                  </Form.Item>
-                </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Form.Item name="commission_percentage" label="Commission Rate (%)">
+                        <InputNumber min={0} max={100} className="w-full" />
+                      </Form.Item>
+                      <Form.Item name="commission_type" label="Commission Type">
+                        <Select>
+                          <Option value="percentage">Percentage of CTC</Option>
+                          <Option value="fixed">Fixed Amount per Hire</Option>
+                          <Option value="milestone">Milestone Based</Option>
+                        </Select>
+                      </Form.Item>
+                    </div>
 
-                <Form.Item name="payment_terms_field" label="Payment Terms">
-                  <PaymentTermsField />
-                </Form.Item>
+                    <Form.Item name="payment_terms" label="Payment Terms">
+                      <Checkbox.Group className="flex flex-col gap-2">
+                        {PAYMENT_TERM_OPTIONS.map(opt => (
+                          <Checkbox key={opt} value={opt}>{opt}</Checkbox>
+                        ))}
+                      </Checkbox.Group>
+                    </Form.Item>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <Form.Item name="sla_submission_hours" label="Submission SLA (hours)">
-                    <InputNumber min={1} className="w-full" />
-                  </Form.Item>
-                  <Form.Item name="sla_feedback_hours" label="Feedback SLA (hours)">
-                    <InputNumber min={1} className="w-full" />
-                  </Form.Item>
-                </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Form.Item name="sla_submission_hours" label="Submission SLA (hours)">
+                        <InputNumber min={1} className="w-full" />
+                      </Form.Item>
+                      <Form.Item name="sla_feedback_hours" label="Feedback SLA (hours)">
+                        <InputNumber min={1} className="w-full" />
+                      </Form.Item>
+                    </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <Form.Item name="contract_start_date" label="Contract Start Date">
-                    <DatePicker className="w-full" />
-                  </Form.Item>
-                  <Form.Item name="contract_end_date" label="Contract End Date">
-                    <DatePicker className="w-full" />
-                  </Form.Item>
-                </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Form.Item name="contract_start_date" label="Contract Start Date">
+                        <DatePicker className="w-full" />
+                      </Form.Item>
+                      <Form.Item name="contract_end_date" label="Contract End Date">
+                        <DatePicker className="w-full" />
+                      </Form.Item>
+                    </div>
 
-                <Form.Item name="notes" label="Notes">
-                  <Input.TextArea rows={2} placeholder="Internal notes about this agency..." />
-                </Form.Item>
+                    <div className="grid grid-cols-2 gap-4">
+                      <Form.Item label="Contract File">
+                        <Upload disabled>
+                          <Button icon={<UploadOutlined />} disabled block>File upload coming soon</Button>
+                        </Upload>
+                      </Form.Item>
+                      <Form.Item label="Recruitment Policy">
+                        <Upload disabled>
+                          <Button icon={<UploadOutlined />} disabled block>File upload coming soon</Button>
+                        </Upload>
+                      </Form.Item>
+                    </div>
+
+                    <Form.Item name="notes" label="Notes">
+                      <Input.TextArea rows={3} placeholder="Add terms or personalized message..." />
+                    </Form.Item>
+                  </>
+                )}
 
                 <Button
                   type="primary"
@@ -1032,6 +1101,7 @@ export default function CompanyAgencies() {
         </Form>
       </Drawer>
 
+      {/* ── Edit Relationship Drawer ─────────────────────── */}
       <Drawer
         title={
           <span className="font-bold font-['Outfit'] text-lg">
@@ -1045,7 +1115,19 @@ export default function CompanyAgencies() {
           editForm.resetFields()
         }}
         open={editDrawerOpen}
-        footer={null}
+        extra={
+          <Space>
+            <Button onClick={() => setEditDrawerOpen(false)}>Cancel</Button>
+            <Button
+              type="primary"
+              onClick={() => editForm.submit()}
+              loading={editSubmitting}
+              className="bg-[#4F46E5]"
+            >
+              Save Changes
+            </Button>
+          </Space>
+        }
       >
         <Form
           form={editForm}
@@ -1058,20 +1140,16 @@ export default function CompanyAgencies() {
               Contact Details
             </div>
 
-            <Form.Item name="contact_person_name" label="Contact Person" rules={[{ required: true }]}>
+            <Form.Item name="contact_person_name" label="Contact Person">
               <Input placeholder="Full name" />
             </Form.Item>
 
             <div className="grid grid-cols-2 gap-4">
-              <Form.Item name="contact_email" label="Contact Email" rules={[{ required: true }]}>
+              <Form.Item name="contact_email" label="Contact Email">
                 <Input placeholder="email@agency.com" />
               </Form.Item>
-              <Form.Item
-                name="contact_phone_field"
-                label="Contact Phone"
-                rules={[getPhoneValidationRule()]}
-              >
-                <PhoneInput placeholder="Phone number" />
+              <Form.Item name="contact_phone" label="Contact Phone">
+                <Input placeholder="+91..." />
               </Form.Item>
             </div>
 
@@ -1081,7 +1159,7 @@ export default function CompanyAgencies() {
               </Select>
             </Form.Item>
 
-            <Divider className="my-4" titlePlacement="left" plain>
+            <Divider className="my-4">
               <span className="text-[11px] text-slate-400 uppercase tracking-wider">Fee Structure</span>
             </Divider>
 
@@ -1098,11 +1176,15 @@ export default function CompanyAgencies() {
               </Form.Item>
             </div>
 
-            <Form.Item name="payment_terms_field" label="Payment Terms">
-              <PaymentTermsField />
+            <Form.Item name="payment_terms" label="Payment Terms">
+              <Checkbox.Group className="flex flex-col gap-2">
+                {PAYMENT_TERM_OPTIONS.map(opt => (
+                  <Checkbox key={opt} value={opt}>{opt}</Checkbox>
+                ))}
+              </Checkbox.Group>
             </Form.Item>
 
-            <Divider className="my-4" titlePlacement="left" plain>
+            <Divider className="my-4">
               <span className="text-[11px] text-slate-400 uppercase tracking-wider">SLAs & Duration</span>
             </Divider>
 
@@ -1129,23 +1211,13 @@ export default function CompanyAgencies() {
             <Form.Item name="notes" label="Notes">
               <Input.TextArea rows={3} placeholder="Internal notes..." />
             </Form.Item>
-
-            <div className="flex gap-3 pt-6">
-              <Button className="flex-1 h-11 rounded-lg" onClick={() => setEditDrawerOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                type="primary"
-                htmlType="submit"
-                className="flex-1 h-11 bg-[#4F46E5] rounded-lg"
-                loading={editSubmitting}
-              >
-                Save Changes
-              </Button>
-            </div>
           </div>
         </Form>
       </Drawer>
     </>
   )
 }
+"""
+
+with open('/home/nirav/projects/SaaS_Project/frontend/src/pages/agencies/CompanyAgencies.tsx', 'w') as f:
+    f.write(content)

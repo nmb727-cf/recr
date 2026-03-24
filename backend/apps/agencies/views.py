@@ -857,7 +857,7 @@ class GuestPortalCreateView(APIView):
             return error_response("portal_type must be agency_guest or client_guest.")
 
         # Generate unique slug
-        base_slug = slugify(slug_input or name)
+        base_slug = slugify(name)
         slug = base_slug
         counter = 1
         while GuestPortal.objects.filter(slug=slug).exists():
@@ -893,11 +893,13 @@ class GuestPortalCreateView(APIView):
                 connection_type='agency_guest',
                 invited_by='company',
                 contact_email=contact_email,
-                contact_person_name=contact_name,
-                contact_phone=request.data.get('contact_phone', ''),
+                contact_person_name=request.data.get('contact_name', '').strip(),
+                contact_phone=request.data.get('contact_phone', '').strip(),
+                industry=request.data.get('industry', '').strip(),
                 commission_percentage=request.data.get('commission_percentage') or None,
                 commission_type=request.data.get('commission_type', 'percentage'),
                 payment_terms=request.data.get('payment_terms', []),
+                payment_schedule=request.data.get('payment_schedule', []),
                 sla_submission_hours=request.data.get('sla_submission_hours', 48),
                 sla_feedback_hours=request.data.get('sla_feedback_hours', 72),
                 contract_start_date=request.data.get('contract_start_date') or None,
@@ -917,9 +919,21 @@ class GuestPortalCreateView(APIView):
                 connection_type='client_guest',
                 invited_by='agency',
                 contact_email=contact_email,
-                contact_person_name=contact_name,
+                contact_person_name=request.data.get('contact_name', '').strip(),
+                contact_phone=request.data.get('contact_phone', '').strip(),
+                industry=request.data.get('industry', '').strip(),
+                commission_percentage=request.data.get('commission_percentage') or None,
+                commission_type=request.data.get('commission_type', 'percentage'),
+                payment_terms=request.data.get('payment_terms', []),
+                payment_schedule=request.data.get('payment_schedule', []),
+                sla_submission_hours=request.data.get('sla_submission_hours', 48),
+                sla_feedback_hours=request.data.get('sla_feedback_hours', 72),
+                contract_start_date=request.data.get('contract_start_date') or None,
+                contract_end_date=request.data.get('contract_end_date') or None,
+                notes=request.data.get('notes', ''),
                 status='pending',
                 created_by=request.user.id,
+                metadata={'client_name': name},
             )
 
         # TODO: Send invite email (wire up email service later)
@@ -982,6 +996,17 @@ class EmailTrackingCreateView(APIView):
             invited_by='agency',
             contact_email=contact_email,
             contact_person_name=contact_name,
+            contact_phone=request.data.get('contact_phone', '').strip(),
+            industry=request.data.get('industry', '').strip(),
+            commission_percentage=request.data.get('commission_percentage') or None,
+            commission_type=request.data.get('commission_type', 'percentage'),
+            payment_terms=request.data.get('payment_terms', []),
+            payment_schedule=request.data.get('payment_schedule', []),
+            sla_submission_hours=request.data.get('sla_submission_hours', 48),
+            sla_feedback_hours=request.data.get('sla_feedback_hours', 72),
+            contract_start_date=request.data.get('contract_start_date') or None,
+            contract_end_date=request.data.get('contract_end_date') or None,
+            notes=request.data.get('notes', ''),
             status='active',
             created_by=request.user.id,
         )
@@ -1030,6 +1055,15 @@ class OfflineClientCreateView(APIView):
             contact_person_name=contact_name,
             contact_phone=contact_phone,
             their_ats_url=their_ats_url,
+            industry=request.data.get('industry', '').strip(),
+            commission_percentage=request.data.get('commission_percentage') or None,
+            commission_type=request.data.get('commission_type', 'percentage'),
+            payment_terms=request.data.get('payment_terms', []),
+            payment_schedule=request.data.get('payment_schedule', []),
+            sla_submission_hours=request.data.get('sla_submission_hours', 48),
+            sla_feedback_hours=request.data.get('sla_feedback_hours', 72),
+            contract_start_date=request.data.get('contract_start_date') or None,
+            contract_end_date=request.data.get('contract_end_date') or None,
             notes=notes,
             status='active',
             created_by=request.user.id,

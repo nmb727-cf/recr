@@ -48,6 +48,8 @@ class AgencyClientRelationship(models.Model):
     contact_person_name = models.CharField(max_length=255, blank=True)
     contact_email = models.EmailField(blank=True)
     contact_phone = models.CharField(max_length=20, blank=True)
+    contact_country_code = models.CharField(max_length=10, blank=True, default='IN')
+    contact_phone_number = models.CharField(max_length=20, blank=True)
     industry = models.CharField(max_length=100, blank=True)
 
     # Contract files (store URL, upload wired later)
@@ -56,6 +58,10 @@ class AgencyClientRelationship(models.Model):
 
     # Payment terms — stored as JSON list of selected options
     payment_terms = models.JSONField(default=list, blank=True)
+
+    # Structured payment schedule for automation
+    # Stored as list of objects: [{trigger: 'joining', percentage: 50}, {trigger: 'days_after_joining', days: 90, percentage: 50}]
+    payment_schedule = models.JSONField(default=list, blank=True)
 
     # Invite tracking
     invited_by = models.CharField(
@@ -190,6 +196,8 @@ class GuestPortal(models.Model):
     contact_name = models.CharField(max_length=255, blank=True)
     contact_email = models.EmailField()
     contact_phone = models.CharField(max_length=20, blank=True)
+    contact_country_code = models.CharField(max_length=10, blank=True, default='IN')
+    contact_phone_number = models.CharField(max_length=20, blank=True)
     created_by_tenant_id = models.UUIDField(db_index=True)
     created_by_user_id = models.UUIDField(null=True, blank=True)
     invite_token = models.CharField(max_length=64, unique=True, blank=True)

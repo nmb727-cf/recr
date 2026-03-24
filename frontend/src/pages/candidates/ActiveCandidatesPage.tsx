@@ -1,0 +1,1146 @@
+import React, { useMemo, useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import {
+  Input, Button, Tag, Avatar, Badge, Spin, Empty, Tabs,
+  Select, Card, Typography, Dropdown, MenuProps,
+  Form, DatePicker, message, Divider, Modal, Tooltip
+} from 'antd'
+import {
+  Search, Filter, Flame, Clock, CheckCircle, 
+  User, Briefcase, MapPin, Mail, Phone,
+  ChevronRight, MoreVertical, Plus, Edit2,
+  Calendar, MessageSquare, History, ArrowRight,
+  TrendingUp, X, Check, ExternalLink
+} from 'lucide-react'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import { useQueryClient } from '@tanstack/react-query'
+import { useApiQuery } from '@/hooks/useApiQuery'
+import AddToActiveModal from './AddToActiveModal'
+import { 
+  useActiveEngagements, 
+  useCandidateEngagements,
+  useUpdateEngagement,
+  useCandidateTimeline,
+  Engagement
+} from '@/hooks/useEngagements'
+import { cn } from '@/utils/cn'
+import http from '@/utils/http'
+
+dayjs.extend(relativeTime)
+const { Text, Title } = Typography
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const ENGAGEMENT_STAGES = [
+  { value: 'new', label: 'New Lead' },
+  { value: 'contacted', label: 'Contacted' },
+  { value: 'interested', label: 'Interested' },
+  { value: 'not_interested', label: 'Not Interested' },
+  { value: 'follow_up', label: 'Follow Up Due' },
+  { value: 'shortlisted', label: 'Shortlisted' },
+  { value: 'submitted', label: 'Submitted' },
+  { value: 'client_review', label: 'In Review' },
+  { value: 'interviewing', label: 'Interviewing' },
+  { value: 'offered', label: 'Offered' },
+  { value: 'placed', label: 'Placed' },
+  { value: 'closed', label: 'Closed' },
+  { value: 'lost', label: 'Lost' },
+]
+
+const getPriorityStyle = (priority: string) => {
+  switch (priority) {
+    case 'hot': return { color: '#EF4444', icon: '🔥', border: '4px solid #EF4444' }
+    case 'warm': return { color: '#F59E0B', icon: '🟡', border: '4px solid #F59E0B' }
+    case 'cold': return { color: '#6B7280', icon: '🔵', border: '4px solid #6B7280' }
+    default: return { color: '#6B7280', icon: '⚪', border: '4px solid #6B7280' }
+  }
+}
+
+const getStageBadge = (stage: string) => {
+  const STAGES: Record<string, { color: string, label: string }> = {
+    new: { color: 'default', label: 'New' },
+    contacted: { color: 'blue', label: 'Contacted' },
+    interested: { color: 'cyan', label: 'Interested' },
+    shortlisted: { color: 'indigo', label: 'Shortlisted' },
+    submitted: { color: 'purple', label: 'Submitted' },
+    client_review: { color: 'magenta', label: 'In Review' },
+    interviewing: { color: 'orange', label: 'Interviewing' },
+    offered: { color: 'green', label: 'Offered' },
+    placed: { color: 'success', label: 'Placed' },
+    closed: { color: 'default', label: 'Closed' },
+    lost: { color: 'error', label: 'Lost' },
+    not_interested: { color: 'default', label: 'Not Interested' },
+    follow_up: { color: 'warning', label: 'Follow Up' },
+  }
+  const config = STAGES[stage] || { color: 'default', label: stage }
+  return <Tag color={config.color} className="m-0 uppercase font-bold text-[10px] rounded-md px-2 border-none">{config.label}</Tag>
+}
+
+const getEngagementTypeBadge = (stage: string) => {
+  if (['new', 'contacted', 'interested', 'follow_up'].includes(stage)) 
+    return <Tag color="default" className="m-0 uppercase font-bold text-[10px] rounded-full px-2 border border-slate-200 text-slate-500 bg-slate-50">Lead</Tag>
+  
+  if (stage === 'shortlisted')
+    return <Tag color="blue" className="m-0 uppercase font-bold text-[10px] rounded-full px-2 border-none">Sourced</Tag>
+  
+  if (stage === 'submitted')
+    return <Tag color="purple" className="m-0 uppercase font-bold text-[10px] rounded-full px-2 border-none">Submitted</Tag>
+  
+  if (stage === 'interviewing')
+    return <Tag color="orange" className="m-0 uppercase font-bold text-[10px] rounded-full px-2 border-none">Interviewing</Tag>
+  
+  if (stage === 'offered')
+    return <Tag color="green" className="m-0 uppercase font-bold text-[10px] rounded-full px-2 border-none">Offered</Tag>
+  
+  return null
+}
+
+// ─── Components ───────────────────────────────────────────────────────────────
+
+const SubmitToClientModal = ({ 
+  open, 
+  onClose, 
+  engagement,
+  onSuccess 
+}: { 
+  open: boolean, 
+  onClose: () => void, 
+  engagement: Engagement,
+  onSuccess: () => void
+}) => {
+  const [form] = Form.useForm()
+  const [loading, setLoading] = useState(false)
+  const [jobs, setJobs] = useState<any[]>([])
+
+  React.useEffect(() => {
+    if (open) {
+      http.get('/jobs/requisitions/?status=active').then(r => {
+        setJobs(r.data.data.requisitions || [])
+      })
+    }
+  }, [open])
+
+  const onFinish = async (values: any) => {
+    setLoading(true)
+    try {
+      // 1. Create Application
+      await http.post('/applications/', {
+        candidate_id: engagement.candidate,
+        requisition_id: values.requisition_id,
+        source: "engagement",
+        cover_note: values.cover_note
+      })
+
+      // 2. Update Engagement Stage
+      await http.put(`/candidates/${engagement.candidate}/engagements/${engagement.id}/`, {
+        stage: 'submitted'
+      })
+
+      message.success('Candidate submitted to client successfully')
+      onSuccess()
+    } catch (err) {
+      message.error('Failed to submit candidate')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Modal
+      title={<span className="font-bold">Submit to Client</span>}
+      open={open}
+      onCancel={onClose}
+      onOk={() => form.submit()}
+      confirmLoading={loading}
+      okText="Submit Candidate"
+      okButtonProps={{ className: "bg-indigo-600 font-bold" }}
+    >
+      <Form form={form} layout="vertical" onFinish={onFinish} className="mt-4">
+        <Form.Item name="requisition_id" label="Select Job" rules={[{ required: true }]}>
+          <Select 
+            placeholder="Choose an active job..."
+            options={jobs.map(j => ({ value: j.id, label: j.title }))}
+          />
+        </Form.Item>
+        <Form.Item name="cover_note" label="Cover Note (Optional)">
+          <Input.TextArea rows={4} placeholder="Add a note for the client..." />
+        </Form.Item>
+      </Form>
+    </Modal>
+  )
+}
+
+const AddNoteModal = ({ 
+  open, 
+  onClose, 
+  candidateId,
+  onSuccess 
+}: { 
+  open: boolean, 
+  onClose: () => void, 
+  candidateId: string,
+  onSuccess: () => void
+}) => {
+  const [form] = Form.useForm()
+  const [loading, setLoading] = useState(false)
+
+  const onFinish = async (values: any) => {
+    setLoading(true)
+    try {
+      await http.post(`/candidates/${candidateId}/notes/`, values)
+      message.success('Note added successfully')
+      form.resetFields()
+      onSuccess()
+    } catch (err: any) {
+      message.error(err.response?.data?.message || 'Failed to add note')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Modal
+      title={<span className="font-bold">Add Note</span>}
+      open={open}
+      onCancel={onClose}
+      onOk={() => form.submit()}
+      confirmLoading={loading}
+      okText="Add Note"
+      okButtonProps={{ className: "bg-indigo-600 font-bold" }}
+    >
+      <Form form={form} layout="vertical" onFinish={onFinish} className="mt-4" initialValues={{ note_type: 'general' }}>
+        <Form.Item name="note_type" label="Note Type" rules={[{ required: true }]}>
+          <Select options={[
+            { value: 'general', label: 'General' },
+            { value: 'call', label: 'Call Log' },
+            { value: 'email', label: 'Email' },
+            { value: 'interview', label: 'Interview Note' },
+            { value: 'submission', label: 'Submission Note' },
+          ]} />
+        </Form.Item>
+        <Form.Item name="note_text" label="Note Content" rules={[{ required: true }]}>
+          <Input.TextArea rows={4} placeholder="Type your note here..." />
+        </Form.Item>
+      </Form>
+    </Modal>
+  )
+}
+
+const CandidateGroupCard = ({ 
+  candidateId,
+  candidateName,
+  engagements,
+  isSelected,
+  onSelect,
+  onRefresh,
+  onSubmitToClient
+}: { 
+  candidateId: string,
+  candidateName: string,
+  engagements: Engagement[],
+  isSelected: boolean,
+  onSelect: (engagementId: string) => void,
+  onRefresh: () => void,
+  onSubmitToClient: (candidateId: string, engagementId: string) => void
+}) => {
+  const [noteModalOpen, setAddNoteModalOpen] = useState(false)
+  
+  const firstEng = engagements[0]
+  
+  // Highest priority across all engagements
+  const priorities = engagements.map(e => e.priority)
+  const highestPriority = priorities.includes('hot') ? 'hot' : priorities.includes('warm') ? 'warm' : 'cold'
+  const style = getPriorityStyle(highestPriority)
+
+  // Most recent activity across all engagements
+  const lastActivities = engagements.map(e => e.last_activity_at ? dayjs(e.last_activity_at).valueOf() : 0)
+  const mostRecentActivity = Math.max(...lastActivities)
+  const activityDays = mostRecentActivity > 0 ? dayjs().diff(dayjs(mostRecentActivity), 'day') : 0
+  const activityColor = activityDays > 7 ? 'text-red-500' : activityDays > 3 ? 'text-amber-500' : 'text-green-500'
+
+  return (
+    <div 
+      className={cn(
+        "group bg-white rounded-[10px] border border-[#F0F1F3] mb-3 cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5 relative overflow-hidden",
+        isSelected ? "ring-2 ring-indigo-500 ring-offset-2 shadow-md" : ""
+      )}
+      style={{ borderLeft: style.border }}
+    >
+      {/* TOP SECTION */}
+      <div className="flex divide-x divide-[#F0F1F3]">
+        {/* LEFT COLUMN (50%) */}
+        <div className="w-1/2 p-4">
+          <div className="flex items-center gap-2 mb-1">
+            <Avatar size={32} src={firstEng.candidate_avatar} className="bg-indigo-50 text-indigo-600 font-bold shrink-0">
+              {candidateName.charAt(0)}
+            </Avatar>
+            <span className="text-sm font-bold text-slate-900 truncate">{candidateName}</span>
+            <span>{style.icon}</span>
+          </div>
+          <div className="space-y-0.5 ml-[40px]">
+            <p className="text-[13px] text-slate-500 m-0 truncate">{firstEng.candidate_title || 'No Title'}</p>
+            <p className="text-[13px] text-slate-500 m-0 truncate">{firstEng.candidate_location || 'No Location'}</p>
+            <p className="text-[12px] text-slate-400 m-0 mt-1">Owner: {firstEng.owner_name || 'Unassigned'}</p>
+            <p className={cn("text-[12px] font-bold m-0 mt-1", activityColor)}>
+              {activityDays} days since activity
+            </p>
+          </div>
+
+        </div>
+
+        {/* RIGHT COLUMN (50%) */}
+        <div className="w-1/2 p-4 space-y-2">
+          {engagements.slice(0, 4).map(eng => (
+            <div 
+              key={eng.id} 
+              onClick={(e) => { e.stopPropagation(); onSelect(eng.id); }}
+              className="flex items-center justify-between gap-2 p-1.5 hover:bg-slate-50 rounded-lg transition-colors group/row"
+            >
+              <span className="text-[12px] font-medium text-slate-700 truncate max-w-[140px]">
+                {eng.job_title || <span className="italic text-slate-400">New Lead</span>}
+              </span>
+              <div className="shrink-0 scale-90 origin-right">
+                {getStageBadge(eng.stage)}
+              </div>
+            </div>
+          ))}
+          {engagements.length > 4 && (
+            <div className="text-[11px] font-bold text-indigo-600 pl-1.5" onClick={() => onSelect(firstEng.id)}>
+              +{engagements.length - 4} more engagements
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* BOTTOM SECTION */}
+      <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="h-[1px] bg-[#F0F1F3]" />
+        <div className="flex h-[42px]">
+          <button 
+            className="flex-1 text-[13px] font-medium text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors border-r border-[#F0F1F3]"
+            onClick={(e) => { e.stopPropagation(); setAddNoteModalOpen(true); }}
+          >
+            Add Note
+          </button>
+          <button 
+            className="flex-1 text-[13px] font-medium text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors border-r border-[#F0F1F3]"
+            onClick={(e) => { e.stopPropagation(); message.info('Coming soon'); }}
+          >
+            Schedule
+          </button>
+          <button 
+            className="flex-1 text-[13px] font-medium text-slate-600 hover:bg-slate-50 hover:text-indigo-600 transition-colors"
+            onClick={(e) => { e.stopPropagation(); onSubmitToClient(firstEng.candidate, firstEng.id); }}
+          >
+            Submit
+          </button>
+        </div>
+      </div>
+
+      <AddNoteModal 
+        open={noteModalOpen} 
+        onClose={() => setAddNoteModalOpen(false)} 
+        candidateId={firstEng.candidate} 
+        onSuccess={() => { setAddNoteModalOpen(false); onRefresh(); }} 
+      />
+    </div>
+  )
+}
+
+const EngagementCard = ({ 
+  engagement, 
+  isSelected, 
+  onClick,
+  onRefresh,
+  isLatest
+}: { 
+  engagement: Engagement, 
+  isSelected: boolean, 
+  onClick: () => void,
+  onRefresh: () => void,
+  isLatest?: boolean
+}) => {
+  const [noteModalOpen, setAddNoteModalOpen] = useState(false)
+  const [submitModalOpen, setSubmitModalOpen] = useState(false)
+  const [savingStage, setSavingStage] = useState(false)
+  const style = getPriorityStyle(engagement.priority)
+  
+  const activityDays = engagement.days_since_activity || 0
+  const activityColor = activityDays > 7 ? 'text-red-500' : activityDays > 3 ? 'text-amber-500' : 'text-green-500'
+
+  const followUpDate = engagement.follow_up_at ? dayjs(engagement.follow_up_at) : null
+  const isOverdue = followUpDate && followUpDate.isBefore(dayjs(), 'day')
+  const isToday = followUpDate && followUpDate.isSame(dayjs(), 'day')
+
+  const isNotInterested = engagement.stage === 'not_interested'
+
+  const handleStageChange = async (newStage: string) => {
+    setSavingStage(true)
+    try {
+      await http.put(`/candidates/${engagement.candidate}/engagements/${engagement.id}/`, { stage: newStage })
+      message.success('Stage updated')
+      onRefresh()
+    } catch (err: any) {
+      message.error(err.response?.data?.message || 'Failed to update stage')
+    } finally {
+      setSavingStage(false)
+    }
+  }
+
+  const handleRevive = async () => {
+    try {
+      await http.post(`/candidates/${engagement.candidate}/engagements/${engagement.id}/revive/`, {})
+      message.success('Engagement revived')
+      onRefresh()
+    } catch {
+      message.error('Failed to revive')
+    }
+  }
+
+  return (
+    <div 
+      onClick={onClick}
+      className={cn(
+        "group bg-white rounded-[12px] border border-slate-200 p-4 mb-3 cursor-pointer transition-all hover:shadow-md hover:-translate-y-0.5",
+        isSelected ? "ring-2 ring-indigo-500 ring-offset-2 shadow-md" : "",
+        isNotInterested ? "opacity-70 border-gray-300" : ""
+      )}
+      style={{ borderLeft: isLatest ? '4px solid #9CA3AF' : (isNotInterested ? '4px solid #94a3b8' : style.border) }}
+    >
+      <div className="flex items-start justify-between">
+        <div className="flex items-start gap-4 flex-1">
+          <Avatar 
+            size={48} 
+            src={engagement.candidate_avatar}
+            className="bg-indigo-50 text-indigo-600 font-bold shrink-0"
+          >
+            {engagement.candidate_name.charAt(0)}
+          </Avatar>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              {getEngagementTypeBadge(engagement.stage)}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                {engagement.candidate_name}
+              </span>
+              <span title={engagement.priority.toUpperCase()}>{style.icon}</span>
+            </div>
+            {isLatest && engagement.stage === 'new' && (
+              <p className="text-xs text-slate-400 font-medium m-0 mt-0.5">Newly Added</p>
+            )}
+            <p className="text-sm text-slate-500 font-medium m-0 truncate">
+              {engagement.candidate_title || 'No Title'} {engagement.candidate_location ? `· ${engagement.candidate_location}` : ''}
+            </p>
+            <div className="flex flex-wrap items-center gap-3 mt-2">
+              <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Stage:</span>
+                <Tooltip title={!engagement.job ? "Associate a job first to change stage" : ""}>
+                  <Select 
+                    size="small" 
+                    value={engagement.stage} 
+                    options={ENGAGEMENT_STAGES} 
+                    onChange={handleStageChange}
+                    className="w-32"
+                    bordered={false}
+                    dropdownMatchSelectWidth={false}
+                    loading={savingStage}
+                    disabled={!engagement.job}
+                  />
+                </Tooltip>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Job:</span>
+                <span className="text-xs font-bold text-slate-700 truncate max-w-[150px]">{engagement.job_title || (isLatest ? 'New Lead' : 'No active job')}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col items-end gap-1.5 shrink-0 ml-4">
+          <div className="flex items-center gap-1 text-[11px] font-bold text-slate-400">
+            <User size={12} />
+            <span>Owner: {engagement.owner_name || 'Unassigned'}</span>
+          </div>
+
+          
+          <div className={cn(
+            "flex items-center gap-1 text-[11px] font-bold",
+            isOverdue ? "text-red-500" : isToday ? "text-amber-500" : "text-slate-400"
+          )}>
+            <Clock size={12} />
+            <span>
+              Follow up: {followUpDate ? followUpDate.format('MMM D') : 'No date'}
+              {isOverdue && ' ⚠️'}
+            </span>
+          </div>
+
+          <div className={cn("text-[10px] font-bold uppercase tracking-wider", activityColor)}>
+            {activityDays} days since activity
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 pt-3 border-t border-slate-50 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        {isNotInterested ? (
+          <Button 
+            size="small" 
+            type="primary" 
+            className="text-[11px] font-bold h-8 rounded-lg bg-indigo-600"
+            onClick={(e) => { e.stopPropagation(); handleRevive(); }}
+          >
+            Revive Engagement
+          </Button>
+        ) : (
+          <>
+            {['new', 'contacted', 'interested', 'follow_up', 'shortlisted'].includes(engagement.stage) && (
+              <Button 
+                size="small" 
+                type="primary" 
+                className="text-[11px] font-bold h-8 rounded-lg bg-indigo-600"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSubmitModalOpen(true);
+                }}
+              >
+                Submit to Client
+              </Button>
+            )}
+            <Button size="small" className="text-[11px] font-bold h-8 rounded-lg" onClick={(e) => { e.stopPropagation(); message.info('Coming soon'); }}>Move Stage</Button>
+            <Button size="small" className="text-[11px] font-bold h-8 rounded-lg" onClick={(e) => { e.stopPropagation(); setAddNoteModalOpen(true); }}>Add Note</Button>
+            <Button size="small" className="text-[11px] font-bold h-8 rounded-lg" onClick={(e) => { e.stopPropagation(); message.info('Coming soon'); }}>Schedule Interview</Button>
+          </>
+        )}
+        <div className="flex-1" />
+        <Button size="small" type="text" icon={<MoreVertical size={14} />} className="h-8 w-8 rounded-lg flex items-center justify-center" />
+      </div>
+
+      <AddNoteModal 
+        open={noteModalOpen} 
+        onClose={() => setAddNoteModalOpen(false)} 
+        candidateId={engagement.candidate} 
+        onSuccess={() => { setAddNoteModalOpen(false); onRefresh(); }} 
+      />
+
+      <SubmitToClientModal 
+        open={submitModalOpen} 
+        onClose={() => setSubmitModalOpen(false)} 
+        engagement={engagement} 
+        onSuccess={() => { setSubmitModalOpen(false); onRefresh(); }} 
+      />
+    </div>
+  )
+}
+
+// ─── Right Panel ─────────────────────────────────────────────────────────────
+
+const RightPanel = ({ 
+  engagement, 
+  onClose,
+  onRefresh
+}: { 
+  engagement: Engagement, 
+  onClose: () => void,
+  onRefresh?: () => void
+}) => {
+  const queryClient = useQueryClient()
+  const [activeTab, setActiveTab] = useState('overview')
+  const [submitModalOpen, setSubmitModalOpen] = useState(false)
+  const [noteText, setNoteText] = useState('')
+  const [noteType, setNoteType] = useState('general')
+  const [noteVisibility, setNoteVisibility] = useState('internal')
+  const [savingNote, setSavingNote] = useState(false)
+
+  const { data: engagements } = useCandidateEngagements(engagement.candidate)
+  const { data: timeline } = useCandidateTimeline(engagement.candidate)
+  const { data: notesData, refetch: refetchNotes } = useApiQuery(
+    ['candidate-notes', engagement.candidate, engagement.id],
+    () => http.get(
+      `/candidates/${engagement.candidate}/notes/?engagement_id=${engagement.id}`
+    ).then(r => r.data.data)
+  )
+  const allNotes = (notesData as any)?.notes || []
+  const notes = useMemo(() => {
+    const filtered = allNotes.filter((note: any) => {
+      const noteEngagementId = note?.metadata?.engagement_id || note?.engagement
+      if (!noteEngagementId) return false
+      return String(noteEngagementId) === String(engagement.id)
+    })
+    return filtered.sort((a: any, b: any) => dayjs(b.created_at).valueOf() - dayjs(a.created_at).valueOf())
+  }, [allNotes, engagement.id])
+  console.log('NOTES DATA:', notes)
+
+  const updateEngagement = useUpdateEngagement(engagement.candidate, engagement.id)
+
+  const handleStageChange = async (newStage: string) => {
+    try {
+      await updateEngagement.mutateAsync({ stage: newStage })
+      message.success(`Stage updated to ${newStage}`)
+      if (onRefresh) onRefresh()
+    } catch {
+      message.error('Failed to update stage')
+    }
+  }
+
+  const handleFollowUpChange = async (date: dayjs.Dayjs | null) => {
+    try {
+      await http.put(`/candidates/${engagement.candidate}/engagements/${engagement.id}/`, {
+        follow_up_at: date ? date.toISOString() : null
+      })
+      message.success('Follow up date saved')
+      if (onRefresh) onRefresh()
+    } catch {
+      message.error('Failed to save follow up date')
+    }
+  }
+
+  const handleSaveNote = async () => {
+    if (!noteText.trim()) return
+    setSavingNote(true)
+    try {
+      // Try requested payload first; backend may not support visibility/engagement fields directly.
+      await http.post(`/candidates/${engagement.candidate}/notes/`, {
+        note_text: noteText,
+        note_type: noteType,
+        visibility: noteVisibility,
+        engagement: engagement.id,
+      })
+    } catch {
+      try {
+        // Fallback payload for current backend serializer.
+        await http.post(`/candidates/${engagement.candidate}/notes/`, {
+          note_text: noteText,
+          note_type: noteType,
+          is_private: noteVisibility !== 'internal',
+          metadata: {
+            visibility: noteVisibility,
+            engagement_id: engagement.id,
+          },
+        })
+      } catch {
+        message.error('Failed to save note')
+        setSavingNote(false)
+        return
+      }
+    } finally {
+      setSavingNote(false)
+    }
+    message.success('Note saved')
+    setNoteText('')
+    refetchNotes()
+    queryClient.invalidateQueries({
+      queryKey: ['candidate-notes', engagement.candidate, engagement.id]
+    })
+  }
+
+  const isSubmittable = ['new', 'contacted', 'interested', 'follow_up', 'shortlisted'].includes(engagement.stage)
+
+  const tabItems = [
+
+    { key: 'overview', label: 'Overview' },
+    { key: 'notes', label: 'Notes' },
+    { key: 'timeline', label: 'Timeline' },
+  ]
+
+  return (
+    <div className="h-full bg-white flex flex-col shadow-2xl border-l border-slate-200 w-[360px] animate-in slide-in-from-right duration-300">
+      <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/40 shrink-0">
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <div className="flex items-center gap-3 min-w-0">
+            <Avatar size={28} className="bg-indigo-50 text-indigo-600 font-bold">
+              {engagement.candidate_name.charAt(0)}
+            </Avatar>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-slate-900 m-0 truncate">{engagement.candidate_name}</p>
+              <p className="text-[11px] text-slate-500 m-0 truncate">
+                {engagement.candidate_title || 'No Title'}{engagement.candidate_location ? ` · ${engagement.candidate_location}` : ''}
+              </p>
+            </div>
+          </div>
+          <Button type="text" icon={<X size={16} />} onClick={onClose} className="rounded-lg h-8 w-8 flex items-center justify-center shrink-0" />
+        </div>
+        <p className="text-xs text-slate-600 m-0 truncate">
+          <span className="font-bold text-slate-700">Engagement:</span> {engagement.job_title || 'New Lead'}
+        </p>
+        <div className="mt-1">
+          <span className="text-[11px] text-slate-500 mr-2">Stage:</span>
+          {getStageBadge(engagement.stage)}
+        </div>
+      </div>
+
+      <div className="px-1 border-b border-slate-50 shrink-0">
+        <Tabs 
+          activeKey={activeTab} 
+          onChange={setActiveTab} 
+          items={tabItems} 
+          className="px-4"
+          size="small"
+        />
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            <section>
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Contact Info</h4>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3 text-slate-600">
+                  <Mail size={14} className="text-slate-400" />
+                  <span className="text-xs font-medium">candidate@example.com</span>
+                </div>
+                <div className="flex items-center gap-3 text-slate-600">
+                  <Phone size={14} className="text-slate-400" />
+                  <span className="text-xs font-medium">+91 98765 43210</span>
+                </div>
+                <div className="flex items-center gap-3 text-slate-600">
+                  <MapPin size={14} className="text-slate-400" />
+                  <span className="text-xs font-medium">{engagement.candidate_location || 'Mumbai, India'}</span>
+                </div>
+              </div>
+            </section>
+
+            <Divider className="my-0" />
+
+            <section>
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 m-0">Engagement Status</h4>
+                {isSubmittable && (
+                  <Button 
+                    size="small" 
+                    type="primary" 
+                    className="h-7 text-[10px] font-bold bg-indigo-600 rounded-lg px-3"
+                    onClick={() => setSubmitModalOpen(true)}
+                  >
+                    Submit to Client
+                  </Button>
+                )}
+              </div>
+              <Form layout="vertical" size="small">
+                <Form.Item label="Stage">
+                  <Tooltip title={!engagement.job ? "Associate a job first to change stage" : ""}>
+                    <Select 
+                      value={engagement.stage} 
+                      className="w-full h-8" 
+                      options={ENGAGEMENT_STAGES}
+                      onChange={handleStageChange}
+                      disabled={!engagement.job}
+                    />
+                  </Tooltip>
+                </Form.Item>
+                <Form.Item label="Priority">
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button 
+                      onClick={() => handleStageChange(engagement.stage)} // Mocked for UI, ideally update priority
+                      className={cn("text-[10px] font-bold h-8", engagement.priority === 'hot' ? "bg-red-50 text-red-600 border-red-200" : "")}
+                    >
+                      HOT
+                    </Button>
+                    <Button className={cn("text-[10px] font-bold h-8", engagement.priority === 'warm' ? "bg-amber-50 text-amber-600 border-amber-200" : "")}>WARM</Button>
+                    <Button className={cn("text-[10px] font-bold h-8", engagement.priority === 'cold' ? "bg-slate-50 text-slate-600 border-slate-200" : "")}>COLD</Button>
+                  </div>
+                </Form.Item>
+                <Form.Item label="Follow up Date">
+                  <DatePicker 
+                    defaultValue={engagement.follow_up_at ? dayjs(engagement.follow_up_at) : undefined} 
+                    className="w-full h-8" 
+                    onChange={handleFollowUpChange}
+                  />
+                </Form.Item>
+                <Form.Item label="Assigned To">
+                  <Select 
+                    defaultValue={engagement.owner_user} 
+                    className="w-full h-8"
+                    options={[{ value: engagement.owner_user || '', label: engagement.owner_name || 'Unassigned' }]}
+                  />
+                </Form.Item>
+              </Form>
+            </section>
+
+            <SubmitToClientModal 
+              open={submitModalOpen} 
+              onClose={() => setSubmitModalOpen(false)} 
+              engagement={engagement}
+              onSuccess={() => {
+                setSubmitModalOpen(false)
+                if (onRefresh) onRefresh()
+              }}
+            />
+          </div>
+        )}
+
+        {activeTab === 'notes' && (
+           <div className="flex flex-col h-full -mx-4 -mb-4">
+              <div className="flex-1 px-4 space-y-4 mb-4">
+                {(notes || []).map((note: any) => (
+                  <div key={note.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100">
+                    <div className="mb-2 flex items-center gap-2">
+                      <Tag className="m-0 text-[10px] font-bold uppercase border-none bg-slate-200 text-slate-700">
+                        {note.note_type || 'general'}
+                      </Tag>
+                      <Tag className="m-0 text-[10px] font-bold uppercase border-none bg-slate-100 text-slate-600">
+                        {(note.metadata?.visibility || (note.is_private ? 'private' : 'internal')).toString()}
+                      </Tag>
+                    </div>
+                    <p className="text-xs text-slate-700 m-0 leading-relaxed">{note.note_text}</p>
+                    <div className="mt-2 flex items-center justify-between text-[10px] font-bold uppercase text-slate-400">
+                      <span>{String(note.created_by || 'unknown').slice(0, 8)}</span>
+                      <span>{dayjs(note.created_at).fromNow()}</span>
+                    </div>
+                  </div>
+                ))}
+                {notes.length === 0 && <Empty description="No notes yet for this engagement" />}
+              </div>
+              <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-3">
+                 <div className="grid grid-cols-2 gap-2">
+                   <Select 
+                     placeholder="Note Type" 
+                     value={noteType} 
+                     onChange={setNoteType}
+                     size="small" 
+                     className="w-full" 
+                     options={[
+                       { value: 'call', label: 'Call' },
+                       { value: 'email', label: 'Email' },
+                       { value: 'general', label: 'General' },
+                       { value: 'interview', label: 'Interview' },
+                       { value: 'submission', label: 'Submission' },
+                     ]} 
+                   />
+                   <Select
+                     value={noteVisibility}
+                     onChange={setNoteVisibility}
+                     size="small"
+                     className="w-full"
+                     options={[
+                       { value: 'internal', label: 'Internal' },
+                       { value: 'private', label: 'Private' },
+                     ]}
+                   />
+                 </div>
+                 <Input.TextArea 
+                   placeholder="Add a note..." 
+                   rows={4} 
+                   className="text-xs rounded-xl" 
+                   value={noteText}
+                   onChange={e => setNoteText(e.target.value)}
+                 />
+                 <Button 
+                   type="primary" 
+                   block 
+                   size="small" 
+                   className="font-bold bg-indigo-600 rounded-lg"
+                   onClick={handleSaveNote}
+                   loading={savingNote}
+                 >
+                   Save Note
+                 </Button>
+              </div>
+           </div>
+        )}
+
+        {activeTab === 'timeline' && (
+          <div className="space-y-6 pl-2 relative">
+            <div className="absolute left-3 top-0 bottom-0 w-[1px] bg-slate-100" />
+            {timeline?.map((event: any, i: number) => {
+              const icons: Record<string, string> = {
+                'engagement.opened': '🟢',
+                'engagement.stage_changed': '🔄',
+                'application.created': '📋',
+                'application.stage_changed': '➡️',
+                'note.added': '📝',
+                'application.rejected': '❌',
+                'application.offer_made': '💰',
+                'application.hired': '🎉',
+              }
+
+              const getEventDescription = () => {
+                const p = event.payload || {}
+                switch (event.event_type) {
+                  case 'engagement.opened': return "Engagement opened"
+                  case 'engagement.stage_changed': return `Stage changed from ${p.from_stage} to ${p.to_stage}`
+                  case 'application.created': return `Applied to ${p.requisition_id}`
+                  case 'application.stage_changed': return `Pipeline moved from ${p.from_status} to ${p.to_status}`
+                  case 'application.rejected': return `Rejected — ${p.rejection_reason}`
+                  case 'application.offer_made': return `Offer made — ${p.offer_amount} ${p.currency}`
+                  case 'application.hired': return "Candidate hired"
+                  case 'note.added': return `Note added by ${event.actor_name}`
+                  default: return event.event_type.replace(/\./g, ' ')
+                }
+              }
+
+              return (
+                <div key={i} className="relative pl-7">
+                  <div className="absolute left-0 top-0 h-6 w-6 rounded-full bg-white border border-slate-100 flex items-center justify-center text-xs z-10">
+                    {icons[event.event_type] || '🔵'}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-slate-800 m-0">{getEventDescription()}</p>
+                    {event.event_type !== 'note.added' && (
+                      <p className="text-[10px] text-slate-500 mt-0.5 m-0 leading-relaxed">
+                        By {event.actor_name}
+                      </p>
+                    )}
+                    <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">
+                      {dayjs(event.created_at).fromNow()} · {dayjs(event.created_at).format('MMM D, h:mma')}
+                    </p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Page ───────────────────────────────────────────────────────────────
+
+export default function ActiveCandidatesPage() {
+  const [activeTab, setActiveTab] = useState('all')
+  const [search, setSearch] = useState('')
+  const [ownerFilter, setOwnerFilter] = useState('me')
+  const [selectedEngagement, setSelectedEngagement] = useState<Engagement | null>(null)
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null)
+  const [selectedEngagementId, setSelectedEngagementId] = useState<string | null>(null)
+  const [submitModalOpen, setSubmitModalOpen] = useState(false)
+  const [addModalOpen, setAddModalOpen] = useState(false)
+
+  const filters: any = {
+    owner: ownerFilter === 'me' ? 'me' : undefined
+  }
+
+  const { data, isLoading, refetch } = useActiveEngagements(filters)
+  const engagements = data?.engagements || []
+  const counts = useMemo(() => {
+    const all = engagements || []
+    return {
+      all: all.filter(e => !['not_interested', 'placed', 'closed', 'lost'].includes(e.stage)).length,
+      latest: all.filter(e => e.stage === 'new').length,
+      hot: all.filter(e => e.priority === 'hot').length,
+      follow_up: all.filter(e => e.follow_up_at && new Date(e.follow_up_at) <= new Date()).length,
+      submitted: all.filter(e => e.stage === 'submitted').length,
+      interviewing: all.filter(e => e.stage === 'interviewing').length,
+      offered: all.filter(e => e.stage === 'offered').length,
+      not_interested: all.filter(e => e.stage === 'not_interested').length,
+    }
+  }, [engagements])
+
+  const filteredEngagements = useMemo(() => {
+    const all = engagements || []
+    switch (activeTab) {
+      case 'all':
+        return all.filter(e => !['not_interested', 'placed', 'closed', 'lost'].includes(e.stage))
+      case 'latest':
+        return all
+          .filter(e => e.stage === 'new')
+          .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())
+      case 'hot':
+        return all.filter(e => e.priority === 'hot')
+      case 'follow_up':
+        return all.filter(e => e.follow_up_at && new Date(e.follow_up_at) <= new Date())
+      case 'submitted':
+        return all.filter(e => e.stage === 'submitted')
+      case 'interviewing':
+        return all.filter(e => e.stage === 'interviewing')
+      case 'offered':
+        return all.filter(e => e.stage === 'offered')
+      case 'not_interested':
+        return all.filter(e => e.stage === 'not_interested')
+      default:
+        return all
+    }
+  }, [engagements, activeTab])
+
+  const groupedList = useMemo(() => {
+    const grouped = filteredEngagements.reduce((acc, eng) => {
+      if (activeTab !== 'all') return acc
+      const candidateKey = eng.candidate
+      if (!acc[candidateKey]) {
+        acc[candidateKey] = {
+          candidateId: candidateKey,
+          candidateName: eng.candidate_name,
+          engagements: []
+        }
+      }
+      acc[candidateKey].engagements.push(eng)
+      return acc
+    }, {} as Record<string, {candidateId: string, candidateName: string, engagements: Engagement[]}>)
+    return Object.values(grouped)
+  }, [filteredEngagements, activeTab])
+  const submitTargetEngagement = useMemo(
+    () => (engagements || []).find(
+      e => e.candidate === selectedCandidateId && e.id === selectedEngagementId
+    ) || null,
+    [engagements, selectedCandidateId, selectedEngagementId]
+  )
+
+  const tabs = [
+    { key: 'all', label: 'All Active', count: counts.all },
+    { key: 'latest', label: 'Latest', count: counts.latest },
+    { key: 'hot', label: '🔥 Hot', count: counts.hot },
+    { key: 'follow_up', label: 'Follow Up Due', count: counts.follow_up },
+    { key: 'submitted', label: 'Submitted', count: counts.submitted },
+    { key: 'interviewing', label: 'Interviewing', count: counts.interviewing },
+    { key: 'offered', label: 'Offered', count: counts.offered },
+    { key: 'not_interested', label: 'Not Interested', count: counts.not_interested },
+  ]
+
+  return (
+    <div className="h-[calc(100vh-100px)] flex -m-8 overflow-hidden bg-[#F8FAFC]">
+      {/* Main Content (Center Zone) */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="bg-white border-b border-slate-200 px-8 py-6 sticky top-0 z-20">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight m-0">Active Candidates</h1>
+              <p className="text-slate-500 mt-1 text-sm font-medium m-0">Manage your active recruitment work queue.</p>
+            </div>
+            <Button 
+              type="primary" 
+              icon={<Plus size={16} />} 
+              className="bg-indigo-600 font-bold h-10 rounded-xl shadow-md border-none px-6"
+              onClick={() => setAddModalOpen(true)}
+            >
+              Add Active
+            </Button>
+          </div>
+
+          <div className="mt-8 overflow-x-auto scrollbar-hide">
+            <div className="flex items-center gap-2 p-1 bg-slate-100/50 rounded-xl w-fit">
+              {tabs.map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all",
+                    activeTab === tab.key 
+                      ? "bg-[#4F46E5] text-white shadow-md" 
+                      : "text-slate-500 hover:text-slate-900"
+                  )}
+                >
+                  {tab.label}
+                  <Badge 
+                    count={tab.count} 
+                    showZero 
+                    className="ml-1" 
+                    styles={{ count: { 
+                      backgroundColor: activeTab === tab.key ? 'white' : '#E2E8F0', 
+                      color: activeTab === tab.key ? '#4F46E5' : '#64748B',
+                      boxShadow: 'none',
+                      fontSize: '10px'
+                    } }} 
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-6 flex flex-col md:flex-row gap-4">
+            <Input
+              prefix={<Search size={16} className="text-slate-400 mr-2" />}
+              placeholder="Search by name, title or job..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="flex-1 h-10 rounded-xl border-slate-200"
+              allowClear
+            />
+            <Select
+              value={ownerFilter}
+              onChange={setOwnerFilter}
+              className="w-full md:w-48 h-10"
+              options={[
+                { value: 'all', label: 'All Owners' },
+                { value: 'me', label: 'My Candidates' },
+              ]}
+            />
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+          {isLoading ? (
+            <div className="h-64 flex items-center justify-center">
+              <Spin size="large" tip="Loading work queue..." />
+            </div>
+          ) : (activeTab === 'all' ? groupedList.length > 0 : filteredEngagements.length > 0) ? (
+            <div className="max-w-4xl">
+              {/* Step 3 — Render using groupedList */}
+              {activeTab === 'all' && groupedList.map((group) => (
+                <CandidateGroupCard
+                  key={group.candidateId}
+                  candidateId={group.candidateId}
+                  candidateName={group.candidateName}
+                  engagements={group.engagements}
+                  isSelected={selectedEngagement?.candidate === group.candidateId}
+                  onSelect={(engId) => {
+                    const eng = group.engagements.find(e => e.id === engId)
+                    if (eng) setSelectedEngagement(eng)
+                  }}
+                  onRefresh={() => refetch()}
+                  onSubmitToClient={(candidateId, engagementId) => {
+                    setSelectedCandidateId(candidateId)
+                    setSelectedEngagementId(engagementId)
+                    setSubmitModalOpen(true)
+                  }}
+                />
+              ))}
+
+              {/* Individual View for status-specific tabs */}
+              {activeTab !== 'all' && filteredEngagements.map(eng => (
+                <EngagementCard 
+                  key={eng.id} 
+                  engagement={eng} 
+                  isSelected={selectedEngagement?.id === eng.id}
+                  onClick={() => setSelectedEngagement(eng)}
+                  onRefresh={() => refetch()}
+                  isLatest={activeTab === 'latest'}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="h-96 flex flex-col items-center justify-center bg-white rounded-3xl border-2 border-dashed border-slate-200">
+              <div className="h-20 w-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
+                <Search size={32} className="text-slate-300" />
+              </div>
+              <h3 className="text-lg font-bold text-slate-900 m-0">No active candidates found</h3>
+              <p className="text-slate-500 mt-2 m-0">Try adjusting your filters or search terms.</p>
+              <Button 
+                onClick={() => { setActiveTab('all'); setSearch(''); setOwnerFilter('all'); }}
+                className="mt-6 font-bold rounded-xl h-10 border-indigo-200 text-indigo-600"
+              >
+                Clear all filters
+              </Button>
+            </div>
+          )}
+        </main>
+      </div>
+
+      {/* Right Panel (Right Zone) */}
+      {selectedEngagement && (
+        <RightPanel 
+          engagement={selectedEngagement} 
+          onClose={() => setSelectedEngagement(null)} 
+          onRefresh={() => refetch()}
+        />
+      )}
+
+      <AddToActiveModal 
+        open={addModalOpen}
+        onClose={() => setAddModalOpen(false)}
+      />
+
+      {submitTargetEngagement && (
+        <SubmitToClientModal
+          open={submitModalOpen}
+          onClose={() => setSubmitModalOpen(false)}
+          engagement={submitTargetEngagement}
+          onSuccess={() => {
+            setSubmitModalOpen(false)
+            refetch()
+          }}
+        />
+      )}
+    </div>
+  )
+}

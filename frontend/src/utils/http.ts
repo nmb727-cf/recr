@@ -30,24 +30,21 @@ http.interceptors.request.use((config) => {
     return config
   }
 
-  // Read from standalone key first
-  let token = localStorage.getItem('access_token')
-
-  // Fallback: read from Zustand persisted store
-  if (!token) {
-    try {
-      const raw = localStorage.getItem('auth-store')
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        token = parsed?.state?.accessToken ?? null
-        // Re-write standalone key so future requests dont need fallback
-        if (token) {
-          localStorage.setItem('access_token', token)
-        }
-      }
-    } catch {
-      token = null
+  // Always check Zustand store first for most up-to-date token
+  let token = null
+  try {
+    const raw = localStorage.getItem('auth-store')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      token = parsed?.state?.accessToken ?? null
     }
+  } catch (err) {
+    console.error('Error parsing auth-store', err)
+  }
+
+  // Fallback to standalone key
+  if (!token) {
+    token = localStorage.getItem('access_token')
   }
 
   if (token) {

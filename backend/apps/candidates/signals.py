@@ -9,35 +9,47 @@ from django.utils import timezone
 def get_or_create_engagement(candidate_id, tenant_id, job_id, user):
     from apps.candidates.models import CandidateEngagement
 
+    # Priority 1 — find active engagement for this exact job
     engagement = CandidateEngagement.objects.filter(
         candidate_id=candidate_id,
         tenant_id=tenant_id,
         job_id=job_id,
         is_active=True,
-        is_deleted=False
+        is_deleted=False,
     ).first()
 
-    if not engagement:
-        engagement = CandidateEngagement.objects.filter(
-            candidate_id=candidate_id,
-            tenant_id=tenant_id,
-            job_id=job_id,
-            is_deleted=False
-        ).order_by('-started_at').first()
+    if engagement:
+        return engagement
 
-    if not engagement:
-        engagement = CandidateEngagement.objects.create(
-            tenant_id=tenant_id,
-            candidate_id=candidate_id,
-            job_id=job_id,
-            engagement_type='job_sourced',
-            stage='new',
-            priority='warm',
-            is_active=True,
-            owner_user=user,
-            created_by=user,
-            last_activity_at=timezone.now()
-        )
+    # Priority 2 — find ANY active engagement for this candidate
+    # in this tenant (e.g. a Lead with job_id=None)
+    # Update it with the job instead of creating a new one
+    engagement = CandidateEngagement.objects.filter(
+        candidate_id=candidate_id,
+        tenant_id=tenant_id,
+        is_active=True,
+        is_deleted=False,
+    ).order_by('-started_at').first()
+
+    if engagement:
+        if engagement.job_id is None:
+            engagement.job_id = job_id
+            engagement.save(update_fields=['job', 'updated_at'])
+        return engagement
+
+    # Priority 3 — no active engagement at all, create new one
+    engagement = CandidateEngagement.objects.create(
+        tenant_id=tenant_id,
+        candidate_id=candidate_id,
+        job_id=job_id,
+        engagement_type='job_sourced',
+        stage='new',
+        priority='warm',
+        is_active=True,
+        owner_user=user,
+        created_by=user,
+        last_activity_at=timezone.now(),
+    )
 
     return engagement
 

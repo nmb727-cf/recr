@@ -487,16 +487,21 @@ function InviteLinkModal({
 
 
 function AddCandidateModal({
-  open, onClose, onSuccess
+  open, onClose, onSuccess, onOpenExistingCandidate
 }: {
   open: boolean
   onClose: () => void
   onSuccess: () => void
+  onOpenExistingCandidate: (candidate: any) => void
 }) {
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [offerInHand, setOfferInHand] = useState(false)
   const queryClient = useQueryClient()
+  const [duplicateCandidate, setDuplicateCandidate] = useState<any | null>(null)
+  const [pendingPayload, setPendingPayload] = useState<any | null>(null)
+  const [emailDuplicateHint, setEmailDuplicateHint] = useState<any | null>(null)
+  const [phoneDuplicateHint, setPhoneDuplicateHint] = useState<any | null>(null)
 
   // Skills search state
   const [skillOptions, setSkillOptions] = useState<{value: string, label: string}[]>([])
@@ -552,66 +557,158 @@ function AddCandidateModal({
     }
   }, [open, form, orgData])
 
+  const resetState = () => {
+    form.resetFields()
+    setOfferInHand(false)
+    setDuplicateCandidate(null)
+    setPendingPayload(null)
+    setEmailDuplicateHint(null)
+    setPhoneDuplicateHint(null)
+  }
+
+  const normalizePhone = (val?: string) => (val || '').replace(/\D/g, '')
+
+  const checkFieldDuplicate = async (field: 'email' | 'phone', rawValue: string) => {
+    const value = (rawValue || '').trim()
+    if (!value) {
+      if (field === 'email') setEmailDuplicateHint(null)
+      if (field === 'phone') setPhoneDuplicateHint(null)
+      return
+    }
+
+    try {
+      const res = await http.get(`/candidates/?search=${encodeURIComponent(value)}`)
+      const candidates = res.data?.data?.candidates || []
+      let match = null
+      if (field === 'email') {
+        const normalizedEmail = value.toLowerCase()
+        match = candidates.find((c: any) => (c.email || '').toLowerCase() === normalizedEmail) || null
+      } else {
+        const normalizedPhone = normalizePhone(value)
+        match = candidates.find((c: any) => {
+          const p1 = normalizePhone(c.phone)
+          const p2 = normalizePhone(c.phone_number)
+          return !!normalizedPhone && (p1 === normalizedPhone || p2 === normalizedPhone)
+        }) || null
+      }
+
+      if (field === 'email') setEmailDuplicateHint(match)
+      if (field === 'phone') setPhoneDuplicateHint(match)
+    } catch {
+      if (field === 'email') setEmailDuplicateHint(null)
+      if (field === 'phone') setPhoneDuplicateHint(null)
+    }
+  }
+
+  const openExistingCandidate = (candidate: any) => {
+    onOpenExistingCandidate(candidate)
+    resetState()
+    onClose()
+  }
+
+  const buildPayload = (values: any) => ({
+    first_name: (values.first_name || '').trim(),
+    last_name: (values.last_name || '').trim(),
+    email: (values.email || '').trim(),
+    phone: values.phone_field ? `${values.phone_field.country_code}:${values.phone_field.phone_number}` : '',
+    phone_country_code: values.phone_field?.country_code || 'IN',
+    phone_number: values.phone_field?.phone_number || '',
+    linkedin_url: (values.linkedin_url || '').trim(),
+    current_title: (values.current_title || '').trim(),
+    current_company: (values.current_company || '').trim(),
+    current_location_city: (values.location || '').trim(),
+    experience_years: values.experience_years ?? undefined,
+    relevant_experience_years: values.relevant_experience_years ?? undefined,
+    highest_education: values.highest_education || '',
+    graduation_year: values.graduation_year || null,
+    nationality: values.nationality || '',
+    work_authorization: values.work_authorization || '',
+    languages: Array.isArray(values.languages) ? values.languages : [],
+    skills: Array.isArray(values.skills)
+      ? values.skills
+      : (values.skills || '').split(',').map((s: string) => s.trim()).filter(Boolean),
+    source: values.source || 'company',
+    entry_type: 'manual',
+    salary_currency: values.salary_currency || 'INR',
+    current_ctc: values.current_ctc ?? undefined,
+    expected_salary_min: values.expected_salary_min ?? undefined,
+    expected_salary_max: values.expected_salary_max ?? undefined,
+    offer_in_hand: values.offer_in_hand === 'yes',
+    offer_in_hand_amount: values.offer_in_hand === 'yes'
+      ? (values.offer_in_hand_amount ?? undefined)
+      : undefined,
+    counter_offer: values.counter_offer ?? undefined,
+    notice_period_days: values.notice_period_days ?? undefined,
+    availability_status: values.availability_status || undefined,
+    availability_date: values.available_from
+      ? values.available_from.format('YYYY-MM-DD')
+      : undefined,
+    last_working_day: values.last_working_day
+      ? values.last_working_day.format('YYYY-MM-DD')
+      : undefined,
+    work_mode_preference: values.work_mode_preference || 'any',
+    relocation_willing: values.relocation_willing || 'maybe',
+    preferred_locations: Array.isArray(values.preferred_locations)
+      ? values.preferred_locations : [],
+    fitment_score: values.fitment_score ?? undefined,
+    metadata: {
+      ...(values.resume_url ? { resume_public_url: values.resume_url } : {}),
+      ...(values.portfolio_url ? { portfolio_url: values.portfolio_url } : {}),
+      ...(values.github_url ? { github_url: values.github_url } : {}),
+      ...(values.tags ? { tags: values.tags } : {}),
+      ...(values.recruiter_rating ? { recruiter_rating: values.recruiter_rating } : {}),
+      ...(values.do_not_contact ? { do_not_contact: values.do_not_contact } : {}),
+    },
+  })
+
+  const createCandidate = async (payload: any, force = false) => {
+    if (force) {
+      return http.post('/candidates/?force=true', payload)
+    }
+    return candidatesApi.create(payload)
+  }
+
+  const handleCreateAnyway = async () => {
+    if (!pendingPayload) {
+      message.error('Please submit the form again.')
+      return
+    }
+    setLoading(true)
+    try {
+      const res: any = await createCandidate(pendingPayload, true)
+      if (res?.data?.duplicate === true) {
+        setDuplicateCandidate(res.data.existing_candidate || null)
+        return
+      }
+      const candidateId = res?.data?.data?.candidate?.id
+      const values = form.getFieldsValue(true)
+      if (candidateId && values.notes?.trim()) {
+        await candidatesApi.addNote(candidateId, {
+          note_text: values.notes.trim(),
+          note_type: 'general',
+        }).catch(() => {})
+      }
+      message.success('Candidate added successfully')
+      queryClient.invalidateQueries({ queryKey: ['candidates'] })
+      onSuccess()
+      resetState()
+    } catch (err: any) {
+      message.error(err?.response?.data?.message || 'Failed to add candidate')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const onFinish = async (values: any) => {
     setLoading(true)
     try {
-      const payload = {
-        first_name: (values.first_name || '').trim(),
-        last_name: (values.last_name || '').trim(),
-        email: (values.email || '').trim(),
-        phone: values.phone_field ? `${values.phone_field.country_code}:${values.phone_field.phone_number}` : '',
-        phone_country_code: values.phone_field?.country_code || 'IN',
-        phone_number: values.phone_field?.phone_number || '',
-        linkedin_url: (values.linkedin_url || '').trim(),
-        current_title: (values.current_title || '').trim(),
-        current_company: (values.current_company || '').trim(),
-        current_location_city: (values.location || '').trim(),
-        experience_years: values.experience_years ?? undefined,
-        relevant_experience_years: values.relevant_experience_years ?? undefined,
-        highest_education: values.highest_education || '',
-        graduation_year: values.graduation_year || null,
-        nationality: values.nationality || '',
-        work_authorization: values.work_authorization || '',
-        languages: Array.isArray(values.languages) 
-          ? values.languages : [],
-        skills: Array.isArray(values.skills) 
-          ? values.skills 
-          : (values.skills || '').split(',').map((s: string) => s.trim()).filter(Boolean),
-        source: values.source || 'company',
-        entry_type: 'manual',
-        salary_currency: values.salary_currency || 'INR',
-        current_ctc: values.current_ctc ?? undefined,
-        expected_salary_min: values.expected_salary_min ?? undefined,
-        expected_salary_max: values.expected_salary_max ?? undefined,
-        offer_in_hand: values.offer_in_hand === 'yes',
-        offer_in_hand_amount: values.offer_in_hand === 'yes'
-          ? (values.offer_in_hand_amount ?? undefined)
-          : undefined,
-        counter_offer: values.counter_offer ?? undefined,
-        notice_period_days: values.notice_period_days ?? undefined,
-        availability_status: values.availability_status || undefined,
-        availability_date: values.available_from
-          ? values.available_from.format('YYYY-MM-DD')
-          : undefined,
-        last_working_day: values.last_working_day
-          ? values.last_working_day.format('YYYY-MM-DD')
-          : undefined,
-        work_mode_preference: values.work_mode_preference || 'any',
-        relocation_willing: values.relocation_willing || 'maybe',
-        preferred_locations: Array.isArray(values.preferred_locations)
-          ? values.preferred_locations : [],
-        fitment_score: values.fitment_score ?? undefined,
-        metadata: {
-          ...(values.resume_url ? { resume_public_url: values.resume_url } : {}),
-          ...(values.portfolio_url ? { portfolio_url: values.portfolio_url } : {}),
-          ...(values.github_url ? { github_url: values.github_url } : {}),
-          ...(values.tags ? { tags: values.tags } : {}),
-          ...(values.recruiter_rating ? { recruiter_rating: values.recruiter_rating } : {}),
-          ...(values.do_not_contact ? { do_not_contact: values.do_not_contact } : {}),
-        },
+      const payload = buildPayload(values)
+      setPendingPayload(payload)
+      const res: any = await createCandidate(payload)
+      if (res?.data?.duplicate === true) {
+        setDuplicateCandidate(res.data.existing_candidate || null)
+        return
       }
-
-      const res = await candidatesApi.create(payload)
       const candidateId = res?.data?.data?.candidate?.id
 
       if (candidateId && values.notes?.trim()) {
@@ -622,17 +719,12 @@ function AddCandidateModal({
       }
 
       message.success('Candidate added successfully')
-      form.resetFields()
-      setOfferInHand(false)
+      resetState()
       queryClient.invalidateQueries({ queryKey: ['candidates'] })
       onSuccess()
     } catch (err: any) {
       console.error('[DetailedAdd] error:', err)
       const errData = err?.response?.data
-      if (err?.response?.status === 409) {
-        message.warning(errData?.message || 'Candidate already exists')
-        return
-      }
       const fieldErrors = errData?.errors
       if (fieldErrors) {
         form.setFields(
@@ -682,11 +774,21 @@ function AddCandidateModal({
                 name="email"
                 label="Email"
                 rules={[{ type: 'email' }]}
+                extra={emailDuplicateHint ? (
+                  <button
+                    type="button"
+                    className="mt-1 text-left text-xs text-amber-700 font-medium hover:underline"
+                    onClick={() => openExistingCandidate(emailDuplicateHint)}
+                  >
+                    ⚠️ {emailDuplicateHint.full_name || `${emailDuplicateHint.first_name || ''} ${emailDuplicateHint.last_name || ''}`.trim() || 'Candidate'} already exists. Open their profile instead?
+                  </button>
+                ) : null}
               >
                 <Input
                   type="email"
                   placeholder="jane@example.com"
                   className="h-10 rounded-xl"
+                  onBlur={(e) => checkFieldDuplicate('email', e.target.value)}
                 />
               </Form.Item>
             </Col>
@@ -695,8 +797,24 @@ function AddCandidateModal({
                 name="phone_field"
                 label="Phone"
                 rules={[getPhoneValidationRule()]}
+                extra={phoneDuplicateHint ? (
+                  <button
+                    type="button"
+                    className="mt-1 text-left text-xs text-amber-700 font-medium hover:underline"
+                    onClick={() => openExistingCandidate(phoneDuplicateHint)}
+                  >
+                    ⚠️ {phoneDuplicateHint.full_name || `${phoneDuplicateHint.first_name || ''} ${phoneDuplicateHint.last_name || ''}`.trim() || 'Candidate'} already exists. Open their profile instead?
+                  </button>
+                ) : null}
               >
-                <PhoneInput placeholder="Phone number" />
+                <PhoneInput
+                  placeholder="Phone number"
+                  onBlur={() => {
+                    const phoneVal = form.getFieldValue('phone_field')
+                    const num = phoneVal?.phone_number || ''
+                    checkFieldDuplicate('phone', num)
+                  }}
+                />
               </Form.Item>
             </Col>
           </Row>
@@ -1109,8 +1227,7 @@ function AddCandidateModal({
       open={open}
       onCancel={() => {
         onClose()
-        form.resetFields()
-        setOfferInHand(false)
+        resetState()
       }}
       onOk={() => form.submit()}
       okText="Save Candidate"
@@ -1121,20 +1238,57 @@ function AddCandidateModal({
       styles={{ body: { maxHeight: '75vh', overflowY: 'auto' } }}
       destroyOnClose
     >
-      <Form
-        form={form}
-        layout="vertical"
-        onFinish={onFinish}
-        initialValues={{
-          source: 'company',
-          salary_currency: 'INR',
-          offer_in_hand: 'no',
-          work_mode_preference: 'any',
-          fitment_score: 70,
-        }}
-      >
-        <Tabs items={tabItems} />
-      </Form>
+      {duplicateCandidate ? (
+        <div className="space-y-4 py-2">
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
+            <p className="m-0 text-sm font-bold text-amber-900">
+              ⚠️ A candidate already exists with this email or phone.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="w-full text-left p-4 rounded-xl border border-amber-300 bg-white hover:bg-amber-50 transition-colors"
+            onClick={() => openExistingCandidate(duplicateCandidate)}
+          >
+            <div className="flex items-center gap-3">
+              <Avatar className="bg-amber-100 text-amber-700 font-bold">
+                {(duplicateCandidate.name || 'C').charAt(0)}
+              </Avatar>
+              <div className="min-w-0">
+                <Text className="block font-bold text-slate-900 text-sm truncate">
+                  {duplicateCandidate.name || 'Candidate'} — {duplicateCandidate.current_title || 'No Title'}
+                </Text>
+                <Text className="block text-[11px] text-slate-500 truncate">
+                  {duplicateCandidate.email || 'No Email'} · {duplicateCandidate.phone || 'No Phone'}
+                </Text>
+              </div>
+            </div>
+          </button>
+          <div className="flex gap-2">
+            <Button type="primary" className="bg-amber-600 border-none font-bold" onClick={() => openExistingCandidate(duplicateCandidate)}>
+              Open Existing Candidate
+            </Button>
+            <Button className="font-bold" onClick={handleCreateAnyway} loading={loading}>
+              Create Anyway
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={onFinish}
+          initialValues={{
+            source: 'company',
+            salary_currency: 'INR',
+            offer_in_hand: 'no',
+            work_mode_preference: 'any',
+            fitment_score: 70,
+          }}
+        >
+          <Tabs items={tabItems} />
+        </Form>
+      )}
     </Modal>
   )
 }
@@ -1172,6 +1326,26 @@ const FullCandidateList = ({ candidates, onSelect, selectedCandidateId, isLoadin
       key: 'exp',
       width: 100,
       render: (exp) => <Text className="font-bold text-slate-600">{exp || 0} Yrs</Text>
+    },
+    {
+      title: 'Location',
+      dataIndex: 'current_location_city',
+      key: 'location',
+      width: 150,
+      render: (loc) => <Text className="text-slate-600 text-xs">{loc || '—'}</Text>
+    },
+    {
+      title: 'Skills',
+      dataIndex: 'skills',
+      key: 'skills',
+      render: (skills: string[]) => (
+        <div className="flex flex-wrap gap-1 max-w-[200px]">
+          {skills?.slice(0, 3).map(s => (
+            <Tag key={s} className="m-0 text-[9px] font-bold border-slate-100 bg-slate-50 text-slate-500 uppercase">{s}</Tag>
+          ))}
+          {skills?.length > 3 && <Tag className="m-0 text-[9px] font-bold border-none bg-transparent text-slate-400">+{skills.length - 3}</Tag>}
+        </div>
+      )
     },
     {
       title: 'Source',
@@ -1357,6 +1531,25 @@ export default function CandidatesList() {
       refetch()
     } catch {
       message.error('Failed to move candidate')
+    }
+  }
+
+  const handleOpenExistingCandidateFromModal = async (candidate: any) => {
+    try {
+      const existingInList = candidates.find((c: Candidate) => c.id === candidate?.id)
+      if (existingInList) {
+        setSelectedCandidate(existingInList)
+      } else if (candidate?.id) {
+        const res = await candidatesApi.get(candidate.id)
+        const fetched = (res as any)?.data?.data?.candidate
+        if (fetched) {
+          setSelectedCandidate(fetched as Candidate)
+        }
+      }
+      setAddModalOpen(false)
+      refetch()
+    } catch {
+      message.error('Unable to open existing candidate profile')
     }
   }
 
@@ -1605,6 +1798,7 @@ export default function CandidatesList() {
           setAddModalOpen(false)
           refetch()
         }}
+        onOpenExistingCandidate={handleOpenExistingCandidateFromModal}
       />
 
       <AddCandidateChooser

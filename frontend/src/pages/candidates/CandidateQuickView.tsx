@@ -6,7 +6,7 @@ import {
 import {
   Mail, Phone, MapPin, Briefcase, Clock,
   ArrowRight, FileText, ExternalLink,
-  TrendingUp, Calendar, Layers, X, Edit
+  TrendingUp, Calendar, Layers, X, Edit, Plus
 } from 'lucide-react'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -18,6 +18,7 @@ import { organisationApi } from '@/api/organisation'
 import { DEMO_ASSETS } from '@/utils/demo'
 import type { CandidateDetail } from '@/types'
 import PhoneInput, { formatPhoneDisplay, getPhoneValidationRule, PhoneValue } from '@/components/common/PhoneInput'
+import AddToActiveModal from './AddToActiveModal'
 
 dayjs.extend(relativeTime)
 
@@ -43,6 +44,7 @@ export default function CandidateQuickView({
   const [editForm] = Form.useForm()
   const [saving, setSaving] = useState(false)
   const [offerInHand, setOfferInHand] = useState(false)
+  const [activeModalOpen, setActiveModalOpen] = useState(false)
   const queryClient = useQueryClient()
 
   useEffect(() => {
@@ -74,6 +76,10 @@ export default function CandidateQuickView({
   )
 
   const candidate = (data as any)?.candidate as CandidateDetail
+  
+  // Step 1 — Check what the API returns
+  console.log('[CandidateQuickView] Full response:', data);
+
   const notes = (notesData as any)?.notes ?? []
   const lastNote = notes[0]
 
@@ -641,7 +647,7 @@ export default function CandidateQuickView({
                       queryKey: ['candidate', 'quick', candidateId] 
                     })
                     queryClient.invalidateQueries({ 
-                      queryKey: ['candidates'] 
+                      queryKey: ['candidates']
                     })
                     setEditMode(false)
                   } catch (err: any) {
@@ -928,33 +934,72 @@ export default function CandidateQuickView({
           </Card>
 
           {/* Experience */}
-          <Card title="Experience" color="bg-violet-400">
-            <DataPoint
-              label="Total Exp"
-              value={expYears != null
-                ? `${expYears} yrs` : null}
-            />
-            <DataPoint
-              label="Relevant"
-              value={relevantYears != null
-                ? `${relevantYears} yrs` : null}
-            />
-            <DataPoint
-              label="Education"
-              value={(candidate as any).highest_education
-                ?.replace(/_/g, ' ') || null}
-            />
-            <DataPoint
-              label="Grad Year"
-              value={(candidate as any).graduation_year
-                ? String((candidate as any).graduation_year)
-                : null}
-            />
-            <DataPoint
-              label="Relocate"
-              value={(candidate as any).relocation_willing
-                ?.replace(/_/g, ' ') || null}
-            />
+          <Card title="Experience" color="bg-violet-400" fullWidth>
+            <div className="grid grid-cols-2 divide-x divide-slate-50 -mx-3">
+              <div className="px-3">
+                <DataPoint
+                  label="Total Exp"
+                  value={expYears != null ? `${expYears} yrs` : null}
+                />
+                <DataPoint
+                  label="Relevant"
+                  value={relevantYears != null ? `${relevantYears} yrs` : null}
+                />
+                <DataPoint
+                  label="Work Auth"
+                  value={(candidate as any).work_authorization?.replace(/_/g, ' ') || null}
+                />
+                <DataPoint
+                  label="Nationality"
+                  value={(candidate as any).nationality || null}
+                />
+              </div>
+              <div className="px-3">
+                <DataPoint
+                  label="Relocate"
+                  value={
+                    (candidate as any).relocation_willing ? (
+                      <Tag 
+                        color={(candidate as any).relocation_willing === 'yes' ? 'success' : (candidate as any).relocation_willing === 'maybe' ? 'processing' : 'default'}
+                        className="m-0 uppercase font-bold text-[10px] rounded-md px-1.5 border-none"
+                      >
+                        {(candidate as any).relocation_willing}
+                      </Tag>
+                    ) : null
+                  }
+                />
+                <DataPoint
+                  label="Grad Year"
+                  value={(candidate as any).graduation_year || (candidate as any).candidate_profile?.education?.[0]?.end_year || null}
+                />
+                <DataPoint
+                  label="Highest Edu"
+                  value={(candidate as any).highest_education?.replace(/_/g, ' ') || null}
+                />
+              </div>
+            </div>
+            
+            {/* Education History */}
+            {((candidate as any).candidate_profile?.education?.length > 0) && (
+              <div className="pt-2 border-t border-slate-50 mt-1">
+                <p className="text-[9px] uppercase font-bold tracking-widest text-slate-400 m-0 mb-1.5">Education History</p>
+                <div className="space-y-2">
+                  {[...(candidate as any).candidate_profile.education]
+                    .sort((a, b) => (b.end_year || 0) - (a.end_year || 0))
+                    .map((edu, idx) => (
+                      <div key={idx} className="bg-slate-50/50 p-2 rounded-lg border border-slate-100">
+                        <p className="text-[11px] font-bold text-slate-800 m-0 leading-tight">
+                          {edu.degree}{edu.field_of_study ? `, ${edu.field_of_study}` : ''}
+                        </p>
+                        <p className="text-[10px] text-slate-500 m-0 mt-0.5 font-medium">
+                          {edu.institution} {edu.end_year ? `(${edu.end_year})` : ''}
+                        </p>
+                      </div>
+                    ))
+                  }
+                </div>
+              </div>
+            )}
           </Card>
 
         </div>
@@ -1129,6 +1174,16 @@ export default function CandidateQuickView({
             <FileText className="h-3 w-3" /> Offer
           </Button>
         </div>
+
+        <Button block size="small"
+          className="h-8 rounded-lg text-[11px] font-bold mb-1.5 shadow-md"
+          style={{ background: '#4F46E5', color: 'white', border: 'none' }}
+          icon={<Plus className="h-3.5 w-3.5" />}
+          onClick={() => setActiveModalOpen(true)}
+        >
+          Add to Active Work
+        </Button>
+
         <Button block size="small"
           className="h-7 rounded-lg text-[10px] font-bold"
           style={{ borderColor: '#4F46E5', color: '#4F46E5' }}
@@ -1137,6 +1192,16 @@ export default function CandidateQuickView({
         </Button>
       </div>
 
+      <AddToActiveModal 
+        open={activeModalOpen}
+        onClose={() => setActiveModalOpen(false)}
+        preSelectedCandidate={candidate ? {
+          id: candidate.id,
+          full_name: candidate.full_name,
+          current_title: candidate.current_title,
+          email: candidate.email
+        } : undefined}
+      />
     </div>
   )
 }

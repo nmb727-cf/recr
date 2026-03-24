@@ -1,5 +1,6 @@
 from pathlib import Path
 from datetime import timedelta
+from celery.schedules import crontab
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -180,6 +181,12 @@ CACHES = {
 CELERY_BROKER_URL = REDIS_URL
 CELERY_RESULT_BACKEND = REDIS_URL
 CELERY_TIMEZONE = 'UTC'
+CELERY_BEAT_SCHEDULE = {
+    'close-not-interested-engagements': {
+        'task': 'apps.candidates.tasks.close_not_interested_engagements',
+        'schedule': crontab(minute=0),  # runs every hour
+    },
+}
 
 # ─── MINIO ────────────────────────────────────────────────────────────────────
 
@@ -188,4 +195,3 @@ MINIO_ACCESS_KEY = 'minioadmin'
 MINIO_SECRET_KEY = 'minioadmin123'
 MINIO_USE_HTTPS = False
 MINIO_BUCKET_NAME = 'recruitment-platform'
-

@@ -1,4 +1,5 @@
 from rest_framework import status
+from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
@@ -68,20 +69,28 @@ class CandidateListView(APIView):
         existing = None
         if email:
             existing = Candidate.objects.filter(
-                email__iexact=email, is_deleted=False
+                email__iexact=email,
+                is_deleted=False
             ).first()
         if not existing and phone:
             existing = Candidate.objects.filter(
-                phone=phone, is_deleted=False
+                phone=phone,
+                is_deleted=False
             ).first()
 
         if existing:
-            return error_response(
-                f"Candidate already exists with this "
-                f"{'email' if email else 'phone'}.",
-                status_code=status.HTTP_409_CONFLICT,
-                data={'candidate_id': str(existing.id)}
-            )
+            return Response({
+                'success': False,
+                'duplicate': True,
+                'message': 'A candidate already exists with this email or phone.',
+                'existing_candidate': {
+                    'id': str(existing.id),
+                    'name': f'{existing.first_name} {existing.last_name}',
+                    'email': existing.email,
+                    'phone': existing.phone,
+                    'current_title': existing.current_title,
+                }
+            }, status=200)
 
         payload = request.data.copy()
         entry_type = payload.pop('entry_type', 'manual')
@@ -133,6 +142,25 @@ class CandidateListView(APIView):
             )
 
         candidate.save()
+
+        # Auto-create engagement
+        try:
+            from apps.candidates.models import CandidateEngagement
+            from django.utils import timezone
+            CandidateEngagement.objects.create(
+                tenant_id=request.user.tenant_id,
+                candidate=candidate,
+                engagement_type='sourced',
+                stage='new',
+                priority='warm',
+                is_active=True,
+                owner_user=request.user,
+                created_by=request.user,
+                last_activity_at=timezone.now(),
+                metadata={'auto_created': True, 'source': 'candidate_database'}
+            )
+        except Exception as e:
+            print(f"Failed to auto-create engagement: {e}")
 
         response_data = {
             'candidate': CandidateSerializer(candidate).data
@@ -557,6 +585,12 @@ class CandidateEngagementListView(APIView):
     def post(self, request, candidate_id):
         data = request.data.copy()
         data['candidate'] = candidate_id
+
+        # If owner_user is "me" or missing, set to current user
+        owner_user = data.get('owner_user')
+        if not owner_user or owner_user == 'me':
+            data['owner_user'] = str(request.user.id)
+
         serializer = CandidateEngagementSerializer(data=data)
         if serializer.is_valid():
             engagement = serializer.save(
@@ -725,8 +759,9 @@ class ActiveCandidatesView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from django.db.models import Prefetch
-
+        from django.utils import timezone
+        
+        # Extract all filters manually — never pass to serializer
         priority = request.query_params.get('priority')
         stage = request.query_params.get('stage')
         follow_up_overdue = request.query_params.get('follow_up_overdue')
@@ -746,9 +781,14 @@ class ActiveCandidatesView(APIView):
             qs = qs.filter(follow_up_at__lt=timezone.now())
         if owner == 'me':
             qs = qs.filter(owner_user=request.user)
+        elif owner and owner != 'me':
+            try:
+                import uuid
+                qs = qs.filter(owner_user_id=uuid.UUID(owner))
+            except (ValueError, AttributeError):
+                pass
 
         qs = qs.order_by('-last_activity_at')
-
         serializer = CandidateEngagementSerializer(qs, many=True)
         return success_response({
             'count': qs.count(),
@@ -775,4 +815,3 @@ class CandidateEngagementTimelineView(APIView):
 
         serializer = CandidateTimelineEventSerializer(qs, many=True)
         return success_response(serializer.data)
-

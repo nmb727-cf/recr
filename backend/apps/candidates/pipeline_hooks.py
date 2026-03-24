@@ -14,7 +14,10 @@ def on_application_created(application, user):
             job_id=application.requisition_id,
             user=user
         )
-        engagement.stage = 'new'
+        # If engagement was a lead, promote stage to submitted
+        lead_stages = ['new', 'contacted', 'interested', 'follow_up', 'shortlisted']
+        if engagement.stage in lead_stages:
+            engagement.stage = 'submitted'
         engagement.last_activity_at = timezone.now()
         engagement.save()
         emit_timeline_event(

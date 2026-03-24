@@ -103,6 +103,7 @@ export interface PhoneValue {
 interface PhoneInputProps {
   value?: PhoneValue
   onChange?: (val: PhoneValue) => void
+  onBlur?: (e: React.FocusEvent<HTMLInputElement>) => void
   placeholder?: string
   disabled?: boolean
   size?: 'small' | 'middle' | 'large'
@@ -128,6 +129,7 @@ export function getPhoneValidationRule() {
 export default function PhoneInput({
   value,
   onChange,
+  onBlur,
   placeholder = 'Phone number',
   disabled = false,
   size = 'middle',
@@ -187,6 +189,7 @@ export default function PhoneInput({
       <Input
         value={phoneNumber}
         onChange={handlePhoneChange}
+        onBlur={onBlur}
         placeholder={placeholder}
         disabled={disabled}
         size={size}

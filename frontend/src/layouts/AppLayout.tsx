@@ -179,9 +179,9 @@ const getMenuItems = (role: string) => {
         label: 'Candidates',
         children: [
           { key: '/candidates', label: 'Database' },
+          { key: '/candidates/active', label: 'Active' },
         ]
       },
-      { key: '/leads', icon: <UserOutlined />, label: 'Leads' },
       { key: '/agencies/my-submissions', icon: <FileSearchOutlined />, label: 'Submissions' },
       { key: '/agencies/my-clients', icon: <BankOutlined />, label: 'Clients' },
       { 
@@ -209,9 +209,9 @@ const getMenuItems = (role: string) => {
       label: 'Candidates',
       children: [
         { key: '/candidates', label: 'Database' },
+        { key: '/candidates/active', label: 'Active' },
       ],
     },
-    { key: '/leads', icon: <TeamOutlined />, label: 'Leads' },
     { key: '/agencies', icon: <BankOutlined />, label: 'Agencies' },
     { key: '/interviews', icon: <CalendarOutlined />, label: 'Interviews' },
     { key: '/offers', icon: <FileDoneOutlined />, label: 'Offers' },

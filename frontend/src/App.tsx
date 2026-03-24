@@ -21,7 +21,7 @@ import ApplyForm from '@/pages/public/ApplyForm'
 import Dashboard from '@/pages/dashboard/Dashboard'
 import JobsList from '@/pages/jobs/JobsList'
 import CandidatesList from '@/pages/candidates/CandidatesList'
-import Leads from '@/pages/leads/Leads'
+import ActiveCandidatesPage from '@/pages/candidates/ActiveCandidatesPage'
 import AllApplications from '@/pages/candidates/AllApplications'
 import PipelineBoard from '@/pages/pipeline/PipelineBoard'
 import InterviewsList from '@/pages/interviews/InterviewsList'
@@ -231,12 +231,11 @@ export default function App() {
                 }
               />
 
-
               <Route
-                path="/leads"
+                path="/candidates/active"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
-                    <Leads />
+                  <Protected>
+                    <ActiveCandidatesPage />
                   </Protected>
                 }
               />

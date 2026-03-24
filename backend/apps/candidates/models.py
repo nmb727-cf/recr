@@ -424,13 +424,18 @@ class CandidateWorkspace(models.Model):
 
 class CandidateEngagement(models.Model):
     ENGAGEMENT_TYPE = [
-        ('lead', 'New Lead'),
+        ('lead', 'Lead'),
         ('job_sourced', 'Sourced for Job'),
+        ('sourced', 'Sourced'),
         ('reapplied', 'Reapplied'),
         ('resurface', 'Resurfaced from Database'),
         ('revival', 'Revived Previous Candidate'),
         ('referral', 'Referral'),
         ('direct_approach', 'Direct Approach'),
+        ('direct', 'Direct'),
+        ('imported', 'Imported'),
+        ('applied', 'Applied'),
+        ('invited', 'Invited'),
     ]
     STAGE_CHOICES = [
         ('new', 'New Lead'),

@@ -29,6 +29,8 @@ class OnboardingEvents:
 
 class TalentPoolEvents:
     created = Signal()
+    updated = Signal()
+    archived = Signal()
 
 class CandidateEvents:
     added_to_pool = Signal()

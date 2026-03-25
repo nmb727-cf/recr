@@ -11,8 +11,11 @@ urlpatterns = [
     path('forgot-password/', views.ForgotPasswordView.as_view(), name='forgot-password'),
     path('reset-password/', views.ResetPasswordView.as_view(), name='reset-password'),
     path('verify-email/', views.VerifyEmailView.as_view(), name='verify-email'),
+    path('send-otp/', views.SendOTPView.as_view(), name='send-otp'),
 
     # Authenticated endpoints
+    path('verify-otp/', views.VerifyOTPView.as_view(), name='verify-otp'),
+    path('onboarding/complete/', views.CompleteOnboardingView.as_view(), name='onboarding-complete'),
     path('logout/', views.LogoutView.as_view(), name='logout'),
     path('me/', views.MeView.as_view(), name='me'),
     path('change-password/', views.ChangePasswordView.as_view(), name='change-password'),

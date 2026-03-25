@@ -25,7 +25,13 @@ class JobRequisitionSerializer(serializers.ModelSerializer):
             'skills_required', 'status', 'approval_chain',
             'current_approver_id', 'approved_at', 'approved_by',
             'target_date', 'closed_at', 'closed_reason',
-            'source', 'budget_code',
+            'source',
+            'override_workflow_mode',
+            'auto_match_candidates',
+            'auto_push_to_recruiter_queue',
+            'auto_followup_after_source',
+            'auto_nurture_unqualified_candidates',
+            'budget_code',
             'created_at', 'updated_at', 'created_by', 'metadata',
         ]
         read_only_fields = [

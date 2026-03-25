@@ -4,6 +4,12 @@ from django.utils import timezone
 
 
 class JobRequisition(models.Model):
+    WORKFLOW_MODE_CHOICES = [
+        ('manual', 'Manual'),
+        ('semi_automated', 'Semi Automated'),
+        ('fully_automated', 'Fully Automated'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant_id = models.UUIDField(db_index=True)
     title = models.CharField(max_length=255)
@@ -73,6 +79,13 @@ class JobRequisition(models.Model):
         ],
         blank=True
     )
+    override_workflow_mode = models.CharField(
+        max_length=30, choices=WORKFLOW_MODE_CHOICES, blank=True
+    )
+    auto_match_candidates = models.BooleanField(default=False)
+    auto_push_to_recruiter_queue = models.BooleanField(default=False)
+    auto_followup_after_source = models.BooleanField(default=False)
+    auto_nurture_unqualified_candidates = models.BooleanField(default=False)
     budget_code = models.CharField(max_length=100, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

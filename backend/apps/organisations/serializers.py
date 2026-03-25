@@ -10,7 +10,7 @@ class OrganisationSerializer(serializers.ModelSerializer):
             'industry', 'size_range', 'country_code', 'timezone',
             'address_line1', 'address_line2', 'city', 'state', 'country',
             'postal_code', 'cin', 'gst_number', 'registration_number',
-            'settings', 'created_at', 'updated_at',
+            'settings', 'metadata', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'tenant_id', 'created_at', 'updated_at']
 

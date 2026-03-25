@@ -22,6 +22,26 @@ from apps.candidates.pipeline_hooks import (
 )
 
 
+def _extract_stage_note(payload):
+    note = (
+        payload.get('note')
+        or payload.get('notes')
+        or payload.get('reason')
+        or ''
+    )
+    return str(note).strip()
+
+
+def _require_stage_note(payload):
+    note = _extract_stage_note(payload)
+    if not note:
+        return None, error_response(
+            "A mandatory note/reason is required for every stage change.",
+            errors={'note': ['This field is required.']},
+        )
+    return note, None
+
+
 def validate_application_move(application, target_stage, reason=None):
     """
     Validates if an application can move to the target stage.
@@ -74,6 +94,10 @@ def perform_application_move(application, target_stage, user, notes=None, reason
     """
     from apps.jobs.models import JobRequisition, JobStage
     
+    stage_note = (notes or reason or '').strip()
+    if not stage_note:
+        raise ValueError("A mandatory note/reason is required for every stage change.")
+
     current_stage = None
     if application.current_stage_id:
         try:
@@ -98,7 +122,15 @@ def perform_application_move(application, target_stage, user, notes=None, reason
         from_status=old_status,
         to_status=target_stage.stage_type,
         moved_by=user.id,
-        notes=notes or reason,
+        reason=stage_note,
+        notes=stage_note,
+        metadata={
+            'previous_stage': old_status,
+            'new_stage': target_stage.stage_type,
+            'note': stage_note,
+            'changed_by': str(user.id),
+            'changed_at': timezone.now().isoformat(),
+        },
     )
 
     # Hire Logic
@@ -319,11 +351,54 @@ class ApplicationDetailView(APIView):
         if not application:
             return error_response("Application not found.", status_code=status.HTTP_404_NOT_FOUND)
 
+        old_status = application.status
+        old_stage_id = application.current_stage_id
+        stage_change_requested = (
+            ('status' in request.data and request.data.get('status') != old_status) or
+            ('current_stage_id' in request.data and request.data.get('current_stage_id') != str(old_stage_id))
+        )
+        if stage_change_requested:
+            stage_note, note_error = _require_stage_note(request.data)
+            if note_error:
+                return note_error
+        else:
+            stage_note = None
+
         serializer = ApplicationSerializer(application, data=request.data, partial=True)
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors)
 
-        serializer.save()
+        updated_application = serializer.save()
+        if stage_change_requested:
+            ApplicationStageHistory.objects.create(
+                tenant_id=request.user.tenant_id,
+                application_id=updated_application.id,
+                from_stage_id=old_stage_id,
+                to_stage_id=updated_application.current_stage_id,
+                from_status=old_status,
+                to_status=updated_application.status,
+                moved_by=request.user.id,
+                reason=stage_note,
+                notes=stage_note,
+                metadata={
+                    'previous_stage': old_status,
+                    'new_stage': updated_application.status,
+                    'note': stage_note,
+                    'changed_by': str(request.user.id),
+                    'changed_at': timezone.now().isoformat(),
+                    'source': 'application_detail_put',
+                },
+            )
+            try:
+                on_application_stage_changed(
+                    updated_application,
+                    old_status,
+                    updated_application.status,
+                    request.user,
+                    note=stage_note,
+                )
+            except Exception:
+                pass
         return success_response(
             data={'application': serializer.data},
             message="Application updated."
@@ -346,8 +421,9 @@ class ApplicationMoveStageView(APIView):
             return error_response("Application not found.", status_code=status.HTTP_404_NOT_FOUND)
 
         stage_id = request.data.get('stage_id')
-        notes = request.data.get('notes', '')
-        reason = request.data.get('reason', '')
+        stage_note, note_error = _require_stage_note(request.data)
+        if note_error:
+            return note_error
 
         if not stage_id:
             return error_response("stage_id is required.")
@@ -363,7 +439,7 @@ class ApplicationMoveStageView(APIView):
             return error_response("Target stage not found.", status_code=status.HTTP_404_NOT_FOUND)
 
         # 1. Validate Move
-        is_valid, error_msg = validate_application_move(application, target_stage, reason)
+        is_valid, error_msg = validate_application_move(application, target_stage, stage_note)
         if not is_valid:
             return error_response(error_msg)
 
@@ -371,12 +447,18 @@ class ApplicationMoveStageView(APIView):
         old_status = application.status
         application = perform_application_move(
             application, target_stage, request.user, 
-            notes=notes, reason=reason, request=request
+            notes=stage_note, reason=stage_note, request=request
         )
 
         # Engagement Layer Hook
         try:
-            on_application_stage_changed(application, old_status, application.status, request.user)
+            on_application_stage_changed(
+                application,
+                old_status,
+                application.status,
+                request.user,
+                note=stage_note,
+            )
         except Exception:
             pass
 
@@ -399,7 +481,9 @@ class ApplicationShortlistView(APIView):
         except Application.DoesNotExist:
             return error_response("Application not found.", status_code=status.HTTP_404_NOT_FOUND)
 
-        notes = request.data.get('notes', '')
+        stage_note, note_error = _require_stage_note(request.data)
+        if note_error:
+            return note_error
         old_status = application.status
 
         application.status = 'shortlisted'
@@ -411,7 +495,15 @@ class ApplicationShortlistView(APIView):
             from_status=old_status,
             to_status='shortlisted',
             moved_by=request.user.id,
-            notes=notes,
+            reason=stage_note,
+            notes=stage_note,
+            metadata={
+                'previous_stage': old_status,
+                'new_stage': 'shortlisted',
+                'note': stage_note,
+                'changed_by': str(request.user.id),
+                'changed_at': timezone.now().isoformat(),
+            },
         )
 
         # 48hr deadline to schedule interview
@@ -451,7 +543,10 @@ class ApplicationRejectView(APIView):
         except Application.DoesNotExist:
             return error_response("Application not found.", status_code=status.HTTP_404_NOT_FOUND)
 
-        reason = request.data.get('reason', '')
+        stage_note, note_error = _require_stage_note(request.data)
+        if note_error:
+            return note_error
+        reason = stage_note
         category = request.data.get('category', '')
         old_status = application.status
 
@@ -467,6 +562,14 @@ class ApplicationRejectView(APIView):
             to_status='rejected',
             moved_by=request.user.id,
             reason=reason,
+            notes=stage_note,
+            metadata={
+                'previous_stage': old_status,
+                'new_stage': 'rejected',
+                'note': stage_note,
+                'changed_by': str(request.user.id),
+                'changed_at': timezone.now().isoformat(),
+            },
         )
 
         # Engagement Layer Hook
@@ -494,7 +597,10 @@ class ApplicationWithdrawView(APIView):
         except Application.DoesNotExist:
             return error_response("Application not found.", status_code=status.HTTP_404_NOT_FOUND)
 
-        reason = request.data.get('reason', '')
+        stage_note, note_error = _require_stage_note(request.data)
+        if note_error:
+            return note_error
+        reason = stage_note
         old_status = application.status
 
         application.status = 'withdrawn'
@@ -508,6 +614,14 @@ class ApplicationWithdrawView(APIView):
             to_status='withdrawn',
             moved_by=request.user.id,
             reason=reason,
+            notes=stage_note,
+            metadata={
+                'previous_stage': old_status,
+                'new_stage': 'withdrawn',
+                'note': stage_note,
+                'changed_by': str(request.user.id),
+                'changed_at': timezone.now().isoformat(),
+            },
         )
 
         return success_response(
@@ -535,6 +649,9 @@ class ApplicationMakeOfferView(APIView):
 
         if not offer_amount:
             return error_response("offer_amount is required.")
+        stage_note, note_error = _require_stage_note(request.data)
+        if note_error:
+            return note_error
 
         old_status = application.status
 
@@ -555,7 +672,17 @@ class ApplicationMakeOfferView(APIView):
             from_status=old_status,
             to_status='offer',
             moved_by=request.user.id,
-            notes=f"Offer made: {currency} {offer_amount}",
+            reason=stage_note,
+            notes=stage_note,
+            metadata={
+                'previous_stage': old_status,
+                'new_stage': 'offer',
+                'note': stage_note,
+                'changed_by': str(request.user.id),
+                'changed_at': timezone.now().isoformat(),
+                'offer_amount': str(offer_amount),
+                'offer_currency': currency,
+            },
         )
 
         # 48hr deadline for candidate response
@@ -655,6 +782,9 @@ class BulkActionView(APIView):
 
         if action not in ['move_stage', 'reject', 'shortlist']:
             return error_response("Invalid action. Use: move_stage, reject, shortlist.")
+        stage_note, note_error = _require_stage_note(data)
+        if note_error:
+            return note_error
 
         applications = Application.objects.filter(
             id__in=application_ids,
@@ -678,27 +808,71 @@ class BulkActionView(APIView):
         for application in applications:
             try:
                 if action == 'reject':
+                    old_status = application.status
                     application.status = 'rejected'
-                    application.rejection_reason = data.get('reason', '')
+                    application.rejection_reason = stage_note
                     application.save(update_fields=['status', 'rejection_reason', 'updated_at'])
+                    ApplicationStageHistory.objects.create(
+                        tenant_id=request.user.tenant_id,
+                        application_id=application.id,
+                        from_status=old_status,
+                        to_status='rejected',
+                        moved_by=request.user.id,
+                        reason=stage_note,
+                        notes=stage_note,
+                        metadata={
+                            'previous_stage': old_status,
+                            'new_stage': 'rejected',
+                            'note': stage_note,
+                            'changed_by': str(request.user.id),
+                            'changed_at': timezone.now().isoformat(),
+                            'bulk': True,
+                        },
+                    )
+                    try:
+                        on_application_rejected(application, stage_note, request.user)
+                    except Exception:
+                        pass
                     updated_count += 1
 
                 elif action == 'shortlist':
-                    # We can't easily use move helpers here without a target stage ID, 
-                    # but we can at least emit the event if we want standard behavior.
+                    old_status = application.status
                     application.status = 'shortlisted'
                     application.save(update_fields=['status', 'updated_at'])
+                    ApplicationStageHistory.objects.create(
+                        tenant_id=request.user.tenant_id,
+                        application_id=application.id,
+                        from_status=old_status,
+                        to_status='shortlisted',
+                        moved_by=request.user.id,
+                        reason=stage_note,
+                        notes=stage_note,
+                        metadata={
+                            'previous_stage': old_status,
+                            'new_stage': 'shortlisted',
+                            'note': stage_note,
+                            'changed_by': str(request.user.id),
+                            'changed_at': timezone.now().isoformat(),
+                            'bulk': True,
+                        },
+                    )
                     events.application.shortlisted.send(sender=self.__class__, application=application, user=request.user, request=request)
                     updated_count += 1
 
                 elif action == 'move_stage' and target_stage:
                     # ENFORCE VALIDATION IN BULK
-                    is_valid, error_msg = validate_application_move(application, target_stage, reason=data.get('reason'))
+                    is_valid, error_msg = validate_application_move(application, target_stage, reason=stage_note)
                     if is_valid:
+                        old_status = application.status
                         perform_application_move(
                             application, target_stage, request.user, 
-                            notes=data.get('notes'), reason=data.get('reason'), request=request
+                            notes=stage_note, reason=stage_note, request=request
                         )
+                        try:
+                            refreshed = Application.objects.get(id=application.id)
+                            on_application_stage_changed(refreshed, old_status, refreshed.status, request.user, note=stage_note)
+                        except Exception:
+                            pass
                         updated_count += 1
                     else:
                         errors.append(error_msg)

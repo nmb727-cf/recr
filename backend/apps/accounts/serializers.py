@@ -3,6 +3,7 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from apps.accounts.models import CustomUser
 from apps.tenants.models import Client
+from apps.rbac.utils import get_user_permissions
 
 
 class TenantSerializer(serializers.ModelSerializer):
@@ -13,6 +14,7 @@ class TenantSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
+    permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = CustomUser
@@ -22,11 +24,15 @@ class UserSerializer(serializers.ModelSerializer):
             'email_verified', 'mfa_enabled', 'timezone', 'language',
             'notification_preferences', 'ui_preferences',
             'tenant_id', 'created_at', 'last_login_at',
+            'permissions',
         ]
         read_only_fields = ['id', 'tenant_id', 'created_at', 'last_login_at', 'email_verified']
 
     def get_full_name(self, obj):
         return f"{obj.first_name} {obj.last_name}".strip()
+
+    def get_permissions(self, obj):
+        return sorted(get_user_permissions(obj))
 
 
 class RegisterCompanySerializer(serializers.Serializer):
@@ -130,3 +136,21 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 class MFAVerifySerializer(serializers.Serializer):
     code = serializers.CharField(max_length=6, min_length=6)
+
+
+class SendOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class VerifyOTPSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    code = serializers.CharField(max_length=6, min_length=6)
+
+
+class OnboardingSerializer(serializers.Serializer):
+    # user_type is optional — the view derives it from request.user.role so the
+    # frontend does not need to ask the user (they already chose a signup flow).
+    user_type = serializers.ChoiceField(choices=['company', 'agency', 'both'], required=False)
+    hiring_style = serializers.ChoiceField(choices=['internal', 'agency', 'mixed'])
+    team_size = serializers.ChoiceField(choices=['1-5', '5-20', '20+'])
+    automation_preference = serializers.ChoiceField(choices=['manual', 'smart', 'fully_automated'])

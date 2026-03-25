@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import TalentPool, CandidateTalentPoolMembership
+from .models import TalentPool, CandidateTalentPoolMembership, TalentPoolActivity
 from apps.candidates.models import Candidate
 
 class CandidateBriefSerializer(serializers.ModelSerializer):
@@ -20,7 +20,10 @@ class TalentPoolSerializer(serializers.ModelSerializer):
             'pool_type', 'color', 'is_active', 'created_by', 'created_at',
             'updated_at', 'filters_json', 'metadata', 'member_count'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'member_count']
+        read_only_fields = [
+            'id', 'tenant_id', 'tenant_type', 'slug', 'created_by',
+            'created_at', 'updated_at', 'member_count'
+        ]
 
     def create(self, validated_data):
         if not validated_data.get('slug'):
@@ -43,3 +46,20 @@ class BulkAddCandidateSerializer(serializers.Serializer):
     candidate_ids = serializers.ListField(child=serializers.UUIDField())
     note = serializers.CharField(required=False, allow_blank=True)
     source = serializers.ChoiceField(choices=CandidateTalentPoolMembership.SOURCE_CHOICES, default='manual')
+
+
+class TalentPoolActivitySerializer(serializers.ModelSerializer):
+    actor_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = TalentPoolActivity
+        fields = [
+            'id', 'tenant_id', 'talent_pool', 'event_type',
+            'actor', 'actor_name', 'payload', 'source', 'created_at'
+        ]
+        read_only_fields = ['id', 'tenant_id', 'created_at']
+
+    def get_actor_name(self, obj):
+        if obj.actor:
+            return f"{obj.actor.first_name} {obj.actor.last_name}".strip() or obj.actor.email
+        return 'System'

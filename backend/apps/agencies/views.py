@@ -3,6 +3,7 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 import uuid
 from django.db.models import Q
+from django.conf import settings
 from apps.accounts.models import CustomUser
 
 from apps.agencies.models import (
@@ -299,7 +300,21 @@ class AgencyRelationshipInviteView(APIView):
         rel.status = 'pending'
         rel.save(update_fields=['status', 'updated_at'])
 
-        # TODO: Send invite email to agency
+        # Send invite email to agency
+        from apps.communications.services import EmailRoutingService
+        EmailRoutingService.send_email(
+            subject=f"Invitation to collaborate with {rel.client_name}",
+            body_text=(
+                f"Hi,\n\n"
+                f"{request.user.first_name or 'Someone'} from {rel.client_name} has invited you to collaborate on TalentOS.\n\n"
+                f"Log in to your dashboard to accept the invitation."
+            ),
+            body_html=None,
+            recipient_list=[rel.contact_email],
+            user_id=request.user.id,
+            tenant_id=request.user.tenant_id
+        )
+
         return success_response(
             data={'relationship': AgencyClientRelationshipSerializer(rel).data},
             message="Invitation sent to agency."
@@ -936,8 +951,20 @@ class GuestPortalCreateView(APIView):
                 metadata={'client_name': name},
             )
 
-        # TODO: Send invite email (wire up email service later)
-        # send_guest_portal_invite_email(portal)
+        # Send invite email to guest
+        from apps.communications.services import EmailRoutingService
+        EmailRoutingService.send_email(
+            subject=f"Access your {portal.portal_type} Portal - {portal.name}",
+            body_text=(
+                f"Hi,\n\n"
+                f"{request.user.first_name or 'Someone'} has invited you to access the {portal.portal_type} portal for {portal.name}.\n\n"
+                f"You can access it here: {settings.FRONTEND_URL}/portal/{portal.slug}"
+            ),
+            body_html=None,
+            recipient_list=[portal.contact_email],
+            user_id=request.user.id,
+            tenant_id=request.user.tenant_id
+        )
 
         return success_response(
             data={

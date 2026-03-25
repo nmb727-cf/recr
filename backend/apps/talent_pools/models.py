@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.conf import settings
 from django.utils import timezone
 from apps.candidates.models import Candidate
 
@@ -63,3 +64,40 @@ class CandidateTalentPoolMembership(models.Model):
 
     def __str__(self):
         return f"{self.candidate} in {self.talent_pool}"
+
+
+class TalentPoolActivity(models.Model):
+    SOURCE_CHOICES = [
+        ('manual', 'Manual'),
+        ('system', 'System'),
+        ('rule', 'Rule'),
+        ('import', 'Import'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_id = models.UUIDField(db_index=True)
+    talent_pool = models.ForeignKey(
+        TalentPool, on_delete=models.CASCADE, related_name='activity_events'
+    )
+    event_type = models.CharField(max_length=100, db_index=True)
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='talent_pool_activity_events'
+    )
+    payload = models.JSONField(default=dict, blank=True)
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, default='manual')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'talent_pool_activity_events'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['tenant_id', 'talent_pool', '-created_at']),
+            models.Index(fields=['event_type']),
+        ]
+
+    def __str__(self):
+        return f"{self.event_type} - {self.talent_pool_id}"

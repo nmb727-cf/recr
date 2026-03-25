@@ -29,6 +29,7 @@ from apps.candidates.serializers import (
 from apps.core.responses import success_response, error_response
 from apps.rbac.permissions import require_permission
 from apps.organisations.models import TeamMembership
+from apps.pipeline.models import Application
 
 
 SYSTEM_DEFAULT_WORKFLOW_MODE = 'manual'
@@ -148,6 +149,10 @@ def _candidate_warning_signals(candidate):
 
 
 def _candidate_smart_row(candidate, job_summary=None):
+    owner_name = None
+    if hasattr(candidate, 'owner_user') and candidate.owner_user:
+        owner_name = candidate.owner_user.get_full_name() or candidate.owner_user.email
+    open_engagements = sum(job_summary.values()) if job_summary else 0
     return {
         'id': str(candidate.id),
         'name': candidate.full_name,
@@ -158,8 +163,10 @@ def _candidate_smart_row(candidate, job_summary=None):
             [x for x in [candidate.current_location_city, candidate.current_location_country] if x]
         ),
         'source': candidate.source or candidate.source_type,
+        'source_type': candidate.source_type or '',
         'engagement_stage': candidate.engagement_stage,
         'owner': str(candidate.owner_user_id) if candidate.owner_user_id else None,
+        'owner_name': owner_name,
         'last_touch': candidate.last_contact_at,
         'last_activity': candidate.last_activity_at or candidate.updated_at,
         'signals': {
@@ -168,6 +175,12 @@ def _candidate_smart_row(candidate, job_summary=None):
             'warning_signals': _candidate_warning_signals(candidate),
         },
         'job_engagement_summary': job_summary or {},
+        'skills': (candidate.skills or [])[:6],
+        'passport_linked': candidate.passport_linked or bool(candidate.passport_id),
+        'is_duplicate': candidate.is_duplicate or bool(getattr(candidate, 'duplicate_of', None)),
+        'notice_period_days': candidate.notice_period_days,
+        'availability_status': candidate.availability_status,
+        'open_engagements': open_engagements,
     }
 
 
@@ -1391,10 +1404,23 @@ class CandidateDatabaseView(APIView):
     permission_classes = [IsAuthenticated, require_permission('candidates.candidate.view')]
 
     def get(self, request):
-        qs = Candidate.objects.filter(
+        visible_candidate_ids_from_apps = Application.objects.filter(
             tenant_id=request.user.tenant_id,
+            is_deleted=False,
+        ).values_list('candidate_id', flat=True)
+
+        visible_candidate_ids_from_engagements = CandidateEngagement.objects.filter(
+            tenant_id=request.user.tenant_id,
+            is_deleted=False,
+        ).values_list('candidate_id', flat=True)
+
+        qs = Candidate.objects.filter(
             is_deleted=False
-        )
+        ).filter(
+            Q(tenant_id=request.user.tenant_id) |
+            Q(id__in=visible_candidate_ids_from_apps) |
+            Q(id__in=visible_candidate_ids_from_engagements)
+        ).select_related('owner_user')
 
         view_name = request.query_params.get('view', 'all_candidates')
         stale_days = 21

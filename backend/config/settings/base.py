@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from datetime import timedelta
 from celery.schedules import crontab
@@ -213,7 +214,33 @@ CELERY_BEAT_SCHEDULE = {
 ENVIRONMENT = 'development'  # 'development' or 'production'
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 DEFAULT_FROM_EMAIL = 'noreply@talentos.dev'
+SYSTEM_EMAIL_FROM_NAME = 'TalentOS Notifications'
 FRONTEND_URL = 'http://localhost:3000'
+
+# Communication Engine - Email
+COMM_EMAIL_MODULE_ENABLED = True
+COMM_EMAIL_ENCRYPTION_KEY = os.environ.get('COMM_EMAIL_ENCRYPTION_KEY', '')
+COMM_EMAIL_WEBHOOK_SECRET = os.environ.get('COMM_EMAIL_WEBHOOK_SECRET', '')
+
+# Backend callback URIs registered in each provider's console.
+# These must be backend URLs (Django), NOT the frontend settings page.
+GOOGLE_OAUTH_CLIENT_ID = os.environ.get('GOOGLE_OAUTH_CLIENT_ID', '')
+GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get('GOOGLE_OAUTH_CLIENT_SECRET', '')
+GOOGLE_OAUTH_REDIRECT_URI = os.environ.get(
+    'GOOGLE_OAUTH_REDIRECT_URI',
+    'http://localhost:8000/api/v1/communications/email-accounts/gmail/callback',
+)
+
+MICROSOFT_OAUTH_CLIENT_ID = os.environ.get('MICROSOFT_OAUTH_CLIENT_ID', '')
+MICROSOFT_OAUTH_CLIENT_SECRET = os.environ.get('MICROSOFT_OAUTH_CLIENT_SECRET', '')
+MICROSOFT_OAUTH_REDIRECT_URI = os.environ.get(
+    'MICROSOFT_OAUTH_REDIRECT_URI',
+    'http://localhost:8000/api/v1/communications/email-accounts/microsoft/callback',
+)
+
+# After OAuth callback, backend redirects here.
+# Must be explicitly configured to avoid redirecting to the wrong local app.
+FRONTEND_BASE_URL = os.environ.get('FRONTEND_BASE_URL', '')
 
 # ─── OTP ──────────────────────────────────────────────────────────────────────
 

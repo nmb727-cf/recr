@@ -44,6 +44,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
             ('recruiter', 'Recruiter'),
             ('interviewer', 'Interviewer'),
             ('agency_owner', 'Agency Owner'),
+            ('agency_admin', 'Agency Admin'),
             ('agency_recruiter', 'Agency Recruiter'),
             ('candidate', 'Candidate'),
             ('viewer', 'Viewer'),
@@ -80,3 +81,20 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
 
     class Meta:
         db_table = 'accounts_user'
+
+
+class EmailOTP(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    email = models.EmailField(db_index=True)
+    code = models.CharField(max_length=6)
+    is_used = models.BooleanField(default=False)
+    is_verified = models.BooleanField(default=False)
+    attempts = models.IntegerField(default=0)
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'accounts_email_otp'
+
+    def __str__(self):
+        return f"{self.email} - {self.code}"

@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('candidates', '0012_alter_candidate_engagement_stage_and_more'),
+        ('candidates', '0013_cleanup_duplicate_active_general_engagements'),
         ('jobs', '0002_jobrequisition_auto_followup_after_source_and_more'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]

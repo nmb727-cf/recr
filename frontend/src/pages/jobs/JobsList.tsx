@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
+import { useTranslation } from 'react-i18next'
 import { useApiQuery } from '@/hooks/useApiQuery'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { requisitionsApi } from '@/api/jobs'
@@ -56,6 +57,7 @@ function AssignAgencyModal({
   onClose: () => void
   onSuccess: () => void
 }) {
+  const { t } = useTranslation(['jobs', 'common'])
   const [form] = Form.useForm()
   const [submitting, setSubmitting] = useState(false)
 
@@ -82,12 +84,12 @@ function AssignAgencyModal({
         deadline: values.deadline.format('YYYY-MM-DD'),
         notes: values.notes,
       })
-      message.success('Job assigned to agency successfully')
+      message.success(t('jobs:messages.assigned_success', 'Job assigned to agency successfully'))
       form.resetFields()
       onSuccess()
     } catch (err: any) {
       if (err?.errorFields) return
-      message.error(err?.response?.data?.message || 'Failed to assign agency')
+      message.error(err?.response?.data?.message || t('jobs:messages.assigned_error', 'Failed to assign agency'))
     } finally {
       setSubmitting(false)
     }
@@ -95,20 +97,20 @@ function AssignAgencyModal({
 
   return (
     <Modal
-      title={<span className="font-bold text-slate-900">Assign Agency to this Job</span>}
+      title={<span className="font-bold text-slate-900">{t('jobs:actions.assign_agency', 'Assign Agency to this Job')}</span>}
       open={open}
       onCancel={onClose}
       onOk={handleSubmit}
-      okText="Assign Agency"
+      okText={t('jobs:actions.assign_agency_cta', 'Assign Agency')}
       confirmLoading={submitting}
       okButtonProps={{ className: 'bg-blue-600 border-none font-bold' }}
       width={520}
       destroyOnClose
     >
       <Form form={form} layout="vertical" className="mt-4">
-        <Form.Item name="agency_tenant_id" label="Agency Partner" rules={[{ required: true, message: 'Select an agency' }]}>
+        <Form.Item name="agency_tenant_id" label={t('jobs:fields.agency_partner', 'Agency Partner')} rules={[{ required: true, message: t('jobs:validation.select_agency', 'Select an agency') }]}>
           <Select
-            placeholder="Select partner agency..."
+            placeholder={t('jobs:placeholders.select_agency', 'Select partner agency...')}
             loading={agenciesLoading}
             showSearch
             options={agencies
@@ -123,15 +125,15 @@ function AssignAgencyModal({
           />
         </Form.Item>
         <div className="grid grid-cols-2 gap-4">
-          <Form.Item name="max_submissions" label="Submission Limit" rules={[{ required: true }]} initialValue={5}>
+          <Form.Item name="max_submissions" label={t('jobs:fields.submission_limit', 'Submission Limit')} rules={[{ required: true }]} initialValue={5}>
             <InputNumber min={1} max={100} className="w-full h-10" />
           </Form.Item>
-          <Form.Item name="deadline" label="Deadline" rules={[{ required: true }]}>
+          <Form.Item name="deadline" label={t('jobs:fields.deadline', 'Deadline')} rules={[{ required: true }]}>
             <DatePicker className="w-full h-10" disabledDate={d => d.isBefore(dayjs())} />
           </Form.Item>
         </div>
-        <Form.Item name="notes" label="Special Instructions">
-          <Input.TextArea rows={3} placeholder="Any specific requirements for this agency..." />
+        <Form.Item name="notes" label={t('jobs:fields.special_instructions', 'Special Instructions')}>
+          <Input.TextArea rows={3} placeholder={t('jobs:placeholders.special_instructions', 'Any specific requirements for this agency...')} />
         </Form.Item>
       </Form>
     </Modal>
@@ -245,11 +247,12 @@ const FullJobList = ({ jobs, onSelect, selectedJobId, isLoading }: any) => {
 }
 
 const CompressedJobList = ({ jobs, onSelect, selectedJobId }: any) => {
+  const { t } = useTranslation('jobs')
   const jobList = Array.isArray(jobs) ? jobs : []
   return (
     <div className="flex flex-col h-full overflow-y-auto bg-white border-r border-slate-200">
       <div className="p-4 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
-        <Text className="font-bold text-slate-900">All Jobs</Text>
+        <Text className="font-bold text-slate-900">{t('list.all_jobs', 'All Jobs')}</Text>
         <Badge count={jobList.length} showZero style={{ backgroundColor: '#f1f5f9', color: '#64748b', boxShadow: 'none' }} />
       </div>
       {jobList.map((item: any) => (
@@ -292,6 +295,7 @@ const JobDetailPanel = ({
   onClose: () => void
   onEdit: (job: JobRequisition) => void
 }) => {
+  const { t } = useTranslation(['jobs', 'common'])
   const jobId = job?.id
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -313,7 +317,7 @@ const JobDetailPanel = ({
   const submitMutation = useMutation({
     mutationFn: () => requisitionsApi.submitForApproval(jobId!),
     onSuccess: () => {
-      message.success('Requisition submitted for approval')
+      message.success(t('jobs:messages.submitted_for_approval', 'Requisition submitted for approval'))
       queryClient.invalidateQueries({ queryKey: ['jobs'] })
     }
   })
@@ -321,7 +325,7 @@ const JobDetailPanel = ({
   const approveMutation = useMutation({
     mutationFn: () => requisitionsApi.approve(jobId!),
     onSuccess: () => {
-      message.success('Requisition approved')
+      message.success(t('jobs:messages.approved', 'Requisition approved'))
       queryClient.invalidateQueries({ queryKey: ['jobs'] })
     }
   })
@@ -329,7 +333,7 @@ const JobDetailPanel = ({
   const publishMutation = useMutation({
     mutationFn: () => requisitionsApi.publish(jobId!),
     onSuccess: () => {
-      message.success('Requisition published and is now ACTIVE')
+      message.success(t('jobs:messages.published_active', 'Requisition published and is now ACTIVE'))
       queryClient.invalidateQueries({ queryKey: ['jobs'] })
     }
   })
@@ -349,7 +353,7 @@ const JobDetailPanel = ({
   const tabItems = [
     {
       key: 'overview',
-      label: 'Overview',
+      label: t('jobs:tabs.overview', 'Overview'),
       children: (
         <div className="p-6">
           <div className="grid grid-cols-3 gap-4 mb-8">
@@ -388,7 +392,7 @@ const JobDetailPanel = ({
     },
     {
       key: 'pipeline',
-      label: `Pipeline`,
+      label: t('jobs:tabs.pipeline', 'Pipeline'),
       children: (
         <div className="p-6 overflow-x-auto">
           {pipelineLoading ? <Spin /> : (
@@ -505,7 +509,7 @@ const JobDetailPanel = ({
                   className="text-[10px] font-bold uppercase h-7 rounded-lg"
                   onClick={() => setAssignModalOpen(true)}
                 >
-                  Assign Agency
+                  {t('jobs:actions.assign_agency_short', 'Assign Agency')}
                 </Button>
               )}
            </Space>
@@ -535,6 +539,7 @@ const JobDetailPanel = ({
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function JobsList() {
+  const { t } = useTranslation(['jobs', 'common'])
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [selectedJob, setSelectedJob] = useState<JobRequisition | null>(null)
@@ -570,18 +575,18 @@ export default function JobsList() {
       {!selectedJob && (
         <div className="p-6 pb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Job Requisitions</h1>
-            <p className="text-slate-500 mt-1">Manage and track all open roles across your organization.</p>
+            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{t('jobs:page.title', 'Jobs')}</h1>
+            <p className="text-slate-500 mt-1">{t('jobs:page.subtitle', 'Create, publish, and manage requisitions')}</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button icon={<Download className="h-4 w-4" />} className="flex items-center gap-2 font-bold h-10 rounded-xl">Export</Button>
+            <Button icon={<Download className="h-4 w-4" />} className="flex items-center gap-2 font-bold h-10 rounded-xl">{t('common:actions.export', 'Export')}</Button>
             <Button 
               type="primary" 
               icon={<Plus className="h-4 w-4" />} 
               className="flex items-center gap-2 font-bold h-10 rounded-xl bg-blue-600 border-none shadow-soft-md"
               onClick={() => setCreateDrawerOpen(true)}
             >
-              Create Job
+              {t('jobs:actions.create_job', 'Create Job')}
             </Button>
           </div>
         </div>
@@ -595,7 +600,7 @@ export default function JobsList() {
               <Col xs={24} md={12}>
                 <Input
                   prefix={<Search className="h-4 w-4 text-slate-400 mr-2" />}
-                  placeholder="Search by role, location, or department..."
+                  placeholder={t('jobs:search.placeholder', 'Search by role, location, or department...')}
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="h-10 text-sm border-slate-200 rounded-xl"
@@ -605,7 +610,7 @@ export default function JobsList() {
               <Col xs={12} md={8}>
                 <Select
                   className="w-full h-10"
-                  placeholder="Status"
+                  placeholder={t('jobs:filters.status', 'Status')}
                   value={statusFilter}
                   onChange={setStatusFilter}
                   allowClear
@@ -618,7 +623,7 @@ export default function JobsList() {
                   onClick={() => refetch()}
                   className="w-full h-10 flex items-center justify-center rounded-xl border-slate-200 font-bold"
                 >
-                  Refresh
+                  {t('common:actions.refresh', 'Refresh')}
                 </Button>
               </Col>
             </Row>
@@ -668,7 +673,7 @@ export default function JobsList() {
           setEditingJob(null)
         }}
         width={640}
-        title={<span className="text-lg font-bold">{editingJob ? 'Edit Job Requisition' : 'Create New Job Requisition'}</span>}
+        title={<span className="text-lg font-bold">{editingJob ? t('jobs:actions.edit_job', 'Edit Job Requisition') : t('jobs:actions.create_job_drawer', 'Create New Job Requisition')}</span>}
         destroyOnClose
       >
         <JobCreateForm onSuccess={() => {

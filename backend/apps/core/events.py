@@ -23,11 +23,25 @@ class ApplicationEvents:
     hired = Signal()
     shortlisted = Signal()
 
+
+class OnboardingEvents:
+    completed = Signal()
+
+class TalentPoolEvents:
+    created = Signal()
+
+class CandidateEvents:
+    added_to_pool = Signal()
+    removed_from_pool = Signal()
+
 # Instantiate for dot notation usage: events.application.created
 company = CompanyEvents()
 job = JobEvents()
 agency = AgencyEvents()
 application = ApplicationEvents()
+onboarding = OnboardingEvents()
+talent_pool = TalentPoolEvents()
+candidate = CandidateEvents()
 
 # Legacy / Compatibility (if needed, but user said REPLACE)
 # Keeping these commented for now or just removing them if I'm sure I'll update all refs

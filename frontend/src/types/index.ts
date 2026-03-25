@@ -30,6 +30,7 @@ export interface User {
   tenant_id: string
   created_at: string
   last_login_at: string
+  permissions: string[]
 }
 
 export interface AuthTokens {
@@ -203,6 +204,139 @@ export interface Candidate {
   updated_at: string
   created_by: string
   metadata: Record<string, unknown>
+}
+
+export type WorkflowMode = 'manual' | 'semi_automated' | 'fully_automated'
+
+export interface CandidateSmartRow {
+  id: string
+  name: string
+  current_title?: string
+  company?: string
+  experience?: number | null
+  location?: string
+  source?: string
+  engagement_stage?: string
+  owner?: string | null
+  last_touch?: string | null
+  last_activity?: string | null
+  signals: {
+    readiness_score?: number | null
+    fit_score?: number | null
+    warning_signals?: string[]
+  }
+  job_engagement_summary?: Record<string, number>
+}
+
+export interface CandidateSavedView {
+  key: string
+  label: string
+  count: number
+}
+
+export interface CandidateWorkflowPolicy {
+  id: string
+  tenant_id: string
+  team_id: string | null
+  recruiter_user_id: string | null
+  default_candidate_workflow_mode: WorkflowMode
+  candidate_auto_assignment_mode: 'manual' | 'round_robin' | 'rule_based'
+  candidate_auto_followup_mode: 'manual' | 'suggest_only' | 'automatic'
+  candidate_auto_nurture_days: number
+  candidate_stale_days: number
+  candidate_focus_rules: Record<string, unknown>
+  candidate_stage_templates: unknown[]
+  candidate_required_fields_policy: Record<string, unknown>
+  candidate_scoring_policy: Record<string, unknown>
+  candidate_active_work_policy: Record<string, unknown>
+  is_active: boolean
+  metadata: Record<string, unknown>
+}
+
+export interface WorkflowBehavior {
+  mode: WorkflowMode
+  auto_actions_enabled: boolean
+  suggestions_enabled: boolean
+  user_approval_required: boolean
+}
+
+export interface ActiveWorkEngagement {
+  id: string
+  candidate: string
+  candidate_name: string
+  job?: string | null
+  job_title?: string | null
+  stage: string
+  priority: 'hot' | 'warm' | 'cold'
+  is_active: boolean
+  follow_up_at?: string | null
+  last_activity_at?: string | null
+  owner_name?: string | null
+}
+
+export interface CandidateCommandCenter {
+  candidate: CandidateDetail
+  tabs: {
+    overview: Candidate
+    activity_timeline: Array<Record<string, any>>
+    structured_activity?: Array<{
+      candidate_id: string
+      engagement_id?: string | null
+      actor_id?: string | null
+      actor_type: string
+      action_type: string
+      context_type: 'job' | 'general'
+      method: 'manual' | 'email' | 'system' | string
+      metadata_json: Record<string, any>
+      created_at: string
+      actor?: string
+    }>
+    notes: CandidateNote[]
+    structured_notes?: Array<{
+      candidate_id: string
+      engagement_id?: string | null
+      author_id?: string | null
+      author?: string
+      note_type: string
+      content: string
+      context_type: 'job' | 'general'
+      created_at: string
+    }>
+    jobs_matches: Array<{ job_id: string; stage: string }>
+    engagement: ActiveWorkEngagement[]
+    documents: {
+      resume_url?: string
+      profile_cv_url?: string
+    }
+    communication: {
+      last_contact_at?: string | null
+      next_follow_up_at?: string | null
+    }
+    history: Array<Record<string, any>>
+    automations: {
+      workflow_mode: WorkflowMode
+      automation_enabled: boolean
+      auto_nurture_enabled: boolean
+      auto_followup_enabled: boolean
+      auto_stage_suggestions_enabled: boolean
+      behavior: WorkflowBehavior
+    }
+  }
+  sticky_actions: string[]
+}
+
+export interface Engagement {
+  id: string
+  tenant_id?: string
+  candidate: string
+  candidate_name?: string
+  stage: string
+  priority: 'hot' | 'warm' | 'cold'
+  is_active: boolean
+  follow_up_at?: string | null
+  last_activity_at?: string | null
+  job?: string | null
+  job_title?: string | null
 }
 
 export interface CandidateProfile {
@@ -533,6 +667,7 @@ export interface Organisation {
   logo_url: string
   description: string
   founded_year: number | null
+  metadata: Record<string, unknown>
 }
 
 export interface Department {

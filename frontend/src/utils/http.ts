@@ -53,13 +53,15 @@ http.interceptors.request.use((config) => {
   return config
 })
 
-// On 401, clear auth and redirect to login
+// On 401, clear all auth state (both standalone keys and Zustand persist) and redirect to login
 http.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      console.warn('[http] 401 received — clearing auth state and redirecting to login', error.config?.url)
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
+      localStorage.removeItem('auth-store')
       window.location.href = '/login'
     }
     return Promise.reject(error)

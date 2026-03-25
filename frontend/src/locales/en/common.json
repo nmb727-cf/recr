@@ -1,0 +1,88 @@
+{
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "jobs": "Jobs",
+    "incoming_jobs": "Incoming Jobs",
+    "internal_jobs": "Internal Jobs",
+    "pipeline": "Pipeline",
+    "candidates": "Candidates",
+    "candidates_database": "Database",
+    "candidates_active": "Active",
+    "agencies": "Agencies",
+    "interviews": "Interviews",
+    "offers": "Offers",
+    "reports": "Reports",
+    "settings": "Settings",
+    "performance": "Performance",
+    "submissions": "Submissions",
+    "clients": "Clients",
+    "team": "Team",
+    "recruiters": "Recruiters",
+    "hierarchy": "Hierarchy",
+    "applications": "Applications",
+    "roles_permissions": "Roles & Permissions"
+  },
+  "actions": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "create": "Create",
+    "submit": "Submit",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "finish": "Finish",
+    "close": "Close",
+    "search": "Search",
+    "filter": "Filter",
+    "export": "Export",
+    "import": "Import",
+    "refresh": "Refresh",
+    "invite": "Invite",
+    "mark_all_read": "Mark all as read",
+    "view_all": "View all"
+  },
+  "empty": {
+    "all_caught_up": "All caught up!",
+    "no_notifications": "No new notifications to show.",
+    "no_data": "No data available",
+    "empty": "Empty"
+  },
+  "messages": {
+    "failed_mark_all_read": "Failed to mark all as read",
+    "failed_mark_read": "Failed to mark as read"
+  },
+  "user_menu": {
+    "my_profile": "My Profile",
+    "settings": "Settings"
+  },
+  "language_switcher": {
+    "label": "Language",
+    "en": "English",
+    "hi": "Hindi",
+    "mr": "Marathi",
+    "fr": "French",
+    "de": "German",
+    "es": "Spanish",
+    "ar": "Arabic",
+    "zh": "Chinese"
+  },
+  "search": {
+    "placeholder": "Search"
+  },
+  "header": {
+    "action_center": "Action Center",
+    "urgent": "Urgent",
+    "today": "Today",
+    "upcoming": "Upcoming",
+    "action_items": {
+      "new_candidate_submitted": "New candidate submitted",
+      "interview_today": "Interview today",
+      "candidate_requested_info": "Candidate requested info",
+      "client_reply": "Client reply",
+      "follow_up_due": "Follow-up due"
+    }
+  }
+}

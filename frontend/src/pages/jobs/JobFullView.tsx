@@ -152,9 +152,38 @@ function ApplicationListTable({
     }
   }, [applications])
 
+  const promptStageNote = (title: string): Promise<string | null> =>
+    new Promise((resolve) => {
+      let note = ''
+      Modal.confirm({
+        title,
+        content: (
+          <div className="mt-2">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Mandatory Note</p>
+            <Input.TextArea
+              rows={3}
+              placeholder="Enter reason for stage change"
+              onChange={(e) => { note = e.target.value }}
+            />
+          </div>
+        ),
+        okText: 'Confirm',
+        onOk: async () => {
+          if (!note.trim()) {
+            message.error('A note is required')
+            throw new Error('missing_note')
+          }
+          resolve(note.trim())
+        },
+        onCancel: () => resolve(null),
+      })
+    })
+
   const handleShortlist = async (appId: string) => {
+    const note = await promptStageNote('Confirm Stage Change')
+    if (!note) return
     try {
-      await pipelineApi.shortlist(appId)
+      await pipelineApi.shortlist(appId, note)
       message.success('Candidate shortlisted')
       onRefresh()
     } catch {
@@ -164,9 +193,13 @@ function ApplicationListTable({
 
   const handleReject = async () => {
     if (!rejectModal.app) return
+    if (!rejectReason.trim()) {
+      message.error('A note is required')
+      return
+    }
     setActionLoading(true)
     try {
-      await pipelineApi.reject(rejectModal.app.id, rejectReason)
+      await pipelineApi.reject(rejectModal.app.id, rejectReason.trim())
       message.success('Candidate rejected')
       setRejectModal({ open: false, app: null })
       setRejectReason('')
@@ -247,7 +280,7 @@ function ApplicationListTable({
         onOk={handleReject}
         confirmLoading={actionLoading}
         okText="Reject Candidate"
-        okButtonProps={{ danger: true }}
+        okButtonProps={{ danger: true, disabled: !rejectReason.trim() }}
       >
         <p className="text-slate-500 mb-4 text-sm font-medium">Please provide a reason for rejection (optional):</p>
         <Input.TextArea rows={3} value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="e.g. Insufficient technical experience..." />

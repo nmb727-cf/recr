@@ -1,0 +1,87 @@
+{
+  "page": {
+    "title": "Job Requisitions",
+    "subtitle": "Manage and track all open roles across your organization."
+  },
+  "actions": {
+    "create_job": "Create Job",
+    "refresh": "Refresh",
+    "export": "Export",
+    "edit_job": "Edit Job Requisition",
+    "create_job_drawer": "Create New Job Requisition",
+    "assign_agency": "Assign Agency to this Job",
+    "assign_agency_cta": "Assign Agency",
+    "assign_agency_short": "Assign Agency",
+    "save_job_changes": "Save Job Changes"
+  },
+  "tabs": {
+    "overview": "Overview",
+    "pipeline": "Pipeline"
+  },
+  "fields": {
+    "agency_partner": "Agency Partner",
+    "submission_limit": "Submission Limit",
+    "deadline": "Deadline",
+    "special_instructions": "Special Instructions"
+  },
+  "filters": {
+    "status": "Status"
+  },
+  "search": {
+    "placeholder": "Search by role, location, or department..."
+  },
+  "list": {
+    "all_jobs": "All Jobs"
+  },
+  "validation": {
+    "select_agency": "Select an agency"
+  },
+  "messages": {
+    "assigned_success": "Job assigned to agency successfully",
+    "assigned_error": "Failed to assign agency",
+    "submitted_for_approval": "Requisition submitted for approval",
+    "approved": "Requisition approved",
+    "published_active": "Requisition published and is now ACTIVE",
+    "job_created_success": "Job created successfully",
+    "job_updated_success": "Job updated successfully",
+    "job_create_failed": "Failed to create job",
+    "job_update_failed": "Failed to update job"
+  },
+  "placeholders": {
+    "select_agency": "Select partner agency...",
+    "special_instructions": "Any specific requirements for this agency..."
+  },
+  "form": {
+    "job_title": "Job Title",
+    "job_type": "Job Type",
+    "work_mode": "Work Mode",
+    "priority": "Priority",
+    "headcount": "Headcount",
+    "job_owner": "Job Owner",
+    "internal_recruiters": "Internal Recruiters",
+    "department": "Internal Team / Department",
+    "owner_recruiter_hint": "Owner and recruiter selections are stored in requisition metadata for Phase 1.",
+    "currency": "Currency",
+    "min_salary": "Min Salary",
+    "max_salary": "Max Salary",
+    "description": "Description",
+    "requirements": "Requirements",
+    "skills": "Skills (comma separated)",
+    "use_agencies": "Use agencies for this job",
+    "select_agencies": "Select Agencies",
+    "agency_max_submissions": "Max submissions per agency",
+    "agency_deadline": "Agency submission deadline",
+    "selected_agencies": "Selected agencies",
+    "no_agencies_selected": "No agencies selected",
+    "placeholders": {
+      "job_title": "e.g. Senior Software Engineer",
+      "select_owner": "Select owner",
+      "select_recruiters": "Select recruiters",
+      "select_department": "Select department",
+      "description": "Describe the role...",
+      "requirements": "List requirements...",
+      "skills": "e.g. React, Python",
+      "select_agencies": "Select one or more agencies"
+    }
+  }
+}

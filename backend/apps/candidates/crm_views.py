@@ -93,10 +93,34 @@ class CRMMovePipelineView(APIView):
         except CandidatePipelineStatus.DoesNotExist:
             return error_response("Pipeline entry not found.", status_code=404)
 
-        entry.status = request.data.get('status', entry.status)
+        target_status = request.data.get('status', entry.status)
+        note = (
+            request.data.get('note')
+            or request.data.get('notes')
+            or request.data.get('reason')
+            or ''
+        ).strip()
+        if target_status != entry.status and not note:
+            return error_response(
+                "A mandatory note/reason is required for every stage change.",
+                errors={'note': ['This field is required.']}
+            )
+        previous_status = entry.status
+        entry.status = target_status
         entry.next_action = request.data.get('next_action', entry.next_action)
         entry.next_action_date = request.data.get('next_action_date', entry.next_action_date)
         entry.save()
+        if target_status != previous_status:
+            CandidateInteraction.objects.create(
+                tenant_id=request.user.tenant_id,
+                candidate_id=entry.candidate_id,
+                interaction_type='note',
+                direction='internal',
+                subject='CRM stage changed',
+                content=note,
+                outcome=f"{previous_status} -> {target_status}",
+                created_by=request.user.id,
+            )
 
         return success_response(message=f"Candidate moved to {entry.status}.")
 

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
+import { useTranslation } from 'react-i18next'
 
 dayjs.extend(relativeTime)
 import {
@@ -63,6 +64,7 @@ const InterviewScheduleModal = ({
   applicationId: string,
   onSuccess: () => void
 }) => {
+  const { t } = useTranslation(['pipeline', 'common'])
   const [form] = Form.useForm()
   const queryClient = useQueryClient()
 
@@ -76,20 +78,20 @@ const InterviewScheduleModal = ({
       interview_round: values.interview_round,
     }),
     onSuccess: () => {
-      message.success('Interview scheduled')
+      message.success(t('pipeline:messages.interview_scheduled', 'Interview scheduled'))
       queryClient.invalidateQueries({ queryKey: ['app-interviews', applicationId] })
       onSuccess()
       onCancel()
       form.resetFields()
     },
     onError: (err: any) => {
-      message.error(err.response?.data?.message || 'Failed to schedule interview')
+      message.error(err.response?.data?.message || t('pipeline:messages.interview_schedule_failed', 'Failed to schedule interview'))
     }
   })
 
   return (
     <Modal
-      title="Schedule Interview"
+      title={t('pipeline:actions.schedule_interview', 'Schedule Interview')}
       open={visible}
       onCancel={onCancel}
       onOk={() => form.submit()}
@@ -97,12 +99,12 @@ const InterviewScheduleModal = ({
       destroyOnClose
     >
       <Form form={form} layout="vertical" onFinish={(v) => mutation.mutate(v)} initialValues={{ duration_minutes: 45, interview_round: 1 }}>
-        <Form.Item name="title" label="Interview Title" rules={[{ required: true }]}>
-          <AntInput placeholder="e.g. Technical Round 1" />
+        <Form.Item name="title" label={t('pipeline:fields.interview_title', 'Interview Title')} rules={[{ required: true }]}>
+          <AntInput placeholder={t('pipeline:placeholders.interview_title', 'e.g. Technical Round 1')} />
         </Form.Item>
         <Row gutter={16}>
           <Col span={12}>
-            <Form.Item name="interview_type" label="Type" rules={[{ required: true }]}>
+            <Form.Item name="interview_type" label={t('pipeline:fields.type', 'Type')} rules={[{ required: true }]}>
               <Select options={[
                 { value: 'technical', label: 'Technical' },
                 { value: 'culture', label: 'Culture' },
@@ -112,19 +114,19 @@ const InterviewScheduleModal = ({
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="interview_round" label="Round" rules={[{ required: true }]}>
+            <Form.Item name="interview_round" label={t('pipeline:fields.round', 'Round')} rules={[{ required: true }]}>
               <InputNumber className="w-full" min={1} />
             </Form.Item>
           </Col>
         </Row>
         <Row gutter={16}>
           <Col span={12}>
-            <Form.Item name="scheduled_at" label="Date & Time" rules={[{ required: true }]}>
+            <Form.Item name="scheduled_at" label={t('pipeline:fields.date_time', 'Date & Time')} rules={[{ required: true }]}>
               <DatePicker showTime className="w-full" />
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="duration_minutes" label="Duration (mins)" rules={[{ required: true }]}>
+            <Form.Item name="duration_minutes" label={t('pipeline:fields.duration_mins', 'Duration (mins)')} rules={[{ required: true }]}>
               <InputNumber className="w-full" min={15} step={15} />
             </Form.Item>
           </Col>
@@ -145,26 +147,27 @@ const MakeOfferModal = ({
   applicationId: string,
   onSuccess: () => void
 }) => {
+  const { t } = useTranslation(['pipeline', 'common'])
   const [form] = Form.useForm()
   const queryClient = useQueryClient()
 
   const mutation = useMutation({
     mutationFn: (values: any) => http.post(`/pipeline/applications/${applicationId}/make-offer/`, values),
     onSuccess: () => {
-      message.success('Offer created and sent')
+      message.success(t('pipeline:messages.offer_created', 'Offer created and sent'))
       queryClient.invalidateQueries({ queryKey: ['application', 'full', applicationId] })
       onSuccess()
       onCancel()
       form.resetFields()
     },
     onError: (err: any) => {
-      message.error(err.response?.data?.message || 'Failed to make offer')
+      message.error(err.response?.data?.message || t('pipeline:messages.offer_failed', 'Failed to make offer'))
     }
   })
 
   return (
     <Modal
-      title="Create Offer"
+      title={t('pipeline:actions.create_offer', 'Create Offer')}
       open={visible}
       onCancel={onCancel}
       onOk={() => form.submit()}
@@ -174,21 +177,25 @@ const MakeOfferModal = ({
       <Form form={form} layout="vertical" onFinish={(v) => mutation.mutate(v)} initialValues={{ currency: 'INR' }}>
         <Row gutter={16}>
           <Col span={16}>
-            <Form.Item name="offer_amount" label="Annual CTC" rules={[{ required: true }]}>
+            <Form.Item name="offer_amount" label={t('pipeline:fields.annual_ctc', 'Annual CTC')} rules={[{ required: true }]}>
               <InputNumber className="w-full" formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} />
             </Form.Item>
           </Col>
           <Col span={8}>
-            <Form.Item name="currency" label="Currency">
+            <Form.Item name="currency" label={t('pipeline:fields.currency', 'Currency')}>
               <Select options={[{ value: 'INR', label: 'INR' }, { value: 'USD', label: 'USD' }]} />
             </Form.Item>
           </Col>
         </Row>
-        <Form.Item name="joining_date" label="Expected Joining Date" rules={[{ required: true }]}>
+        <Form.Item name="joining_date" label={t('pipeline:fields.joining_date', 'Expected Joining Date')} rules={[{ required: true }]}>
           <DatePicker className="w-full" />
         </Form.Item>
-        <Form.Item name="notes" label="Offer Notes">
-          <TextArea rows={3} placeholder="Add any special conditions..." />
+        <Form.Item
+          name="notes"
+          label={t('pipeline:fields.offer_notes', 'Offer Notes')}
+          rules={[{ required: true, message: 'A note is required for stage change' }]}
+        >
+          <TextArea rows={3} placeholder={t('pipeline:placeholders.offer_notes', 'Add any special conditions...')} />
         </Form.Item>
       </Form>
     </Modal>
@@ -196,6 +203,7 @@ const MakeOfferModal = ({
 }
 
 const MiniPipelineBoard = ({ orderedStages, candidateMap, onCardClick, selectedAppId }: any) => {
+  const { t } = useTranslation('pipeline')
   return (
     <div className="flex flex-col h-full overflow-y-auto bg-slate-50 border-r border-slate-200 p-4 gap-4">
       {orderedStages.map((stageData: any) => (
@@ -240,7 +248,7 @@ const MiniPipelineBoard = ({ orderedStages, candidateMap, onCardClick, selectedA
             })}
             {stageData.applications.length === 0 && (
               <div className="py-4 text-center border border-dashed border-slate-200 rounded-xl opacity-40">
-                <Text className="text-[8px] font-bold uppercase tracking-tighter text-slate-400">Empty</Text>
+                <Text className="text-[8px] font-bold uppercase tracking-tighter text-slate-400">{t('common:empty.empty', 'Empty')}</Text>
               </div>
             )}
           </div>
@@ -251,8 +259,15 @@ const MiniPipelineBoard = ({ orderedStages, candidateMap, onCardClick, selectedA
 }
 
 const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisitionStages }: { applicationId: string, onClose: () => void, onRefresh: () => void, requisitionStages: any[] }) => {
+  const { t } = useTranslation(['pipeline', 'common'])
   const [interviewModalVisible, setInterviewModalVisible] = useState(false)
   const [offerModalVisible, setOfferModalVisible] = useState(false)
+  const [stageModalOpen, setStageModalOpen] = useState(false)
+  const [stageAction, setStageAction] = useState<'move' | 'shortlist' | 'reject' | null>(null)
+  const [targetStageId, setTargetStageId] = useState<string | null>(null)
+  const [targetStageLabel, setTargetStageLabel] = useState<string>('')
+  const [stageNote, setStageNote] = useState('')
+  const [stageSubmitting, setStageSubmitting] = useState(false)
 
   const { data, isLoading } = useApiQuery(
     ['application', 'full', applicationId],
@@ -278,43 +293,59 @@ const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisition
   )
 
   const handleMoveStage = async (stageId: string) => {
-    try {
-      await pipelineApi.moveStage(applicationId, stageId)
-      message.success('Application moved')
-      onRefresh()
-    } catch (err: any) {
-      message.error(err.response?.data?.message || 'Failed to move application')
-    }
+    const stage = requisitionStages.find((s) => s.stage.id === stageId)?.stage
+    setTargetStageId(stageId)
+    setTargetStageLabel(stage?.name || 'Target Stage')
+    setStageAction('move')
+    setStageNote('')
+    setStageModalOpen(true)
   }
 
   const handleShortlist = async () => {
-    try {
-      await http.post(`/pipeline/applications/${applicationId}/shortlist/`)
-      message.success('Candidate shortlisted')
-      onRefresh()
-    } catch (err: any) {
-      message.error('Failed to shortlist')
-    }
+    setTargetStageId(null)
+    setTargetStageLabel('Shortlisted')
+    setStageAction('shortlist')
+    setStageNote('')
+    setStageModalOpen(true)
   }
 
   const handleReject = async () => {
-    Modal.confirm({
-      title: 'Reject Candidate',
-      content: 'Are you sure you want to reject this candidate?',
-      onOk: async () => {
-        try {
-          await http.post(`/pipeline/applications/${applicationId}/reject/`, { reason: 'Not suitable' })
-          message.success('Candidate rejected')
-          onRefresh()
-        } catch {
-          message.error('Failed to reject')
-        }
+    setTargetStageId(null)
+    setTargetStageLabel('Rejected')
+    setStageAction('reject')
+    setStageNote('')
+    setStageModalOpen(true)
+  }
+
+  const confirmStageAction = async () => {
+    if (!stageAction || !stageNote.trim()) return
+    setStageSubmitting(true)
+    try {
+      if (stageAction === 'move' && targetStageId) {
+        await pipelineApi.moveStage(applicationId, targetStageId, stageNote.trim())
+        message.success(t('pipeline:messages.application_moved', 'Application moved'))
+      } else if (stageAction === 'shortlist') {
+        await pipelineApi.shortlist(applicationId, stageNote.trim())
+        message.success(t('pipeline:messages.candidate_shortlisted', 'Candidate shortlisted'))
+      } else if (stageAction === 'reject') {
+        await pipelineApi.reject(applicationId, stageNote.trim())
+        message.success(t('pipeline:messages.candidate_rejected', 'Candidate rejected'))
       }
-    })
+      setStageModalOpen(false)
+      setStageAction(null)
+      setTargetStageId(null)
+      setTargetStageLabel('')
+      setStageNote('')
+      onRefresh()
+    } catch (err: any) {
+      message.error(err?.response?.data?.message || t('pipeline:messages.application_move_failed', 'Failed to change stage'))
+    } finally {
+      setStageSubmitting(false)
+    }
   }
 
   if (isLoading) return <div className="p-20 text-center"><Spin size="large" /></div>
-  if (!application) return <Empty description="Application not found" />
+  if (!application) return <Empty description={t('pipeline:empty.application_not_found', 'Application not found')} />
 
   const timeInStage = application.updated_at ? dayjs(application.updated_at).fromNow(true) : 'N/A'
   const interviewList = Array.isArray((interviewsData as any)?.interviews) ? (interviewsData as any).interviews : []
@@ -322,7 +353,7 @@ const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisition
   const tabItems = [
     {
       key: 'overview',
-      label: 'Overview',
+      label: t('pipeline:tabs.overview', 'Overview'),
       children: (
         <div className="p-6">
           <Row gutter={24}>
@@ -427,7 +458,7 @@ const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisition
     },
     {
       key: 'interviews',
-      label: 'Interviews',
+      label: t('pipeline:tabs.interviews', 'Interviews'),
       children: (
         <div className="p-0">
           <Table 
@@ -461,7 +492,7 @@ const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisition
                 icon={<Plus className="h-4 w-4" />} 
                 className="h-10 rounded-xl font-bold border-slate-200"
              >
-                Schedule New Interview
+                {t('pipeline:actions.schedule_new_interview', 'Schedule New Interview')}
              </Button>
           </div>
         </div>
@@ -494,7 +525,7 @@ const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisition
                <Select 
                   size="small"
                   className="w-32"
-                  placeholder="Move to stage..."
+                  placeholder={t('pipeline:placeholders.move_to_stage', 'Move to stage...')}
                   value={application.current_stage_id}
                   onChange={handleMoveStage}
                   options={requisitionStages.map(s => ({ value: s.stage.id, label: s.stage.name }))}
@@ -509,7 +540,7 @@ const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisition
               className="h-10 rounded-xl font-bold border-slate-200 text-emerald-600 flex items-center gap-2" 
               icon={<Star className="h-4 w-4" />}
             >
-              Shortlist
+              {t('pipeline:actions.shortlist', 'Shortlist')}
             </Button>
           )}
           <Button 
@@ -518,7 +549,7 @@ const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisition
             className="h-10 rounded-xl font-bold bg-rose-50 border-none text-rose-600 flex items-center gap-2" 
             icon={<X className="h-4 w-4" />}
           >
-            Reject
+            {t('pipeline:actions.reject', 'Reject')}
           </Button>
           <Button icon={<X className="h-4 w-4" />} onClick={onClose} className="h-10 w-10 flex items-center justify-center rounded-xl border-slate-200" />
         </div>
@@ -527,7 +558,7 @@ const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisition
       <div className="flex-1 overflow-y-auto">
         {/* Quick Actions Bar */}
         <div className="px-6 py-3 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
-           <Text className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">Execution</Text>
+           <Text className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">{t('pipeline:labels.execution', 'Execution')}</Text>
            <div className="flex gap-2">
               <Button 
                 size="small" 
@@ -535,7 +566,7 @@ const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisition
                 className="text-[10px] font-bold uppercase h-7 rounded-lg"
                 onClick={() => setInterviewModalVisible(true)}
               >
-                Schedule
+                {t('pipeline:actions.schedule', 'Schedule')}
               </Button>
               {(application.status === 'offer_extended' || application.status === 'interview_scheduled') && (
                 <Button 
@@ -546,9 +577,9 @@ const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisition
                     "text-[10px] font-bold uppercase h-7 rounded-lg bg-emerald-600 border-none",
                     !hasCompletedInterview && "opacity-50 grayscale cursor-not-allowed"
                   )}
-                  onClick={() => hasCompletedInterview ? setOfferModalVisible(true) : message.warning('Interview must be completed before offer')}
+                  onClick={() => hasCompletedInterview ? setOfferModalVisible(true) : message.warning(t('pipeline:messages.complete_interview_before_offer', 'Interview must be completed before offer'))}
                 >
-                  Make Offer
+                  {t('pipeline:actions.make_offer', 'Make Offer')}
                 </Button>
               )}
            </div>
@@ -575,6 +606,44 @@ const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisition
         applicationId={applicationId}
         onSuccess={onRefresh}
       />
+
+      <Modal
+        title={t('pipeline:actions.confirm_stage_change', 'Confirm Stage Change')}
+        open={stageModalOpen}
+        onCancel={() => {
+          setStageModalOpen(false)
+          setStageAction(null)
+          setTargetStageId(null)
+          setTargetStageLabel('')
+          setStageNote('')
+        }}
+        onOk={confirmStageAction}
+        okText={t('common:actions.confirm', 'Confirm')}
+        confirmLoading={stageSubmitting}
+        okButtonProps={{ disabled: !stageNote.trim() }}
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Current Stage</p>
+              <p className="text-sm font-semibold text-slate-800">{formatStatusLabel(application.status || 'applied')}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Target Stage</p>
+              <p className="text-sm font-semibold text-slate-800">{targetStageLabel}</p>
+            </div>
+          </div>
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Mandatory Note</p>
+            <TextArea
+              rows={3}
+              value={stageNote}
+              onChange={(e) => setStageNote(e.target.value)}
+              placeholder="Enter reason for stage change"
+            />
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }
@@ -582,11 +651,21 @@ const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisition
 // ─── Main PipelineBoard ──────────────────────────────────────────────────────
 
 export default function PipelineBoard({ jobId }: { jobId?: string }) {
+  const { t } = useTranslation(['pipeline', 'common'])
   const [searchParams, setSearchParams] = useSearchParams()
   const [selectedJobId, setSelectedJobId] = useState<string>(jobId ?? searchParams.get('job') ?? '')
   const [boardState, setBoardState] = useState<Record<string, PipelineStageData>>({})
   
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null)
+  const [boardStageModalOpen, setBoardStageModalOpen] = useState(false)
+  const [boardStageNote, setBoardStageNote] = useState('')
+  const [boardStageSubmitting, setBoardStageSubmitting] = useState(false)
+  const [pendingBoardMove, setPendingBoardMove] = useState<{
+    applicationId: string
+    currentStageLabel: string
+    targetStageId: string
+    targetStageLabel: string
+  } | null>(null)
 
   // Fetch all requisitions for the selector
   const { data: jobsData } = useApiQuery(
@@ -639,25 +718,36 @@ export default function PipelineBoard({ jobId }: { jobId?: string }) {
 
     const fromStageId = source.droppableId
     const toStageId = destination.droppableId
+    const fromStageData = boardState[fromStageId]
+    const toStageData = boardState[toStageId]
+    setPendingBoardMove({
+      applicationId: draggableId,
+      currentStageLabel: fromStageData?.stage?.name || 'Current Stage',
+      targetStageId: toStageId,
+      targetStageLabel: toStageData?.stage?.name || 'Target Stage',
+    })
+    setBoardStageNote('')
+    setBoardStageModalOpen(true)
+  }
 
-    const newBoard = { ...boardState }
-    const fromStage = { ...newBoard[fromStageId], applications: [...newBoard[fromStageId].applications] }
-    const toStage = { ...newBoard[toStageId], applications: [...newBoard[toStageId].applications] }
-
-    const [movedApp] = fromStage.applications.splice(source.index, 1)
-    toStage.applications.splice(destination.index, 0, { ...movedApp, current_stage_id: toStageId })
-
-    newBoard[fromStageId] = { ...fromStage, count: fromStage.count - 1 }
-    newBoard[toStageId] = { ...toStage, count: toStage.count + 1 }
-    setBoardState(newBoard)
-
+  const confirmBoardMove = async () => {
+    if (!pendingBoardMove || !boardStageNote.trim()) return
+    setBoardStageSubmitting(true)
     try {
-      await pipelineApi.moveStage(draggableId, toStageId)
-      message.success('Application moved')
+      await pipelineApi.moveStage(
+        pendingBoardMove.applicationId,
+        pendingBoardMove.targetStageId,
+        boardStageNote.trim(),
+      )
+      message.success(t('pipeline:messages.application_moved', 'Application moved'))
+      setBoardStageModalOpen(false)
+      setPendingBoardMove(null)
+      setBoardStageNote('')
       refetch()
     } catch (err: any) {
-      setBoardState(boardState)
-      message.error(err.response?.data?.message || 'Failed to move application')
+      message.error(err?.response?.data?.message || t('pipeline:messages.application_move_failed', 'Failed to move application'))
+    } finally {
+      setBoardStageSubmitting(false)
     }
   }
 
@@ -666,13 +756,13 @@ export default function PipelineBoard({ jobId }: { jobId?: string }) {
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <div className="p-6 shrink-0 flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-white border-b border-slate-100">
         <div className="flex items-center gap-4">
-           {!selectedAppId && <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Pipeline Board</h1>}
+           {!selectedAppId && <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{t('pipeline:page.title', 'Pipeline')}</h1>}
            {selectedAppId && (
              <Button icon={<ArrowRight className="h-4 w-4 rotate-180" />} onClick={() => setSelectedAppId(null)} className="h-10 w-10 flex items-center justify-center rounded-xl border-slate-200" />
            )}
            <Select
             className="w-72 h-10 font-bold"
-            placeholder="Select Job Role..."
+            placeholder={t('pipeline:placeholders.select_job', 'Select Job Role...')}
             value={selectedJobId || undefined}
             onChange={(val) => { setSelectedJobId(val); setSelectedAppId(null); }}
             showSearch
@@ -682,9 +772,9 @@ export default function PipelineBoard({ jobId }: { jobId?: string }) {
         </div>
         <div className="flex items-center gap-3">
           <Badge count={orderedStages.reduce((acc, s) => acc + s.count, 0)} overflowCount={999} style={{ backgroundColor: '#eff6ff', color: '#3b82f6', border: 'none', fontWeight: 'bold' }}>
-             <Button icon={<User className="h-4 w-4" />} className="h-10 rounded-xl font-bold flex items-center gap-2 border-slate-200">Candidates</Button>
+             <Button icon={<User className="h-4 w-4" />} className="h-10 rounded-xl font-bold flex items-center gap-2 border-slate-200">{t('pipeline:labels.candidates', 'Candidates')}</Button>
           </Badge>
-          <Button type="primary" className="h-10 rounded-xl font-bold bg-blue-600 border-none shadow-soft-md px-6">Settings</Button>
+          <Button type="primary" className="h-10 rounded-xl font-bold bg-blue-600 border-none shadow-soft-md px-6">{t('common:sidebar.settings', 'Settings')}</Button>
         </div>
       </div>
 
@@ -697,8 +787,8 @@ export default function PipelineBoard({ jobId }: { jobId?: string }) {
           !selectedJobId ? (
             <div className="h-full flex flex-col items-center justify-center p-20 bg-slate-50">
               <Search className="h-16 w-16 text-slate-200 mb-4" />
-              <Title level={4} className="!m-0 text-slate-400">Select a job to view pipeline</Title>
-              <p className="text-slate-400 mt-2 font-medium">Choose a role from the dropdown above to start managing candidates.</p>
+              <Title level={4} className="!m-0 text-slate-400">{t('pipeline:empty.select_job_title', 'Select a job to view pipeline')}</Title>
+              <p className="text-slate-400 mt-2 font-medium">{t('pipeline:empty.select_job_subtitle', 'Choose a role from the dropdown above to start managing candidates.')}</p>
             </div>
           ) : pipelineLoading ? (
             <div className="h-full flex items-center justify-center"><Spin size="large" /></div>
@@ -715,8 +805,8 @@ export default function PipelineBoard({ jobId }: { jobId?: string }) {
           !selectedJobId ? (
             <div className="h-full flex flex-col items-center justify-center p-20 bg-slate-50">
               <Search className="h-16 w-16 text-slate-200 mb-4" />
-              <Title level={4} className="!m-0 text-slate-400">Select a job to view pipeline</Title>
-              <p className="text-slate-400 mt-2 font-medium">Choose a role from the dropdown above to start managing candidates.</p>
+              <Title level={4} className="!m-0 text-slate-400">{t('pipeline:empty.select_job_title', 'Select a job to view pipeline')}</Title>
+              <p className="text-slate-400 mt-2 font-medium">{t('pipeline:empty.select_job_subtitle', 'Choose a role from the dropdown above to start managing candidates.')}</p>
             </div>
           ) : pipelineLoading ? (
             <div className="h-full flex items-center justify-center"><Spin size="large" /></div>
@@ -806,6 +896,42 @@ export default function PipelineBoard({ jobId }: { jobId?: string }) {
           ) : null
         }
       />
+
+      <Modal
+        title={t('pipeline:actions.confirm_stage_change', 'Confirm Stage Change')}
+        open={boardStageModalOpen}
+        onCancel={() => {
+          setBoardStageModalOpen(false)
+          setPendingBoardMove(null)
+          setBoardStageNote('')
+        }}
+        onOk={confirmBoardMove}
+        okText={t('common:actions.confirm', 'Confirm')}
+        confirmLoading={boardStageSubmitting}
+        okButtonProps={{ disabled: !boardStageNote.trim() }}
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Current Stage</p>
+              <p className="text-sm font-semibold text-slate-800">{pendingBoardMove?.currentStageLabel || '—'}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Target Stage</p>
+              <p className="text-sm font-semibold text-slate-800">{pendingBoardMove?.targetStageLabel || '—'}</p>
+            </div>
+          </div>
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Mandatory Note</p>
+            <TextArea
+              rows={3}
+              value={boardStageNote}
+              onChange={(e) => setBoardStageNote(e.target.value)}
+              placeholder="Enter reason for stage change"
+            />
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

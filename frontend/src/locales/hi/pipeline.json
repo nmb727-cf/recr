@@ -1,0 +1,60 @@
+{
+  "page": {
+    "title": "पाइपलाइन",
+    "subtitle": "स्टेज के अनुसार एप्लिकेशन ट्रैक करें और अगले कदम चलाएँ"
+  },
+  "actions": {
+    "schedule_interview": "इंटरव्यू शेड्यूल करें",
+    "create_offer": "ऑफ़र बनाएँ",
+    "schedule_new_interview": "नया इंटरव्यू शेड्यूल करें",
+    "reject_candidate": "उम्मीदवार अस्वीकार करें",
+    "shortlist": "शॉर्टलिस्ट",
+    "reject": "अस्वीकार करें",
+    "schedule": "शेड्यूल",
+    "make_offer": "ऑफ़र दें"
+  },
+  "tabs": {
+    "overview": "ओवरव्यू",
+    "interviews": "इंटरव्यू"
+  },
+  "fields": {
+    "interview_title": "इंटरव्यू शीर्षक",
+    "type": "प्रकार",
+    "round": "राउंड",
+    "date_time": "तारीख और समय",
+    "duration_mins": "अवधि (मिनट)",
+    "annual_ctc": "वार्षिक CTC",
+    "currency": "मुद्रा",
+    "joining_date": "अपेक्षित जॉइनिंग तिथि",
+    "offer_notes": "ऑफ़र नोट्स"
+  },
+  "labels": {
+    "execution": "एक्ज़िक्यूशन",
+    "candidates": "उम्मीदवार"
+  },
+  "messages": {
+    "interview_scheduled": "इंटरव्यू शेड्यूल हो गया",
+    "interview_schedule_failed": "इंटरव्यू शेड्यूल नहीं हो सका",
+    "offer_created": "ऑफ़र बनाया गया और भेजा गया",
+    "offer_failed": "ऑफ़र नहीं बन सका",
+    "application_moved": "एप्लिकेशन आगे बढ़ाई गई",
+    "application_move_failed": "एप्लिकेशन नहीं बढ़ाई जा सकी",
+    "candidate_shortlisted": "उम्मीदवार शॉर्टलिस्ट हुआ",
+    "shortlist_failed": "शॉर्टलिस्ट नहीं हो सका",
+    "candidate_rejected": "उम्मीदवार अस्वीकार किया गया",
+    "reject_failed": "अस्वीकार नहीं कर सके",
+    "reject_confirm": "क्या आप इस उम्मीदवार को अस्वीकार करना चाहते हैं?",
+    "complete_interview_before_offer": "ऑफ़र से पहले इंटरव्यू पूरा होना चाहिए"
+  },
+  "placeholders": {
+    "interview_title": "उदा. टेक्निकल राउंड 1",
+    "offer_notes": "कोई विशेष शर्त जोड़ें...",
+    "move_to_stage": "स्टेज चुनें...",
+    "select_job": "जॉब रोल चुनें..."
+  },
+  "empty": {
+    "application_not_found": "एप्लिकेशन नहीं मिली",
+    "select_job_title": "पाइपलाइन देखने के लिए जॉब चुनें",
+    "select_job_subtitle": "उम्मीदवार प्रबंधन शुरू करने के लिए ऊपर ड्रॉपडाउन से भूमिका चुनें।"
+  }
+}

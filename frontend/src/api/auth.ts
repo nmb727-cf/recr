@@ -7,6 +7,13 @@ interface LoginResponse {
   refresh_token: string
 }
 
+export interface OnboardingPayload {
+  // user_type is derived server-side from the user's role; not sent by the wizard
+  hiring_style: 'internal' | 'agency' | 'mixed'
+  team_size: '1-5' | '5-20' | '20+'
+  automation_preference: 'manual' | 'smart' | 'fully_automated'
+}
+
 export const authApi = {
   login: (payload: LoginPayload) =>
     http.post<ApiResponse<LoginResponse>>('/auth/login/', payload),
@@ -19,6 +26,15 @@ export const authApi = {
 
   registerCandidate: (payload: RegisterCandidatePayload) =>
     http.post<ApiResponse<LoginResponse>>('/auth/register/candidate/', payload),
+
+  sendOTP: (email: string) =>
+    http.post<ApiResponse<null>>('/auth/send-otp/', { email }),
+
+  verifyOTP: (email: string, code: string) =>
+    http.post<ApiResponse<{ user: User; access_token: string; refresh_token: string }>>('/auth/verify-otp/', { email, code }),
+
+  completeOnboarding: (payload: OnboardingPayload) =>
+    http.post<ApiResponse<{ user: User }>>('/auth/onboarding/complete/', payload),
 
   me: () =>
     http.get<ApiResponse<{ user: User }>>('/auth/me/'),

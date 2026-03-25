@@ -11,21 +11,21 @@ export const pipelineApi = {
   createApplication: (data: { candidate_id: string; requisition_id: string; source?: string; source_detail?: string }) =>
     http.post<ApiResponse<Application>>('/applications/', data),
 
-  moveStage: (id: string, stage_id: string) =>
-    http.post<ApiResponse<{ application: Application }>>(`/applications/${id}/move-stage/`, { stage_id }),
+  moveStage: (id: string, stage_id: string, note: string) =>
+    http.post<ApiResponse<{ application: Application }>>(`/applications/${id}/move-stage/`, { stage_id, note }),
 
-  shortlist: (id: string) =>
-    http.post<ApiResponse<{ application: Application }>>(`/applications/${id}/shortlist/`),
+  shortlist: (id: string, note: string) =>
+    http.post<ApiResponse<{ application: Application }>>(`/applications/${id}/shortlist/`, { note }),
 
-  reject: (id: string, reason?: string) =>
-    http.post<ApiResponse<{ application: Application }>>(`/applications/${id}/reject/`, { reason }),
+  reject: (id: string, note: string, category?: string) =>
+    http.post<ApiResponse<{ application: Application }>>(`/applications/${id}/reject/`, { note, category }),
 
-  withdraw: (id: string) =>
-    http.post<ApiResponse<{ application: Application }>>(`/applications/${id}/withdraw/`),
+  withdraw: (id: string, note: string) =>
+    http.post<ApiResponse<{ application: Application }>>(`/applications/${id}/withdraw/`, { note }),
 
   getPipeline: (requisitionId: string) =>
     http.get<ApiResponse<PipelineData>>(`/pipeline/${requisitionId}/`),
 
   bulkAction: (application_ids: string[], action: string, data?: Record<string, unknown>) =>
-    http.post('/pipeline/bulk-action/', { application_ids, action, ...data }),
+    http.post('/pipeline/bulk-action/', { application_ids, action, data: data || {} }),
 }

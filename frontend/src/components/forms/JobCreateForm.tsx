@@ -7,6 +7,7 @@ import { CURRENCIES } from '@/utils/locale'
 import { useApiQuery } from '@/hooks/useApiQuery'
 import dayjs from 'dayjs'
 import type { JobRequisition } from '@/types'
+import { useTranslation } from 'react-i18next'
 
 const { Text } = Typography
 
@@ -16,6 +17,7 @@ interface JobCreateFormProps {
 }
 
 export default function JobCreateForm({ onSuccess, initialValues }: JobCreateFormProps) {
+  const { t } = useTranslation(['jobs', 'common'])
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   const [selectedAgencyIds, setSelectedAgencyIds] = useState<string[]>([])
@@ -147,10 +149,10 @@ export default function JobCreateForm({ onSuccess, initialValues }: JobCreateFor
         }
       }
 
-      message.success(isEditMode ? 'Job updated successfully' : 'Job created successfully')
+      message.success(isEditMode ? t('jobs:messages.job_updated_success', 'Job updated successfully') : t('jobs:messages.job_created_success', 'Job created successfully'))
       onSuccess(requisition)
     } catch (err: any) {
-      message.error(err.response?.data?.message || (isEditMode ? 'Failed to update job' : 'Failed to create job'))
+      message.error(err.response?.data?.message || (isEditMode ? t('jobs:messages.job_update_failed', 'Failed to update job') : t('jobs:messages.job_create_failed', 'Failed to create job')))
     } finally {
       setLoading(false)
     }
@@ -171,13 +173,13 @@ export default function JobCreateForm({ onSuccess, initialValues }: JobCreateFor
         agency_deadline: dayjs().add(30, 'day'),
       }}
     >
-      <Form.Item name="title" label="Job Title" rules={[{ required: true }]}>
-        <Input placeholder="e.g. Senior Software Engineer" />
+      <Form.Item name="title" label={t('jobs:form.job_title', 'Job Title')} rules={[{ required: true }]}>
+        <Input placeholder={t('jobs:form.placeholders.job_title', 'e.g. Senior Software Engineer')} />
       </Form.Item>
 
       <Row gutter={16}>
         <Col span={12}>
-          <Form.Item name="job_type" label="Job Type" rules={[{ required: true }]}>
+          <Form.Item name="job_type" label={t('jobs:form.job_type', 'Job Type')} rules={[{ required: true }]}>
             <Select options={[
               { value: 'full_time', label: 'Full Time' },
               { value: 'part_time', label: 'Part Time' },
@@ -187,7 +189,7 @@ export default function JobCreateForm({ onSuccess, initialValues }: JobCreateFor
           </Form.Item>
         </Col>
         <Col span={12}>
-          <Form.Item name="work_mode" label="Work Mode" rules={[{ required: true }]}>
+          <Form.Item name="work_mode" label={t('jobs:form.work_mode', 'Work Mode')} rules={[{ required: true }]}>
             <Select options={[
               { value: 'remote', label: 'Remote' },
               { value: 'onsite', label: 'On-site' },
@@ -199,7 +201,7 @@ export default function JobCreateForm({ onSuccess, initialValues }: JobCreateFor
 
       <Row gutter={16}>
         <Col span={12}>
-          <Form.Item name="priority" label="Priority">
+          <Form.Item name="priority" label={t('jobs:form.priority', 'Priority')}>
             <Select options={[
               { value: 'low', label: 'Low' },
               { value: 'medium', label: 'Medium' },
@@ -209,7 +211,7 @@ export default function JobCreateForm({ onSuccess, initialValues }: JobCreateFor
           </Form.Item>
         </Col>
         <Col span={12}>
-          <Form.Item name="headcount" label="Headcount">
+          <Form.Item name="headcount" label={t('jobs:form.headcount', 'Headcount')}>
             <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>
         </Col>
@@ -217,11 +219,11 @@ export default function JobCreateForm({ onSuccess, initialValues }: JobCreateFor
 
       <Row gutter={16}>
         <Col span={12}>
-          <Form.Item name="job_owner_id" label="Job Owner">
+          <Form.Item name="job_owner_id" label={t('jobs:form.job_owner', 'Job Owner')}>
             <Select
               showSearch
               allowClear
-              placeholder="Select owner"
+              placeholder={t('jobs:form.placeholders.select_owner', 'Select owner')}
               options={users.map((u: any) => ({
                 value: u.id,
                 label: u.full_name || u.email || `User ${String(u.id || '').slice(0, 8)}`,
@@ -230,11 +232,11 @@ export default function JobCreateForm({ onSuccess, initialValues }: JobCreateFor
           </Form.Item>
         </Col>
         <Col span={12}>
-          <Form.Item name="internal_recruiter_ids" label="Internal Recruiters">
+          <Form.Item name="internal_recruiter_ids" label={t('jobs:form.internal_recruiters', 'Internal Recruiters')}>
             <Select
               mode="multiple"
               allowClear
-              placeholder="Select recruiters"
+              placeholder={t('jobs:form.placeholders.select_recruiters', 'Select recruiters')}
               options={users.map((u: any) => ({
                 value: u.id,
                 label: u.full_name || u.email || `User ${String(u.id || '').slice(0, 8)}`,
@@ -244,10 +246,10 @@ export default function JobCreateForm({ onSuccess, initialValues }: JobCreateFor
         </Col>
       </Row>
 
-      <Form.Item name="department_id" label="Internal Team / Department">
+      <Form.Item name="department_id" label={t('jobs:form.department', 'Internal Team / Department')}>
         <Select
           allowClear
-          placeholder="Select department"
+          placeholder={t('jobs:form.placeholders.select_department', 'Select department')}
           options={departments.map((d: any) => ({
             value: d.id,
             label: d.name || `Department ${String(d.id || '').slice(0, 8)}`,
@@ -255,12 +257,12 @@ export default function JobCreateForm({ onSuccess, initialValues }: JobCreateFor
         />
       </Form.Item>
       <Text type="secondary" className="block -mt-4 mb-4 text-xs">
-        Owner and recruiter selections are stored in requisition metadata for Phase 1.
+        {t('jobs:form.owner_recruiter_hint', 'Owner and recruiter selections are stored in requisition metadata for Phase 1.')}
       </Text>
 
       <Row gutter={16}>
         <Col span={8}>
-          <Form.Item name="salary_currency" label="Currency" rules={[{ required: true }]}>
+          <Form.Item name="salary_currency" label={t('jobs:form.currency', 'Currency')} rules={[{ required: true }]}>
             <Select 
               showSearch
               options={CURRENCIES.map(c => ({ value: c.code, label: `${c.code} (${c.symbol})` }))} 
@@ -268,27 +270,27 @@ export default function JobCreateForm({ onSuccess, initialValues }: JobCreateFor
           </Form.Item>
         </Col>
         <Col span={8}>
-          <Form.Item name="salary_min" label="Min Salary">
+          <Form.Item name="salary_min" label={t('jobs:form.min_salary', 'Min Salary')}>
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
         </Col>
         <Col span={8}>
-          <Form.Item name="salary_max" label="Max Salary">
+          <Form.Item name="salary_max" label={t('jobs:form.max_salary', 'Max Salary')}>
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
         </Col>
       </Row>
 
-      <Form.Item name="description" label="Description">
-        <Input.TextArea rows={4} placeholder="Describe the role..." />
+      <Form.Item name="description" label={t('jobs:form.description', 'Description')}>
+        <Input.TextArea rows={4} placeholder={t('jobs:form.placeholders.description', 'Describe the role...')} />
       </Form.Item>
 
-      <Form.Item name="requirements" label="Requirements">
-        <Input.TextArea rows={4} placeholder="List requirements..." />
+      <Form.Item name="requirements" label={t('jobs:form.requirements', 'Requirements')}>
+        <Input.TextArea rows={4} placeholder={t('jobs:form.placeholders.requirements', 'List requirements...')} />
       </Form.Item>
 
-      <Form.Item name="skills_required" label="Skills (comma separated)">
-        <Select mode="tags" placeholder="e.g. React, Python" />
+      <Form.Item name="skills_required" label={t('jobs:form.skills', 'Skills (comma separated)')}>
+        <Select mode="tags" placeholder={t('jobs:form.placeholders.skills', 'e.g. React, Python')} />
       </Form.Item>
 
       <Form.Item name="use_agencies" valuePropName="checked" className="mb-2">
@@ -302,18 +304,18 @@ export default function JobCreateForm({ onSuccess, initialValues }: JobCreateFor
             }
           }}
         >
-          Use agencies for this job
+          {t('jobs:form.use_agencies', 'Use agencies for this job')}
         </Checkbox>
       </Form.Item>
 
       {useAgencies && (
         <>
-          <Form.Item name="agency_tenant_ids" label="Select Agencies">
+          <Form.Item name="agency_tenant_ids" label={t('jobs:form.select_agencies', 'Select Agencies')}>
             <Select
               mode="multiple"
               showSearch
               allowClear
-              placeholder="Select one or more agencies"
+              placeholder={t('jobs:form.placeholders.select_agencies', 'Select one or more agencies')}
               options={agencyOptions}
               value={selectedAgencyIds}
               onChange={(vals) => setSelectedAgencyIds(vals)}
@@ -321,21 +323,21 @@ export default function JobCreateForm({ onSuccess, initialValues }: JobCreateFor
           </Form.Item>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="agency_max_submissions" label="Max submissions per agency">
+              <Form.Item name="agency_max_submissions" label={t('jobs:form.agency_max_submissions', 'Max submissions per agency')}>
                 <InputNumber min={1} max={100} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="agency_deadline" label="Agency submission deadline">
+              <Form.Item name="agency_deadline" label={t('jobs:form.agency_deadline', 'Agency submission deadline')}>
                 <DatePicker style={{ width: '100%' }} />
               </Form.Item>
             </Col>
           </Row>
           <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-            <Text className="text-xs font-semibold text-slate-600">Selected agencies</Text>
+            <Text className="text-xs font-semibold text-slate-600">{t('jobs:form.selected_agencies', 'Selected agencies')}</Text>
             <div className="mt-2 flex flex-wrap gap-2">
               {selectedAgencyIds.length === 0 && (
-                <Text type="secondary" className="text-xs">No agencies selected</Text>
+                <Text type="secondary" className="text-xs">{t('jobs:form.no_agencies_selected', 'No agencies selected')}</Text>
               )}
               {selectedAgencyIds.map((agencyId) => (
                 <Tag
@@ -357,9 +359,9 @@ export default function JobCreateForm({ onSuccess, initialValues }: JobCreateFor
       )}
 
       <div className="flex justify-end gap-3 mt-6">
-        <Button onClick={() => form.resetFields()}>Reset</Button>
+        <Button onClick={() => form.resetFields()}>{t('common:actions.cancel', 'Cancel')}</Button>
         <Button type="primary" htmlType="submit" loading={loading} className="bg-blue-600">
-          {isEditMode ? 'Save Job Changes' : 'Create Job Requisition'}
+          {isEditMode ? t('jobs:actions.save_job_changes', 'Save Job Changes') : t('jobs:actions.create_job_drawer', 'Create New Job Requisition')}
         </Button>
       </div>
     </Form>

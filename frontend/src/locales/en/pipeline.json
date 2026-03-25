@@ -1,0 +1,60 @@
+{
+  "page": {
+    "title": "Pipeline",
+    "subtitle": "Track applications by stage and execute next actions"
+  },
+  "actions": {
+    "schedule_interview": "Schedule Interview",
+    "create_offer": "Create Offer",
+    "schedule_new_interview": "Schedule New Interview",
+    "reject_candidate": "Reject Candidate",
+    "shortlist": "Shortlist",
+    "reject": "Reject",
+    "schedule": "Schedule",
+    "make_offer": "Make Offer"
+  },
+  "tabs": {
+    "overview": "Overview",
+    "interviews": "Interviews"
+  },
+  "fields": {
+    "interview_title": "Interview Title",
+    "type": "Type",
+    "round": "Round",
+    "date_time": "Date & Time",
+    "duration_mins": "Duration (mins)",
+    "annual_ctc": "Annual CTC",
+    "currency": "Currency",
+    "joining_date": "Expected Joining Date",
+    "offer_notes": "Offer Notes"
+  },
+  "labels": {
+    "execution": "Execution",
+    "candidates": "Candidates"
+  },
+  "messages": {
+    "interview_scheduled": "Interview scheduled",
+    "interview_schedule_failed": "Failed to schedule interview",
+    "offer_created": "Offer created and sent",
+    "offer_failed": "Failed to make offer",
+    "application_moved": "Application moved",
+    "application_move_failed": "Failed to move application",
+    "candidate_shortlisted": "Candidate shortlisted",
+    "shortlist_failed": "Failed to shortlist",
+    "candidate_rejected": "Candidate rejected",
+    "reject_failed": "Failed to reject",
+    "reject_confirm": "Are you sure you want to reject this candidate?",
+    "complete_interview_before_offer": "Interview must be completed before offer"
+  },
+  "placeholders": {
+    "interview_title": "e.g. Technical Round 1",
+    "offer_notes": "Add any special conditions...",
+    "move_to_stage": "Move to stage...",
+    "select_job": "Select Job Role..."
+  },
+  "empty": {
+    "application_not_found": "Application not found",
+    "select_job_title": "Select a job to view pipeline",
+    "select_job_subtitle": "Choose a role from the dropdown above to start managing candidates."
+  }
+}

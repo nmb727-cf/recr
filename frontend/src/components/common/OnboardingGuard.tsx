@@ -4,22 +4,30 @@ import { useAuth } from '@/hooks/useAuth'
 import { passportApi } from '@/api/passport'
 import { organisationApi } from '@/api/organisation'
 import { Spin } from 'antd'
-import { isOrganisationSetupIncomplete } from '@/utils/companyOnboarding'
 
 interface OnboardingGuardProps {
   children: React.ReactNode
 }
 
+const COMPANY_ROLES = ['tenant_admin', 'recruiter', 'hiring_manager']
+const AGENCY_ROLES = ['agency_owner', 'agency_admin', 'agency_recruiter']
+
 export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   const { user, isAuthenticated } = useAuth()
   const location = useLocation()
   const [loading, setLoading] = useState(true)
-  const [needsOnboarding, setNeedsOnboarding] = useState(false)
-  const [onboardingPath, setOnboardingPath] = useState('/onboarding')
+  const [redirectTo, setRedirectTo] = useState<string | null>(null)
 
   useEffect(() => {
-    const checkOnboarding = async () => {
+    const check = async () => {
       if (!isAuthenticated || !user) {
+        setLoading(false)
+        return
+      }
+
+      // Step 1: Email must be verified
+      if (!user.email_verified) {
+        setRedirectTo('/verify-email')
         setLoading(false)
         return
       }
@@ -29,38 +37,27 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
           const res = await passportApi.get()
           const passport = res.data.data.passport
           if (passport.completeness_score < 40) {
-            setNeedsOnboarding(true)
-            setOnboardingPath('/onboarding')
+            setRedirectTo('/onboarding')
           }
-        } else if (['tenant_admin', 'recruiter', 'hiring_manager'].includes(user.role)) {
-          // Check if organisation is set up
+        } else if (COMPANY_ROLES.includes(user.role) || AGENCY_ROLES.includes(user.role)) {
+          // Step 2: Onboarding wizard must be completed (checked via org metadata)
           const res = await organisationApi.getProfile()
           const org = res.data.data.organisation
-          if (isOrganisationSetupIncomplete(org)) {
-            setNeedsOnboarding(true)
-            setOnboardingPath('/company-onboarding')
-          }
-        } else if (['agency_owner', 'agency_admin', 'agency_recruiter'].includes(user.role)) {
-          const res = await organisationApi.getProfile()
-          const org = res.data.data.organisation
-          if (isOrganisationSetupIncomplete(org)) {
-            setNeedsOnboarding(true)
-            setOnboardingPath('/agency-onboarding')
+          if (!org?.metadata?.onboarding_completed) {
+            setRedirectTo('/onboarding/wizard')
           }
         }
       } catch (err: any) {
         if (err.response?.status === 404) {
-          setNeedsOnboarding(true)
-          if (user.role === 'candidate') setOnboardingPath('/onboarding')
-          else if (['agency_owner', 'agency_admin', 'agency_recruiter'].includes(user.role)) setOnboardingPath('/agency-onboarding')
-          else setOnboardingPath('/company-onboarding')
+          if (user.role === 'candidate') setRedirectTo('/onboarding')
+          else setRedirectTo('/onboarding/wizard')
         }
       } finally {
         setLoading(false)
       }
     }
 
-    checkOnboarding()
+    check()
   }, [isAuthenticated, user])
 
   if (loading) {
@@ -71,8 +68,8 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
     )
   }
 
-  if (needsOnboarding && location.pathname !== onboardingPath) {
-    return <Navigate to={onboardingPath} replace />
+  if (redirectTo && location.pathname !== redirectTo) {
+    return <Navigate to={redirectTo} replace />
   }
 
   return <>{children}</>

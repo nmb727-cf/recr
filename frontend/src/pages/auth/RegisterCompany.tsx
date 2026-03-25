@@ -1,33 +1,32 @@
-import { Form, Input, Button, Typography, Alert, Select, Row, Col } from 'antd'
-import { UserOutlined, MailOutlined, LockOutlined, BankOutlined, GlobalOutlined, ClockCircleOutlined } from '@ant-design/icons'
+import { Form, Input, Button, Typography, Alert } from 'antd'
+import { UserOutlined, MailOutlined, LockOutlined, BankOutlined } from '@ant-design/icons'
 import { Link, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import AuthLayout from '@/layouts/AuthLayout'
 import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/store/authStore'
-import { cacheCompanySignupPrefill } from '@/utils/companyOnboarding'
-import { COUNTRIES, TIMEZONES } from '@/utils/locale'
 
 const { Title, Text } = Typography
 
 interface RegisterForm {
-  name: string // Company Name
+  name: string
   first_name: string
   last_name: string
   email: string
-  country_code: string
-  timezone: string
   password: string
   password_confirm: string
 }
 
 export default function RegisterCompany() {
+  const { t } = useTranslation(['auth', 'common'])
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [form] = Form.useForm()
   const navigate = useNavigate()
   const setTokens = useAuthStore(state => state.setTokens)
   const setUser = useAuthStore(state => state.setUser)
+  const setPendingVerificationEmail = useAuthStore(state => state.setPendingVerificationEmail)
 
   const handleSubmit = async (values: RegisterForm) => {
     setError(null)
@@ -40,51 +39,36 @@ export default function RegisterCompany() {
         email: values.email,
         password: values.password,
         password_confirm: values.password_confirm,
-        country_code: values.country_code,
-        timezone: values.timezone,
-      })
-      cacheCompanySignupPrefill({
-        name: `${values.first_name} ${values.last_name}`,
-        company_name: values.name,
-        email: values.email,
-        country_code: values.country_code,
       })
       setTokens(res.data.access_token, res.data.refresh_token)
       setUser(res.data.user)
-      navigate('/dashboard')
+      setPendingVerificationEmail(values.email)
+      navigate('/verify-email')
     } catch (err: unknown) {
       const errData = (err as { response?: { data?: { message?: string; errors?: Record<string, string | string[]> } } })
         ?.response?.data
-      
       const fieldErrors = errData?.errors
       if (fieldErrors) {
-        // Collect all field errors into a single string
         const errorMessages = Object.entries(fieldErrors).map(([field, error]) => {
           const message = Array.isArray(error) ? error[0] : error
           return `${field}: ${message}`
         })
         setError(errorMessages.join(' | '))
       } else {
-        setError(errData?.message ?? 'Registration failed. Please try again.')
+        setError(errData?.message ?? t('auth:register_failed', 'Registration failed. Please try again.'))
       }
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleCountryChange = (val: string) => {
-    if (val === 'IN') form.setFieldsValue({ timezone: 'Asia/Kolkata' })
-    if (val === 'US') form.setFieldsValue({ timezone: 'America/New_York' })
-    if (val === 'GB') form.setFieldsValue({ timezone: 'Europe/London' })
-  }
-
   return (
     <AuthLayout>
       <Title level={3} style={{ marginBottom: 4, textAlign: 'center' }}>
-        Create your company account
+        {t('auth:create_company_account', 'Create your company account')}
       </Title>
       <Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 28 }}>
-        Start hiring smarter today
+        {t('auth:create_company_subtitle', 'Start hiring smarter today')}
       </Text>
 
       {error && (
@@ -98,48 +82,43 @@ export default function RegisterCompany() {
         />
       )}
 
-      <Form 
+      <Form
         form={form}
-        layout="vertical" 
-        onFinish={handleSubmit} 
-        requiredMark={false} 
-        initialValues={{ country_code: 'IN', timezone: 'Asia/Kolkata' }}
+        layout="vertical"
+        onFinish={handleSubmit}
+        requiredMark={false}
       >
-        <Row gutter={12}>
-          <Col span={12}>
-            <Form.Item
-              name="first_name"
-              label="First name"
-              rules={[{ required: true, message: 'First name is required' }]}
-            >
-              <Input
-                prefix={<UserOutlined className="text-gray-400" />}
-                placeholder="John"
-                size="large"
-                autoComplete="given-name"
-              />
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Form.Item
-              name="last_name"
-              label="Last name"
-              rules={[{ required: true, message: 'Last name is required' }]}
-            >
-              <Input
-                prefix={<UserOutlined className="text-gray-400" />}
-                placeholder="Smith"
-                size="large"
-                autoComplete="family-name"
-              />
-            </Form.Item>
-          </Col>
-        </Row>
+        <Form.Item
+          name="first_name"
+          label={t('auth:first_name', 'First name')}
+          rules={[{ required: true, message: t('auth:first_name_required', 'First name is required') }]}
+          style={{ display: 'inline-block', width: 'calc(50% - 6px)', marginRight: 12 }}
+        >
+          <Input
+            prefix={<UserOutlined className="text-gray-400" />}
+            placeholder="John"
+            size="large"
+            autoComplete="given-name"
+          />
+        </Form.Item>
+        <Form.Item
+          name="last_name"
+          label={t('auth:last_name', 'Last name')}
+          rules={[{ required: true, message: t('auth:last_name_required', 'Last name is required') }]}
+          style={{ display: 'inline-block', width: 'calc(50% - 6px)' }}
+        >
+          <Input
+            prefix={<UserOutlined className="text-gray-400" />}
+            placeholder="Smith"
+            size="large"
+            autoComplete="family-name"
+          />
+        </Form.Item>
 
         <Form.Item
           name="name"
-          label="Company name"
-          rules={[{ required: true, message: 'Company name is required' }]}
+          label={t('auth:company_name', 'Company name')}
+          rules={[{ required: true, message: t('auth:company_name_required', 'Company name is required') }]}
         >
           <Input
             prefix={<BankOutlined className="text-gray-400" />}
@@ -150,10 +129,10 @@ export default function RegisterCompany() {
 
         <Form.Item
           name="email"
-          label="Work email"
+          label={t('auth:work_email', 'Work email')}
           rules={[
-            { required: true, message: 'Email is required' },
-            { type: 'email', message: 'Enter a valid email' },
+            { required: true, message: t('auth:email_required', 'Email is required') },
+            { type: 'email', message: t('auth:email_invalid', 'Enter a valid email') },
           ]}
         >
           <Input
@@ -162,52 +141,15 @@ export default function RegisterCompany() {
             size="large"
             autoComplete="email"
             type="email"
-            name="email"
           />
         </Form.Item>
 
-        <Row gutter={12}>
-          <Col span={12}>
-            <Form.Item
-              name="country_code"
-              label="Country"
-              rules={[{ required: true, message: 'Required' }]}
-            >
-              <Select
-                size="large"
-                placeholder="Select country"
-                suffixIcon={<GlobalOutlined className="text-gray-400" />}
-                showSearch
-                optionFilterProp="label"
-                onChange={handleCountryChange}
-                options={COUNTRIES.map((c) => ({ value: c.code, label: `${c.name} (${c.code})` }))}
-              />
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Form.Item
-              name="timezone"
-              label="Timezone"
-              rules={[{ required: true, message: 'Required' }]}
-            >
-              <Select
-                size="large"
-                placeholder="Select timezone"
-                suffixIcon={<ClockCircleOutlined className="text-gray-400" />}
-                showSearch
-                optionFilterProp="label"
-                options={TIMEZONES}
-              />
-            </Form.Item>
-          </Col>
-        </Row>
-
         <Form.Item
           name="password"
-          label="Password"
+          label={t('auth:password', 'Password')}
           rules={[
-            { required: true, message: 'Password is required' },
-            { min: 8, message: 'At least 8 characters' },
+            { required: true, message: t('auth:password_required', 'Password is required') },
+            { min: 8, message: t('auth:password_min', 'At least 8 characters') },
           ]}
         >
           <Input.Password
@@ -215,20 +157,19 @@ export default function RegisterCompany() {
             placeholder="Min. 8 characters"
             size="large"
             autoComplete="new-password"
-            name="password"
           />
         </Form.Item>
 
         <Form.Item
           name="password_confirm"
-          label="Confirm password"
+          label={t('auth:confirm_password', 'Confirm password')}
           dependencies={['password']}
           rules={[
-            { required: true, message: 'Please confirm your password' },
+            { required: true, message: t('auth:confirm_password_required', 'Please confirm your password') },
             ({ getFieldValue }) => ({
               validator(_, value) {
                 if (!value || getFieldValue('password') === value) return Promise.resolve()
-                return Promise.reject(new Error('Passwords do not match'))
+                return Promise.reject(new Error(t('auth:password_mismatch', 'Passwords do not match')))
               },
             }),
           ]}
@@ -250,15 +191,15 @@ export default function RegisterCompany() {
             loading={isLoading}
             style={{ height: 44 }}
           >
-            Create account
+            {t('auth:register', 'Create account')}
           </Button>
         </Form.Item>
       </Form>
 
       <Text type="secondary" style={{ display: 'block', textAlign: 'center', fontSize: 13 }}>
-        Already have an account?{' '}
+        {t('auth:already_have_account', 'Already have an account?')}{' '}
         <Link to="/login" style={{ color: '#1890ff' }}>
-          Sign in
+          {t('auth:login', 'Sign in')}
         </Link>
       </Text>
     </AuthLayout>

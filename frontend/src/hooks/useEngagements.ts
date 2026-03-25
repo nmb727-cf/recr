@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import http from '../utils/http'
+import type { CandidateNote } from '@/types'
 
 export interface Engagement {
   id: string
@@ -24,6 +25,8 @@ export interface Engagement {
   closed_at: string | null
   closure_reason: string | null
   days_since_activity?: number
+  notes?: CandidateNote[]
+  notes_search_text?: string
 }
 
 export interface ActiveCandidatesResponse {
@@ -45,7 +48,44 @@ export function useActiveEngagements(filters: {
 
   return useQuery<ActiveCandidatesResponse>({
     queryKey: ['active-engagements', filters],
-    queryFn: () => http.get(`/candidates/active/?${params.toString()}`).then(r => r.data.data),
+    queryFn: async () => {
+      const base = await http.get(`/candidates/active/?${params.toString()}`).then(r => r.data.data as ActiveCandidatesResponse)
+      const candidateIds = [...new Set((base.engagements || []).map(engagement => engagement.candidate).filter(Boolean))]
+
+      if (candidateIds.length === 0) {
+        return base
+      }
+
+      const noteResponses = await Promise.all(
+        candidateIds.map(async candidateId => {
+          try {
+            const data = await http.get(`/candidates/${candidateId}/notes/`).then(r => r.data.data)
+            const notes = (Array.isArray(data) ? data : data?.notes || []) as CandidateNote[]
+            return [candidateId, notes] as const
+          } catch {
+            return [candidateId, [] as CandidateNote[]] as const
+          }
+        })
+      )
+
+      const notesByCandidate = new Map<string, CandidateNote[]>(noteResponses)
+
+      return {
+        ...base,
+        engagements: (base.engagements || []).map(engagement => {
+          const notes = notesByCandidate.get(engagement.candidate) || []
+          return {
+            ...engagement,
+            notes,
+            notes_search_text: notes
+              .map(note => note.note_text || '')
+              .filter(Boolean)
+              .join(' ')
+              .toLowerCase(),
+          }
+        }),
+      }
+    },
   })
 }
 

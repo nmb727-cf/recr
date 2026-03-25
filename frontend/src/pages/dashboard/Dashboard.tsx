@@ -11,6 +11,7 @@ import {
 import { motion } from 'framer-motion'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
+import { useTranslation } from 'react-i18next'
 import { useApiQuery } from '@/hooks/useApiQuery'
 import { analyticsApi } from '@/api/analytics'
 import { candidateApi } from '@/api/candidate'
@@ -28,11 +29,11 @@ const { Text, Title } = Typography
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function getGreeting(): string {
+function getGreeting(t: (...args: any[]) => string): string {
   const h = new Date().getHours()
-  if (h < 12) return 'Good morning'
-  if (h < 17) return 'Good afternoon'
-  return 'Good evening'
+  if (h < 12) return String(t('greeting.morning', 'Good morning'))
+  if (h < 17) return String(t('greeting.afternoon', 'Good afternoon'))
+  return String(t('greeting.evening', 'Good evening'))
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -89,6 +90,7 @@ interface DashboardData {
 }
 
 function CompanyDashboard() {
+  const { t } = useTranslation('dashboard')
   const navigate = useNavigate()
 
   const { data: analytics, isLoading } = useApiQuery<DashboardData>(
@@ -113,25 +115,25 @@ function CompanyDashboard() {
 
   const stats = [
     {
-      title: 'Active Jobs',
+      title: t('stats.active_jobs', 'Active Jobs'),
       value: analytics?.jobs?.active ?? 0,
       icon: Briefcase,
       color: 'bg-blue-50 text-blue-600',
     },
     {
-      title: 'Total Candidates',
+      title: t('stats.total_candidates', 'Total Candidates'),
       value: analytics?.candidates?.total ?? 0,
       icon: Users,
       color: 'bg-emerald-50 text-emerald-600',
     },
     {
-      title: 'Active Pipeline',
+      title: t('stats.active_pipeline', 'Active Pipeline'),
       value: analytics?.applications?.total ?? 0,
       icon: ClipboardCheck,
       color: 'bg-orange-50 text-orange-600',
     },
     {
-      title: 'Interviews Scheduled',
+      title: t('stats.interviews_scheduled', 'Interviews Scheduled'),
       value: analytics?.interviews?.scheduled ?? 0,
       icon: Calendar,
       color: 'bg-purple-50 text-purple-600',
@@ -163,7 +165,7 @@ function CompanyDashboard() {
         <Col xs={24} lg={16}>
           <div className="space-y-6 h-full flex flex-col">
             <Card 
-              title={<span className="text-lg font-bold text-slate-900">Needs Attention</span>}
+              title={<span className="text-lg font-bold text-slate-900">{t('cards.needs_attention', 'Needs Attention')}</span>}
               bordered={false}
               className="shadow-soft-sm"
             >
@@ -211,7 +213,7 @@ function CompanyDashboard() {
             </Card>
 
             <Card
-              title={<span className="text-lg font-bold text-slate-900">Pipeline Distribution</span>}
+              title={<span className="text-lg font-bold text-slate-900">{t('cards.pipeline_distribution', 'Pipeline Distribution')}</span>}
               bordered={false}
               className="flex-1 shadow-soft-sm"
             >
@@ -461,6 +463,7 @@ function CandidateDashboard() {
 // ─── Main Dashboard (role-branched) ──────────────────────────────────────────
 
 export default function Dashboard() {
+  const { t } = useTranslation('dashboard')
   const user = useAuthStore((state) => state.user)
   const isAgency = user?.role === 'agency_owner' || user?.role === 'agency_recruiter'
 
@@ -475,20 +478,20 @@ export default function Dashboard() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">
-            {getGreeting()}, {user?.first_name ?? 'there'}
+            {getGreeting(t as any)}, {user?.first_name ?? 'there'}
           </h1>
           <p className="text-slate-500 mt-1">
             {user?.role === 'candidate'
-              ? 'Track your applications and upcoming interviews.'
+              ? t('candidate.subtitle', 'Track your applications and upcoming interviews.')
               : isAgency
-                ? 'Here\'s your agency activity today.'
-                : 'Here\'s what\'s happening with your recruitment pipeline today.'}
+                ? t('agency.subtitle', 'Here\'s your agency activity today.')
+                : t('company.subtitle', 'Here\'s what\'s happening with your recruitment pipeline today.')}
           </p>
         </div>
         {user?.role !== 'candidate' && !isAgency && (
           <div className="flex items-center gap-3">
             <Button type="primary" icon={<Plus className="h-4 w-4" />} onClick={() => window.location.href = '/jobs'}>
-              Create Job
+              {t('actions.create_job', 'Create Job')}
             </Button>
           </div>
         )}

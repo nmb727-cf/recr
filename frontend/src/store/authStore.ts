@@ -9,6 +9,7 @@ interface AuthState {
   refreshToken: string | null
   isAuthenticated: boolean
   isLoading: boolean
+  pendingVerificationEmail: string | null
 
   // Actions
   login: (email: string, password: string) => Promise<void>
@@ -17,6 +18,7 @@ interface AuthState {
   setTokens: (access: string, refresh: string) => void
   clearAuth: () => void
   fetchMe: () => Promise<void>
+  setPendingVerificationEmail: (email: string | null) => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -27,8 +29,11 @@ export const useAuthStore = create<AuthState>()(
       refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
+      pendingVerificationEmail: null,
 
       setUser: (user) => set({ user }),
+
+      setPendingVerificationEmail: (email) => set({ pendingVerificationEmail: email }),
 
       setTokens: (access, refresh) => {
         localStorage.setItem('access_token', access)
@@ -39,7 +44,13 @@ export const useAuthStore = create<AuthState>()(
       clearAuth: () => {
         localStorage.removeItem('access_token')
         localStorage.removeItem('refresh_token')
-        set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false })
+        set({
+          user: null,
+          accessToken: null,
+          refreshToken: null,
+          isAuthenticated: false,
+          pendingVerificationEmail: null,
+        })
       },
 
       login: async (email, password) => {
@@ -56,6 +67,7 @@ export const useAuthStore = create<AuthState>()(
             accessToken: access_token,
             refreshToken: refresh_token,
             isAuthenticated: true,
+            pendingVerificationEmail: null,
           })
         } catch (err) {
           throw err
@@ -77,8 +89,11 @@ export const useAuthStore = create<AuthState>()(
         try {
           const { data: res } = await authApi.me()
           set({ user: res.data.user })
-        } catch {
-          get().clearAuth()
+        } catch (err: any) {
+          // Only clear auth on a real 401 — not on network errors or server errors
+          if (err?.response?.status === 401) {
+            get().clearAuth()
+          }
         }
       },
     }),
@@ -89,6 +104,7 @@ export const useAuthStore = create<AuthState>()(
         refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
         user: state.user,
+        pendingVerificationEmail: state.pendingVerificationEmail,
       }),
     }
   )

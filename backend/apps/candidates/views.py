@@ -2,18 +2,259 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Q
+from django.db.models import Q, Count
+from django.utils import timezone
+from datetime import timedelta
+import uuid
 
-from apps.candidates.models import Candidate, CandidateProfile, CandidateNote
+from apps.candidates.models import (
+    Candidate,
+    CandidateProfile,
+    CandidateNote,
+    CandidateWorkspace,
+    CandidateEngagement,
+    CandidateTimelineEvent,
+    CandidateWorkflowPolicy,
+    GENERAL_CANDIDATE_STAGES,
+    JOB_CANDIDATE_STAGES,
+)
 from apps.candidates.serializers import (
     CandidateSerializer, CandidateDetailSerializer,
     CandidateProfileSerializer, CandidateNoteSerializer,
+    CandidateWorkspaceSerializer,
+    CandidateEngagementSerializer,
+    CandidateTimelineEventSerializer,
+    CandidateWorkflowPolicySerializer,
 )
 from apps.core.responses import success_response, error_response
+from apps.rbac.permissions import require_permission
+from apps.organisations.models import TeamMembership
+
+
+SYSTEM_DEFAULT_WORKFLOW_MODE = 'manual'
+ACTIVE_WORK_STAGES = [
+    'new_lead',
+    'contacted',
+    'follow_up',
+    'qualified',
+    'nurture',
+    'dormant',
+]
+POST_ADD_NEXT_ACTIONS = [
+    'save_to_database_only',
+    'add_to_active_work',
+    'match_to_jobs',
+    'send_info_request_link',
+    'assign_to_recruiter',
+    'keep_in_nurture_pool',
+]
+
+
+def _resolve_workflow_mode(user, candidate=None, job=None):
+    if job and job.override_workflow_mode:
+        return job.override_workflow_mode
+
+    team_ids = TeamMembership.objects.filter(
+        tenant_id=user.tenant_id,
+        user_id=user.id
+    ).values_list('team_id', flat=True)
+
+    recruiter_policy = CandidateWorkflowPolicy.objects.filter(
+        tenant_id=user.tenant_id,
+        recruiter_user_id=user.id,
+        is_active=True
+    ).first()
+    if recruiter_policy:
+        return recruiter_policy.default_candidate_workflow_mode
+
+    team_policy = CandidateWorkflowPolicy.objects.filter(
+        tenant_id=user.tenant_id,
+        team_id__in=team_ids,
+        recruiter_user_id__isnull=True,
+        is_active=True
+    ).order_by('-updated_at').first()
+    if team_policy:
+        return team_policy.default_candidate_workflow_mode
+
+    tenant_policy = CandidateWorkflowPolicy.objects.filter(
+        tenant_id=user.tenant_id,
+        team_id__isnull=True,
+        recruiter_user_id__isnull=True,
+        is_active=True
+    ).first()
+    if tenant_policy:
+        return tenant_policy.default_candidate_workflow_mode
+
+    if candidate and candidate.workflow_mode:
+        return candidate.workflow_mode
+    return SYSTEM_DEFAULT_WORKFLOW_MODE
+
+
+def _workflow_behavior(mode):
+    if mode == 'fully_automated':
+        return {
+            'mode': mode,
+            'auto_actions_enabled': True,
+            'suggestions_enabled': True,
+            'user_approval_required': False,
+        }
+    if mode == 'semi_automated':
+        return {
+            'mode': mode,
+            'auto_actions_enabled': False,
+            'suggestions_enabled': True,
+            'user_approval_required': True,
+        }
+    return {
+        'mode': 'manual',
+        'auto_actions_enabled': False,
+        'suggestions_enabled': False,
+        'user_approval_required': True,
+    }
+
+
+def _extract_stage_note(payload):
+    note = (
+        payload.get('note')
+        or payload.get('notes')
+        or payload.get('reason')
+        or payload.get('stage_change_note')
+        or ''
+    )
+    return str(note).strip()
+
+
+def _require_stage_note(payload):
+    note = _extract_stage_note(payload)
+    if not note:
+        return None, error_response(
+            "A mandatory note/reason is required for every stage change.",
+            {'note': ['This field is required.']}
+        )
+    return note, None
+
+
+def _candidate_warning_signals(candidate):
+    warnings = []
+    if not candidate.email and not candidate.phone and not candidate.phone_number:
+        warnings.append('missing_contact_info')
+    if candidate.is_duplicate or candidate.duplicate_of:
+        warnings.append('duplicate')
+    if candidate.next_follow_up_at and candidate.next_follow_up_at < timezone.now():
+        warnings.append('follow_up_overdue')
+    if candidate.profile_completeness < 60:
+        warnings.append('incomplete_profile')
+    return warnings
+
+
+def _candidate_smart_row(candidate, job_summary=None):
+    return {
+        'id': str(candidate.id),
+        'name': candidate.full_name,
+        'current_title': candidate.current_title,
+        'company': candidate.current_company,
+        'experience': float(candidate.experience_years) if candidate.experience_years is not None else None,
+        'location': ", ".join(
+            [x for x in [candidate.current_location_city, candidate.current_location_country] if x]
+        ),
+        'source': candidate.source or candidate.source_type,
+        'engagement_stage': candidate.engagement_stage,
+        'owner': str(candidate.owner_user_id) if candidate.owner_user_id else None,
+        'last_touch': candidate.last_contact_at,
+        'last_activity': candidate.last_activity_at or candidate.updated_at,
+        'signals': {
+            'readiness_score': candidate.readiness_score,
+            'fit_score': candidate.fit_score,
+            'warning_signals': _candidate_warning_signals(candidate),
+        },
+        'job_engagement_summary': job_summary or {},
+    }
+
+
+def _structured_activity_item(event):
+    payload = event.payload or {}
+    context_type = 'general'
+    if event.engagement and event.engagement.job_id:
+        context_type = 'job'
+    if payload.get('context_type') in ['job', 'general']:
+        context_type = payload.get('context_type')
+
+    method = payload.get('method')
+    if not method:
+        if event.source == 'system':
+            method = 'system'
+        elif payload.get('method_hint'):
+            method = payload.get('method_hint')
+        else:
+            method = 'manual'
+
+    return {
+        'candidate_id': str(event.candidate_id),
+        'engagement_id': str(event.engagement_id) if event.engagement_id else None,
+        'actor_id': str(event.actor_id) if event.actor_id else None,
+        'actor_type': 'system' if event.actor_id is None else 'user',
+        'action_type': event.event_type,
+        'context_type': context_type,
+        'method': method,
+        'metadata_json': payload,
+        'created_at': event.created_at,
+        'actor': f"{event.actor.first_name} {event.actor.last_name}".strip() if event.actor else 'System',
+    }
+
+
+def _structured_note_item(note):
+    context_type = 'general'
+    if note.engagement_id:
+        context_type = 'job' if note.engagement and note.engagement.job_id else 'general'
+    elif note.note_context and note.note_context != 'general':
+        context_type = 'job'
+
+    return {
+        'candidate_id': str(note.candidate_id),
+        'engagement_id': str(note.engagement_id) if note.engagement_id else None,
+        'author_id': str(note.created_by) if note.created_by else None,
+        'author': str(note.created_by) if note.created_by else 'System',
+        'note_type': note.note_type,
+        'content': note.note_text,
+        'context_type': context_type,
+        'created_at': note.created_at,
+    }
+
+
+def _apply_saved_view(qs, view_name, stale_days=21):
+    now = timezone.now()
+    if view_name == 'active_work':
+        return qs.filter(is_in_active_work=True)
+    if view_name == 'recently_added':
+        return qs.filter(created_at__gte=now - timedelta(days=14))
+    if view_name == 'passport_linked':
+        return qs.filter(Q(passport_linked=True) | Q(passport_id__isnull=False))
+    if view_name == 'agency_submitted':
+        return qs.filter(Q(source='agency') | Q(source_type='agency'))
+    if view_name == 'duplicates':
+        return qs.filter(
+            Q(is_duplicate=True) | Q(duplicate_of__isnull=False) |
+            Q(duplicate_review_status__in=['pending_review', 'confirmed_duplicate'])
+        )
+    if view_name == 'dormant':
+        return qs.filter(last_activity_at__lt=now - timedelta(days=stale_days))
+    if view_name == 'follow_up_due':
+        return qs.filter(next_follow_up_at__isnull=False, next_follow_up_at__lte=now)
+    if view_name == 'ready_to_submit':
+        return qs.filter(
+            engagement_stage__in=['qualified'],
+            readiness_score__gte=70
+        )
+    if view_name == 'missing_contact_info':
+        return qs.filter(
+            Q(email='') |
+            (Q(phone='') & Q(phone_number=''))
+        )
+    return qs
 
 
 class CandidateListView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, require_permission('candidates.candidate.view')]
 
     def get(self, request):
         # Candidates visible to this tenant:
@@ -62,6 +303,13 @@ class CandidateListView(APIView):
         )
 
     def post(self, request):
+        from apps.rbac.utils import user_has_permission
+        if not user_has_permission(request.user, 'candidates.candidate.create'):
+            return error_response(
+                "You do not have permission to create candidates.",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+
         # Deduplication check
         email = request.data.get('email', '').strip().lower()
         phone = request.data.get('phone', '').strip()
@@ -93,8 +341,11 @@ class CandidateListView(APIView):
             }, status=200)
 
         payload = request.data.copy()
-        entry_type = payload.pop('entry_type', 'manual')
+        entry_type = payload.pop('entry_type', payload.pop('entry_method', 'manual'))
         send_invite = payload.pop('send_invite', False)
+        next_action = payload.pop('next_action', 'save_to_database_only')
+        if next_action not in POST_ADD_NEXT_ACTIONS:
+            next_action = 'save_to_database_only'
 
         serializer = CandidateSerializer(data=payload)
         if not serializer.is_valid():
@@ -105,6 +356,9 @@ class CandidateListView(APIView):
             owner_user_id=request.user.id,
             owner_tenant_id=request.user.tenant_id,
             created_by=request.user.id,
+            workflow_mode=_resolve_workflow_mode(request.user),
+            source_type=payload.get('source_type') or 'direct',
+            last_activity_at=timezone.now(),
         )
 
         # Auto-create empty profile
@@ -114,10 +368,8 @@ class CandidateListView(APIView):
             created_by=request.user.id,
         )
 
-        if entry_type in ['invite', 'quick_add']:
+        if entry_type in ['invite', 'quick_add', 'invite_candidate']:
             import secrets
-            from datetime import timedelta
-            from django.utils import timezone
             candidate.profile_status = 'draft'
             candidate.initial_entry_type = 'invite'
             candidate.claim_token = secrets.token_urlsafe(32)
@@ -126,14 +378,13 @@ class CandidateListView(APIView):
             )
         else:
             candidate.profile_status = 'partial'
-            candidate.initial_entry_type = 'manual'
+            candidate.initial_entry_type = entry_type if entry_type else 'manual'
 
         send_invite_bool = send_invite
         if isinstance(send_invite, str):
             send_invite_bool = send_invite.lower() in ['1', 'true', 'yes', 'on']
 
         if send_invite_bool and candidate.claim_token:
-            from django.utils import timezone
             candidate.account_status = 'invited'
             candidate.invite_sent_at = timezone.now()
             print(
@@ -143,27 +394,86 @@ class CandidateListView(APIView):
 
         candidate.save()
 
-        # Auto-create engagement
+        # Auto-create engagement as the default Active Work card surface.
+        created_engagement = None
         try:
-            from apps.candidates.models import CandidateEngagement
-            from django.utils import timezone
-            CandidateEngagement.objects.create(
+            # Check for existing active general engagement (precaution)
+            created_engagement = CandidateEngagement.objects.filter(
                 tenant_id=request.user.tenant_id,
                 candidate=candidate,
-                engagement_type='sourced',
-                stage='new',
-                priority='warm',
+                job__isnull=True,
                 is_active=True,
-                owner_user=request.user,
-                created_by=request.user,
-                last_activity_at=timezone.now(),
-                metadata={'auto_created': True, 'source': 'candidate_database'}
-            )
+                is_deleted=False
+            ).first()
+            
+            if not created_engagement:
+                created_engagement = CandidateEngagement.objects.create(
+                    tenant_id=request.user.tenant_id,
+                    candidate=candidate,
+                    engagement_type='sourced',
+                    stage='new_lead',
+                    priority='warm',
+                    is_active=True,
+                    owner_user=request.user,
+                    created_by=request.user,
+                    last_activity_at=timezone.now(),
+                    metadata={'auto_created': True, 'source': 'candidate_database'}
+                )
         except Exception as e:
             print(f"Failed to auto-create engagement: {e}")
 
+        if next_action == 'save_to_database_only':
+            candidate.is_in_active_work = False
+            if created_engagement:
+                created_engagement.is_active = False
+                created_engagement.save(update_fields=['is_active', 'updated_at'])
+        elif next_action == 'add_to_active_work':
+            candidate.is_in_active_work = True
+            candidate.lifecycle_state = 'active'
+            candidate.engagement_stage = 'new_lead'
+            if created_engagement:
+                created_engagement.is_active = True
+                created_engagement.stage = 'new_lead'
+                created_engagement.save()
+        elif next_action == 'match_to_jobs':
+            candidate.lifecycle_state = 'active'
+            candidate.is_in_active_work = True
+            # This logic usually leads to job engagement creation via modal
+        elif next_action == 'send_info_request_link':
+            if not candidate.claim_token:
+                import secrets
+                candidate.claim_token = secrets.token_urlsafe(32)
+                candidate.claim_token_expires_at = timezone.now() + timedelta(days=30)
+            candidate.account_status = 'invited'
+            candidate.invite_sent_at = timezone.now()
+        elif next_action == 'assign_to_recruiter':
+            assignee = request.data.get('assign_user_id')
+            if assignee:
+                candidate.owner_user_id = assignee
+            candidate.is_in_active_work = True
+            candidate.lifecycle_state = 'active'
+            if created_engagement:
+                created_engagement.is_active = True
+                if assignee:
+                    created_engagement.owner_user_id = assignee
+                created_engagement.save()
+        elif next_action == 'keep_in_nurture_pool':
+            candidate.lifecycle_state = 'nurture'
+            candidate.engagement_stage = 'nurture'
+            candidate.auto_nurture_enabled = True
+            candidate.is_in_active_work = False
+            if created_engagement:
+                created_engagement.is_active = True
+                created_engagement.stage = 'nurture'
+                created_engagement.save()
+
+        candidate.save()
+
         response_data = {
-            'candidate': CandidateSerializer(candidate).data
+            'candidate': CandidateSerializer(candidate).data,
+            'next_step_selected': next_action,
+            'next_step_options': POST_ADD_NEXT_ACTIONS,
+            'workflow_behavior': _workflow_behavior(candidate.workflow_mode),
         }
         if candidate.claim_token:
             response_data['claim_token'] = candidate.claim_token
@@ -177,6 +487,35 @@ class CandidateListView(APIView):
             status_code=status.HTTP_201_CREATED
         )
 
+
+from apps.talent_pools.models import TalentPool, CandidateTalentPoolMembership
+from apps.talent_pools.serializers import TalentPoolSerializer
+
+class CandidateTalentPoolsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            candidate = Candidate.objects.get(
+                id=pk,
+                tenant_id=request.user.tenant_id,
+                is_deleted=False
+            )
+        except Candidate.DoesNotExist:
+            return error_response("Candidate not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        memberships = CandidateTalentPoolMembership.objects.filter(
+            candidate=candidate,
+            tenant_id=request.user.tenant_id
+        ).select_related('talent_pool')
+        
+        pools = [m.talent_pool for m in memberships]
+        serializer = TalentPoolSerializer(pools, many=True)
+        
+        return success_response(
+            data={'talent_pools': serializer.data},
+            message="Candidate talent pools retrieved."
+        )
 
 class CandidateDetailView(APIView):
     permission_classes = [IsAuthenticated]
@@ -206,11 +545,34 @@ class CandidateDetailView(APIView):
         if not candidate:
             return error_response("Candidate not found.", status_code=status.HTTP_404_NOT_FOUND)
 
+        old_candidate_stage = candidate.engagement_stage
+        if 'engagement_stage' in request.data and request.data.get('engagement_stage') != old_candidate_stage:
+            stage_note, note_error = _require_stage_note(request.data)
+            if note_error:
+                return note_error
+        else:
+            stage_note = None
+
         serializer = CandidateSerializer(candidate, data=request.data, partial=True)
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors)
 
-        serializer.save()
+        updated_candidate = serializer.save()
+        if stage_note:
+            CandidateTimelineEvent.objects.create(
+                tenant_id=request.user.tenant_id,
+                candidate_id=updated_candidate.id,
+                event_type='candidate.stage_changed',
+                actor=request.user,
+                payload={
+                    'from_stage': old_candidate_stage,
+                    'to_stage': updated_candidate.engagement_stage,
+                    'note': stage_note,
+                    'changed_by': str(request.user.id),
+                    'changed_at': timezone.now().isoformat(),
+                },
+                source='user'
+            )
         return success_response(
             data={'candidate': serializer.data},
             message="Candidate updated."
@@ -520,16 +882,6 @@ class LocationSearchView(APIView):
             message="Locations retrieved."
         )
 
-
-from .models import CandidateWorkspace, CandidateEngagement, CandidateTimelineEvent
-from .serializers import (
-    CandidateWorkspaceSerializer,
-    CandidateEngagementSerializer,
-    CandidateTimelineEventSerializer
-)
-from django.utils import timezone
-
-
 class CandidateWorkspaceView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -585,6 +937,53 @@ class CandidateEngagementListView(APIView):
     def post(self, request, candidate_id):
         data = request.data.copy()
         data['candidate'] = candidate_id
+        job_id = data.get('job')
+        
+        if not data.get('stage'):
+            data['stage'] = 'submitted' if job_id else 'new_lead'
+
+        # Enforce: one active general presence maximum per candidate.
+        if not job_id:
+            existing_general = CandidateEngagement.objects.filter(
+                candidate_id=candidate_id,
+                tenant_id=request.user.tenant_id,
+                job__isnull=True,
+                is_active=True,
+                is_deleted=False,
+            ).order_by('-started_at').first()
+            if existing_general:
+                old_stage = existing_general.stage
+                new_stage = data.get('stage', old_stage)
+                existing_general.stage = new_stage
+                existing_general.last_activity_at = timezone.now()
+                existing_general.save()
+                
+                # Sync candidate stage
+                Candidate.objects.filter(id=candidate_id).update(
+                    engagement_stage=new_stage,
+                    last_activity_at=timezone.now()
+                )
+                
+                if old_stage != new_stage:
+                    from apps.candidates.signals import emit_timeline_event
+                    emit_timeline_event(
+                        tenant_id=request.user.tenant_id,
+                        candidate_id=candidate_id,
+                        engagement=existing_general,
+                        event_type='engagement.stage_changed',
+                        actor=request.user,
+                        payload={
+                            'from_stage': old_stage,
+                            'to_stage': new_stage,
+                            'note': 'General track stage updated via enforcement'
+                        },
+                        source='user'
+                    )
+                    
+                return success_response(
+                    data=CandidateEngagementSerializer(existing_general).data,
+                    message="Updated existing general presence."
+                )
 
         # If owner_user is "me" or missing, set to current user
         owner_user = data.get('owner_user')
@@ -596,9 +995,23 @@ class CandidateEngagementListView(APIView):
             engagement = serializer.save(
                 tenant_id=request.user.tenant_id,
                 created_by=request.user,
-                owner_user=request.user,
+                owner_user=request.user if not owner_user or owner_user == 'me' else serializer.validated_data.get('owner_user'),
                 last_activity_at=timezone.now()
             )
+            candidate_updates = {'last_activity_at': timezone.now()}
+            if engagement.job_id is None:
+                candidate_updates['is_in_active_work'] = True
+                candidate_updates['engagement_stage'] = engagement.stage
+            else:
+                from apps.candidates.signals import transition_candidate_to_job_track
+                transition_candidate_to_job_track(
+                    candidate_id=candidate_id,
+                    tenant_id=request.user.tenant_id,
+                    job_id=engagement.job_id,
+                )
+                candidate_updates['is_in_active_work'] = False
+                candidate_updates['active_job_id'] = engagement.job_id
+            Candidate.objects.filter(id=candidate_id).update(**candidate_updates)
             # Emit timeline event
             CandidateTimelineEvent.objects.create(
                 tenant_id=request.user.tenant_id,
@@ -609,7 +1022,8 @@ class CandidateEngagementListView(APIView):
                 payload={
                     'engagement_type': engagement.engagement_type,
                     'stage': engagement.stage,
-                    'priority': engagement.priority
+                    'priority': engagement.priority,
+                    'job_id': str(engagement.job_id) if engagement.job_id else None
                 },
                 source='user'
             )
@@ -650,14 +1064,45 @@ class CandidateEngagementDetailView(APIView):
         if not engagement:
             return error_response("Engagement not found", status_code=404)
 
+        effective_mode = _resolve_workflow_mode(
+            request.user,
+            candidate=engagement.candidate,
+            job=engagement.job
+        )
+        if effective_mode == 'manual' and request.data.get('auto_run') is True:
+            return error_response(
+                "Manual workflow mode does not allow automated stage actions.",
+                status_code=403
+            )
+
         old_stage = engagement.stage
+        stage_changed = 'stage' in request.data and request.data['stage'] != old_stage
+        stage_note = None
+        if stage_changed:
+            stage_note, note_error = _require_stage_note(request.data)
+            if note_error:
+                return note_error
         serializer = CandidateEngagementSerializer(
             engagement, data=request.data, partial=True
         )
         if serializer.is_valid():
             updated = serializer.save(last_activity_at=timezone.now())
+            candidate_updates = {'last_activity_at': timezone.now()}
+            if updated.job_id is None:
+                candidate_updates['engagement_stage'] = updated.stage
+                candidate_updates['is_in_active_work'] = updated.is_active
+            else:
+                from apps.candidates.signals import transition_candidate_to_job_track
+                transition_candidate_to_job_track(
+                    candidate_id=candidate_id,
+                    tenant_id=request.user.tenant_id,
+                    job_id=updated.job_id,
+                )
+                candidate_updates['is_in_active_work'] = False
+                candidate_updates['active_job_id'] = updated.job_id
+            Candidate.objects.filter(id=candidate_id).update(**candidate_updates)
             # Emit stage change event if stage changed
-            if 'stage' in request.data and request.data['stage'] != old_stage:
+            if stage_changed:
                 CandidateTimelineEvent.objects.create(
                     tenant_id=request.user.tenant_id,
                     candidate_id=candidate_id,
@@ -666,11 +1111,18 @@ class CandidateEngagementDetailView(APIView):
                     actor=request.user,
                     payload={
                         'from_stage': old_stage,
-                        'to_stage': updated.stage
+                        'to_stage': updated.stage,
+                        'note': stage_note,
+                        'changed_by': str(request.user.id),
+                        'changed_at': timezone.now().isoformat(),
                     },
                     source='user'
                 )
-            return success_response(serializer.data)
+            return success_response({
+                'engagement': serializer.data,
+                'effective_workflow_mode': effective_mode,
+                'workflow_behavior': _workflow_behavior(effective_mode),
+            })
         return error_response(serializer.errors)
 
 
@@ -691,8 +1143,32 @@ class CandidateEngagementCloseView(APIView):
         engagement.is_active = False
         engagement.closed_at = timezone.now()
         engagement.closure_reason = request.data.get('closure_reason', '')
-        engagement.stage = request.data.get('final_stage', 'closed')
+        stage_note, note_error = _require_stage_note(request.data)
+        if note_error:
+            return note_error
+        old_stage = engagement.stage
+        final_stage = request.data.get('final_stage')
+        if not final_stage:
+            final_stage = 'nurture' if engagement.job_id is None else 'rejected'
+        if engagement.job_id is None and final_stage not in GENERAL_CANDIDATE_STAGES:
+            return error_response(
+                "General engagement can only close to pre-job stages.",
+                {'allowed_stages': list(GENERAL_CANDIDATE_STAGES)}
+            )
+        if engagement.job_id is not None and final_stage not in JOB_CANDIDATE_STAGES:
+            return error_response(
+                "Job-specific engagement can only close to post-submission stages.",
+                {'allowed_stages': list(JOB_CANDIDATE_STAGES)}
+            )
+        engagement.stage = final_stage
         engagement.save()
+        candidate_updates = {'last_activity_at': timezone.now()}
+        if engagement.job_id is None:
+            candidate_updates['is_in_active_work'] = False
+            candidate_updates['engagement_stage'] = final_stage
+            if final_stage in ['nurture', 'dormant']:
+                candidate_updates['lifecycle_state'] = final_stage
+        Candidate.objects.filter(id=candidate_id).update(**candidate_updates)
 
         CandidateTimelineEvent.objects.create(
             tenant_id=request.user.tenant_id,
@@ -700,7 +1176,14 @@ class CandidateEngagementCloseView(APIView):
             engagement=engagement,
             event_type='engagement.closed',
             actor=request.user,
-            payload={'closure_reason': engagement.closure_reason},
+            payload={
+                'closure_reason': engagement.closure_reason,
+                'from_stage': old_stage,
+                'to_stage': final_stage,
+                'note': stage_note,
+                'changed_by': str(request.user.id),
+                'changed_at': timezone.now().isoformat(),
+            },
             source='user'
         )
         return success_response(
@@ -722,17 +1205,37 @@ class CandidateEngagementReviveView(APIView):
         except CandidateEngagement.DoesNotExist:
             return error_response("Engagement not found", status_code=404)
 
+        # Enforce: one active general presence maximum per candidate.
+        existing_general = CandidateEngagement.objects.filter(
+            tenant_id=request.user.tenant_id,
+            candidate_id=candidate_id,
+            job__isnull=True,
+            is_active=True,
+            is_deleted=False,
+        ).order_by('-started_at').first()
+        if existing_general:
+            return success_response(
+                CandidateEngagementSerializer(existing_general).data,
+                message="Candidate already has an active general presence."
+            )
+
         # Create new active engagement linked to old one
         new_engagement = CandidateEngagement.objects.create(
             tenant_id=request.user.tenant_id,
             candidate_id=candidate_id,
             engagement_type='revival',
-            stage='revived',
+            stage='new_lead',
             priority=request.data.get('priority', 'warm'),
             is_active=True,
             owner_user=request.user,
             resurrected_from=old_engagement,
             created_by=request.user,
+            last_activity_at=timezone.now()
+        )
+        Candidate.objects.filter(id=candidate_id).update(
+            is_in_active_work=True,
+            engagement_stage='new_lead',
+            lifecycle_state='active',
             last_activity_at=timezone.now()
         )
 
@@ -755,13 +1258,11 @@ class CandidateEngagementReviveView(APIView):
 
 
 class ActiveCandidatesView(APIView):
-    """Work Mode — candidates with active engagements requiring attention"""
+    """Recruiter-first Active Work surface: board + focus + follow-up queue."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from django.utils import timezone
-        
-        # Extract all filters manually — never pass to serializer
+        mode = request.query_params.get('mode', 'focus')
         priority = request.query_params.get('priority')
         stage = request.query_params.get('stage')
         follow_up_overdue = request.query_params.get('follow_up_overdue')
@@ -770,7 +1271,9 @@ class ActiveCandidatesView(APIView):
         qs = CandidateEngagement.objects.filter(
             tenant_id=request.user.tenant_id,
             is_active=True,
-            is_deleted=False
+            is_deleted=False,
+            job__isnull=True,
+            stage__in=ACTIVE_WORK_STAGES,
         ).select_related('candidate', 'owner_user', 'job')
 
         if priority:
@@ -783,16 +1286,82 @@ class ActiveCandidatesView(APIView):
             qs = qs.filter(owner_user=request.user)
         elif owner and owner != 'me':
             try:
-                import uuid
                 qs = qs.filter(owner_user_id=uuid.UUID(owner))
             except (ValueError, AttributeError):
                 pass
 
         qs = qs.order_by('-last_activity_at')
-        serializer = CandidateEngagementSerializer(qs, many=True)
+        serializer = CandidateEngagementSerializer(qs, many=True).data
+
+        if mode == 'board':
+            board = {s: [] for s in ACTIVE_WORK_STAGES}
+            for item in serializer:
+                stage_key = item.get('stage') or 'new_lead'
+                if stage_key not in board:
+                    board[stage_key] = []
+                board[stage_key].append(item)
+            return success_response({
+                'mode': 'board',
+                'stages': ACTIVE_WORK_STAGES,
+                'board': board,
+                'count': qs.count(),
+            })
+
+        if mode == 'follow_up_queue':
+            queue_qs = qs.filter(follow_up_at__isnull=False).order_by('follow_up_at')
+            queue = CandidateEngagementSerializer(queue_qs, many=True).data
+            return success_response({
+                'mode': 'follow_up_queue',
+                'queue': queue,
+                'count': queue_qs.count(),
+            })
+
+        # Default: Focus Mode buckets
+        now = timezone.now()
+        today_end = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+        stale_days = 21
+        tenant_policy = CandidateWorkflowPolicy.objects.filter(
+            tenant_id=request.user.tenant_id,
+            team_id__isnull=True,
+            recruiter_user_id__isnull=True,
+            is_active=True
+        ).first()
+        if tenant_policy:
+            stale_days = tenant_policy.candidate_stale_days
+
+        focus = {
+            'follow_up_due_today': [],
+            'hot_candidates': [],
+            'newly_sourced': [],
+            'ready_for_submission': [],
+            'needs_review': [],
+            'stuck_candidates': [],
+            'missing_information': [],
+        }
+
+        for e in qs:
+            row = CandidateEngagementSerializer(e).data
+            c = e.candidate
+
+            if e.follow_up_at and e.follow_up_at <= today_end:
+                focus['follow_up_due_today'].append(row)
+            if e.priority == 'hot' or (c.readiness_score or 0) >= 80 or (c.fit_score or 0) >= 80:
+                focus['hot_candidates'].append(row)
+            if e.started_at >= (now - timedelta(days=3)):
+                focus['newly_sourced'].append(row)
+            if e.stage in ['qualified'] and (c.readiness_score or 0) >= 60:
+                focus['ready_for_submission'].append(row)
+            if c.duplicate_review_status in ['pending_review', 'confirmed_duplicate'] or c.profile_completeness < 60:
+                focus['needs_review'].append(row)
+            if (e.last_activity_at and e.last_activity_at <= (now - timedelta(days=stale_days))):
+                focus['stuck_candidates'].append(row)
+            if not c.email and not c.phone and not c.phone_number:
+                focus['missing_information'].append(row)
+
         return success_response({
+            'mode': 'focus',
+            'focus': focus,
             'count': qs.count(),
-            'engagements': serializer.data
         })
 
 
@@ -815,3 +1384,285 @@ class CandidateEngagementTimelineView(APIView):
 
         serializer = CandidateTimelineEventSerializer(qs, many=True)
         return success_response(serializer.data)
+
+
+class CandidateDatabaseView(APIView):
+    """System-of-record layer with smart rows and enterprise saved views."""
+    permission_classes = [IsAuthenticated, require_permission('candidates.candidate.view')]
+
+    def get(self, request):
+        qs = Candidate.objects.filter(
+            tenant_id=request.user.tenant_id,
+            is_deleted=False
+        )
+
+        view_name = request.query_params.get('view', 'all_candidates')
+        stale_days = 21
+        tenant_policy = CandidateWorkflowPolicy.objects.filter(
+            tenant_id=request.user.tenant_id,
+            team_id__isnull=True,
+            recruiter_user_id__isnull=True,
+            is_active=True
+        ).first()
+        if tenant_policy:
+            stale_days = tenant_policy.candidate_stale_days
+
+        if view_name and view_name != 'all_candidates':
+            qs = _apply_saved_view(qs, view_name, stale_days=stale_days)
+
+        search = request.query_params.get('search')
+        if search:
+            qs = qs.filter(
+                Q(first_name__icontains=search) |
+                Q(last_name__icontains=search) |
+                Q(email__icontains=search) |
+                Q(current_title__icontains=search) |
+                Q(current_company__icontains=search) |
+                Q(source_subtype__icontains=search)
+            )
+
+        source_type = request.query_params.get('source_type')
+        if source_type:
+            qs = qs.filter(source_type=source_type)
+        source_subtype = request.query_params.get('source_subtype')
+        if source_subtype:
+            qs = qs.filter(source_subtype=source_subtype)
+        stage = request.query_params.get('engagement_stage')
+        if stage:
+            qs = qs.filter(engagement_stage=stage)
+        owner = request.query_params.get('owner')
+        if owner == 'me':
+            qs = qs.filter(owner_user_id=request.user.id)
+        elif owner:
+            try:
+                qs = qs.filter(owner_user_id=uuid.UUID(owner))
+            except ValueError:
+                pass
+        passport_linked = request.query_params.get('passport_linked')
+        if passport_linked == 'true':
+            qs = qs.filter(Q(passport_linked=True) | Q(passport_id__isnull=False))
+        duplicates = request.query_params.get('duplicates')
+        if duplicates == 'true':
+            qs = qs.filter(Q(is_duplicate=True) | Q(duplicate_of__isnull=False))
+        if request.query_params.get('active_work') == 'true':
+            qs = qs.filter(is_in_active_work=True)
+
+        total = qs.count()
+        limit = min(int(request.query_params.get('limit', 50)), 200)
+        offset = max(int(request.query_params.get('offset', 0)), 0)
+        qs = list(qs.order_by('-last_activity_at', '-updated_at')[offset:offset + limit])
+
+        candidate_ids = [c.id for c in qs]
+        summary_map = {}
+        if candidate_ids:
+            summary_rows = CandidateEngagement.objects.filter(
+                tenant_id=request.user.tenant_id,
+                candidate_id__in=candidate_ids,
+                job__isnull=False,
+                is_active=True,
+                is_deleted=False,
+            ).values('candidate_id', 'stage').annotate(count=Count('id'))
+
+            for row in summary_rows:
+                cid = str(row['candidate_id'])
+                stage = row['stage']
+                summary_map.setdefault(cid, {})
+                summary_map[cid][stage] = row['count']
+
+        return success_response(
+            data={
+                'items': [_candidate_smart_row(c, summary_map.get(str(c.id), {})) for c in qs],
+                'view': view_name,
+                'available_views': [
+                    'all_candidates', 'active_work', 'recently_added', 'passport_linked',
+                    'agency_submitted', 'duplicates', 'dormant', 'follow_up_due',
+                    'ready_to_submit', 'missing_contact_info'
+                ]
+            },
+            meta={'total': total, 'limit': limit, 'offset': offset},
+            message="Candidate database retrieved."
+        )
+
+
+class CandidateSavedViewsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        base_qs = Candidate.objects.filter(
+            tenant_id=request.user.tenant_id,
+            is_deleted=False
+        )
+        stale_days = 21
+        tenant_policy = CandidateWorkflowPolicy.objects.filter(
+            tenant_id=request.user.tenant_id,
+            team_id__isnull=True,
+            recruiter_user_id__isnull=True,
+            is_active=True
+        ).first()
+        if tenant_policy:
+            stale_days = tenant_policy.candidate_stale_days
+
+        views = [
+            ('all_candidates', 'All Candidates'),
+            ('active_work', 'Active Work'),
+            ('recently_added', 'Recently Added'),
+            ('passport_linked', 'Passport Linked'),
+            ('agency_submitted', 'Agency Submitted'),
+            ('duplicates', 'Duplicates'),
+            ('dormant', 'Dormant'),
+            ('follow_up_due', 'Follow-up Due'),
+            ('ready_to_submit', 'Ready to Submit'),
+            ('missing_contact_info', 'Missing Contact Info'),
+        ]
+        data = []
+        for key, label in views:
+            if key == 'all_candidates':
+                count = base_qs.count()
+            else:
+                count = _apply_saved_view(base_qs, key, stale_days=stale_days).count()
+            data.append({'key': key, 'label': label, 'count': count})
+
+        return success_response(
+            data={'views': data},
+            message="Saved views retrieved."
+        )
+
+
+class CandidateWorkflowPolicyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        scope = request.query_params.get('scope', 'tenant')
+        team_id = request.query_params.get('team_id')
+        recruiter_user_id = request.query_params.get('recruiter_user_id')
+
+        filters = {'tenant_id': request.user.tenant_id, 'is_active': True}
+        if scope == 'tenant':
+            filters.update({'team_id__isnull': True, 'recruiter_user_id__isnull': True})
+        elif scope == 'team':
+            filters.update({'team_id': team_id, 'recruiter_user_id__isnull': True})
+        elif scope == 'recruiter':
+            filters.update({'team_id__isnull': True, 'recruiter_user_id': recruiter_user_id})
+
+        policy = CandidateWorkflowPolicy.objects.filter(**filters).first()
+        if not policy:
+            return success_response(
+                data={
+                    'policy': None,
+                    'effective_workflow_mode': _resolve_workflow_mode(request.user),
+                    'workflow_behavior': _workflow_behavior(_resolve_workflow_mode(request.user)),
+                },
+                message="No workflow policy configured for scope."
+            )
+
+        return success_response(
+            data={
+                'policy': CandidateWorkflowPolicySerializer(policy).data,
+                'effective_workflow_mode': _resolve_workflow_mode(request.user),
+                'workflow_behavior': _workflow_behavior(_resolve_workflow_mode(request.user)),
+            },
+            message="Workflow policy retrieved."
+        )
+
+    def put(self, request):
+        scope = request.data.get('scope', 'tenant')
+        team_id = request.data.get('team_id')
+        recruiter_user_id = request.data.get('recruiter_user_id')
+
+        policy, _ = CandidateWorkflowPolicy.objects.get_or_create(
+            tenant_id=request.user.tenant_id,
+            team_id=team_id if scope == 'team' else None,
+            recruiter_user_id=recruiter_user_id if scope == 'recruiter' else None,
+            defaults={'created_by': request.user.id}
+        )
+        payload = request.data.copy()
+        payload.pop('scope', None)
+        serializer = CandidateWorkflowPolicySerializer(
+            policy, data=payload, partial=True
+        )
+        if serializer.is_valid():
+            serializer.save()
+            return success_response(
+                data={'policy': serializer.data},
+                message="Workflow policy updated."
+            )
+        return error_response("Validation failed.", serializer.errors)
+
+
+class CandidateCommandCenterView(APIView):
+    """Candidate command center payload for tabs + sticky actions."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            candidate = Candidate.objects.get(
+                id=pk,
+                tenant_id=request.user.tenant_id,
+                is_deleted=False
+            )
+        except Candidate.DoesNotExist:
+            return error_response("Candidate not found.", status_code=404)
+
+        engagements = CandidateEngagement.objects.filter(
+            tenant_id=request.user.tenant_id,
+            candidate_id=candidate.id,
+            is_deleted=False
+        ).order_by('-updated_at')
+        notes = CandidateNote.objects.filter(
+            tenant_id=request.user.tenant_id,
+            candidate_id=candidate.id,
+            is_deleted=False
+        ).select_related('engagement').order_by('-created_at')
+        timeline = CandidateTimelineEvent.objects.filter(
+            tenant_id=request.user.tenant_id,
+            candidate_id=candidate.id
+        ).select_related('engagement', 'actor').order_by('-created_at')
+        profile = CandidateProfile.objects.filter(candidate_id=candidate.id).first()
+        engagements_list = list(engagements[:50])
+        timeline_list = list(timeline[:100])
+        notes_list = list(notes[:100])
+
+        structured_activity = [_structured_activity_item(e) for e in timeline_list]
+        structured_notes = [_structured_note_item(n) for n in notes_list]
+
+        return success_response(
+            data={
+                'candidate': CandidateDetailSerializer(candidate).data,
+                'tabs': {
+                    'overview': CandidateSerializer(candidate).data,
+                    'activity_timeline': CandidateTimelineEventSerializer(timeline_list[:50], many=True).data,
+                    'structured_activity': structured_activity,
+                    'notes': CandidateNoteSerializer(notes_list[:50], many=True).data,
+                    'structured_notes': structured_notes,
+                    'jobs_matches': [{'job_id': str(e.job_id), 'stage': e.stage} for e in engagements_list if e.job_id],
+                    'engagement': CandidateEngagementSerializer(engagements_list, many=True).data,
+                    'documents': {
+                        'resume_url': candidate.resume_url,
+                        'profile_cv_url': profile.cv_url if profile else ''
+                    },
+                    'communication': {
+                        'last_contact_at': candidate.last_contact_at,
+                        'next_follow_up_at': candidate.next_follow_up_at,
+                    },
+                    'history': CandidateTimelineEventSerializer(timeline_list[:50], many=True).data,
+                    'automations': {
+                        'workflow_mode': candidate.workflow_mode,
+                        'automation_enabled': candidate.automation_enabled,
+                        'auto_nurture_enabled': candidate.auto_nurture_enabled,
+                        'auto_followup_enabled': candidate.auto_followup_enabled,
+                        'auto_stage_suggestions_enabled': candidate.auto_stage_suggestions_enabled,
+                        'behavior': _workflow_behavior(candidate.workflow_mode),
+                    }
+                },
+                'sticky_actions': [
+                    'add_to_active_work',
+                    'call',
+                    'email',
+                    'schedule',
+                    'submit_to_job',
+                    'add_note',
+                    'change_stage',
+                ]
+            },
+            message="Candidate command center retrieved."
+        )

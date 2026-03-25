@@ -2,8 +2,10 @@ import { Form, Input, Button, Typography, Divider, Alert } from 'antd'
 import { MailOutlined, LockOutlined } from '@ant-design/icons'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import AuthLayout from '@/layouts/AuthLayout'
 import { useAuth } from '@/hooks/useAuth'
+import { useAuthStore } from '@/store/authStore'
 
 const { Title, Text } = Typography
 
@@ -13,10 +15,12 @@ interface LoginForm {
 }
 
 export default function Login() {
+  const { t } = useTranslation(['auth', 'common'])
   const [error, setError] = useState<string | null>(null)
   const { login, isLoading } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const setPendingVerificationEmail = useAuthStore(state => state.setPendingVerificationEmail)
 
   const from = (location.state as { from?: string })?.from ?? '/dashboard'
 
@@ -24,22 +28,33 @@ export default function Login() {
     setError(null)
     try {
       await login(values.email, values.password)
+      console.log('[Login] Success — navigating to', from)
       navigate(from, { replace: true })
     } catch (err: unknown) {
-      const msg =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
-        'Login failed. Please check your credentials.'
-      setError(msg)
+      const errData = (err as { response?: { data?: { message?: string; errors?: Record<string, any> } } })?.response?.data
+      console.log('[Login] Error response:', errData)
+      const errorCode = errData?.errors?.error_code
+      console.log('[Login] error_code:', errorCode)
+
+      if (errorCode === 'email_not_verified') {
+        const verifyEmail = errData?.errors?.email || values.email
+        console.log('[Login] email_not_verified — navigating to /verify-email for', verifyEmail)
+        setPendingVerificationEmail(verifyEmail)
+        navigate('/verify-email', { replace: true })
+        return
+      }
+
+      setError(errData?.message ?? t('auth:login_failed', 'Login failed. Please check your credentials.'))
     }
   }
 
   return (
     <AuthLayout>
       <Title level={3} style={{ marginBottom: 4, textAlign: 'center' }}>
-        Welcome back
+        {t('auth:welcome_back', 'Welcome back')}
       </Title>
       <Text type="secondary" style={{ display: 'block', textAlign: 'center', marginBottom: 28 }}>
-        Sign in to your account
+        {t('auth:sign_in_subtitle', 'Sign in to your account')}
       </Text>
 
       {error && (
@@ -56,15 +71,15 @@ export default function Login() {
       <Form layout="vertical" onFinish={handleSubmit} requiredMark={false}>
         <Form.Item
           name="email"
-          label="Email"
+          label={t('auth:email', 'Email')}
           rules={[
-            { required: true, message: 'Email is required' },
-            { type: 'email', message: 'Enter a valid email' },
+            { required: true, message: t('auth:email_required', 'Email is required') },
+            { type: 'email', message: t('auth:email_invalid', 'Enter a valid email') },
           ]}
         >
           <Input
             prefix={<MailOutlined className="text-gray-400" />}
-            placeholder="you@company.com"
+            placeholder={t('auth:email_placeholder', 'you@company.com')}
             size="large"
             autoComplete="email"
             type="email"
@@ -76,16 +91,16 @@ export default function Login() {
           name="password"
           label={
             <div className="flex w-full justify-between">
-              <span>Password</span>
+              <span>{t('auth:password', 'Password')}</span>
               <Link
                 to="/forgot-password"
                 style={{ fontSize: 13, fontWeight: 400 }}
               >
-                Forgot password?
+                {t('auth:forgot_password', 'Forgot password?')}
               </Link>
             </div>
           }
-          rules={[{ required: true, message: 'Password is required' }]}
+          rules={[{ required: true, message: t('auth:password_required', 'Password is required') }]}
         >
           <Input.Password
             prefix={<LockOutlined className="text-gray-400" />}
@@ -105,31 +120,31 @@ export default function Login() {
             loading={isLoading}
             style={{ height: 44 }}
           >
-            Sign in
+            {t('auth:login', 'Sign in')}
           </Button>
         </Form.Item>
       </Form>
 
       <Divider style={{ margin: '16px 0' }}>
         <Text type="secondary" style={{ fontSize: 12 }}>
-          Don't have an account?
+          {t('auth:no_account', "Don't have an account?")}
         </Text>
       </Divider>
 
       <div className="flex flex-col gap-2">
         <Link to="/register/company">
           <Button block size="large" style={{ height: 40 }}>
-            Register your company
+            {t('auth:register_company', 'Register your company')}
           </Button>
         </Link>
         <Link to="/register/agency">
           <Button block size="large" style={{ height: 40 }}>
-            Register as an agency
+            {t('auth:register_agency', 'Register as an agency')}
           </Button>
         </Link>
         <Link to="/register/candidate">
           <Button block size="large" style={{ height: 40 }}>
-            Register as a candidate
+            {t('auth:register_candidate', 'Register as a candidate')}
           </Button>
         </Link>
       </div>

@@ -4,8 +4,75 @@ from django.db import models
 from django.utils import timezone
 from django.conf import settings
 
+GENERAL_CANDIDATE_STAGES = (
+    'new_lead',
+    'contacted',
+    'follow_up',
+    'qualified',
+    'nurture',
+    'dormant',
+)
+
+JOB_CANDIDATE_STAGES = (
+    'submitted',
+    'review',
+    'interviewing',
+    'offered',
+    'joined',
+    'rejected',
+)
+
 
 class Candidate(models.Model):
+    WORKFLOW_MODE_CHOICES = [
+        ('manual', 'Manual'),
+        ('semi_automated', 'Semi Automated'),
+        ('fully_automated', 'Fully Automated'),
+    ]
+    SOURCE_TYPE_CHOICES = [
+        ('direct', 'Direct'),
+        ('agency', 'Agency'),
+        ('referral', 'Referral'),
+        ('job_board', 'Job Board'),
+        ('passport', 'Passport'),
+        ('import', 'Import'),
+        ('internal', 'Internal'),
+        ('other', 'Other'),
+    ]
+    LIFECYCLE_STATE_CHOICES = [
+        ('new', 'New'),
+        ('active', 'Active'),
+        ('nurture', 'Nurture'),
+        ('dormant', 'Dormant'),
+        ('archived', 'Archived'),
+    ]
+    ENGAGEMENT_STAGE_CHOICES = [
+        ('new_lead', 'New Lead'),
+        ('contacted', 'Contacted'),
+        ('follow_up', 'Follow Up'),
+        ('qualified', 'Qualified'),
+        ('nurture', 'Nurture'),
+        ('dormant', 'Dormant'),
+    ]
+    PRIORITY_LEVEL_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+        ('urgent', 'Urgent'),
+    ]
+    PASSPORT_VISIBILITY_CHOICES = [
+        ('internal_only', 'Internal Only'),
+        ('shared_with_client', 'Shared with Client'),
+        ('private', 'Private'),
+    ]
+    DUPLICATE_REVIEW_STATUS_CHOICES = [
+        ('not_flagged', 'Not Flagged'),
+        ('pending_review', 'Pending Review'),
+        ('confirmed_duplicate', 'Confirmed Duplicate'),
+        ('merged', 'Merged'),
+        ('ignored', 'Ignored'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # tenant_id is nullable — null means self-registered candidate
     # not null means added by agency or company
@@ -90,6 +157,12 @@ class Candidate(models.Model):
             ('manual', 'Manual Add'),
             ('passport_import', 'Passport Import'),
             ('agency_submission', 'Agency Submission'),
+            ('quick_add', 'Quick Add'),
+            ('detailed_add', 'Detailed Add'),
+            ('invite_candidate', 'Invite Candidate'),
+            ('import_passport', 'Import Passport'),
+            ('upload_resume', 'Upload Resume'),
+            ('agency_submit', 'Agency Submit'),
         ],
         blank=True
     )
@@ -139,6 +212,44 @@ class Candidate(models.Model):
         blank=True
     )
     source_detail = models.TextField(blank=True)
+    workflow_mode = models.CharField(
+        max_length=30, choices=WORKFLOW_MODE_CHOICES, default='manual', db_index=True
+    )
+    source_type = models.CharField(max_length=50, choices=SOURCE_TYPE_CHOICES, blank=True)
+    source_subtype = models.CharField(max_length=100, blank=True)
+    lifecycle_state = models.CharField(
+        max_length=30, choices=LIFECYCLE_STATE_CHOICES, default='new', db_index=True
+    )
+    engagement_stage = models.CharField(
+        max_length=30, choices=ENGAGEMENT_STAGE_CHOICES, default='new_lead', db_index=True
+    )
+    priority_level = models.CharField(
+        max_length=20, choices=PRIORITY_LEVEL_CHOICES, default='medium', db_index=True
+    )
+    readiness_score = models.IntegerField(null=True, blank=True)
+    fit_score = models.IntegerField(null=True, blank=True)
+    profile_completeness = models.PositiveSmallIntegerField(default=0)
+    is_in_active_work = models.BooleanField(default=False, db_index=True)
+    active_job_id = models.UUIDField(null=True, blank=True, db_index=True)
+    next_follow_up_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    last_contact_at = models.DateTimeField(null=True, blank=True)
+    last_activity_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    passport_linked = models.BooleanField(default=False, db_index=True)
+    passport_visibility_mode = models.CharField(
+        max_length=30,
+        choices=PASSPORT_VISIBILITY_CHOICES,
+        default='internal_only'
+    )
+    automation_enabled = models.BooleanField(default=False)
+    auto_nurture_enabled = models.BooleanField(default=False)
+    auto_followup_enabled = models.BooleanField(default=False)
+    auto_stage_suggestions_enabled = models.BooleanField(default=True)
+    duplicate_review_status = models.CharField(
+        max_length=30,
+        choices=DUPLICATE_REVIEW_STATUS_CHOICES,
+        default='not_flagged',
+        db_index=True
+    )
     passport_id = models.UUIDField(null=True, blank=True)
     duplicate_of = models.UUIDField(null=True, blank=True)
     is_duplicate = models.BooleanField(default=False)
@@ -438,16 +549,25 @@ class CandidateEngagement(models.Model):
         ('invited', 'Invited'),
     ]
     STAGE_CHOICES = [
-        ('new', 'New Lead'),
+        # General candidate track (pre-job only)
+        ('new_lead', 'New Lead'),
         ('contacted', 'Contacted'),
-        ('interested', 'Interested'),
-        ('not_interested', 'Not Interested'),
-        ('follow_up', 'Follow Up Due'),
-        ('shortlisted', 'Shortlisted Internally'),
-        ('submitted', 'Submitted to Client'),
-        ('client_review', 'Client Review'),
+        ('follow_up', 'Follow Up'),
+        ('qualified', 'Qualified'),
+        ('nurture', 'Nurture'),
+        ('dormant', 'Dormant'),
+        # Job-specific track (post-submission / assignment)
+        ('submitted', 'Submitted'),
+        ('review', 'Review'),
         ('interviewing', 'Interviewing'),
         ('offered', 'Offered'),
+        ('joined', 'Joined'),
+        ('rejected', 'Rejected'),
+        # Legacy values retained for backward compatibility
+        ('new', 'New (Legacy)'),
+        ('not_interested', 'Not Interested (Legacy)'),
+        ('shortlisted', 'Shortlisted Internally (Legacy)'),
+        ('client_review', 'Client Review (Legacy)'),
         ('placed', 'Placed'),
         ('closed', 'Closed'),
         ('lost', 'Lost'),
@@ -473,7 +593,7 @@ class CandidateEngagement(models.Model):
         on_delete=models.SET_NULL, related_name='engagements'
     )
     engagement_type = models.CharField(max_length=50, choices=ENGAGEMENT_TYPE, default='lead')
-    stage = models.CharField(max_length=50, choices=STAGE_CHOICES, default='new')
+    stage = models.CharField(max_length=50, choices=STAGE_CHOICES, default='new_lead')
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='warm')
     is_active = models.BooleanField(default=True, db_index=True)
     owner_user = models.ForeignKey(
@@ -502,6 +622,13 @@ class CandidateEngagement(models.Model):
 
     class Meta:
         db_table = 'candidate_engagements'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tenant_id', 'candidate'],
+                condition=models.Q(is_active=True, job__isnull=True, is_deleted=False),
+                name='unique_active_general_engagement'
+            )
+        ]
         indexes = [
             models.Index(fields=['tenant_id', 'is_active']),
             models.Index(fields=['tenant_id', 'stage']),
@@ -556,3 +683,76 @@ class CandidateTimelineEvent(models.Model):
 
     def __str__(self):
         return f"{self.event_type} — {self.candidate} at {self.created_at}"
+
+
+class CandidateWorkflowPolicy(models.Model):
+    WORKFLOW_MODE_CHOICES = Candidate.WORKFLOW_MODE_CHOICES
+    AUTO_ASSIGNMENT_CHOICES = [
+        ('manual', 'Manual'),
+        ('round_robin', 'Round Robin'),
+        ('rule_based', 'Rule Based'),
+    ]
+    AUTO_FOLLOWUP_CHOICES = [
+        ('manual', 'Manual'),
+        ('suggest_only', 'Suggest Only'),
+        ('automatic', 'Automatic'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_id = models.UUIDField(db_index=True)
+    team_id = models.UUIDField(null=True, blank=True, db_index=True)
+    recruiter_user_id = models.UUIDField(null=True, blank=True, db_index=True)
+    default_candidate_workflow_mode = models.CharField(
+        max_length=30, choices=WORKFLOW_MODE_CHOICES, default='manual'
+    )
+    candidate_auto_assignment_mode = models.CharField(
+        max_length=30, choices=AUTO_ASSIGNMENT_CHOICES, default='manual'
+    )
+    candidate_auto_followup_mode = models.CharField(
+        max_length=30, choices=AUTO_FOLLOWUP_CHOICES, default='suggest_only'
+    )
+    candidate_auto_nurture_days = models.PositiveIntegerField(default=30)
+    candidate_stale_days = models.PositiveIntegerField(default=21)
+    candidate_focus_rules = models.JSONField(default=dict, blank=True)
+    candidate_stage_templates = models.JSONField(default=list, blank=True)
+    candidate_required_fields_policy = models.JSONField(default=dict, blank=True)
+    candidate_scoring_policy = models.JSONField(default=dict, blank=True)
+    candidate_active_work_policy = models.JSONField(default=dict, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.UUIDField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = 'candidate_workflow_policies'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tenant_id'],
+                condition=models.Q(team_id__isnull=True, recruiter_user_id__isnull=True),
+                name='uniq_candidate_policy_tenant_default'
+            ),
+            models.UniqueConstraint(
+                fields=['tenant_id', 'team_id'],
+                condition=models.Q(team_id__isnull=False, recruiter_user_id__isnull=True),
+                name='uniq_candidate_policy_team'
+            ),
+            models.UniqueConstraint(
+                fields=['tenant_id', 'recruiter_user_id'],
+                condition=models.Q(team_id__isnull=True, recruiter_user_id__isnull=False),
+                name='uniq_candidate_policy_recruiter'
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['tenant_id', 'team_id']),
+            models.Index(fields=['tenant_id', 'recruiter_user_id']),
+            models.Index(fields=['tenant_id', 'is_active']),
+        ]
+
+    def __str__(self):
+        scope = 'tenant'
+        if self.team_id:
+            scope = f'team:{self.team_id}'
+        elif self.recruiter_user_id:
+            scope = f'user:{self.recruiter_user_id}'
+        return f"WorkflowPolicy[{scope}] {self.tenant_id}"

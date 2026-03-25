@@ -11,8 +11,14 @@ from apps.candidates.crm_views import (
 urlpatterns = [
     # Candidates
     path('', views.CandidateListView.as_view(), name='candidate-list'),
+    path('database/', views.CandidateDatabaseView.as_view(), name='candidate-database'),
+    path('database/saved-views/', views.CandidateSavedViewsView.as_view(), name='candidate-saved-views'),
+    path('active-work/', views.ActiveCandidatesView.as_view(), name='candidate-active-work'),
+    path('workflow-policy/', views.CandidateWorkflowPolicyView.as_view(), name='candidate-workflow-policy'),
     path('<uuid:pk>/', views.CandidateDetailView.as_view(), name='candidate-detail'),
+    path('<uuid:pk>/command-center/', views.CandidateCommandCenterView.as_view(), name='candidate-command-center'),
     path('<uuid:pk>/timeline/', views.CandidateTimelineView.as_view(), name='candidate-timeline'),
+    path('<uuid:pk>/talent-pools/', views.CandidateTalentPoolsView.as_view(), name='candidate-talent-pools'),
 
     # Duplicates
     path('duplicates/', views.CandidateDuplicatesView.as_view(), name='candidate-duplicates'),
@@ -61,4 +67,3 @@ urlpatterns = [
     path('active/',
          views.ActiveCandidatesView.as_view(), name='candidates-active'),
 ]
-

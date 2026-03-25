@@ -49,6 +49,10 @@ def close_not_interested_engagements():
             payload={
                 'reason': 'Not interested - auto closed after 24 hours',
                 'previous_stage': 'not_interested',
+                'new_stage': 'closed',
+                'note': 'System automation moved stage due to stale not_interested timeout (24h).',
+                'changed_by': 'system',
+                'changed_at': now.isoformat(),
             },
             source='system',
         )

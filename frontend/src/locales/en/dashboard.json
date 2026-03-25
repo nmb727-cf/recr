@@ -1,0 +1,29 @@
+{
+  "greeting": {
+    "morning": "Good morning",
+    "afternoon": "Good afternoon",
+    "evening": "Good evening"
+  },
+  "stats": {
+    "active_jobs": "Active Jobs",
+    "total_candidates": "Total Candidates",
+    "active_pipeline": "Active Pipeline",
+    "interviews_scheduled": "Interviews Scheduled"
+  },
+  "cards": {
+    "needs_attention": "Needs Attention",
+    "pipeline_distribution": "Pipeline Distribution"
+  },
+  "candidate": {
+    "subtitle": "Track your applications and upcoming interviews."
+  },
+  "agency": {
+    "subtitle": "Here's your agency activity today."
+  },
+  "company": {
+    "subtitle": "Here's what's happening with your recruitment pipeline today."
+  },
+  "actions": {
+    "create_job": "Create Job"
+  }
+}

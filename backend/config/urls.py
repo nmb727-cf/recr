@@ -33,5 +33,8 @@ urlpatterns = [
     path('api/v1/', include('apps.communications.urls')),
     path('api/v1/', include('apps.documents.urls')),
     path('api/v1/analytics/', include('apps.analytics.urls')),
+    path('api/v1/rbac/', include('apps.rbac.urls')),
+    path('api/v1/translations/', include('apps.translations.urls')),
     path('api/v1/candidate/', include('apps.jobs.candidate_urls')),
+    path('api/v1/talent-pools/', include('apps.talent_pools.urls')),
 ]

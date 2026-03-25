@@ -1,32 +1,21 @@
-import { Form, Input, Button, Typography, Alert, Select, Row, Col } from 'antd'
-import { UserOutlined, MailOutlined, LockOutlined, BankOutlined, GlobalOutlined, ClockCircleOutlined } from '@ant-design/icons'
+import { Form, Input, Button, Typography, Alert } from 'antd'
+import { UserOutlined, MailOutlined, LockOutlined, BankOutlined } from '@ant-design/icons'
 import { Link, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import AuthLayout from '@/layouts/AuthLayout'
 import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/store/authStore'
-import type { UserRole } from '@/types'
-import { COUNTRIES, TIMEZONES } from '@/utils/locale'
-import { cacheAgencySignupPrefill, cacheKnownAgency } from '@/utils/companyOnboarding'
+import { cacheKnownAgency } from '@/utils/companyOnboarding'
 
 const { Title, Text } = Typography
 
 interface RegisterForm {
-  name: string // Agency Name
+  name: string
   first_name: string
   last_name: string
   email: string
-  country_code: string
-  timezone: string
   password: string
   password_confirm: string
-}
-
-function resolvePostSignupPath(role?: UserRole) {
-  if (role === 'agency_owner' || role === 'agency_admin' || role === 'agency_recruiter') {
-    return '/agencies/my-jobs'
-  }
-  return '/dashboard'
 }
 
 export default function RegisterAgency() {
@@ -36,6 +25,7 @@ export default function RegisterAgency() {
   const navigate = useNavigate()
   const setTokens = useAuthStore(state => state.setTokens)
   const setUser = useAuthStore(state => state.setUser)
+  const setPendingVerificationEmail = useAuthStore(state => state.setPendingVerificationEmail)
 
   const handleSubmit = async (values: RegisterForm) => {
     setError(null)
@@ -48,14 +38,6 @@ export default function RegisterAgency() {
         email: values.email,
         password: values.password,
         password_confirm: values.password_confirm,
-        country_code: values.country_code,
-        timezone: values.timezone,
-      })
-      cacheAgencySignupPrefill({
-        name: `${values.first_name} ${values.last_name}`,
-        agency_name: values.name,
-        email: values.email,
-        country_code: values.country_code,
       })
       cacheKnownAgency({
         agency_tenant_id: res.data.user.tenant_id,
@@ -64,11 +46,11 @@ export default function RegisterAgency() {
       })
       setTokens(res.data.access_token, res.data.refresh_token)
       setUser(res.data.user)
-      navigate(resolvePostSignupPath(res.data.user.role))
+      setPendingVerificationEmail(values.email)
+      navigate('/verify-email')
     } catch (err: unknown) {
       const errData = (err as { response?: { data?: { message?: string; errors?: Record<string, string | string[]> } } })
         ?.response?.data
-      
       const fieldErrors = errData?.errors
       if (fieldErrors) {
         const errorMessages = Object.entries(fieldErrors).map(([field, error]) => {
@@ -82,12 +64,6 @@ export default function RegisterAgency() {
     } finally {
       setIsLoading(false)
     }
-  }
-
-  const handleCountryChange = (val: string) => {
-    if (val === 'IN') form.setFieldsValue({ timezone: 'Asia/Kolkata' })
-    if (val === 'US') form.setFieldsValue({ timezone: 'America/New_York' })
-    if (val === 'GB') form.setFieldsValue({ timezone: 'Europe/London' })
   }
 
   return (
@@ -110,43 +86,38 @@ export default function RegisterAgency() {
         />
       )}
 
-      <Form 
+      <Form
         form={form}
-        layout="vertical" 
-        onFinish={handleSubmit} 
-        requiredMark={false} 
-        initialValues={{ country_code: 'IN', timezone: 'Asia/Kolkata' }}
+        layout="vertical"
+        onFinish={handleSubmit}
+        requiredMark={false}
       >
-        <Row gutter={12}>
-          <Col span={12}>
-            <Form.Item
-              name="first_name"
-              label="First name"
-              rules={[{ required: true, message: 'First name is required' }]}
-            >
-              <Input
-                prefix={<UserOutlined className="text-gray-400" />}
-                placeholder="Jane"
-                size="large"
-                autoComplete="given-name"
-              />
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Form.Item
-              name="last_name"
-              label="Last name"
-              rules={[{ required: true, message: 'Last name is required' }]}
-            >
-              <Input
-                prefix={<UserOutlined className="text-gray-400" />}
-                placeholder="Smith"
-                size="large"
-                autoComplete="family-name"
-              />
-            </Form.Item>
-          </Col>
-        </Row>
+        <Form.Item
+          name="first_name"
+          label="First name"
+          rules={[{ required: true, message: 'First name is required' }]}
+          style={{ display: 'inline-block', width: 'calc(50% - 6px)', marginRight: 12 }}
+        >
+          <Input
+            prefix={<UserOutlined className="text-gray-400" />}
+            placeholder="Jane"
+            size="large"
+            autoComplete="given-name"
+          />
+        </Form.Item>
+        <Form.Item
+          name="last_name"
+          label="Last name"
+          rules={[{ required: true, message: 'Last name is required' }]}
+          style={{ display: 'inline-block', width: 'calc(50% - 6px)' }}
+        >
+          <Input
+            prefix={<UserOutlined className="text-gray-400" />}
+            placeholder="Smith"
+            size="large"
+            autoComplete="family-name"
+          />
+        </Form.Item>
 
         <Form.Item
           name="name"
@@ -174,45 +145,8 @@ export default function RegisterAgency() {
             size="large"
             autoComplete="email"
             type="email"
-            name="email"
           />
         </Form.Item>
-
-        <Row gutter={12}>
-          <Col span={12}>
-            <Form.Item
-              name="country_code"
-              label="Country"
-              rules={[{ required: true, message: 'Required' }]}
-            >
-              <Select
-                size="large"
-                placeholder="Select country"
-                suffixIcon={<GlobalOutlined className="text-gray-400" />}
-                showSearch
-                optionFilterProp="label"
-                onChange={handleCountryChange}
-                options={COUNTRIES.map((c) => ({ value: c.code, label: `${c.name} (${c.code})` }))}
-              />
-            </Form.Item>
-          </Col>
-          <Col span={12}>
-            <Form.Item
-              name="timezone"
-              label="Timezone"
-              rules={[{ required: true, message: 'Required' }]}
-            >
-              <Select
-                size="large"
-                placeholder="Select timezone"
-                suffixIcon={<ClockCircleOutlined className="text-gray-400" />}
-                showSearch
-                optionFilterProp="label"
-                options={TIMEZONES}
-              />
-            </Form.Item>
-          </Col>
-        </Row>
 
         <Form.Item
           name="password"
@@ -227,7 +161,6 @@ export default function RegisterAgency() {
             placeholder="Min. 8 characters"
             size="large"
             autoComplete="new-password"
-            name="password"
           />
         </Form.Item>
 

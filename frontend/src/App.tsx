@@ -1,7 +1,13 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { ConfigProvider, App as AntApp } from 'antd'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import enUS from 'antd/locale/en_US'
+import hiIN from 'antd/locale/hi_IN'
+import type { Locale } from 'antd/lib/locale'
+import i18n from '@/i18n'
 
+import { useAuthStore } from '@/store/authStore'
 import ProtectedRoute from '@/components/common/ProtectedRoute'
 import OnboardingGuard from '@/components/common/OnboardingGuard'
 import AppLayout from '@/layouts/AppLayout'
@@ -12,7 +18,9 @@ import Login from '@/pages/auth/Login'
 import RegisterCompany from '@/pages/auth/RegisterCompany'
 import RegisterAgency from '@/pages/auth/RegisterAgency'
 import RegisterCandidate from '@/pages/auth/RegisterCandidate'
+import VerifyEmail from '@/pages/auth/VerifyEmail'
 import Onboarding from '@/pages/candidate/Onboarding'
+import OnboardingWizard from '@/pages/onboarding/OnboardingWizard'
 import CompanyOnboarding from '@/pages/onboarding/CompanyOnboarding'
 import AgencyOnboarding from '@/pages/onboarding/AgencyOnboarding'
 import ApplyForm from '@/pages/public/ApplyForm'
@@ -36,6 +44,10 @@ import MyApplications from '@/pages/candidate/MyApplications'
 import Settings from '@/pages/Settings'
 import PassportPage from '@/pages/candidate/Passport'
 import Messages from '@/pages/Messages'
+import RBACDebugPage from '@/pages/RBACDebugPage'
+import TalentPoolsList from '@/pages/talent-pools/TalentPoolsList'
+import TalentPoolDetail from '@/pages/talent-pools/TalentPoolDetail'
+
 
 // ─── React Query client ───────────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -145,27 +157,75 @@ function Unauthorized() {
   )
 }
 
+// Maps language codes to Ant Design locale objects.
+// Add new locales here as support is expanded.
+const ANT_LOCALES: Record<string, Locale> = {
+  en: enUS,
+  hi: hiIN,
+}
+
+// Refreshes the persisted user on every app load (keeps permissions/language fresh)
+// and syncs the active i18next language with the user's stored preference.
+function AuthBootstrap() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const fetchMe = useAuthStore((s) => s.fetchMe)
+  const language = useAuthStore((s) => s.user?.language)
+
+  useEffect(() => {
+    if (isAuthenticated) fetchMe()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (language && i18n.language !== language) {
+      i18n.changeLanguage(language)
+    }
+  }, [language])
+
+  return null
+}
+
+// Wraps children in a ConfigProvider whose locale tracks the user's language.
+// Must be inside QueryClientProvider so it can read from the auth store.
+function LocaleProvider({ children }: { children: React.ReactNode }) {
+  const language = useAuthStore((s) => s.user?.language ?? 'en')
+  const antLocale = ANT_LOCALES[language] ?? enUS
+  return (
+    <ConfigProvider theme={antTheme} locale={antLocale}>
+      {children}
+    </ConfigProvider>
+  )
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ConfigProvider theme={antTheme}>
+      <LocaleProvider>
         <AntApp>
           <BrowserRouter>
+            <AuthBootstrap />
             <Routes>
               {/* ── Public / auth ─────────────────────────────────── */}
               <Route path="/login" element={<Login />} />
               <Route path="/register/company" element={<RegisterCompany />} />
               <Route path="/register/agency" element={<RegisterAgency />} />
               <Route path="/register/candidate" element={<RegisterCandidate />} />
+              <Route path="/verify-email" element={<VerifyEmail />} />
               <Route path="/apply/:token" element={<ApplyForm />} />
-              
+
+              {/* ── Onboarding wizard (no AppLayout, no OnboardingGuard) ── */}
+              <Route path="/onboarding/wizard" element={
+                <ProtectedRoute allowedRoles={['tenant_admin', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
+                  <OnboardingWizard />
+                </ProtectedRoute>
+              } />
+
               {/* ── Onboarding (Outside AppLayout) ──────────────── */}
               <Route
                 path="/onboarding"
                 element={
                   <ProtectedRoute allowedRoles={['candidate']}>
-                    <OnboardingLayout 
-                      title="Complete your profile" 
+                    <OnboardingLayout
+                      title="Complete your profile"
                       subtitle="Help us find the best opportunities for you"
                     >
                       <Onboarding />
@@ -177,9 +237,9 @@ export default function App() {
                 path="/company-onboarding"
                 element={
                   <ProtectedRoute allowedRoles={['tenant_admin', 'recruiter', 'hiring_manager']}>
-                    <OnboardingLayout 
-                      title="Complete Organisation Setup" 
-                      subtitle="Finish the required details to continue using all company workflows."
+                    <OnboardingLayout
+                      title="Organisation Setup"
+                      subtitle="Configure your organisation profile."
                     >
                       <CompanyOnboarding />
                     </OnboardingLayout>
@@ -190,9 +250,9 @@ export default function App() {
                 path="/agency-onboarding"
                 element={
                   <ProtectedRoute allowedRoles={['agency_owner', 'agency_admin', 'agency_recruiter']}>
-                    <OnboardingLayout 
-                      title="Complete Agency Setup" 
-                      subtitle="Finish your agency profile to unlock all Phase 1 workflows."
+                    <OnboardingLayout
+                      title="Agency Setup"
+                      subtitle="Configure your agency profile."
                     >
                       <AgencyOnboarding />
                     </OnboardingLayout>
@@ -241,6 +301,24 @@ export default function App() {
               />
 
               <Route
+                path="/candidates/pools"
+                element={
+                  <Protected>
+                    <TalentPoolsList />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/candidates/pools/:id"
+                element={
+                  <Protected>
+                    <TalentPoolDetail />
+                  </Protected>
+                }
+              />
+
+              <Route
                 path="/applications"
                 element={
                   <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager']}>
@@ -263,6 +341,15 @@ export default function App() {
                 element={
                   <Protected>
                     <InterviewsList />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/approvals"
+                element={
+                  <Protected>
+                    <ComingSoon label="Approvals" />
                   </Protected>
                 }
               />
@@ -328,6 +415,24 @@ export default function App() {
               />
 
               <Route
+                path="/activity-log"
+                element={
+                  <Protected>
+                    <ComingSoon label="Activity Log" />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/workflow-templates"
+                element={
+                  <Protected roles={['tenant_admin', 'super_admin', 'agency_owner', 'agency_admin']}>
+                    <ComingSoon label="Workflow Templates" />
+                  </Protected>
+                }
+              />
+
+              <Route
                 path="/candidate/jobs"
                 element={
                   <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
@@ -350,6 +455,15 @@ export default function App() {
                 element={
                   <Protected roles={['tenant_admin', 'super_admin', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
                     <Settings />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/rbac-debug"
+                element={
+                  <Protected>
+                    <RBACDebugPage />
                   </Protected>
                 }
               />
@@ -387,7 +501,7 @@ export default function App() {
             </Routes>
           </BrowserRouter>
         </AntApp>
-      </ConfigProvider>
+      </LocaleProvider>
     </QueryClientProvider>
   )
 }

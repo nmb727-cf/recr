@@ -633,6 +633,9 @@ const CompressedOfferList = ({ offers, onSelect, selectedOfferId }: any) => (
 const OfferDetailPanel = ({ offer, onClose, onRefetch }: { offer: Application; onClose: () => void; onRefetch: () => void }) => {
   const navigate = useNavigate()
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [statusModalOpen, setStatusModalOpen] = useState(false)
+  const [statusAction, setStatusAction] = useState<'withdraw' | 'reject' | null>(null)
+  const [statusNote, setStatusNote] = useState('')
   const o = offer as any
 
   const statusFlow = [
@@ -643,13 +646,13 @@ const OfferDetailPanel = ({ offer, onClose, onRefetch }: { offer: Application; o
   const canWithdraw = ['offer_extended'].includes(offer.status)
   const canReject = ['offer_extended'].includes(offer.status)
 
-  const handleStatusUpdate = async (action: 'withdraw' | 'reject') => {
+  const handleStatusUpdate = async (action: 'withdraw' | 'reject', note: string) => {
     setActionLoading(action)
     try {
       if (action === 'withdraw') {
-        await pipelineApi.withdraw(offer.id)
+        await pipelineApi.withdraw(offer.id, note)
       } else {
-        await pipelineApi.reject(offer.id, 'Offer not proceeding')
+        await pipelineApi.reject(offer.id, note)
       }
       message.success(`Offer ${action === 'withdraw' ? 'withdrawn' : 'rejected'}`)
       onRefetch()
@@ -703,7 +706,11 @@ const OfferDetailPanel = ({ offer, onClose, onRefetch }: { offer: Application; o
                 size="small"
                 loading={actionLoading === 'withdraw'}
                 className="text-[10px] font-bold uppercase h-7 rounded-lg"
-                onClick={() => handleStatusUpdate('withdraw')}
+                onClick={() => {
+                  setStatusAction('withdraw')
+                  setStatusNote('')
+                  setStatusModalOpen(true)
+                }}
               >
                 Withdraw Offer
               </Button>
@@ -714,7 +721,11 @@ const OfferDetailPanel = ({ offer, onClose, onRefetch }: { offer: Application; o
                 danger
                 loading={actionLoading === 'reject'}
                 className="text-[10px] font-bold uppercase h-7 rounded-lg"
-                onClick={() => handleStatusUpdate('reject')}
+                onClick={() => {
+                  setStatusAction('reject')
+                  setStatusNote('')
+                  setStatusModalOpen(true)
+                }}
               >
                 Reject Offer
               </Button>
@@ -801,6 +812,50 @@ const OfferDetailPanel = ({ offer, onClose, onRefetch }: { offer: Application; o
           Last updated {dayjs(offer.updated_at).fromNow()}
         </Text>
       </div>
+
+      <Modal
+        title="Confirm Stage Change"
+        open={statusModalOpen}
+        onCancel={() => {
+          setStatusModalOpen(false)
+          setStatusAction(null)
+          setStatusNote('')
+        }}
+        onOk={async () => {
+          if (!statusAction || !statusNote.trim()) return
+          await handleStatusUpdate(statusAction, statusNote.trim())
+          setStatusModalOpen(false)
+          setStatusAction(null)
+          setStatusNote('')
+        }}
+        okText="Confirm"
+        confirmLoading={!!actionLoading}
+        okButtonProps={{ disabled: !statusNote.trim() }}
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Current Stage</p>
+              <p className="text-sm font-semibold text-slate-800">{formatStatusLabel(offer.status)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Target Stage</p>
+              <p className="text-sm font-semibold text-slate-800">
+                {statusAction === 'withdraw' ? 'Withdrawn' : statusAction === 'reject' ? 'Rejected' : '—'}
+              </p>
+            </div>
+          </div>
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Mandatory Note</p>
+            <Input.TextArea
+              rows={3}
+              value={statusNote}
+              onChange={(e) => setStatusNote(e.target.value)}
+              placeholder="Enter reason for stage change"
+            />
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

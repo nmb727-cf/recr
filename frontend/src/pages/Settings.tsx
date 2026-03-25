@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   Tabs, Card, Form, Input, Button, Row, Col, Table, Space, Tag, message,
-  Typography, Avatar, Popconfirm, Spin, Modal, Select,
+  Typography, Avatar, Popconfirm, Spin, Modal, Select, Alert, Badge, Collapse, Descriptions, Checkbox, Drawer, Switch,
 } from 'antd'
 import {
   UserOutlined, BankOutlined, LockOutlined,
@@ -12,6 +12,7 @@ import {
 import type { ColumnsType } from 'antd/es/table'
 import { useSearchParams } from 'react-router-dom'
 import { useApiQuery } from '@/hooks/useApiQuery'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useQueryClient } from '@tanstack/react-query'
 import { organisationApi } from '@/api/organisation'
 import { authApi } from '@/api/auth'
@@ -19,8 +20,24 @@ import { useAuthStore } from '@/store/authStore'
 import type { Organisation, User, Department, Location } from '@/types'
 import { COUNTRIES, TIMEZONES, CURRENCIES } from '@/utils/locale'
 import { readCompanySignupPrefill } from '@/utils/companyOnboarding'
+import { useTranslation } from 'react-i18next'
+import { rbacApi, type PermissionMeta as CatalogPermissionMeta, type RoleMeta as CatalogRoleMeta } from '@/api/rbac'
 
 const { Title, Text } = Typography
+
+const ROLE_COLORS: Record<string, string> = {
+  super_admin: 'red',
+  tenant_admin: 'volcano',
+  hr_manager: 'orange',
+  hiring_manager: 'gold',
+  recruiter: 'blue',
+  interviewer: 'geekblue',
+  viewer: 'default',
+  agency_owner: 'purple',
+  agency_admin: 'magenta',
+  agency_recruiter: 'cyan',
+  candidate: 'green',
+}
 
 // ─── Organisation Tab ────────────────────────────────────────────────────────
 
@@ -913,32 +930,391 @@ function AccountTab() {
 // ─── Roles Tab ───────────────────────────────────────────────────────────────
 
 function RolesTab() {
-  const roles = [
-    { key: '1', role: 'Tenant Admin', level: 1, description: 'Full access to all settings and data', count: 0 },
-    { key: '2', role: 'HR Manager', level: 2, description: 'Manage jobs, candidates, pipeline, agencies', count: 0 },
-    { key: '3', role: 'Recruiter', level: 3, description: 'Manage assigned jobs and candidates', count: 0 },
-    { key: '4', role: 'Hiring Manager', level: 4, description: 'View pipeline, give interview feedback', count: 0 },
-    { key: '5', role: 'Interviewer', level: 5, description: 'Conduct interviews, submit scorecards', count: 0 },
-    { key: '6', role: 'Viewer', level: 6, description: 'Read-only access to reports and pipeline', count: 0 },
-  ]
+  const { t } = useTranslation('settings')
+  const queryClient = useQueryClient()
+  const [roleOpen, setRoleOpen] = useState(false)
+  const [editingRole, setEditingRole] = useState<CatalogRoleMeta | null>(null)
+  const [basedOnTemplateId, setBasedOnTemplateId] = useState<string | null>(null)
+  const [showAllRoles, setShowAllRoles] = useState(false)
+  const [selectedCodes, setSelectedCodes] = useState<string[]>([])
+  const [form] = Form.useForm()
 
-  const columns = [
-    { title: 'Role Name', dataIndex: 'role', key: 'role', render: (t: string) => <Text strong>{t}</Text> },
-    { title: 'Level', dataIndex: 'level', key: 'level', render: (l: number) => <Tag color="blue">Level {l}</Tag> },
-    { title: 'Description', dataIndex: 'description', key: 'description' },
-    { title: 'User Count', dataIndex: 'count', key: 'count' },
-  ]
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['rbac-role-catalog'],
+    queryFn: async () => (await rbacApi.getCatalog()).data.data,
+  })
+
+  const createRoleMutation = useMutation({
+    mutationFn: async (payload: { name: string; display_name: string; description?: string; permission_codes: string[] }) =>
+      rbacApi.createRole(payload),
+    onSuccess: () => {
+      message.success(t('rbac.role_created', 'Role created'))
+      queryClient.invalidateQueries({ queryKey: ['rbac-role-catalog'] })
+      closeEditor()
+    },
+    onError: (err: any) => {
+      message.error(err?.response?.data?.message || t('rbac.role_create_failed', 'Failed to create role'))
+    },
+  })
+
+  const updateRoleMutation = useMutation({
+    mutationFn: async (payload: { roleId: string; name: string; display_name: string; description?: string; permission_codes: string[] }) =>
+      rbacApi.updateRole(payload.roleId, payload),
+    onSuccess: () => {
+      message.success(t('rbac.role_updated', 'Role updated'))
+      queryClient.invalidateQueries({ queryKey: ['rbac-role-catalog'] })
+      closeEditor()
+    },
+    onError: (err: any) => {
+      message.error(err?.response?.data?.message || t('rbac.role_update_failed', 'Failed to update role'))
+    },
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (roleId: string) => rbacApi.deleteRole(roleId),
+    onSuccess: () => {
+      message.success(t('rbac.role_deleted', 'Role deleted'))
+      queryClient.invalidateQueries({ queryKey: ['rbac-role-catalog'] })
+    },
+    onError: (err: any) => {
+      message.error(err?.response?.data?.message || t('rbac.role_delete_failed', 'Failed to delete role'))
+    },
+  })
+
+  const humanLabel = (p: CatalogPermissionMeta) => p.label || `${(p.action || '').replace(/_/g, ' ')} ${p.resource || ''}`
+  const humanModule = (p: CatalogPermissionMeta) =>
+    p.module_label || p.module.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+
+  if (isLoading) {
+    return (
+      <Card bordered={false} style={{ borderRadius: 12 }}>
+        <div style={{ textAlign: 'center', padding: 40 }}><Spin /></div>
+      </Card>
+    )
+  }
+
+  if (error || !data) {
+    return (
+      <Card bordered={false} style={{ borderRadius: 12 }}>
+        <Alert type="error" message={t('rbac.load_error', 'Failed to load RBAC metadata')} />
+      </Card>
+    )
+  }
+
+  const tenantType = data.current_user.tenant_type || (data.current_user.role?.startsWith('agency_') ? 'agency' : 'company')
+  const isDebugAdmin = data.current_user.role === 'super_admin'
+  const allowedApplicability = showAllRoles
+    ? ['shared', 'company', 'agency', 'candidate']
+    : [tenantType, 'shared']
+
+  const visiblePermissions = data.all_permissions.filter((p: CatalogPermissionMeta) =>
+    allowedApplicability.includes(p.tenant_type_applicability || 'shared')
+  )
+
+  const groupedPermissions = visiblePermissions.reduce<Record<string, CatalogPermissionMeta[]>>((acc, p) => {
+    const key = humanModule(p)
+    if (!acc[key]) acc[key] = []
+    acc[key].push(p)
+    return acc
+  }, {})
+
+  const permissionGroups = {
+    shared: visiblePermissions.filter((p) => (p.tenant_type_applicability || 'shared') === 'shared'),
+    company: visiblePermissions.filter((p) => p.tenant_type_applicability === 'company'),
+    agency: visiblePermissions.filter((p) => p.tenant_type_applicability === 'agency'),
+  }
+
+  const closeEditor = () => {
+    setRoleOpen(false)
+    setEditingRole(null)
+    setBasedOnTemplateId(null)
+    setSelectedCodes([])
+    form.resetFields()
+  }
+
+  const openCreateRole = () => {
+    setEditingRole(null)
+    setBasedOnTemplateId(null)
+    setRoleOpen(true)
+    form.setFieldsValue({
+      name: '',
+      display_name: '',
+      description: '',
+    })
+    setSelectedCodes([])
+  }
+
+  const openEditRole = (role: CatalogRoleMeta) => {
+    setEditingRole(role)
+    setBasedOnTemplateId(null)
+    setRoleOpen(true)
+    form.setFieldsValue({
+      name: role.name,
+      display_name: role.display_name,
+      description: role.description || '',
+    })
+    setSelectedCodes(role.permissions.map((p) => p.code))
+  }
+
+  const openFromTemplate = (role: CatalogRoleMeta, duplicate = false) => {
+    setEditingRole(null)
+    setBasedOnTemplateId(role.id)
+    setRoleOpen(true)
+    form.setFieldsValue({
+      name: duplicate ? `${role.name}_copy` : `${role.name}_custom`,
+      display_name: duplicate ? `${role.display_name} Copy` : role.display_name,
+      description: role.description || '',
+    })
+    setSelectedCodes(role.permissions.map((p) => p.code))
+  }
+
+  const openDuplicateCustom = (role: CatalogRoleMeta) => {
+    setEditingRole(null)
+    setBasedOnTemplateId(role.based_on_role_id || null)
+    setRoleOpen(true)
+    form.setFieldsValue({
+      name: `${role.name}_copy`,
+      display_name: `${role.display_name} Copy`,
+      description: role.description || '',
+    })
+    setSelectedCodes(role.permissions.map((p) => p.code))
+  }
+
+  const onSaveRole = async () => {
+    const values = await form.validateFields()
+    const payload = {
+      name: values.name,
+      display_name: values.display_name,
+      description: values.description || '',
+      permission_codes: selectedCodes,
+      based_on_role_id: basedOnTemplateId || undefined,
+    }
+    if (editingRole) {
+      updateRoleMutation.mutate({ roleId: editingRole.id, ...payload })
+    } else {
+      createRoleMutation.mutate(payload)
+    }
+  }
+
+  const roleVisible = (r: CatalogRoleMeta) =>
+    showAllRoles || ['shared', tenantType].includes(r.tenant_type_applicability || 'shared')
+
+  const systemTemplateRoles = data.system_templates.filter((r: CatalogRoleMeta) =>
+    roleVisible(r) && (
+    r.name === 'super_admin' || r.name === 'candidate'
+    )
+  )
+  const agencyRoles = data.system_templates.filter((r: CatalogRoleMeta) => roleVisible(r) && r.name.startsWith('agency_'))
+  const companyRoles = data.system_templates.filter((r: CatalogRoleMeta) =>
+    roleVisible(r) && !r.name.startsWith('agency_') && r.name !== 'super_admin' && r.name !== 'candidate'
+  )
+  const customRoles = data.tenant_roles.filter(roleVisible)
+
+  const RoleSection = ({
+    title,
+    roles,
+    systemOwned,
+  }: {
+    title: string
+    roles: CatalogRoleMeta[]
+    systemOwned?: boolean
+  }) => (
+    <div className="mb-6">
+      <div className="mb-3 flex items-center justify-between">
+        <Text strong>{title}</Text>
+        <Badge count={roles.length} color={roles.length ? 'blue' : 'default'} />
+      </div>
+      <div className="space-y-2">
+        {roles.length === 0 && (
+          <div className="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+            {t('rbac.no_roles_in_section', 'No roles in this section')}
+          </div>
+        )}
+        {roles.map((role) => (
+          <div
+            key={role.id}
+            className="rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-blue-200"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div
+                className="min-w-0 cursor-pointer"
+                onClick={() => {
+                  if (!data.can_manage_roles) return
+                  if (systemOwned) openFromTemplate(role)
+                  else openEditRole(role)
+                }}
+              >
+                <div className="mb-1 flex items-center gap-2">
+                  <Text strong>{role.display_name || role.name}</Text>
+                  <Tag className="m-0">{role.permission_count}</Tag>
+                  {role.name === data.current_user.role && <Tag color="green">{t('rbac.current', 'Current')}</Tag>}
+                </div>
+                <Text type="secondary" className="text-xs">{role.description || '—'}</Text>
+              </div>
+              <Space>
+                {systemOwned ? (
+                  <>
+                    <Button size="small" onClick={() => openFromTemplate(role)}>
+                      {t('rbac.use_template', 'Use Template')}
+                    </Button>
+                    <Button size="small" onClick={() => openFromTemplate(role, true)}>
+                      {t('rbac.duplicate', 'Duplicate')}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button size="small" onClick={() => openEditRole(role)}>
+                      {t('rbac.edit_role', 'Edit')}
+                    </Button>
+                    <Button size="small" onClick={() => openDuplicateCustom(role)}>
+                      {t('rbac.duplicate', 'Duplicate')}
+                    </Button>
+                    <Popconfirm
+                      title={t('rbac.delete_role_confirm', 'Delete this tenant role?')}
+                      onConfirm={() => deleteMutation.mutate(role.id)}
+                      okText={t('common:actions.delete', 'Delete')}
+                      cancelText={t('common:actions.cancel', 'Cancel')}
+                    >
+                      <Button size="small" danger>{t('common:actions.delete', 'Delete')}</Button>
+                    </Popconfirm>
+                  </>
+                )}
+              </Space>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 
   return (
     <Card bordered={false} style={{ borderRadius: 12 }}>
-      <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 flex items-start gap-3">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <Text strong>{t('rbac.title', 'Roles & Permissions')}</Text>
+          <div><Text type="secondary">{t('rbac.subtitle', 'Configure role visibility with human-friendly permission labels.')}</Text></div>
+          <div className="mt-1">
+            <Tag color={tenantType === 'agency' ? 'purple' : 'blue'}>
+              {t('rbac.tenant_type_label', 'Tenant Type')}: {tenantType === 'agency' ? t('rbac.tenant_type_agency', 'Agency') : t('rbac.tenant_type_company', 'Company')}
+            </Tag>
+          </div>
+        </div>
+        <Space>
+          {isDebugAdmin && (
+            <Space>
+              <Text type="secondary">{t('rbac.show_all_roles', 'Show all roles')}</Text>
+              <Switch checked={showAllRoles} onChange={setShowAllRoles} />
+            </Space>
+          )}
+          <Button type="primary" onClick={openCreateRole}>
+            {t('rbac.create_custom_role', 'Create Custom Role')}
+          </Button>
+        </Space>
+      </div>
+
+      <Card size="small" style={{ marginBottom: 16 }}>
+        <Descriptions column={2} size="small">
+          <Descriptions.Item label={t('rbac.current_user_role', 'Current User Role')}>
+            <Tag color={ROLE_COLORS[data.current_user.role] ?? 'default'}>{data.current_user.role}</Tag>
+          </Descriptions.Item>
+          <Descriptions.Item label={t('rbac.current_user_email', 'Current User Email')}>
+            {data.current_user.email}
+          </Descriptions.Item>
+          <Descriptions.Item label={t('rbac.permission_count_api', 'Permissions from API')}>
+            <Badge count={data.current_user.permission_count} color="blue" />
+          </Descriptions.Item>
+          <Descriptions.Item label={t('rbac.permission_count_store', 'Tenant Custom Roles')}>
+            <Badge count={data.tenant_roles.length} color="green" />
+          </Descriptions.Item>
+        </Descriptions>
+      </Card>
+
+      <RoleSection title={t('rbac.system_templates', 'System Templates')} roles={systemTemplateRoles} systemOwned />
+      <RoleSection title={t('rbac.agency_roles', 'Agency Roles')} roles={agencyRoles} systemOwned />
+      <RoleSection title={t('rbac.company_roles', 'Company Roles')} roles={companyRoles} systemOwned />
+      <RoleSection title={t('rbac.custom_roles', 'Custom Roles')} roles={customRoles} />
+
+      <Drawer
+        title={editingRole ? t('rbac.edit_role_modal', 'Edit Tenant Role') : t('rbac.create_role_modal', 'Create Tenant Role')}
+        open={roleOpen}
+        onClose={closeEditor}
+        width={560}
+        extra={
+          <Space>
+            <Button onClick={closeEditor}>{t('common:actions.cancel', 'Cancel')}</Button>
+            <Button
+              type="primary"
+              onClick={onSaveRole}
+              loading={createRoleMutation.isPending || updateRoleMutation.isPending}
+            >
+              {t('common:actions.save', 'Save')}
+            </Button>
+          </Space>
+        }
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item
+            name="name"
+            label={t('rbac.role_key', 'Role Key')}
+            rules={[{ required: true, message: t('rbac.role_key_required', 'Role key is required') }]}
+          >
+            <Input placeholder="e.g. recruiter_plus" />
+          </Form.Item>
+          <Form.Item
+            name="display_name"
+            label={t('rbac.role', 'Role')}
+            rules={[{ required: true, message: t('rbac.role_name_required', 'Role name is required') }]}
+          >
+            <Input placeholder="e.g. Recruiter Plus" />
+          </Form.Item>
+          <Form.Item name="description" label={t('rbac.description', 'Description')}>
+            <Input />
+          </Form.Item>
+        </Form>
+
+        <div className="mb-2 mt-4">
+          <Text strong>{t('rbac.permissions_by_module', 'Permissions by Module')}</Text>
+        </div>
+        <div className="mb-3 flex flex-wrap gap-2">
+          <Tag>{t('rbac.permissions_shared', 'Shared')}: {permissionGroups.shared.length}</Tag>
+          <Tag color="blue">{t('rbac.permissions_company_only', 'Company-only')}: {permissionGroups.company.length}</Tag>
+          <Tag color="purple">{t('rbac.permissions_agency_only', 'Agency-only')}: {permissionGroups.agency.length}</Tag>
+        </div>
+        <Collapse
+          items={Object.entries(groupedPermissions).map(([moduleName, perms]) => ({
+            key: moduleName,
+            label: (
+              <Space>
+                <Text strong>{moduleName}</Text>
+                <Badge count={perms.length} />
+              </Space>
+            ),
+            children: (
+              <Checkbox.Group
+                value={selectedCodes}
+                onChange={(vals) => setSelectedCodes(vals as string[])}
+                className="grid grid-cols-1 md:grid-cols-2 gap-2"
+              >
+                {perms.map((p) => (
+                  <div key={p.code} className="rounded-lg border border-slate-100 p-2">
+                    <Checkbox value={p.code}>
+                      <span className="font-medium">{humanLabel(p)}</span>
+                    </Checkbox>
+                    <div className="text-xs text-slate-500">{p.description || '—'}</div>
+                  </div>
+                ))}
+              </Checkbox.Group>
+            ),
+          }))}
+        />
+      </Drawer>
+
+      <div className="mt-4 bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-start gap-3">
         <InfoCircleOutlined className="text-blue-500 mt-1" />
         <Text type="secondary" style={{ fontSize: 13 }}>
-          Role permissions configuration coming soon. 
-          Contact your admin to change a user's role.
+          {t('rbac.enforcement_note', 'Permission enforcement still uses technical codes internally. This screen only improves admin readability.')}
         </Text>
       </div>
-      <Table columns={columns} dataSource={roles} pagination={false} size="middle" />
     </Card>
   )
 }
@@ -946,12 +1322,13 @@ function RolesTab() {
 // ─── Main Settings Component ──────────────────────────────────────────────────
 
 export default function Settings() {
+  const { t } = useTranslation('settings')
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab = searchParams.get('tab') || 'organisation'
 
   return (
     <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-      <Title level={4} style={{ marginBottom: 24 }}>System Settings</Title>
+      <Title level={4} style={{ marginBottom: 24 }}>{t('page.title', 'System Settings')}</Title>
 
       <Tabs
         activeKey={activeTab}
@@ -959,12 +1336,12 @@ export default function Settings() {
         destroyInactiveTabPane={false}
         className="modern-tabs"
         items={[
-          { key: 'organisation', label: <Space><BankOutlined />Profile</Space>, children: <OrganisationTab /> },
-          { key: 'departments', label: <Space><ApartmentOutlined />Departments</Space>, children: <DepartmentsTab /> },
-          { key: 'locations', label: <Space><EnvironmentOutlined />Locations</Space>, children: <LocationsTab /> },
-          { key: 'users', label: <Space><UserOutlined />Users</Space>, children: <UsersTab /> },
-          { key: 'roles', label: <Space><SafetyOutlined />Roles</Space>, children: <RolesTab /> },
-          { key: 'account', label: <Space><LockOutlined />Account & Security</Space>, children: <AccountTab /> },
+          { key: 'organisation', label: <Space><BankOutlined />{t('tabs.profile', 'Profile')}</Space>, children: <OrganisationTab /> },
+          { key: 'departments', label: <Space><ApartmentOutlined />{t('tabs.departments', 'Departments')}</Space>, children: <DepartmentsTab /> },
+          { key: 'locations', label: <Space><EnvironmentOutlined />{t('tabs.locations', 'Locations')}</Space>, children: <LocationsTab /> },
+          { key: 'users', label: <Space><UserOutlined />{t('tabs.users', 'Users')}</Space>, children: <UsersTab /> },
+          { key: 'roles', label: <Space><SafetyOutlined />{t('tabs.roles', 'Roles & Permissions')}</Space>, children: <RolesTab /> },
+          { key: 'account', label: <Space><LockOutlined />{t('tabs.account', 'Account & Security')}</Space>, children: <AccountTab /> },
         ]}
       />
     </div>

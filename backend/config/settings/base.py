@@ -19,6 +19,9 @@ SHARED_APPS = [
     'apps.tenants',
     'apps.accounts',
 
+    # RBAC foundation (must come before feature apps so permission classes are importable)
+    'apps.rbac',
+
     # Platform apps
     'apps.organisations',
     'apps.jobs',
@@ -34,6 +37,8 @@ SHARED_APPS = [
     'apps.automation',
     'apps.cafe',
     'apps.marketplace',
+    'apps.translations',
+    'apps.talent_pools',
 
     # Django built-ins
     'django.contrib.admin',
@@ -156,6 +161,21 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
+# ─── SUPPORTED LANGUAGES ──────────────────────────────────────────────────────
+
+LANGUAGES = [
+    ('en', 'English'),
+    ('hi', 'Hindi'),
+    ('mr', 'Marathi'),
+    ('fr', 'French'),
+    ('de', 'German'),
+    ('es', 'Spanish'),
+    ('ar', 'Arabic'),
+    ('zh', 'Chinese (Simplified)'),
+]
+
+LOCALE_PATHS = [BASE_DIR / 'locale']
+
 # ─── STATIC AND MEDIA ─────────────────────────────────────────────────────────
 
 STATIC_URL = 'static/'
@@ -187,6 +207,19 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(minute=0),  # runs every hour
     },
 }
+
+# ─── EMAIL ────────────────────────────────────────────────────────────────────
+
+ENVIRONMENT = 'development'  # 'development' or 'production'
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+DEFAULT_FROM_EMAIL = 'noreply@talentos.dev'
+FRONTEND_URL = 'http://localhost:3000'
+
+# ─── OTP ──────────────────────────────────────────────────────────────────────
+
+OTP_EXPIRY_MINUTES = 5
+OTP_MAX_ATTEMPTS = 5
+OTP_RESEND_COOLDOWN_SECONDS = 30
 
 # ─── MINIO ────────────────────────────────────────────────────────────────────
 

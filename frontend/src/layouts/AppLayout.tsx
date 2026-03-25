@@ -1,29 +1,24 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import { SUPPORTED_LANGUAGES } from '@/i18n'
+import i18n from '@/i18n'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Layout, Avatar, Dropdown, Button, Tooltip, Menu } from 'antd'
+import { Layout, Avatar, Dropdown, Button, Tooltip, Menu, Badge, Input, Tabs } from 'antd'
 import {
-  DashboardOutlined,
-  FileSearchOutlined,
-  CalendarOutlined,
-  SettingOutlined,
-  TeamOutlined,
-  BankOutlined,
-  BarChartOutlined,
-  ApartmentOutlined,
   LogoutOutlined,
   UserOutlined,
-  ProjectOutlined,
-  FileDoneOutlined,
-  LineChartOutlined,
+  GlobalOutlined,
+  SettingOutlined,
 } from '@ant-design/icons'
 import {
   Bell,
+  Inbox,
   User as UserIcon,
   ChevronLeft,
   ChevronRight,
   Check,
-  Moon,
-  Sun,
+  Search,
+  Zap,
 } from 'lucide-react'
 import { Popover, message as antdMessage } from 'antd'
 import { motion } from 'framer-motion'
@@ -32,6 +27,12 @@ import { useAuthStore } from '@/store/authStore'
 import { notificationsApi } from '@/api/notifications'
 import { GlobalDrawer } from '../components/drawers/GlobalDrawer'
 import { useApiQuery } from '@/hooks/useApiQuery'
+import { 
+  companySidebarConfig, 
+  agencySidebarConfig, 
+  candidateSidebarConfig,
+  NavItem 
+} from '@/config/navigation'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import type { Notification } from '@/types'
@@ -42,18 +43,19 @@ const { Header, Sider, Content } = Layout
 
 // ─── Notification Dropdown ──────────────────────────────────────────────────
 
-function NotificationDropdown() {
+function NotificationDropdown({ badgeOverrideCount }: { badgeOverrideCount?: number }) {
   const { data, refetch } = useApiQuery(['notifications', 'unread'], () =>
     notificationsApi.list({ is_read: false })
   )
   const notifications = (data as { notifications: Notification[] } | undefined)?.notifications ?? []
+  const badgeCount = badgeOverrideCount ?? notifications.length
 
   const markAllRead = async () => {
     try {
       await notificationsApi.markAllRead()
       refetch()
     } catch (err) {
-      antdMessage.error('Failed to mark all as read')
+      antdMessage.error(i18n.t('common:messages.failed_mark_all_read'))
     }
   }
 
@@ -62,20 +64,20 @@ function NotificationDropdown() {
       await notificationsApi.markRead(id)
       refetch()
     } catch (err) {
-      antdMessage.error('Failed to mark as read')
+      antdMessage.error(i18n.t('common:messages.failed_mark_read'))
     }
   }
 
   const content = (
     <div className="w-80 overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-black/5">
       <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/50 px-4 py-3">
-        <span className="text-sm font-semibold text-slate-900">Notifications</span>
+        <span className="text-sm font-semibold text-slate-900">{i18n.t('common:sidebar.notifications', 'Notifications')}</span>
         <button 
           onClick={markAllRead}
           disabled={notifications.length === 0}
           className="text-xs font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50"
         >
-          Mark all as read
+          {i18n.t('common:actions.mark_all_read')}
         </button>
       </div>
       <div className="max-h-[400px] overflow-y-auto">
@@ -108,14 +110,14 @@ function NotificationDropdown() {
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-50 text-slate-400">
               <Bell className="h-6 w-6" />
             </div>
-            <p className="mt-4 text-sm font-medium text-slate-900">All caught up!</p>
-            <p className="mt-1 text-xs text-slate-500">No new notifications to show.</p>
+            <p className="mt-4 text-sm font-medium text-slate-900">{i18n.t('common:empty.all_caught_up')}</p>
+            <p className="mt-1 text-xs text-slate-500 text-center">{i18n.t('common:empty.no_notifications')}</p>
           </div>
         )}
       </div>
       <div className="border-t border-slate-100 p-3 text-center">
         <Link to="/notifications" className="text-xs font-semibold text-slate-600 hover:text-slate-900">
-          View all notifications
+          {i18n.t('common:actions.view_all')} {i18n.t('common:sidebar.notifications', 'notifications')}
         </Link>
       </div>
     </div>
@@ -130,17 +132,13 @@ function NotificationDropdown() {
       arrow={false}
     >
       <div className="relative">
-        <Button
-          type="text"
-          icon={<Bell className="h-5 w-5 text-slate-600" />}
-          className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-slate-100"
-        />
-        {notifications.length > 0 && (
-          <span className="absolute right-2.5 top-2.5 flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75"></span>
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-600"></span>
-          </span>
-        )}
+        <Badge count={badgeCount} size="small" offset={[-2, 6]}>
+          <Button
+            type="text"
+            icon={<Bell className="h-5 w-5 text-slate-600" />}
+            className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-slate-100"
+          />
+        </Badge>
       </div>
     </Popover>
   )
@@ -148,100 +146,97 @@ function NotificationDropdown() {
 
 // ─── Menu Items Logic ───────────────────────────────────────────────────────
 
-const getMenuItems = (role: string) => {
-  // ─── 1. CANDIDATE SIDEBAR ──────────────────────────────────────────────────
-  if (role === 'candidate') {
-    return [
-      { key: '/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
-      { key: '/candidate/jobs', icon: <ProjectOutlined />, label: 'Jobs' },
-      { key: '/candidate/applications', icon: <FileSearchOutlined />, label: 'Applications' },
-      { key: '/interviews', icon: <CalendarOutlined />, label: 'Interviews' },
-      { key: '/settings', icon: <SettingOutlined />, label: 'Settings' },
-    ]
-  }
+const getMenuItems = (
+  role: string,
+  permissions: string[] = [],
+  badgeCounts: Record<string, number> = {}
+) => {
+  const can = (code: string) => permissions.includes(code)
   
-  // ─── 2. AGENCY SIDEBAR ─────────────────────────────────────────────────────
-  if (role === 'agency_owner' || role === 'agency_admin' || role === 'agency_recruiter') {
-    return [
-      { key: '/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
-      { 
-        key: 'agency-jobs', 
-        icon: <ProjectOutlined />, 
-        label: 'Jobs',
-        children: [
-          { key: '/agencies/my-jobs', label: 'Incoming Jobs' },
-          { key: '/jobs', label: 'Internal Jobs' },
-        ]
-      },
-      { 
-        key: 'agency-candidates', 
-        icon: <TeamOutlined />, 
-        label: 'Candidates',
-        children: [
-          { key: '/candidates', label: 'Database' },
-          { key: '/candidates/active', label: 'Active' },
-        ]
-      },
-      { key: '/agencies/my-submissions', icon: <FileSearchOutlined />, label: 'Submissions' },
-      { key: '/agencies/my-clients', icon: <BankOutlined />, label: 'Clients' },
-      { 
-        key: 'agency-team', 
-        icon: <TeamOutlined />, 
-        label: 'Team',
-        children: [
-          { key: '/settings?tab=users', label: 'Recruiters' },
-          { key: '/settings?tab=hierarchy', label: 'Hierarchy' },
-        ]
-      },
-      { key: '/analytics', icon: <LineChartOutlined />, label: 'Performance' },
-      { key: '/settings', icon: <SettingOutlined />, label: 'Settings' },
-    ]
+  let config: NavItem[] = []
+  if (role === 'candidate') {
+    config = candidateSidebarConfig
+  } else if (role === 'agency_owner' || role === 'agency_admin' || role === 'agency_recruiter') {
+    config = agencySidebarConfig
+  } else {
+    config = companySidebarConfig
   }
 
-  // ─── 3. COMPANY SIDEBAR (Default) ──────────────────────────────────────────
-  return [
-    { key: '/dashboard', icon: <DashboardOutlined />, label: 'Dashboard' },
-    { key: '/jobs', icon: <ProjectOutlined />, label: 'Jobs' },
-    { key: '/pipeline', icon: <ApartmentOutlined />, label: 'Pipeline' },
-    {
-      key: 'company-candidates',
-      icon: <TeamOutlined />,
-      label: 'Candidates',
-      children: [
-        { key: '/candidates', label: 'Database' },
-        { key: '/candidates/active', label: 'Active' },
-      ],
-    },
-    { key: '/agencies', icon: <BankOutlined />, label: 'Agencies' },
-    { key: '/interviews', icon: <CalendarOutlined />, label: 'Interviews' },
-    { key: '/offers', icon: <FileDoneOutlined />, label: 'Offers' },
-    { key: '/analytics', icon: <BarChartOutlined />, label: 'Reports' },
-    { key: '/settings', icon: <SettingOutlined />, label: 'Settings' },
-  ]
+  const filterItems = (items: NavItem[]): any[] => {
+    return items
+      .filter(item => !item.permission || can(item.permission))
+      .map(item => ({
+        key: item.key,
+        label: (
+          <div className="flex w-full items-center justify-between gap-2">
+            <span className="truncate">{item.label as string}</span>
+            {badgeCounts[item.key] ? (
+              <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
+                {badgeCounts[item.key]}
+              </span>
+            ) : null}
+          </div>
+        ),
+        icon: item.icon,
+        children: item.children ? filterItems(item.children) : undefined
+      }))
+  }
+
+  return filterItems(config)
+}
+
+const ACTION_CENTER_ITEMS: Record<string, string[]> = {
+  urgent: ['new_candidate_submitted', 'interview_today'],
+  today: ['candidate_requested_info', 'client_reply'],
+  upcoming: ['follow_up_due'],
 }
 
 // ─── AppLayout Component ─────────────────────────────────────────────────────
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false)
-  const [darkMode, setDarkMode] = useState(false)
+  const [actionCenterOpen, setActionCenterOpen] = useState(false)
+  const [actionCenterTab, setActionCenterTab] = useState('urgent')
   const location = useLocation()
   const navigate = useNavigate()
   const { logout } = useAuth()
   const user = useAuthStore(state => state.user)
-  
-  const menuItems = getMenuItems(user?.role || '')
+  const { t } = useTranslation('common')
+  const isAgencyTenant =
+    user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_recruiter'
+
+  const sidebarAttentionCounts = useMemo(() => ({
+    '/candidates/active': 3,
+    '/pipeline': 2,
+    ...(isAgencyTenant ? { '/agencies/my-submissions': 1 } : { '/applications': 1 }),
+  }), [isAgencyTenant])
+
+  const menuItems = getMenuItems(user?.role || '', user?.permissions ?? [], sidebarAttentionCounts)
 
   const handleLogout = async () => {
     await logout()
     navigate('/login', { replace: true })
   }
 
+  const handleLanguageChange = (langCode: string) => {
+    i18n.changeLanguage(langCode)
+    // Persist to user profile in background (best-effort)
+    import('@/api/auth').then(({ authApi }) => {
+      authApi.updateMe({ language: langCode } as any).catch(() => {})
+    })
+  }
+
+  const languageMenuItems = SUPPORTED_LANGUAGES.map((lang) => ({
+    key: lang.code,
+    label: `${lang.nativeLabel} (${lang.label})`,
+    onClick: () => handleLanguageChange(lang.code),
+  }))
+
   const userMenuItems = [
-    { key: 'profile', label: 'My Profile', icon: <UserOutlined />, onClick: () => navigate('/settings/profile') },
-    { key: 'settings', label: 'Settings', icon: <SettingOutlined />, onClick: () => navigate('/settings') },
+    { key: 'profile', label: t('user_menu.my_profile'), icon: <UserOutlined />, onClick: () => navigate('/settings/profile') },
+    { key: 'settings', label: t('user_menu.settings'), icon: <SettingOutlined />, onClick: () => navigate('/settings') },
     { type: 'divider' as const },
-    { key: 'logout', label: 'Sign out', icon: <LogoutOutlined />, danger: true, onClick: handleLogout },
+    { key: 'logout', label: t('auth:logout'), icon: <LogoutOutlined />, danger: true, onClick: handleLogout },
   ]
 
   // Determine selected keys based on pathname and query params
@@ -261,6 +256,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   const selectedKey = findActiveKey(menuItems) || location.pathname
+  const actionCenterCount = 5
+  const inboxCount = 4
+  const notificationCount = 6
+  const actionCenterTabItems = [
+    { key: 'urgent', label: t('header.urgent', 'Urgent') },
+    { key: 'today', label: t('header.today', 'Today') },
+    { key: 'upcoming', label: t('header.upcoming', 'Upcoming') },
+  ]
+  const actionCenterItems = (ACTION_CENTER_ITEMS[actionCenterTab] || []).map((k) =>
+    t(`header.action_items.${k}`, k.replace(/_/g, ' '))
+  )
 
   return (
     <Layout className="min-h-screen">
@@ -274,14 +280,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         className="fixed inset-y-0 left-0 z-50 !bg-white border-r border-slate-200 shadow-sm"
       >
         <div className="flex h-16 items-center px-6 border-b border-slate-100">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-lg">R</div>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-lg">T</div>
           {!collapsed && (
             <motion.span 
               initial={{ opacity: 0 }} 
               animate={{ opacity: 1 }}
               className="ml-3 font-bold text-slate-900 tracking-tight text-lg"
             >
-              RecruitOS
+              TalentOS
             </motion.span>
           )}
         </div>
@@ -316,25 +322,52 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         style={{ marginLeft: collapsed ? 80 : 260 }}
       >
         <Header className="sticky top-0 z-40 flex h-16 w-full items-center justify-between border-b border-slate-200/60 bg-white/80 px-6 backdrop-blur-md">
-          <Button
-            type="text"
-            icon={collapsed ? <ChevronRight className="h-5 w-5 text-slate-600" /> : <ChevronLeft className="h-5 w-5 text-slate-600" />}
-            onClick={() => setCollapsed(!collapsed)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-slate-100"
-          />
+          <div className="flex items-center gap-3">
+            <Button
+              type="text"
+              icon={collapsed ? <ChevronRight className="h-5 w-5 text-slate-600" /> : <ChevronLeft className="h-5 w-5 text-slate-600" />}
+              onClick={() => setCollapsed(!collapsed)}
+              className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-slate-100"
+            />
+            <Input
+              allowClear
+              placeholder={t('search.placeholder', 'Search')}
+              prefix={<Search className="h-4 w-4 text-slate-400" />}
+              className="w-[360px] rounded-xl"
+            />
+          </div>
 
           <div className="flex items-center gap-2">
-            <Tooltip title={darkMode ? "Light mode" : "Dark mode"}>
+            <Dropdown menu={{ items: languageMenuItems }} trigger={['click']} placement="bottomRight">
+              <Tooltip title={t('language_switcher.label')}>
+                <Button
+                  type="text"
+                  icon={<GlobalOutlined className="h-5 w-5 text-slate-600" />}
+                  className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-slate-100"
+                />
+              </Tooltip>
+            </Dropdown>
+
+            <Badge count={actionCenterCount} size="small">
               <Button
                 type="text"
-                icon={darkMode ? <Sun className="h-5 w-5 text-slate-600" /> : <Moon className="h-5 w-5 text-slate-600" />}
-                onClick={() => setDarkMode(!darkMode)}
+                icon={<Zap className="h-5 w-5 text-amber-600" />}
+                onClick={() => setActionCenterOpen((v) => !v)}
+                className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-amber-50"
+              />
+            </Badge>
+
+            <Badge count={inboxCount} size="small">
+              <Button
+                type="text"
+                icon={<Inbox className="h-5 w-5 text-slate-600" />}
+                onClick={() => navigate('/messages')}
                 className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-slate-100"
               />
-            </Tooltip>
-            
-            <NotificationDropdown />
-            
+            </Badge>
+
+            <NotificationDropdown badgeOverrideCount={notificationCount} />
+
             <div className="mx-2 h-6 w-[1px] bg-slate-200" />
 
             <Dropdown
@@ -362,6 +395,50 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </motion.div>
         </Content>
       </Layout>
+
+      <div className="fixed bottom-6 right-6 z-[60]">
+        <Badge count={actionCenterCount}>
+          <Button
+            type="primary"
+            shape="circle"
+            size="large"
+            icon={<Zap className="h-5 w-5" />}
+            onClick={() => setActionCenterOpen((v) => !v)}
+            className="!h-14 !w-14 !bg-blue-600 !shadow-lg"
+          />
+        </Badge>
+      </div>
+
+      {actionCenterOpen && (
+        <div className="fixed bottom-24 right-6 z-[60] w-[360px] rounded-2xl border border-slate-200 bg-white shadow-2xl">
+          <div className="border-b border-slate-100 px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Zap className="h-4 w-4 text-amber-600" />
+                <span className="text-sm font-semibold text-slate-900">{t('header.action_center', 'Action Center')}</span>
+              </div>
+              <Badge count={actionCenterCount} />
+            </div>
+          </div>
+          <Tabs
+            activeKey={actionCenterTab}
+            onChange={setActionCenterTab}
+            size="small"
+            className="px-3 pt-2"
+            items={actionCenterTabItems.map((it) => ({ key: it.key, label: it.label }))}
+          />
+          <div className="max-h-72 overflow-y-auto px-4 pb-4">
+            <div className="space-y-2">
+              {actionCenterItems.map((item) => (
+                <div key={item} className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2">
+                  <span className="text-sm text-slate-700">{item}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <GlobalDrawer />
     </Layout>
   )

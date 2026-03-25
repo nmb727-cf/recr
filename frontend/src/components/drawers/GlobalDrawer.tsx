@@ -1,4 +1,4 @@
-import { Drawer, Button, Tag, Spin, Tabs, Table } from 'antd'
+import { Drawer, Button, Tag, Spin, Tabs, Table, Modal, Input, message } from 'antd'
 import { useDrawerStore } from '../../store/drawerStore'
 import { useQuery } from '@tanstack/react-query'
 import api from '../../utils/http'
@@ -53,6 +53,31 @@ const JobFullView = ({ data }: { data: any }) => {
       maximumFractionDigits: 0
     }).format(amount)
   }
+
+  const promptStageNote = (title: string): Promise<string | null> =>
+    new Promise((resolve) => {
+      let note = ''
+      Modal.confirm({
+        title,
+        content: (
+          <div style={{ marginTop: 8 }}>
+            <p style={{ margin: '0 0 6px 0', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#94a3b8' }}>
+              Mandatory Note
+            </p>
+            <Input.TextArea rows={3} placeholder="Enter reason for stage change" onChange={(e) => { note = e.target.value }} />
+          </div>
+        ),
+        okText: 'Confirm',
+        onOk: async () => {
+          if (!note.trim()) {
+            message.error('A note is required')
+            throw new Error('missing_note')
+          }
+          resolve(note.trim())
+        },
+        onCancel: () => resolve(null),
+      })
+    })
 
   const tabItems = [
     {
@@ -216,11 +241,19 @@ const JobFullView = ({ data }: { data: any }) => {
                   render: (_, record: any) => (
                     <div style={{ display: 'flex', gap: 4 }}>
                       <Button size="small" type="primary"
-                        onClick={() => api.post(`/pipeline/applications/${record.id}/shortlist/`)}>
+                        onClick={async () => {
+                          const note = await promptStageNote('Confirm Stage Change')
+                          if (!note) return
+                          await api.post(`/pipeline/applications/${record.id}/shortlist/`, { note })
+                        }}>
                         Shortlist
                       </Button>
                       <Button size="small" danger
-                        onClick={() => api.post(`/pipeline/applications/${record.id}/reject/`, { reason: 'Not suitable' })}>
+                        onClick={async () => {
+                          const note = await promptStageNote('Confirm Stage Change')
+                          if (!note) return
+                          await api.post(`/pipeline/applications/${record.id}/reject/`, { note })
+                        }}>
                         Reject
                       </Button>
                     </div>

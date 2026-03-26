@@ -1,7 +1,7 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { 
   Typography, Button, Card, Tag, Space, Input, 
-  Empty, Modal, Form, Select, message, Row, Col, Tooltip 
+  Empty, Modal, Form, Select, message, Row, Col, Tooltip, Dropdown
 } from 'antd'
 import { 
   PlusOutlined, 
@@ -15,6 +15,7 @@ import {
   ArrowRightOutlined,
   MoreOutlined
 } from '@ant-design/icons'
+import type { MenuProps } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { useApiQuery } from '@/hooks/useApiQuery'
 import { talentPoolsApi, TalentPool } from '@/api/talentPools'
@@ -32,29 +33,138 @@ export default function TalentPoolsList() {
   const [form] = Form.useForm()
   const [submitting, setSubmitting] = useState(false)
 
-  const { data, isLoading } = useApiQuery(
+  const { data, isLoading, refetch } = useApiQuery(
     ['talent-pools', searchQuery],
-    () => talentPoolsApi.list({ search: searchQuery })
+    async () => {
+      const response = await talentPoolsApi.list({ search: searchQuery })
+      console.log('[TalentPools] list response', response.data)
+      return response
+    }
   )
 
-  const pools = data?.data?.talent_pools || []
+  const pools = useMemo(() => {
+    const rawPools = data?.talent_pools || []
+    return [...rawPools].sort(
+      (a: TalentPool, b: TalentPool) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )
+  }, [data])
 
   const handleCreate = async (values: any) => {
     try {
       setSubmitting(true)
-      await talentPoolsApi.create({
+      const response = await talentPoolsApi.create({
         ...values,
         pool_type: 'manual', // default for now
         is_active: true
       })
+      const createdPool = response.data?.data?.talent_pool
+      console.log('[TalentPools] create response', response.data)
+
+      if (createdPool) {
+        const matchingQueries = queryClient.getQueriesData<{ talent_pools?: TalentPool[] }>({
+          queryKey: ['talent-pools'],
+        })
+
+        matchingQueries.forEach(([queryKey, existing]) => {
+          const activeSearch = String(queryKey[1] ?? '').trim().toLowerCase()
+          const matchesSearch =
+            !activeSearch ||
+            createdPool.name.toLowerCase().includes(activeSearch) ||
+            (createdPool.description || '').toLowerCase().includes(activeSearch)
+
+          if (!matchesSearch) return
+
+          const existingPools = existing?.talent_pools || []
+          const withoutCreated = existingPools.filter((pool) => pool.id !== createdPool.id)
+
+          queryClient.setQueryData(queryKey, {
+            ...existing,
+            talent_pools: [createdPool, ...withoutCreated].sort(
+              (a, b) =>
+                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            ),
+          })
+        })
+      }
+
       message.success('Talent pool created successfully')
       setIsCreateModalOpen(false)
       form.resetFields()
-      queryClient.invalidateQueries({ queryKey: ['talent-pools'] })
+      await queryClient.invalidateQueries({ queryKey: ['talent-pools'] })
+      await refetch()
     } catch (err: any) {
       message.error(err.response?.data?.message || 'Failed to create pool')
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  const handleArchivePool = async (pool: TalentPool) => {
+    try {
+      await talentPoolsApi.update(pool.id, {
+        name: pool.name,
+        description: pool.description,
+        color: pool.color,
+        pool_type: pool.pool_type,
+        is_active: false,
+        filters_json: pool.filters_json,
+        metadata: pool.metadata,
+      })
+
+      queryClient.setQueriesData(
+        { queryKey: ['talent-pools'] },
+        (existing: { talent_pools?: TalentPool[] } | undefined) => ({
+          ...existing,
+          talent_pools: (existing?.talent_pools || []).filter((item) => item.id !== pool.id),
+        })
+      )
+
+      message.success('Pool archived')
+      await queryClient.invalidateQueries({ queryKey: ['talent-pools'] })
+    } catch (err: any) {
+      message.error(err.response?.data?.message || 'Failed to archive pool')
+    }
+  }
+
+  const getMenuItems = (pool: TalentPool): MenuProps['items'] => [
+    {
+      key: 'open',
+      label: 'Open Pool',
+    },
+    {
+      key: 'edit',
+      label: 'Edit Pool',
+    },
+    {
+      key: 'add-candidates',
+      label: 'Add Candidates',
+    },
+    ...(pool.is_active ? [{
+      key: 'archive',
+      label: 'Archive Pool',
+      danger: true,
+    }] : []),
+  ]
+
+  const handleMenuAction = async (pool: TalentPool, key: string) => {
+    if (key === 'open') {
+      navigate(`/candidates/pools/${pool.id}`)
+      return
+    }
+
+    if (key === 'edit') {
+      navigate(`/candidates/pools/${pool.id}?tab=settings`)
+      return
+    }
+
+    if (key === 'add-candidates') {
+      navigate(`/candidates/pools/${pool.id}?action=add-candidates`)
+      return
+    }
+
+    if (key === 'archive') {
+      await handleArchivePool(pool)
     }
   }
 
@@ -122,14 +232,24 @@ export default function TalentPoolsList() {
                         {pool.pool_type === 'smart' ? 'Smart Pool' : 'Manual'}
                       </Tag>
                     </div>
-                    <Button 
-                      type="text" 
-                      icon={<MoreOutlined className="text-xl text-slate-400" />} 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        // dropdown logic
+                    <Dropdown
+                      trigger={['click']}
+                      menu={{
+                        items: getMenuItems(pool),
+                        onClick: async ({ key, domEvent }) => {
+                          domEvent.stopPropagation()
+                          await handleMenuAction(pool, String(key))
+                        },
                       }}
-                    />
+                    >
+                      <Button 
+                        type="text" 
+                        icon={<MoreOutlined className="text-xl text-slate-400" />} 
+                        onClick={(e) => {
+                          e.stopPropagation()
+                        }}
+                      />
+                    </Dropdown>
                   </div>
                   
                   <Paragraph className="text-slate-500 line-clamp-2 h-10 mb-6">

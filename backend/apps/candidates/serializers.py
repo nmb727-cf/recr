@@ -66,6 +66,7 @@ class CandidateSerializer(serializers.ModelSerializer):
             'tags', 'skills', 'languages',
             'assigned_to', 'owner_user_id', 'owner_tenant_id',
             'created_at', 'updated_at', 'created_by', 'metadata',
+            'candidate_state', 'candidate_pool', 'is_general_pool_used',
             'engagement_summary',
         ]
         read_only_fields = [

@@ -70,6 +70,20 @@ interface AgencyRelationship {
   // guest portal invite tracking (returned from API when connection_type=agency_guest)
   invite_status?: 'pending' | 'active' | 'expired'
   portal_url?: string
+  // Candidate Retention Fields
+  retention_enabled?: boolean
+  retention_days?: number
+  retention_start_type?: 'submission_date' | 'rejection_date' | 'last_activity'
+  retention_scope?: 'job_only' | 'view_only' | 'limited_access'
+  retention_post_expiry?: 'shared' | 'company_use' | 'consent_required'
+  replacement_guarantee_enabled?: boolean
+  guarantee_period_days?: number
+  guarantee_start_type?: 'joining_date' | 'offer_acceptance_date' | 'first_working_day'
+  guarantee_resolution_type?: 'replacement_only' | 'refund_only' | 'replacement_or_refund' | 'no_guarantee'
+  refund_mode?: 'full_refund' | 'partial_refund' | 'pro_rated_refund' | ''
+  refund_percentage?: number | null
+  replacement_attempt_limit?: '1' | '2' | 'unlimited'
+  guarantee_notes?: string
 }
 
 function getAgencyDisplayName(r: AgencyRelationship): string {
@@ -98,6 +112,21 @@ const INDUSTRY_OPTIONS = [
   'Technology', 'Finance', 'Healthcare', 'Manufacturing',
   'Retail', 'Education', 'Consulting', 'Real Estate', 'Other'
 ]
+const GUARANTEE_PERIOD_OPTIONS = [
+  { value: 15, label: '15 Days' },
+  { value: 30, label: '30 Days' },
+  { value: 45, label: '45 Days' },
+  { value: 60, label: '60 Days' },
+  { value: 90, label: '90 Days' },
+  { value: 'custom', label: 'Custom' },
+]
+
+function resolveGuaranteeDays(values: any): number {
+  if (values.guarantee_period_days === 'custom') {
+    return Number(values.guarantee_custom_days || 0)
+  }
+  return Number(values.guarantee_period_days || 0)
+}
 
 export default function CompanyAgencies() {
   const queryClient = useQueryClient()
@@ -161,6 +190,25 @@ export default function CompanyAgencies() {
       contract_start_date: rel.contract_start_date ? dayjs(rel.contract_start_date) : null,
       contract_end_date: rel.contract_end_date ? dayjs(rel.contract_end_date) : null,
       notes: rel.notes || '',
+      // Retention
+      retention_enabled: rel.retention_enabled || false,
+      retention_days: rel.retention_days || 90,
+      retention_start_type: rel.retention_start_type || 'submission_date',
+      retention_scope: rel.retention_scope || 'job_only',
+      retention_post_expiry: rel.retention_post_expiry || 'shared',
+      replacement_guarantee_enabled: rel.replacement_guarantee_enabled || false,
+      guarantee_period_days: [15, 30, 45, 60, 90].includes(Number(rel.guarantee_period_days))
+        ? Number(rel.guarantee_period_days)
+        : 'custom',
+      guarantee_custom_days: [15, 30, 45, 60, 90].includes(Number(rel.guarantee_period_days))
+        ? undefined
+        : rel.guarantee_period_days || 30,
+      guarantee_start_type: rel.guarantee_start_type || 'joining_date',
+      guarantee_resolution_type: rel.guarantee_resolution_type || 'replacement_only',
+      refund_mode: rel.refund_mode || '',
+      refund_percentage: rel.refund_percentage ?? null,
+      replacement_attempt_limit: rel.replacement_attempt_limit || '1',
+      guarantee_notes: rel.guarantee_notes || '',
     })
     setEditDrawerOpen(true)
   }
@@ -187,6 +235,20 @@ export default function CompanyAgencies() {
         contract_start_date: values.contract_start_date?.format('YYYY-MM-DD') || null,
         contract_end_date: values.contract_end_date?.format('YYYY-MM-DD') || null,
         notes: values.notes,
+        // Retention
+        retention_enabled: values.retention_enabled,
+        retention_days: values.retention_days,
+        retention_start_type: values.retention_start_type,
+        retention_scope: values.retention_scope,
+        retention_post_expiry: values.retention_post_expiry,
+        replacement_guarantee_enabled: values.replacement_guarantee_enabled,
+        guarantee_period_days: resolveGuaranteeDays(values),
+        guarantee_start_type: values.guarantee_start_type,
+        guarantee_resolution_type: values.guarantee_resolution_type,
+        refund_mode: values.refund_mode,
+        refund_percentage: values.refund_percentage,
+        replacement_attempt_limit: values.replacement_attempt_limit,
+        guarantee_notes: values.guarantee_notes,
       })
       message.success('Agency details updated')
       setEditDrawerOpen(false)
@@ -264,6 +326,20 @@ export default function CompanyAgencies() {
         contract_start_date: values.contract_start_date?.format('YYYY-MM-DD') || null,
         contract_end_date: values.contract_end_date?.format('YYYY-MM-DD') || null,
         notes: values.notes || '',
+        // Retention
+        retention_enabled: values.retention_enabled,
+        retention_days: values.retention_days,
+        retention_start_type: values.retention_start_type,
+        retention_scope: values.retention_scope,
+        retention_post_expiry: values.retention_post_expiry,
+        replacement_guarantee_enabled: values.replacement_guarantee_enabled,
+        guarantee_period_days: resolveGuaranteeDays(values),
+        guarantee_start_type: values.guarantee_start_type,
+        guarantee_resolution_type: values.guarantee_resolution_type,
+        refund_mode: values.refund_mode,
+        refund_percentage: values.refund_percentage,
+        replacement_attempt_limit: values.replacement_attempt_limit,
+        guarantee_notes: values.guarantee_notes,
       }
 
       if (foundTenant.found) {
@@ -808,6 +884,79 @@ export default function CompanyAgencies() {
 
             <Divider style={{ margin: 0 }} />
 
+            {/* Candidate Retention */}
+            <section>
+              <div className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider mb-3">
+                Candidate Data Retention
+              </div>
+              {selectedRelationship.retention_enabled ? (
+                <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-[11px] text-indigo-400 font-bold uppercase tracking-tight">Period</div>
+                      <div className="text-[14px] font-bold text-indigo-900">{selectedRelationship.retention_days} Days</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-indigo-400 font-bold uppercase tracking-tight">Scope</div>
+                      <div className="text-[14px] font-bold text-indigo-900 capitalize">{selectedRelationship.retention_scope?.replace(/_/g, ' ') || 'Job Only'}</div>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-indigo-100/50">
+                    <div className="text-[12px] text-indigo-700 leading-snug">
+                      Candidates submitted are protected starting from <span className="font-bold underline">{selectedRelationship.retention_start_type?.replace(/_/g, ' ')}</span>.
+                      After expiry, status becomes <span className="font-bold underline">{selectedRelationship.retention_post_expiry?.replace(/_/g, ' ')}</span>.
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg text-slate-400 italic text-[13px]">
+                  <InfoCircleOutlined className="text-slate-300" />
+                  No specific retention terms active for this agency.
+                </div>
+              )}
+            </section>
+
+            <Divider style={{ margin: 0 }} />
+
+            {/* Replacement / Guarantee Clause */}
+            <section>
+              <div className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider mb-3">
+                Replacement / Guarantee Clause
+              </div>
+              {selectedRelationship.replacement_guarantee_enabled ? (
+                <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-[11px] text-amber-500 font-bold uppercase tracking-tight">Period</div>
+                      <div className="text-[14px] font-bold text-amber-900">{selectedRelationship.guarantee_period_days || 0} Days</div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] text-amber-500 font-bold uppercase tracking-tight">Resolution</div>
+                      <div className="text-[14px] font-bold text-amber-900 capitalize">{selectedRelationship.guarantee_resolution_type?.replace(/_/g, ' ') || 'Replacement Only'}</div>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-amber-100/70 text-[12px] text-amber-800 leading-snug">
+                    Guarantee starts from <span className="font-bold underline">{selectedRelationship.guarantee_start_type?.replace(/_/g, ' ') || 'joining date'}</span>.
+                    {selectedRelationship.refund_mode ? (
+                      <> Refund mode: <span className="font-bold underline">{selectedRelationship.refund_mode.replace(/_/g, ' ')}</span>{selectedRelationship.refund_percentage ? ` (${selectedRelationship.refund_percentage}%)` : ''}.</>
+                    ) : null}
+                  </div>
+                  {!!selectedRelationship.guarantee_notes && (
+                    <div className="mt-3 text-[12px] text-amber-800 bg-amber-100/60 rounded-lg p-2">
+                      {selectedRelationship.guarantee_notes}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg text-slate-400 italic text-[13px]">
+                  <InfoCircleOutlined className="text-slate-300" />
+                  Replacement / guarantee clause is not active for this agency.
+                </div>
+              )}
+            </section>
+
+            <Divider style={{ margin: 0 }} />
+
             {/* Notes */}
             <section>
               <div className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">Notes</div>
@@ -1016,13 +1165,141 @@ export default function CompanyAgencies() {
                   <Input.TextArea rows={2} placeholder="Internal notes about this agency..." />
                 </Form.Item>
 
+                <Divider className="my-4" titlePlacement="left" plain>
+                  <span className="text-[11px] text-slate-400 uppercase tracking-wider">Candidate Data Retention</span>
+                </Divider>
+
+                <Form.Item name="retention_enabled" label="Enable Candidate Data Retention" valuePropName="checked" initialValue={false}>
+                  <Checkbox>
+                    <span className="text-[13px] text-slate-600">Candidates submitted by agency remain protected during retention period.</span>
+                  </Checkbox>
+                </Form.Item>
+
+                <Form.Item noStyle dependencies={['retention_enabled']}>
+                  {({ getFieldValue }) => getFieldValue('retention_enabled') && (
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-4 animate-in fade-in slide-in-from-top-1">
+                      <Form.Item name="retention_days" label="Retention Period" initialValue={90} rules={[{ required: true }]}>
+                        <Select options={[
+                          { value: 30, label: '30 Days' },
+                          { value: 60, label: '60 Days' },
+                          { value: 90, label: '90 Days' },
+                          { value: 120, label: '120 Days' },
+                          { value: 180, label: '180 Days' },
+                        ]} />
+                      </Form.Item>
+
+                      <Form.Item name="retention_start_type" label="Retention Start From" initialValue="submission_date">
+                        <Select options={[
+                          { value: 'submission_date', label: 'Submission Date' },
+                          { value: 'rejection_date', label: 'Rejection Date' },
+                          { value: 'last_activity', label: 'Last Activity Date' },
+                        ]} />
+                      </Form.Item>
+
+                      <Form.Item name="retention_scope" label="Usage Scope During Retention" initialValue="job_only">
+                        <Select options={[
+                          { value: 'job_only', label: 'Job Only (Recommended)' },
+                          { value: 'view_only', label: 'View Only' },
+                          { value: 'limited_access', label: 'Limited Company Access' },
+                        ]} />
+                      </Form.Item>
+
+                      <Form.Item name="retention_post_expiry" label="After Retention Expiry" initialValue="shared">
+                        <Select options={[
+                          { value: 'shared', label: 'Shared Ownership' },
+                          { value: 'company_use', label: 'Company Can Use Candidate' },
+                          { value: 'consent_required', label: 'Require Candidate Consent' },
+                        ]} />
+                      </Form.Item>
+                    </div>
+                  )}
+                </Form.Item>
+
+                <Divider className="my-4" titlePlacement="left" plain>
+                  <span className="text-[11px] text-slate-400 uppercase tracking-wider">Replacement / Guarantee Clause</span>
+                </Divider>
+
+                <Form.Item name="replacement_guarantee_enabled" label="Enable Replacement / Guarantee Clause" valuePropName="checked" initialValue={false}>
+                  <Checkbox>
+                    <span className="text-[13px] text-slate-600">
+                      If an agency-placed candidate leaves during guarantee window, replacement/refund rules apply.
+                    </span>
+                  </Checkbox>
+                </Form.Item>
+
+                <Form.Item noStyle dependencies={['replacement_guarantee_enabled', 'guarantee_period_days', 'guarantee_resolution_type', 'refund_mode']}>
+                  {({ getFieldValue }) => getFieldValue('replacement_guarantee_enabled') && (
+                    <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 space-y-4 animate-in fade-in slide-in-from-top-1">
+                      <Form.Item name="guarantee_period_days" label="Guarantee Period" initialValue={30} rules={[{ required: true }]}>
+                        <Select options={GUARANTEE_PERIOD_OPTIONS as any} />
+                      </Form.Item>
+
+                      {getFieldValue('guarantee_period_days') === 'custom' && (
+                        <Form.Item name="guarantee_custom_days" label="Custom Guarantee Days" rules={[{ required: true, type: 'number', min: 1 }]}>
+                          <InputNumber min={1} className="w-full" />
+                        </Form.Item>
+                      )}
+
+                      <Form.Item name="guarantee_start_type" label="Guarantee Start From" initialValue="joining_date">
+                        <Select options={[
+                          { value: 'joining_date', label: 'Joining Date' },
+                          { value: 'offer_acceptance_date', label: 'Offer Acceptance Date' },
+                          { value: 'first_working_day', label: 'First Working Day' },
+                        ]} />
+                      </Form.Item>
+
+                      <Form.Item name="guarantee_resolution_type" label="Guarantee Resolution Type" initialValue="replacement_only">
+                        <Select options={[
+                          { value: 'replacement_only', label: 'Replacement Only' },
+                          { value: 'refund_only', label: 'Refund Only' },
+                          { value: 'replacement_or_refund', label: 'Replacement or Refund' },
+                          { value: 'no_guarantee', label: 'No Guarantee' },
+                        ]} />
+                      </Form.Item>
+
+                      {['refund_only', 'replacement_or_refund'].includes(getFieldValue('guarantee_resolution_type')) && (
+                        <>
+                          <Form.Item name="refund_mode" label="Refund Mode">
+                            <Select options={[
+                              { value: 'full_refund', label: 'Full Refund' },
+                              { value: 'partial_refund', label: 'Partial Refund' },
+                              { value: 'pro_rated_refund', label: 'Pro-rated Refund' },
+                            ]} />
+                          </Form.Item>
+                          {['partial_refund', 'pro_rated_refund'].includes(getFieldValue('refund_mode')) && (
+                            <Form.Item name="refund_percentage" label="Refund Percentage">
+                              <InputNumber min={1} max={100} className="w-full" addonAfter="%" />
+                            </Form.Item>
+                          )}
+                        </>
+                      )}
+
+                      <Form.Item name="replacement_attempt_limit" label="Replacement Attempt Limit" initialValue="1">
+                        <Select options={[
+                          { value: '1', label: '1' },
+                          { value: '2', label: '2' },
+                          { value: 'unlimited', label: 'Unlimited' },
+                        ]} />
+                      </Form.Item>
+
+                      <Form.Item name="guarantee_notes" label="Clause Notes">
+                        <Input.TextArea rows={2} placeholder="Define any custom guarantee or exception terms..." />
+                      </Form.Item>
+
+                      <div className="text-[12px] text-amber-700 bg-amber-100/70 rounded-lg p-2">
+                        If a candidate placed through agency leaves within the guarantee period, company may raise replacement or refund request based on contract terms.
+                      </div>
+                    </div>
+                  )}
+                </Form.Item>
+
                 <Button
                   type="primary"
                   htmlType="submit"
                   loading={submitting}
                   block
                   style={{ height: 44, background: '#4F46E5' }}
-                  className="mt-4"
+                  className="mt-6"
                 >
                   {foundTenant.found ? `Send Invitation to ${foundTenant.name}` : 'Create Portal & Send Invite'}
                 </Button>
@@ -1128,6 +1405,130 @@ export default function CompanyAgencies() {
 
             <Form.Item name="notes" label="Notes">
               <Input.TextArea rows={3} placeholder="Internal notes..." />
+            </Form.Item>
+
+            <Divider className="my-4" titlePlacement="left" plain>
+              <span className="text-[11px] text-slate-400 uppercase tracking-wider">Candidate Data Retention</span>
+            </Divider>
+
+            <Form.Item name="retention_enabled" label="Enable Candidate Data Retention" valuePropName="checked">
+              <Checkbox>
+                <span className="text-[13px] text-slate-600">Candidates submitted by agency remain protected during retention period.</span>
+              </Checkbox>
+            </Form.Item>
+
+            <Form.Item noStyle dependencies={['retention_enabled']}>
+              {({ getFieldValue }) => getFieldValue('retention_enabled') && (
+                <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-4 animate-in fade-in slide-in-from-top-1">
+                  <Form.Item name="retention_days" label="Retention Period" rules={[{ required: true }]}>
+                    <Select options={[
+                      { value: 30, label: '30 Days' },
+                      { value: 60, label: '60 Days' },
+                      { value: 90, label: '90 Days' },
+                      { value: 120, label: '120 Days' },
+                      { value: 180, label: '180 Days' },
+                    ]} />
+                  </Form.Item>
+
+                  <Form.Item name="retention_start_type" label="Retention Start From">
+                    <Select options={[
+                      { value: 'submission_date', label: 'Submission Date' },
+                      { value: 'rejection_date', label: 'Rejection Date' },
+                      { value: 'last_activity', label: 'Last Activity Date' },
+                    ]} />
+                  </Form.Item>
+
+                  <Form.Item name="retention_scope" label="Usage Scope During Retention">
+                    <Select options={[
+                      { value: 'job_only', label: 'Job Only' },
+                      { value: 'view_only', label: 'View Only' },
+                      { value: 'limited_access', label: 'Limited Access' },
+                    ]} />
+                  </Form.Item>
+
+                  <Form.Item name="retention_post_expiry" label="After Retention Expiry">
+                    <Select options={[
+                      { value: 'shared', label: 'Shared Ownership' },
+                      { value: 'company_use', label: 'Company Can Use' },
+                      { value: 'consent_required', label: 'Require Consent' },
+                    ]} />
+                  </Form.Item>
+                </div>
+              )}
+            </Form.Item>
+
+            <Divider className="my-4" titlePlacement="left" plain>
+              <span className="text-[11px] text-slate-400 uppercase tracking-wider">Replacement / Guarantee Clause</span>
+            </Divider>
+
+            <Form.Item name="replacement_guarantee_enabled" label="Enable Replacement / Guarantee Clause" valuePropName="checked">
+              <Checkbox>
+                <span className="text-[13px] text-slate-600">
+                  If an agency-placed candidate leaves during guarantee window, replacement/refund rules apply.
+                </span>
+              </Checkbox>
+            </Form.Item>
+
+            <Form.Item noStyle dependencies={['replacement_guarantee_enabled', 'guarantee_period_days', 'guarantee_resolution_type', 'refund_mode']}>
+              {({ getFieldValue }) => getFieldValue('replacement_guarantee_enabled') && (
+                <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 space-y-4 animate-in fade-in slide-in-from-top-1">
+                  <Form.Item name="guarantee_period_days" label="Guarantee Period" rules={[{ required: true }]}>
+                    <Select options={GUARANTEE_PERIOD_OPTIONS as any} />
+                  </Form.Item>
+
+                  {getFieldValue('guarantee_period_days') === 'custom' && (
+                    <Form.Item name="guarantee_custom_days" label="Custom Guarantee Days" rules={[{ required: true, type: 'number', min: 1 }]}>
+                      <InputNumber min={1} className="w-full" />
+                    </Form.Item>
+                  )}
+
+                  <Form.Item name="guarantee_start_type" label="Guarantee Start From">
+                    <Select options={[
+                      { value: 'joining_date', label: 'Joining Date' },
+                      { value: 'offer_acceptance_date', label: 'Offer Acceptance Date' },
+                      { value: 'first_working_day', label: 'First Working Day' },
+                    ]} />
+                  </Form.Item>
+
+                  <Form.Item name="guarantee_resolution_type" label="Guarantee Resolution Type">
+                    <Select options={[
+                      { value: 'replacement_only', label: 'Replacement Only' },
+                      { value: 'refund_only', label: 'Refund Only' },
+                      { value: 'replacement_or_refund', label: 'Replacement or Refund' },
+                      { value: 'no_guarantee', label: 'No Guarantee' },
+                    ]} />
+                  </Form.Item>
+
+                  {['refund_only', 'replacement_or_refund'].includes(getFieldValue('guarantee_resolution_type')) && (
+                    <>
+                      <Form.Item name="refund_mode" label="Refund Mode">
+                        <Select options={[
+                          { value: 'full_refund', label: 'Full Refund' },
+                          { value: 'partial_refund', label: 'Partial Refund' },
+                          { value: 'pro_rated_refund', label: 'Pro-rated Refund' },
+                        ]} />
+                      </Form.Item>
+                      {['partial_refund', 'pro_rated_refund'].includes(getFieldValue('refund_mode')) && (
+                        <Form.Item name="refund_percentage" label="Refund Percentage">
+                          <InputNumber min={1} max={100} className="w-full" addonAfter="%" />
+                        </Form.Item>
+                      )}
+                    </>
+                  )}
+
+                  <Form.Item name="replacement_attempt_limit" label="Replacement Attempt Limit">
+                    <Select options={[
+                      { value: '1', label: '1' },
+                      { value: '2', label: '2' },
+                      { value: 'unlimited', label: 'Unlimited' },
+                    ]} />
+                  </Form.Item>
+
+                  <Form.Item name="guarantee_notes" label="Clause Notes">
+                    <Input.TextArea rows={2} placeholder="Define any custom guarantee or exception terms..." />
+                  </Form.Item>
+                </div>
+              )}
             </Form.Item>
 
             <div className="flex gap-3 pt-6">

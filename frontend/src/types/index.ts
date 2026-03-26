@@ -96,9 +96,12 @@ export type RequisitionStatus =
   | 'pending_approval'
   | 'approved'
   | 'active'
+  | 'paused'
+  | 'in_guarantee_period'
   | 'closed'
   | 'cancelled'
 export type Priority = 'low' | 'medium' | 'high' | 'urgent'
+export type SourcingMode = 'internal' | 'external' | 'hybrid'
 
 export interface JobRequisition {
   id: string
@@ -122,6 +125,9 @@ export interface JobRequisition {
   responsibilities: string
   skills_required: string[]
   status: RequisitionStatus
+  hiring_status?: 'active_hiring' | 'hiring_complete' | 'in_guarantee_period' | 'replacement_required' | 'fully_closed'
+  guarantee_watch_until?: string | null
+  sourcing_mode: SourcingMode
   approved_at: string | null
   approved_by: string | null
   target_date: string | null
@@ -204,6 +210,10 @@ export interface Candidate {
   updated_at: string
   created_by: string
   metadata: Record<string, unknown>
+  // Protection fields
+  is_agency_protected?: boolean
+  protected_until?: string
+  protection_scope?: string
 }
 
 export type WorkflowMode = 'manual' | 'semi_automated' | 'fully_automated'
@@ -216,16 +226,31 @@ export interface CandidateSmartRow {
   experience?: number | null
   location?: string
   source?: string
+  source_type?: string
   engagement_stage?: string
   owner?: string | null
+  owner_name?: string | null
   last_touch?: string | null
   last_activity?: string | null
   signals: {
     readiness_score?: number | null
     fit_score?: number | null
+    completeness_score?: number | null
     warning_signals?: string[]
   }
   job_engagement_summary?: Record<string, number>
+  skills?: string[]
+  pools?: string[]
+  resume_url?: string | null
+  passport_linked?: boolean
+  is_duplicate?: boolean
+  notice_period_days?: number | null
+  availability_status?: string | null
+  open_engagements?: number
+  // Protection fields
+  is_agency_protected?: boolean
+  protected_until?: string
+  protection_scope?: string
 }
 
 export interface CandidateSavedView {
@@ -392,8 +417,40 @@ export type ApplicationStatus =
   | 'interview_scheduled'
   | 'offer_extended'
   | 'offer_accepted'
+  | 'joined'
+  | 'placement_confirmed'
+  | 'placement_cancelled'
   | 'rejected'
   | 'withdrawn'
+
+export type PlacementStatus =
+  | 'not_applicable'
+  | 'pending_join'
+  | 'joined'
+  | 'placement_confirmed'
+  | 'cancelled'
+
+export type CommissionStatus =
+  | 'not_applicable'
+  | 'pending_calculation'
+  | 'calculated'
+  | 'awaiting_payment_tracking'
+  | 'cancelled'
+
+export type CommissionBasisType =
+  | 'inherited_from_relationship'
+  | 'custom_job_rule'
+  | 'percentage'
+  | 'fixed'
+  | 'milestone'
+
+export type SubmissionStatus =
+  | 'draft'
+  | 'pending_approval'
+  | 'approved'
+  | 'submitted'
+  | 'rejected_internally'
+  | 'returned'
 
 export interface Application {
   id: string
@@ -402,6 +459,8 @@ export interface Application {
   requisition_id: string
   current_stage_id: string | null
   status: ApplicationStatus
+  governance_status?: SubmissionStatus
+  placement_status?: PlacementStatus
   source: string
   source_detail: string
   submitted_by: string
@@ -419,11 +478,34 @@ export interface Application {
   offer_rejected_at: string | null
   joining_date: string | null
   joined_at: string | null
+  expected_joining_date?: string | null
+  placement_confirmed_at?: string | null
+  placement_notes?: string | null
+  // Commission Foundation
+  commission_applicable?: boolean
+  commission_basis_type?: CommissionBasisType
+  commission_value?: number
+  expected_commission_amount?: number
+  commission_currency?: string
+  commission_status?: CommissionStatus
+  commission_rule_source?: string
+  commission_notes?: string
   application_form_data: Record<string, unknown>
   created_at: string
   updated_at: string
   created_by: string
   metadata: Record<string, unknown>
+  is_under_guarantee?: boolean
+  guarantee_end_date?: string | null
+  guarantee_start_date?: string | null
+  guarantee_status?: string | null
+  guarantee_resolution_type?: string | null
+  refund_mode?: string | null
+  refund_percentage?: number | null
+  replacement_attempt_limit?: string | null
+  is_agency_protected?: boolean
+  protected_until?: string | null
+  protection_scope?: string | null
 }
 
 // Pipeline board — the exact shape returned by GET /pipeline/{requisition_id}/
@@ -453,6 +535,8 @@ export type InterviewType =
   | 'on_site'
   | 'panel'
   | 'final_round'
+  | 'async_interview'
+  | 'hr_round'
 
 export type InterviewStatus =
   | 'scheduled'
@@ -463,6 +547,51 @@ export type InterviewStatus =
   | 'cancelled'
   | 'no_show'
   | 'pending_feedback'
+
+export type ThresholdAction = 'pass' | 'reject' | 'manual_review'
+
+export interface ThresholdRule {
+  min_score: number
+  max_score: number
+  action: ThresholdAction
+}
+
+export interface InterviewRoundConfig {
+  id: string
+  name: string
+  type: InterviewType
+  order: number
+  evaluator_type: 'hiring_manager' | 'recruiter' | 'interviewer' | 'external_agency' | 'ai'
+  threshold_score: number
+  threshold_rules?: ThresholdRule[]
+  auto_pass_enabled: boolean
+  auto_reject_enabled: boolean
+  manual_review_required: boolean
+  linked_stage_id?: string // Mapping to JobStage
+}
+
+export interface InterviewPackage {
+  id: string
+  tenant_id: string
+  title: string
+  description: string
+  is_active: boolean
+  rounds: InterviewRoundConfig[]
+  created_at: string
+  updated_at: string
+  created_by: string
+}
+
+export interface InterviewPackageBinding {
+  id: string
+  job_id: string
+  package_id: string
+  package_title: string
+  rounds_summary: InterviewRoundConfig[]
+  automation_enabled: boolean
+  created_at: string
+  updated_at: string
+}
 
 export interface Interview {
   id: string
@@ -529,13 +658,37 @@ export interface AgencyRelationship {
   id: string
   tenant_id: string
   agency_id: string
-  agency: Agency
+  agency?: Agency
+  agency_tenant_id?: string | null
+  company_tenant_id?: string | null
+  company_name?: string
+  agency_name?: string
   status: AgencyStatus
   tier: AgencyTier
   commission_percentage: number
+  commission_type?: 'percentage' | 'fixed' | 'milestone'
   sla_hours: number
+  sla_submission_hours?: number
+  sla_feedback_hours?: number
   contract_url: string
+  contract_start_date?: string | null
+  contract_end_date?: string | null
+  contract_file_url?: string
+  recruitment_policy_url?: string
   notes: string
+  retention_enabled?: boolean
+  retention_days?: number
+  retention_start_type?: string
+  retention_scope?: string
+  retention_post_expiry?: string
+  replacement_guarantee_enabled?: boolean
+  guarantee_period_days?: number
+  guarantee_start_type?: string
+  guarantee_resolution_type?: string
+  refund_mode?: string
+  refund_percentage?: number | null
+  replacement_attempt_limit?: string
+  guarantee_notes?: string
   created_at: string
   updated_at: string
 }
@@ -551,6 +704,11 @@ export interface AgencyAssignment {
   submissions_count: number
   deadline: string
   status: 'active' | 'closed' | 'paused'
+  assigned_by?: string
+  assigned_at?: string
+  notes?: string
+  internal_recruiter_id?: string
+  governance_mode?: 'direct' | 'approval_required'
   created_at: string
 }
 

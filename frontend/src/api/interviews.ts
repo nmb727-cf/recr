@@ -38,4 +38,30 @@ export const interviewsApi = {
 
   cancel: (id: string, reason?: string) =>
     http.post<ApiResponse<Interview>>(`/interviews/${id}/cancel/`, { reason }),
+
+  // ─── Interview Packages ──────────────────────────────────────────────────
+  listPackages: (params?: any) =>
+    http.get<ApiResponse<{ packages: InterviewPackage[] }>>('/interviews/packages/', { params }),
+
+  getPackage: (id: string) =>
+    http.get<ApiResponse<{ package: InterviewPackage }>>(`/interviews/packages/${id}/`),
+
+  createPackage: (data: Partial<InterviewPackage>) =>
+    http.post<ApiResponse<{ package: InterviewPackage }>>('/interviews/packages/', data),
+
+  updatePackage: (id: string, data: Partial<InterviewPackage>) =>
+    http.put<ApiResponse<{ package: InterviewPackage }>>(`/interviews/packages/${id}/`, data),
+
+  // ─── Job Bindings ────────────────────────────────────────────────────────
+  getJobBinding: (jobId: string) =>
+    http.get<ApiResponse<{ binding: InterviewPackageBinding | null }>>(`/jobs/requisitions/${jobId}/interview-binding/`),
+
+  bindToJob: (jobId: string, packageId: string) =>
+    http.post<ApiResponse<{ binding: InterviewPackageBinding }>>(`/jobs/requisitions/${jobId}/interview-binding/`, { package_id: packageId }),
+
+  updateJobBinding: (jobId: string, data: Partial<InterviewPackageBinding>) =>
+    http.put<ApiResponse<{ binding: InterviewPackageBinding }>>(`/jobs/requisitions/${jobId}/interview-binding/`, data),
+
+  unbindFromJob: (jobId: string) =>
+    http.delete<ApiResponse<unknown>>(`/jobs/requisitions/${jobId}/interview-binding/`),
 }

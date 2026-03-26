@@ -19,6 +19,16 @@ import { cn } from '@/utils/cn'
 dayjs.extend(relativeTime)
 const { Title, Text } = Typography
 
+function prettyLabel(value?: string | null) {
+  if (!value) return '—'
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function formatShortDate(value?: string | null) {
+  if (!value) return '—'
+  return dayjs(value).isValid() ? dayjs(value).format('MMM D, YYYY') : value
+}
+
 const STATUS_MAP: Record<ApplicationStatus, { label: string; color: string }> = {
   applied: { label: 'Applied', color: 'blue' },
   screening: { label: 'Screening', color: 'cyan' },
@@ -78,6 +88,48 @@ export default function MySubmissions() {
     })
   }, [submissions, candidateMap, jobMap, searchText, statusFilter])
 
+  const expandedRowRender = (submission: Application) => (
+    <div className="grid grid-cols-1 gap-4 py-2 lg:grid-cols-2">
+      <div className="rounded-2xl border border-violet-100 bg-violet-50/60 p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <Text className="text-[10px] font-bold uppercase tracking-[0.16em] text-violet-700">Candidate Protection</Text>
+          <Tag color={submission.is_agency_protected ? 'purple' : 'default'} className="m-0 border-none font-bold text-[10px] uppercase rounded-full">
+            {submission.is_agency_protected ? 'Protected' : 'Not Protected'}
+          </Tag>
+        </div>
+        {submission.is_agency_protected ? (
+          <div className="space-y-2 text-sm text-slate-700">
+            <div><span className="font-semibold">Protected Until:</span> {formatShortDate(submission.protected_until)}</div>
+            <div><span className="font-semibold">Scope:</span> {prettyLabel(submission.protection_scope)}</div>
+          </div>
+        ) : (
+          <Text className="text-sm text-slate-500">No active protection is visible for this submitted candidate.</Text>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <Text className="text-[10px] font-bold uppercase tracking-[0.16em] text-amber-700">Guarantee Watch</Text>
+          <Tag color={submission.is_under_guarantee ? 'gold' : 'default'} className="m-0 border-none font-bold text-[10px] uppercase rounded-full">
+            {submission.is_under_guarantee ? 'Under Guarantee' : 'Not Active'}
+          </Tag>
+        </div>
+        {submission.guarantee_status ? (
+          <div className="space-y-2 text-sm text-slate-700">
+            <div><span className="font-semibold">Status:</span> {prettyLabel(submission.guarantee_status)}</div>
+            <div><span className="font-semibold">Guarantee Start:</span> {formatShortDate(submission.guarantee_start_date)}</div>
+            <div><span className="font-semibold">Guarantee End:</span> {formatShortDate(submission.guarantee_end_date)}</div>
+            <div><span className="font-semibold">Resolution Type:</span> {prettyLabel(submission.guarantee_resolution_type)}</div>
+            <div><span className="font-semibold">Refund Rule:</span> {submission.refund_mode ? `${prettyLabel(submission.refund_mode)}${submission.refund_percentage != null ? ` (${submission.refund_percentage}%)` : ''}` : '—'}</div>
+            <div><span className="font-semibold">Replacement Limit:</span> {prettyLabel(submission.replacement_attempt_limit)}</div>
+          </div>
+        ) : (
+          <Text className="text-sm text-slate-500">No active guarantee data is available for this submission yet.</Text>
+        )}
+      </div>
+    </div>
+  )
+
   const columns: ColumnsType<Application> = [
     {
       title: 'Candidate Name',
@@ -96,6 +148,18 @@ export default function MySubmissions() {
               <Text className="text-[10px] text-slate-400 font-medium truncate uppercase tracking-tight">
                 {c?.current_title || 'No Title'}
               </Text>
+              <div className="mt-1 flex flex-wrap gap-1">
+                {r.is_agency_protected && (
+                  <Tag color="purple" className="m-0 border-none font-bold text-[9px] uppercase rounded-full px-2 py-0.5">
+                    Protected Until {formatShortDate(r.protected_until)}
+                  </Tag>
+                )}
+                {r.is_under_guarantee && (
+                  <Tag color="gold" className="m-0 border-none font-bold text-[9px] uppercase rounded-full px-2 py-0.5">
+                    Under Guarantee
+                  </Tag>
+                )}
+              </div>
             </div>
           </div>
         )
@@ -121,12 +185,19 @@ export default function MySubmissions() {
       dataIndex: 'status',
       key: 'status',
       width: 140,
-      render: (s: ApplicationStatus) => {
+      render: (s: ApplicationStatus, r: Application) => {
         const info = STATUS_MAP[s] || { label: s, color: 'default' }
         return (
-          <Tag color={info.color} className="m-0 border-none font-bold text-[10px] uppercase rounded-full px-2.5 py-0.5">
-            {info.label}
-          </Tag>
+          <div className="flex flex-wrap gap-1">
+            <Tag color={info.color} className="m-0 border-none font-bold text-[10px] uppercase rounded-full px-2.5 py-0.5">
+              {info.label}
+            </Tag>
+            {s === 'joined' && r?.is_under_guarantee && (
+              <Tag color="gold" className="m-0 border-none font-bold text-[10px] uppercase rounded-full px-2.5 py-0.5">
+                {prettyLabel(r.guarantee_status || 'active')}
+              </Tag>
+            )}
+          </div>
         )
       }
     },
@@ -219,6 +290,7 @@ export default function MySubmissions() {
           dataSource={filteredSubmissions}
           rowKey="id"
           loading={subLoading || candLoading || reqLoading}
+          expandable={{ expandedRowRender }}
           onRow={(r) => ({
             onClick: () => {
               const job = jobMap.get(r.requisition_id)

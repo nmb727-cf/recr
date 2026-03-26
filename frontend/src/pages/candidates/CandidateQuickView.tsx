@@ -6,7 +6,7 @@ import {
 import {
   Mail, Phone, MapPin, Briefcase, Clock,
   ArrowRight, FileText, ExternalLink,
-  TrendingUp, Calendar, Layers, X, Edit, Plus
+  TrendingUp, Calendar, Layers, X, Edit, Plus, ShieldCheck
 } from 'lucide-react'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -19,10 +19,25 @@ import { DEMO_ASSETS } from '@/utils/demo'
 import type { CandidateDetail } from '@/types'
 import PhoneInput, { formatPhoneDisplay, getPhoneValidationRule, PhoneValue } from '@/components/common/PhoneInput'
 import AddToActiveModal from './AddToActiveModal'
+import AddCandidateWorkflowModal from '@/components/candidates/AddCandidateWorkflowModal'
 
 dayjs.extend(relativeTime)
 
 const { Text } = Typography
+
+function formatProtectionDate(value?: string | null, format = 'DD MMM YYYY') {
+  if (!value) return 'Agreement release'
+  const parsed = dayjs(value)
+  return parsed.isValid() ? parsed.format(format) : value
+}
+
+function protectionScopeLabel(scope?: string | null) {
+  if (!scope) return 'Not Protected'
+  if (scope === 'job_only') return 'Job Only'
+  if (scope === 'view_only') return 'View Only'
+  if (scope === 'limited_company_access') return 'Limited Company Access'
+  return scope.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+}
 
 interface CandidateQuickViewProps {
   candidateId: string
@@ -101,6 +116,24 @@ export default function CandidateQuickView({
 
   if (isLoading) return <div className="p-8 text-center"><Spin /></div>
   if (!candidate) return <Empty className="p-8" />
+
+  if (editMode && candidate) {
+    return (
+      <AddCandidateWorkflowModal
+        open
+        onClose={() => setEditMode(false)}
+        sourceSurface="database"
+        mode="edit"
+        candidateId={candidateId}
+        initialCandidate={candidate as any}
+        onCompleted={() => {
+          queryClient.invalidateQueries({ queryKey: ['candidate', 'quick', candidateId] })
+          queryClient.invalidateQueries({ queryKey: ['candidate-list'] })
+          setEditMode(false)
+        }}
+      />
+    )
+  }
 
   const expYears = candidate.experience_years
     ? parseFloat(String(candidate.experience_years))
@@ -780,6 +813,24 @@ export default function CandidateQuickView({
           <div className="flex flex-wrap gap-1 mt-2.5">
             {[
               {
+                show: !!(candidate as any).is_agency_protected,
+                color: '#7C3AED', bg: '#F5F3FF',
+                label: (
+                  <div className="flex items-center gap-1">
+                    <ShieldCheck size={10} />
+                    <span>AGENCY PROTECTED</span>
+                    <span className="opacity-60 ml-1">
+                      (Until {dayjs((candidate as any).protected_until).format('DD MMM')})
+                    </span>
+                  </div>
+                )
+              },
+              {
+                show: !!(candidate as any).is_agency_protected && !!(candidate as any).protection_scope,
+                color: '#7C3AED', bg: '#F5F3FF',
+                label: (candidate as any).protection_scope?.replace(/_/g, ' ')?.toUpperCase()
+              },
+              {
                 show: true,
                 color: (candidate as any).profile_status === 'complete' 
                   || (candidate as any).profile_status === 'claimed'
@@ -825,6 +876,23 @@ export default function CandidateQuickView({
               </span>
             ))}
           </div>
+
+          {candidate.is_agency_protected && (
+            <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50 px-3 py-3">
+              <div className="flex items-start gap-2">
+                <ShieldCheck size={14} className="mt-0.5 shrink-0 text-violet-600" />
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-violet-700">Protection Status</p>
+                  <div className="mt-2 space-y-1 text-[11px] text-slate-700">
+                    <p><span className="font-semibold">Status:</span> Agency Protected</p>
+                    <p><span className="font-semibold">Protected Until:</span> {formatProtectionDate(candidate.protected_until)}</p>
+                    <p><span className="font-semibold">Scope:</span> {protectionScopeLabel(candidate.protection_scope)}</p>
+                    <p className="text-slate-600">Candidate cannot be reused outside agreed scope during protection period.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ── Two column grid ─────────────────────── */}

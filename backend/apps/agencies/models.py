@@ -43,6 +43,76 @@ class AgencyClientRelationship(models.Model):
         blank=True
     )
     notes = models.TextField(blank=True)
+    retention_enabled = models.BooleanField(default=False)
+    retention_days = models.PositiveIntegerField(default=90)
+    retention_start_type = models.CharField(
+        max_length=40,
+        choices=[
+            ('submission_date', 'Submission Date'),
+            ('rejection_date', 'Rejection Date'),
+            ('last_activity_date', 'Last Activity Date'),
+        ],
+        default='submission_date',
+    )
+    retention_scope = models.CharField(
+        max_length=40,
+        choices=[
+            ('job_only', 'Job Only'),
+            ('view_only', 'View Only'),
+            ('limited_company_access', 'Limited Company Access'),
+        ],
+        default='job_only',
+    )
+    retention_post_expiry = models.CharField(
+        max_length=40,
+        choices=[
+            ('shared', 'Shared Ownership'),
+            ('company_use', 'Company Can Use Candidate'),
+            ('consent_required', 'Require Candidate Consent'),
+        ],
+        default='shared',
+    )
+    replacement_guarantee_enabled = models.BooleanField(default=False)
+    guarantee_period_days = models.PositiveIntegerField(default=30)
+    guarantee_start_type = models.CharField(
+        max_length=40,
+        choices=[
+            ('joining_date', 'Joining Date'),
+            ('offer_acceptance_date', 'Offer Acceptance Date'),
+            ('first_working_day', 'First Working Day'),
+        ],
+        default='joining_date',
+    )
+    guarantee_resolution_type = models.CharField(
+        max_length=40,
+        choices=[
+            ('replacement_only', 'Replacement Only'),
+            ('refund_only', 'Refund Only'),
+            ('replacement_or_refund', 'Replacement or Refund'),
+            ('no_guarantee', 'No Guarantee'),
+        ],
+        default='replacement_only',
+    )
+    refund_mode = models.CharField(
+        max_length=40,
+        choices=[
+            ('full_refund', 'Full Refund'),
+            ('partial_refund', 'Partial Refund'),
+            ('pro_rated_refund', 'Pro-rated Refund'),
+        ],
+        blank=True,
+    )
+    refund_percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    replacement_attempt_limit = models.CharField(
+        max_length=20,
+        choices=[
+            ('1', '1'),
+            ('2', '2'),
+            ('unlimited', 'Unlimited'),
+        ],
+        default='1',
+    )
+    guarantee_notes = models.TextField(blank=True)
 
     # Contact details
     contact_person_name = models.CharField(max_length=255, blank=True)

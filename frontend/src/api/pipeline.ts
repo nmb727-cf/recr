@@ -28,4 +28,25 @@ export const pipelineApi = {
 
   bulkAction: (application_ids: string[], action: string, data?: Record<string, unknown>) =>
     http.post('/pipeline/bulk-action/', { application_ids, action, data: data || {} }),
+
+  updatePlacement: (id: string, data: {
+    placement_status: string;
+    expected_joining_date?: string;
+    joined_at?: string;
+    placement_confirmed_at?: string;
+    note?: string;
+  }) =>
+    http.post<ApiResponse<{ application: Application }>>(`/applications/${id}/update-placement/`, data),
+
+  updateCommission: (id: string, data: {
+    commission_applicable: boolean;
+    commission_basis_type: string;
+    commission_value?: number;
+    expected_commission_amount?: number;
+    commission_currency?: string;
+    commission_status: string;
+    commission_rule_source?: string;
+    commission_notes?: string;
+  }) =>
+    http.post<ApiResponse<{ application: Application }>>(`/applications/${id}/update-commission/`, data),
 }

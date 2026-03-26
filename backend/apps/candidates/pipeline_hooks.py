@@ -175,6 +175,7 @@ def on_candidate_hired(application, user):
     try:
         from apps.candidates.models import CandidateEngagement
         from apps.candidates.signals import emit_timeline_event
+        from apps.pipeline.guarantee import start_guarantee_for_joined_placement
         engagement = CandidateEngagement.objects.filter(
             candidate_id=application.candidate_id,
             tenant_id=application.tenant_id,
@@ -204,5 +205,6 @@ def on_candidate_hired(application, user):
                     'changed_at': timezone.now().isoformat(),
                 }
             )
+        start_guarantee_for_joined_placement(application)
     except Exception:
         pass

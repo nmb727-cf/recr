@@ -3,6 +3,7 @@ import { Button, Typography, Alert } from 'antd'
 import { CheckOutlined, ArrowRightOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import { authApi, type OnboardingPayload } from '@/api/auth'
+import { communicationsApi } from '@/api/communications'
 import { useAuthStore } from '@/store/authStore'
 
 const { Title, Text } = Typography
@@ -34,7 +35,14 @@ interface SelectionStepConfig {
   options: StepOption[]
 }
 
-type StepConfig = WelcomeStepConfig | SelectionStepConfig
+interface ConnectEmailStepConfig {
+  kind: 'connect_email'
+  title: string
+  subtitle: string
+  options: StepOption[]
+}
+
+type StepConfig = WelcomeStepConfig | SelectionStepConfig | ConnectEmailStepConfig
 
 // ─── Role-specific step sets ───────────────────────────────────────────────────
 
@@ -133,6 +141,17 @@ const AGENCY_STEPS: StepConfig[] = [
 ]
 
 const AGENCY_ROLES = ['agency_owner', 'agency_admin', 'agency_recruiter']
+
+const CONNECT_EMAIL_STEP: ConnectEmailStepConfig = {
+  kind: 'connect_email',
+  title: 'Connect your email (optional)',
+  subtitle: 'Connect now to send from your company or agency domain. You can skip and configure later in Settings.',
+  options: [
+    { value: 'gmail', label: 'Connect Gmail', description: 'Use Google Workspace or Gmail account', icon: '📧' },
+    { value: 'outlook', label: 'Connect Outlook', description: 'Use Microsoft 365 / Outlook account', icon: '📨' },
+    { value: 'skip', label: 'Skip for now', description: 'Use secure system fallback until you connect later', icon: '⏭️' },
+  ],
+}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -279,10 +298,13 @@ export default function OnboardingWizard() {
   const setUser = useAuthStore(state => state.setUser)
 
   // Pick the correct step set based on signup role — no need to ask the user.
-  const STEPS = user && AGENCY_ROLES.includes(user.role) ? AGENCY_STEPS : COMPANY_STEPS
+  const BASE_STEPS = user && AGENCY_ROLES.includes(user.role) ? AGENCY_STEPS : COMPANY_STEPS
+  const STEPS = [...BASE_STEPS, CONNECT_EMAIL_STEP]
 
   const [step, setStep] = useState(0)
   const [selections, setSelections] = useState<Partial<OnboardingPayload>>({})
+  const [connectChoice, setConnectChoice] = useState<string>('skip')
+  const [onboardingSubmitted, setOnboardingSubmitted] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -290,11 +312,26 @@ export default function OnboardingWizard() {
   const isLast = step === STEPS.length - 1
   const currentValue = currentStep.kind === 'selection'
     ? selections[currentStep.field]
-    : undefined
+    : currentStep.kind === 'connect_email'
+      ? connectChoice
+      : undefined
 
   const handleSelect = (value: string) => {
-    if (currentStep.kind !== 'selection') return
-    setSelections(prev => ({ ...prev, [currentStep.field]: value as any }))
+    if (currentStep.kind === 'selection') {
+      setSelections(prev => ({ ...prev, [currentStep.field]: value as any }))
+      return
+    }
+    if (currentStep.kind === 'connect_email') {
+      setConnectChoice(value)
+    }
+  }
+
+  const submitOnboarding = async () => {
+    if (onboardingSubmitted) return
+    const payload = selections as OnboardingPayload
+    const { data: res } = await authApi.completeOnboarding(payload)
+    setUser(res.data.user)
+    setOnboardingSubmitted(true)
   }
 
   const handleNext = async () => {
@@ -311,13 +348,22 @@ export default function OnboardingWizard() {
       return
     }
 
-    // Final step — submit (user_type is derived server-side from role)
+    // Final optional connect step.
     setSaving(true)
     setError(null)
     try {
-      const payload = selections as OnboardingPayload
-      const { data: res } = await authApi.completeOnboarding(payload)
-      setUser(res.data.user)
+      await submitOnboarding()
+      if (connectChoice === 'gmail' || connectChoice === 'outlook') {
+        const redirect_uri = `${window.location.origin}/settings?tab=communication`
+        const response = connectChoice === 'gmail'
+          ? await communicationsApi.initiateGmailConnect(redirect_uri)
+          : await communicationsApi.initiateMicrosoftConnect(redirect_uri)
+        const authUrl = response.data.data.auth_url
+        if (authUrl) {
+          window.location.href = authUrl
+          return
+        }
+      }
       navigate('/dashboard', { replace: true })
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Something went wrong. Please try again.')

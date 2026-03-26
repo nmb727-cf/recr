@@ -7,11 +7,12 @@ import {
   UserOutlined, BankOutlined, LockOutlined,
   SaveOutlined, PlusOutlined, DeleteOutlined, EnvironmentOutlined,
   ApartmentOutlined, GlobalOutlined, ClockCircleOutlined, DollarOutlined,
-  SafetyOutlined, InfoCircleOutlined
+  SafetyOutlined, InfoCircleOutlined, MailOutlined
 } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useSearchParams } from 'react-router-dom'
 import { useApiQuery } from '@/hooks/useApiQuery'
+import { usePermission } from '@/hooks/usePermission'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useQueryClient } from '@tanstack/react-query'
 import { organisationApi } from '@/api/organisation'
@@ -22,6 +23,8 @@ import { COUNTRIES, TIMEZONES, CURRENCIES } from '@/utils/locale'
 import { readCompanySignupPrefill } from '@/utils/companyOnboarding'
 import { useTranslation } from 'react-i18next'
 import { rbacApi, type PermissionMeta as CatalogPermissionMeta, type RoleMeta as CatalogRoleMeta } from '@/api/rbac'
+import { communicationsApi, type EmailAccount } from '@/api/communications'
+import http from '@/utils/http'
 
 const { Title, Text } = Typography
 
@@ -927,6 +930,627 @@ function AccountTab() {
   )
 }
 
+function SmtpModal({
+  open,
+  editAccount,
+  onClose,
+  onSaved,
+}: {
+  open: boolean
+  editAccount: EmailAccount | null
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [form] = Form.useForm()
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      if (editAccount) {
+        form.setFieldsValue({
+          email_address: editAccount.email_address,
+          display_name: editAccount.display_name,
+          from_name: editAccount.from_name,
+        })
+      } else {
+        form.resetFields()
+      }
+    }
+  }, [open, editAccount])
+
+  const handleSave = async () => {
+    try {
+      const values = await form.validateFields()
+      setSaving(true)
+      if (editAccount) {
+        await communicationsApi.updateSmtpAccount(editAccount.id, values)
+        message.success('SMTP account updated')
+      } else {
+        await communicationsApi.createSmtpAccount(values)
+        message.success('SMTP account connected')
+      }
+      onSaved()
+      onClose()
+    } catch (err: any) {
+      if (err?.errorFields) return // validation error
+      message.error(err?.response?.data?.message || 'Failed to save SMTP account')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      title={editAccount ? 'Edit SMTP Account' : 'Connect Custom SMTP'}
+      onCancel={onClose}
+      onOk={handleSave}
+      okText={editAccount ? 'Save Changes' : 'Connect'}
+      confirmLoading={saving}
+      width={560}
+      destroyOnClose
+    >
+      <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Item name="email_address" label="Email Address" rules={[{ required: true, type: 'email' }]}>
+              <Input placeholder="you@company.com" disabled={!!editAccount} />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item name="from_name" label="From Name" rules={[{ required: true }]}>
+              <Input placeholder="Acme Recruiting" />
+            </Form.Item>
+          </Col>
+        </Row>
+        <Form.Item name="display_name" label="Display / Account Label" rules={[{ required: true }]}>
+          <Input placeholder="My Work Email" />
+        </Form.Item>
+        <Row gutter={16}>
+          <Col span={16}>
+            <Form.Item name="smtp_host" label="SMTP Host" rules={[{ required: true }]}>
+              <Input placeholder="smtp.company.com" />
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            <Form.Item name="smtp_port" label="Port" rules={[{ required: true }]}>
+              <Input type="number" placeholder="587" />
+            </Form.Item>
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Item name="smtp_username" label="Username" rules={[{ required: true }]}>
+              <Input placeholder="you@company.com" />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item name="smtp_password" label="Password" rules={[{ required: !editAccount }]}>
+              <Input.Password placeholder={editAccount ? '(unchanged)' : 'App password'} />
+            </Form.Item>
+          </Col>
+        </Row>
+        <Form.Item name="smtp_encryption_mode" label="Encryption" rules={[{ required: true }]} initialValue="tls">
+          <Select options={[
+            { value: 'tls', label: 'STARTTLS (port 587)' },
+            { value: 'ssl', label: 'SSL/TLS (port 465)' },
+            { value: 'none', label: 'None (not recommended)' },
+          ]} />
+        </Form.Item>
+        <Form.Item name="signature" label="Email Signature (optional)">
+          <Input.TextArea rows={3} placeholder="Best regards, ..." />
+        </Form.Item>
+      </Form>
+    </Modal>
+  )
+}
+
+function EmailCommunicationTab() {
+  const queryClient = useQueryClient()
+  const hasManagePermission = usePermission('communication.email_accounts.manage')
+  const [loadingAction, setLoadingAction] = useState<string | null>(null)
+  const [smtpModalOpen, setSmtpModalOpen] = useState(false)
+  const [smtpEditAccount, setSmtpEditAccount] = useState<EmailAccount | null>(null)
+
+  const { data: featureStatusData, isLoading: loadingFeatureStatus } = useQuery({
+    queryKey: ['email_feature_status_v2'],
+    queryFn: async () => (await communicationsApi.getEmailFeatureStatus()).data.data,
+  })
+
+  const featureReady = !!(featureStatusData as any)?.feature_ready
+  const featureMessage = (featureStatusData as any)?.message || 'Email module not configured'
+
+  const { data: oauthStatusData, isLoading: loadingOauthStatus } = useQuery({
+    queryKey: ['email_oauth_status_v2'],
+    queryFn: async () => (await communicationsApi.getEmailOAuthStatus()).data.data,
+    staleTime: 0,
+  })
+
+  const { data: accountsData, isLoading: loadingAccounts } = useQuery({
+    queryKey: ['email_accounts_v2'],
+    queryFn: async () => (await communicationsApi.listEmailAccounts()).data.data,
+    enabled: featureReady,
+  })
+
+  const { data: prefsData } = useQuery({
+    queryKey: ['email_preferences_v2'],
+    queryFn: async () => (await communicationsApi.getEmailPreferences()).data.data,
+    enabled: featureReady,
+  })
+
+  const { data: templatesData } = useQuery({
+    queryKey: ['email_templates_v2'],
+    queryFn: async () => (await communicationsApi.listEmailTemplates()).data.data,
+    enabled: featureReady,
+  })
+
+  const { data: quickRepliesData } = useQuery({
+    queryKey: ['quick_replies_v2'],
+    queryFn: async () => (await communicationsApi.listQuickReplies()).data.data,
+    enabled: featureReady,
+  })
+
+  const { data: historyData } = useQuery({
+    queryKey: ['email_history_v2'],
+    queryFn: async () => (await communicationsApi.listEmailMessages()).data.data,
+    enabled: featureReady,
+  })
+
+  const refreshAll = () => {
+    queryClient.invalidateQueries({ queryKey: ['email_accounts_v2'] })
+    queryClient.invalidateQueries({ queryKey: ['email_oauth_status_v2'] })
+    queryClient.invalidateQueries({ queryKey: ['email_preferences_v2'] })
+    queryClient.invalidateQueries({ queryKey: ['email_templates_v2'] })
+    queryClient.invalidateQueries({ queryKey: ['quick_replies_v2'] })
+    queryClient.invalidateQueries({ queryKey: ['email_history_v2'] })
+  }
+
+  // Handle the backend OAuth redirect: ?email_connect=success|failed&email=...&reason=...
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const connectResult = params.get('email_connect')
+    if (!connectResult) return
+
+    // Clean the URL immediately so a page refresh doesn't re-trigger the notification
+    const clean = new URL(window.location.href)
+    clean.searchParams.delete('email_connect')
+    clean.searchParams.delete('email')
+    clean.searchParams.delete('reason')
+    window.history.replaceState({}, '', clean.toString())
+
+    if (connectResult === 'success') {
+      const email = params.get('email') || ''
+      message.success(`Email account${email ? ` (${email})` : ''} connected successfully`)
+      queryClient.invalidateQueries({ queryKey: ['email_accounts_v2'] })
+      queryClient.invalidateQueries({ queryKey: ['email_oauth_status_v2'] })
+    } else {
+      const reason = params.get('reason') || 'Unknown error'
+      message.error(`Email connect failed: ${decodeURIComponent(reason)}`)
+    }
+  }, [])
+
+  const startConnect = async (provider: 'gmail' | 'microsoft') => {
+    if (!featureReady) return
+    if (!hasManagePermission) return
+    try {
+      if (provider === 'gmail') {
+        console.log('Connect Gmail clicked')
+      }
+      setLoadingAction(provider)
+      const redirectUri = `${window.location.origin}/settings?tab=communication`
+      const response = provider === 'gmail'
+        ? await communicationsApi.initiateGmailConnect(redirectUri)
+        : await communicationsApi.initiateMicrosoftConnect(redirectUri)
+      const authUrl = (response.data.data as any)?.authorization_url || (response.data.data as any)?.auth_url
+      if (authUrl) {
+        // Full browser redirect to provider consent screen.
+        // Backend callback endpoint handles code exchange and redirects back to frontend.
+        window.location.href = authUrl
+      } else {
+        console.error('OAuth initiate response missing URL', response.data.data)
+        message.error('Unable to start OAuth flow — no authorization URL returned.')
+        setLoadingAction(null)
+      }
+    } catch (err: any) {
+      const exactError = err?.response?.data?.message || err?.message || 'Failed to start account connection'
+      console.error('OAuth initiate failed', err?.response?.data || err)
+      message.error(exactError)
+      setLoadingAction(null)
+    }
+    // NOTE: don't clear loadingAction on success — browser is navigating away
+  }
+
+  const startConnectGmailRaw = async () => {
+    if (!featureReady) return
+    if (!hasManagePermission) return
+    try {
+      console.log('Connect Gmail clicked')
+      setLoadingAction('gmail_raw')
+      const redirectUri = `${window.location.origin}/settings?tab=communication`
+      const response = await http.post('/communications/email-accounts/gmail/connect/initiate', { redirect_uri: redirectUri })
+      const payload = response?.data?.data || {}
+      const authUrl = payload.authorization_url || payload.auth_url
+      if (!authUrl) {
+        console.error('Raw Gmail initiate response missing URL', response?.data)
+        message.error('Raw Gmail initiate failed: no authorization URL returned')
+        setLoadingAction(null)
+        return
+      }
+      window.location.href = authUrl
+    } catch (err: any) {
+      const exactError = err?.response?.data?.message || err?.message || 'Raw Gmail initiate failed'
+      console.error('Raw Gmail initiate failed', err?.response?.data || err)
+      message.error(exactError)
+      setLoadingAction(null)
+    }
+  }
+
+  const onSetDefault = async (account: EmailAccount) => {
+    if (!featureReady) return
+    try {
+      setLoadingAction(account.id)
+      await communicationsApi.setDefaultSender(account.id)
+      message.success('Default sender updated')
+      refreshAll()
+    } catch (err: any) {
+      message.error(err?.response?.data?.message || 'Failed to set default sender')
+    } finally {
+      setLoadingAction(null)
+    }
+  }
+
+  const onTest = async (account: EmailAccount) => {
+    if (!featureReady) return
+    try {
+      setLoadingAction(`test-${account.id}`)
+      await communicationsApi.testEmailAccount(account.id)
+      message.success('Connection test passed')
+      refreshAll()
+    } catch (err: any) {
+      message.error(err?.response?.data?.message || 'Connection test failed')
+      refreshAll()
+    } finally {
+      setLoadingAction(null)
+    }
+  }
+
+  const onReconnect = async (account: EmailAccount) => {
+    if (!featureReady) return
+    try {
+      setLoadingAction(`reconnect-${account.id}`)
+      await communicationsApi.reconnectEmailAccount(account.id)
+      message.success('Reconnect completed')
+      refreshAll()
+    } catch (err: any) {
+      message.error(err?.response?.data?.message || 'Reconnect failed')
+      refreshAll()
+    } finally {
+      setLoadingAction(null)
+    }
+  }
+
+  const onDisconnect = async (account: EmailAccount) => {
+    if (!featureReady) return
+    try {
+      setLoadingAction(`disconnect-${account.id}`)
+      await communicationsApi.disconnectEmailAccount(account.id)
+      message.success('Account disconnected')
+      refreshAll()
+    } catch (err: any) {
+      message.error(err?.response?.data?.message || 'Disconnect failed')
+    } finally {
+      setLoadingAction(null)
+    }
+  }
+
+  const onToggleFallback = async (checked: boolean) => {
+    if (!featureReady) return
+    try {
+      await communicationsApi.updateEmailPreferences({ allow_system_fallback: checked })
+      queryClient.invalidateQueries({ queryKey: ['email_preferences_v2'] })
+      message.success('Fallback preference updated')
+    } catch (err: any) {
+      message.error(err?.response?.data?.message || 'Unable to update fallback preference')
+    }
+  }
+
+  const accounts = (accountsData as any)?.email_accounts || []
+  const prefs = (prefsData as any)?.email_preferences
+  const templates = (templatesData as any)?.email_templates || []
+  const quickReplies = (quickRepliesData as any)?.quick_replies || []
+  const history = (historyData as any)?.email_messages || []
+  const nonSystemAccounts = accounts.filter((a: EmailAccount) => a.provider_type !== 'system')
+  const oauthStatus = oauthStatusData as any
+  const gmailReady = !!oauthStatus?.gmail_ready
+  const microsoftReady = !!(oauthStatus?.microsoft_ready ?? oauthStatus?.outlook_ready)
+  const gmailMissing: string[] = oauthStatus?.gmail_missing ?? []
+  const microsoftMissing: string[] = oauthStatus?.microsoft_missing ?? []
+
+  const statusColor: Record<string, string> = {
+    connected: 'green',
+    pending: 'blue',
+    expired: 'orange',
+    error: 'red',
+    disconnected: 'default',
+  }
+
+  const isDev = import.meta.env.DEV
+
+  if (loadingFeatureStatus) {
+    return <Spin />
+  }
+
+  if (!featureReady) {
+    return (
+      <Alert
+        type="warning"
+        showIcon
+        message={featureMessage}
+        description="Email APIs are disabled until communications email module is enabled and migrated."
+      />
+    )
+  }
+
+  const ProviderButton = ({
+    provider,
+    ready,
+    missing,
+    label,
+  }: {
+    provider: 'gmail' | 'microsoft'
+    ready: boolean
+    missing: string[]
+    label: string
+  }) => {
+    const finalDisabled = !loadingOauthStatus && !ready
+    const clickHandlerBound = hasManagePermission
+
+    return (
+      <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 2 }}>
+        {hasManagePermission ? (
+          <Button
+            icon={<MailOutlined />}
+            loading={loadingAction === provider}
+            disabled={finalDisabled}
+            onClick={() => startConnect(provider)}
+          >
+            {label}
+          </Button>
+        ) : (
+          <Text type="secondary" style={{ fontSize: 12 }}>
+            You do not have permission to manage email accounts.
+          </Text>
+        )}
+        {!ready && missing.length > 0 && (
+          <Text type="secondary" style={{ fontSize: 11, maxWidth: 200 }}>
+            Missing: {missing.join(', ')}
+          </Text>
+        )}
+        {isDev && provider === 'gmail' && (
+          <Text type="secondary" style={{ fontSize: 11, maxWidth: 360 }}>
+            gmail_ready={String(gmailReady)} | loadingOauthStatus={String(loadingOauthStatus)} | finalDisabled={String(finalDisabled)} | hasManagePermission={String(hasManagePermission)} | clickHandlerBound={String(clickHandlerBound)}
+          </Text>
+        )}
+        {isDev && provider === 'gmail' && hasManagePermission && (
+          <button
+            type="button"
+            onClick={startConnectGmailRaw}
+            disabled={loadingAction === 'gmail_raw'}
+            style={{
+              marginTop: 4,
+              border: '1px solid #d9d9d9',
+              borderRadius: 6,
+              background: '#fff',
+              padding: '4px 8px',
+              fontSize: 12,
+              cursor: loadingAction === 'gmail_raw' ? 'not-allowed' : 'pointer',
+              opacity: loadingAction === 'gmail_raw' ? 0.6 : 1,
+            }}
+          >
+            {loadingAction === 'gmail_raw' ? 'Connecting Gmail...' : 'Raw Connect Gmail (Debug)'}
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  const ConnectButtons = ({ style }: { style?: React.CSSProperties }) => (
+    <Space wrap align="start" style={style}>
+      <ProviderButton
+        provider="gmail"
+        ready={gmailReady}
+        missing={gmailMissing}
+        label="Connect Gmail"
+      />
+      <ProviderButton
+        provider="microsoft"
+        ready={microsoftReady}
+        missing={microsoftMissing}
+        label="Connect Outlook / M365"
+      />
+      <Button
+        icon={<MailOutlined />}
+        onClick={() => { setSmtpEditAccount(null); setSmtpModalOpen(true) }}
+      >
+        Connect SMTP
+      </Button>
+    </Space>
+  )
+
+  const ProviderDebugPanel = () => {
+    if (!isDev) return null
+    return (
+      <Card
+        size="small"
+        bordered
+        style={{ borderRadius: 8, background: '#fffbe6', borderColor: '#ffe58f' }}
+        title={<Text style={{ fontSize: 12 }}>Dev: Provider Configuration Status</Text>}
+      >
+        <Space direction="vertical" size={4} style={{ width: '100%', fontSize: 12 }}>
+          <div>
+            <Tag color={gmailReady ? 'green' : 'red'}>{gmailReady ? 'Ready' : 'Not Ready'}</Tag>
+            <Text strong> Gmail</Text>
+            {!gmailReady && gmailMissing.length > 0 && (
+              <Text type="secondary"> — missing: {gmailMissing.join(', ')}</Text>
+            )}
+          </div>
+          <div>
+            <Tag color={microsoftReady ? 'green' : 'red'}>{microsoftReady ? 'Ready' : 'Not Ready'}</Tag>
+            <Text strong> Microsoft / Outlook</Text>
+            {!microsoftReady && microsoftMissing.length > 0 && (
+              <Text type="secondary"> — missing: {microsoftMissing.join(', ')}</Text>
+            )}
+          </div>
+          <div>
+            <Tag color="green">Ready</Tag>
+            <Text strong> SMTP</Text>
+            <Text type="secondary"> — always available</Text>
+          </div>
+          <Text type="secondary" style={{ marginTop: 4, display: 'block' }}>
+            Add missing keys to <Text code>backend/.env</Text> then restart Django.
+          </Text>
+        </Space>
+      </Card>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <SmtpModal
+        open={smtpModalOpen}
+        editAccount={smtpEditAccount}
+        onClose={() => setSmtpModalOpen(false)}
+        onSaved={refreshAll}
+      />
+
+      <ProviderDebugPanel />
+
+      <Card bordered={false} style={{ borderRadius: 12 }} title="Connected Accounts" extra={<ConnectButtons />}>
+        {nonSystemAccounts.length === 0 && !loadingAccounts && (
+          <div style={{ textAlign: 'center', padding: '32px 0' }}>
+            <MailOutlined style={{ fontSize: 40, color: '#bfbfbf', marginBottom: 12 }} />
+            <div style={{ marginBottom: 8 }}>
+              <Text type="secondary">No email accounts connected yet.</Text>
+            </div>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              Connect Gmail, Outlook, or a custom SMTP account to send emails from your domain.
+            </Text>
+            <div style={{ marginTop: 16 }}>
+              <ConnectButtons />
+            </div>
+          </div>
+        )}
+
+        {(nonSystemAccounts.length > 0 || loadingAccounts) && (
+          loadingAccounts ? <Spin /> : (
+            <Table
+              rowKey="id"
+              pagination={false}
+              dataSource={nonSystemAccounts}
+              columns={[
+                { title: 'Email', dataIndex: 'email_address' },
+                {
+                  title: 'Provider',
+                  dataIndex: 'provider_type',
+                  render: (v: string) => {
+                    const labels: Record<string, string> = {
+                      gmail_oauth: 'Gmail',
+                      microsoft_oauth: 'Outlook / M365',
+                      smtp: 'Custom SMTP',
+                    }
+                    return labels[v] || v
+                  },
+                },
+                {
+                  title: 'Status',
+                  render: (_, r: EmailAccount) => <Tag color={statusColor[r.status] || 'default'}>{r.status}</Tag>,
+                },
+                {
+                  title: 'Health',
+                  render: (_, r: EmailAccount) => <Tag>{r.health_status}</Tag>,
+                },
+                {
+                  title: 'Default',
+                  render: (_, r: EmailAccount) => r.is_default_sender ? <Tag color="blue">Default</Tag> : '—',
+                },
+                {
+                  title: 'Actions',
+                  render: (_, r: EmailAccount) => (
+                    <Space>
+                      {!r.is_default_sender && (
+                        <Button size="small" loading={loadingAction === r.id} onClick={() => onSetDefault(r)}>Set Default</Button>
+                      )}
+                      <Button size="small" loading={loadingAction === `test-${r.id}`} onClick={() => onTest(r)}>Test</Button>
+                      {r.provider_type === 'smtp' && (
+                        <Button size="small" onClick={() => { setSmtpEditAccount(r); setSmtpModalOpen(true) }}>Edit</Button>
+                      )}
+                      {r.status !== 'connected' && r.provider_type !== 'smtp' && (
+                        <Button size="small" loading={loadingAction === `reconnect-${r.id}`} onClick={() => onReconnect(r)}>Reconnect</Button>
+                      )}
+                      <Popconfirm title="Disconnect this account?" onConfirm={() => onDisconnect(r)}>
+                        <Button size="small" danger loading={loadingAction === `disconnect-${r.id}`}>Disconnect</Button>
+                      </Popconfirm>
+                    </Space>
+                  ),
+                },
+              ]}
+            />
+          )
+        )}
+      </Card>
+
+      <Card bordered={false} style={{ borderRadius: 12 }} title="Fallback & Preferences">
+        <Space direction="vertical" style={{ width: '100%' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text>Allow system fallback</Text>
+            <Switch checked={!!prefs?.allow_system_fallback} onChange={onToggleFallback} />
+          </div>
+          <Text type="secondary">
+            When enabled, user/business emails will route through system sender if no healthy user account is available.
+          </Text>
+        </Space>
+      </Card>
+
+      <Card bordered={false} style={{ borderRadius: 12 }} title="Template Library & Quick Replies">
+        <Row gutter={16}>
+          <Col span={12}>
+            <Text strong>Templates</Text>
+            <div style={{ marginTop: 8 }}>
+              {templates.slice(0, 10).map((t: any) => (
+                <Tag key={t.id} style={{ marginBottom: 8 }}>{t.name}</Tag>
+              ))}
+            </div>
+          </Col>
+          <Col span={12}>
+            <Text strong>Quick Replies</Text>
+            <div style={{ marginTop: 8 }}>
+              {quickReplies.slice(0, 10).map((q: any) => (
+                <Tag key={q.id} style={{ marginBottom: 8 }}>{q.name}</Tag>
+              ))}
+            </div>
+          </Col>
+        </Row>
+      </Card>
+
+      <Card bordered={false} style={{ borderRadius: 12 }} title="Delivery / Send History">
+        <Table
+          rowKey="id"
+          pagination={{ pageSize: 10 }}
+          dataSource={history}
+          columns={[
+            { title: 'From', dataIndex: 'from_email' },
+            { title: 'Subject', dataIndex: 'subject' },
+            { title: 'Route', dataIndex: 'actual_route_used' },
+            { title: 'Status', dataIndex: 'status', render: (v) => <Tag>{v}</Tag> },
+            { title: 'Trigger', dataIndex: 'trigger_source' },
+            { title: 'Time', dataIndex: 'created_at' },
+          ]}
+        />
+      </Card>
+    </div>
+  )
+}
+
 // ─── Roles Tab ───────────────────────────────────────────────────────────────
 
 function RolesTab() {
@@ -1340,6 +1964,7 @@ export default function Settings() {
           { key: 'departments', label: <Space><ApartmentOutlined />{t('tabs.departments', 'Departments')}</Space>, children: <DepartmentsTab /> },
           { key: 'locations', label: <Space><EnvironmentOutlined />{t('tabs.locations', 'Locations')}</Space>, children: <LocationsTab /> },
           { key: 'users', label: <Space><UserOutlined />{t('tabs.users', 'Users')}</Space>, children: <UsersTab /> },
+          { key: 'communication', label: <Space><MailOutlined />Communication</Space>, children: <EmailCommunicationTab /> },
           { key: 'roles', label: <Space><SafetyOutlined />{t('tabs.roles', 'Roles & Permissions')}</Space>, children: <RolesTab /> },
           { key: 'account', label: <Space><LockOutlined />{t('tabs.account', 'Account & Security')}</Space>, children: <AccountTab /> },
         ]}

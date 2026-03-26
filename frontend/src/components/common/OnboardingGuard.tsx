@@ -34,6 +34,12 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
 
       try {
         if (user.role === 'candidate') {
+          // Skip redirect if the user just finished onboarding to avoid an immediate loop
+          if (sessionStorage.getItem('onboarding_just_completed')) {
+            sessionStorage.removeItem('onboarding_just_completed')
+            setLoading(false)
+            return
+          }
           const res = await passportApi.get()
           const passport = res.data.data.passport
           if (passport.completeness_score < 40) {

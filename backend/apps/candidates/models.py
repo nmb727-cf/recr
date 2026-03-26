@@ -3,6 +3,12 @@ import hashlib
 from django.db import models
 from django.utils import timezone
 from django.conf import settings
+from apps.candidates.field_schema import (
+    WORK_AUTHORIZATION_CHOICES,
+    AVAILABILITY_STATUS_CHOICES,
+    EDUCATION_CHOICES,
+    WORK_MODE_CHOICES,
+)
 
 GENERAL_CANDIDATE_STAGES = (
     'new_lead',
@@ -72,6 +78,15 @@ class Candidate(models.Model):
         ('merged', 'Merged'),
         ('ignored', 'Ignored'),
     ]
+    CANDIDATE_POOL_CHOICES = [
+        ('GENERAL', 'General Pool'),
+        ('NONE', 'No Pool'),
+    ]
+    CANDIDATE_STATE_CHOICES = [
+        ('NEW_LEAD', 'New Lead'),
+        ('JOB_ASSOCIATED', 'Job Associated'),
+        ('REVIVED', 'Revived'),
+    ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     # tenant_id is nullable — null means self-registered candidate
@@ -111,26 +126,17 @@ class Candidate(models.Model):
         max_digits=15, decimal_places=2, null=True, blank=True
     )
 
-    # Availability
+    # Availability — canonical choices from field_schema.AVAILABILITY_STATUS_CHOICES
     availability_status = models.CharField(
         max_length=50,
-        choices=[
-            ('available_now', 'Available Now'),
-            ('notice_period', 'Serving Notice Period'),
-            ('not_looking', 'Not Looking'),
-            ('open_to_offers', 'Open to Offers'),
-        ],
+        choices=AVAILABILITY_STATUS_CHOICES,
         blank=True
     )
     last_working_day = models.DateField(null=True, blank=True)
+    # Canonical work_mode choices from field_schema.WORK_MODE_CHOICES
     work_mode_preference = models.CharField(
         max_length=20,
-        choices=[
-            ('any', 'Any'),
-            ('remote', 'Remote Only'),
-            ('hybrid', 'Hybrid'),
-            ('onsite', 'On-site Only'),
-        ],
+        choices=WORK_MODE_CHOICES,
         default='any',
         blank=True
     )
@@ -189,8 +195,12 @@ class Candidate(models.Model):
     
     # New fields
     nationality = models.CharField(max_length=100, blank=True)
-    work_authorization = models.CharField(max_length=100, blank=True)
-    highest_education = models.CharField(max_length=100, blank=True)
+    # Canonical work_authorization choices from field_schema.WORK_AUTHORIZATION_CHOICES
+    work_authorization = models.CharField(
+        max_length=50, blank=True, choices=WORK_AUTHORIZATION_CHOICES
+    )
+    # Canonical education choices from field_schema.EDUCATION_CHOICES
+    highest_education = models.CharField(max_length=50, blank=True, choices=EDUCATION_CHOICES)
     graduation_year = models.IntegerField(null=True, blank=True)
     relocation_willing = models.CharField(max_length=50, blank=True)
     preferred_locations = models.JSONField(default=list, blank=True)
@@ -268,6 +278,15 @@ class Candidate(models.Model):
     is_deleted = models.BooleanField(default=False, db_index=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
     metadata = models.JSONField(default=dict, blank=True)
+
+    # Pool / state tracking — drives Active page and General Pool queries
+    candidate_state = models.CharField(
+        max_length=30, choices=CANDIDATE_STATE_CHOICES, default='NEW_LEAD', db_index=True
+    )
+    candidate_pool = models.CharField(
+        max_length=20, choices=CANDIDATE_POOL_CHOICES, default='GENERAL', db_index=True
+    )
+    is_general_pool_used = models.BooleanField(default=False, db_index=True)
 
     def save(self, *args, **kwargs):
         if self.email or self.phone:
@@ -531,6 +550,77 @@ class CandidateWorkspace(models.Model):
 
     def __str__(self):
         return f"Workspace: {self.candidate} in tenant {self.tenant_id}"
+
+
+class CandidateTenantRight(models.Model):
+    RELATIONSHIP_TYPE_CHOICES = [
+        ('protected', 'Protected'),
+        ('shared', 'Shared'),
+    ]
+    STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('active_shared', 'Active Shared'),
+        ('expired', 'Expired'),
+        ('pending_candidate_consent', 'Pending Candidate Consent'),
+        ('released', 'Released'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_id = models.UUIDField(null=True, blank=True, db_index=True)
+    candidate_id = models.UUIDField(db_index=True)
+    source_tenant_id = models.UUIDField(db_index=True)
+    target_tenant_id = models.UUIDField(db_index=True)
+    relationship_type = models.CharField(
+        max_length=30, choices=RELATIONSHIP_TYPE_CHOICES, default='protected', db_index=True
+    )
+    protected_until = models.DateTimeField(null=True, blank=True, db_index=True)
+    context_job_id = models.UUIDField(null=True, blank=True, db_index=True)
+    allowed_job_ids = models.JSONField(default=list, blank=True)
+    retention_scope = models.CharField(max_length=40, default='job_only')
+    retention_start_type = models.CharField(max_length=40, default='submission_date')
+    retention_post_expiry = models.CharField(max_length=40, default='shared')
+    placed_via_source = models.BooleanField(default=False)
+    status = models.CharField(max_length=40, choices=STATUS_CHOICES, default='active', db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.UUIDField(null=True, blank=True)
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = 'candidates_tenant_rights'
+        indexes = [
+            models.Index(fields=['candidate_id', 'target_tenant_id', 'status']),
+            models.Index(fields=['source_tenant_id', 'target_tenant_id', 'status']),
+            models.Index(fields=['protected_until', 'status']),
+        ]
+
+
+class CandidateRightsAuditLog(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_right = models.ForeignKey(
+        CandidateTenantRight,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='audit_logs',
+    )
+    candidate_id = models.UUIDField(db_index=True)
+    tenant_id = models.UUIDField(null=True, blank=True, db_index=True)
+    action = models.CharField(max_length=80, db_index=True)
+    actor_user_id = models.UUIDField(null=True, blank=True)
+    actor_tenant_id = models.UUIDField(null=True, blank=True)
+    reason = models.TextField(blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = 'candidates_rights_audit_log'
+        indexes = [
+            models.Index(fields=['candidate_id', 'created_at']),
+            models.Index(fields=['action', 'created_at']),
+        ]
 
 
 class CandidateEngagement(models.Model):

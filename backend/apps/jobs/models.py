@@ -9,6 +9,13 @@ class JobRequisition(models.Model):
         ('semi_automated', 'Semi Automated'),
         ('fully_automated', 'Fully Automated'),
     ]
+    HIRING_STATUS_CHOICES = [
+        ('active_hiring', 'Active Hiring'),
+        ('hiring_complete', 'Hiring Complete'),
+        ('in_guarantee_period', 'In Guarantee Period'),
+        ('replacement_required', 'Replacement Required'),
+        ('fully_closed', 'Fully Closed'),
+    ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant_id = models.UUIDField(db_index=True)
@@ -59,11 +66,19 @@ class JobRequisition(models.Model):
             ('approved', 'Approved'),
             ('active', 'Active'),
             ('paused', 'Paused'),
+            ('in_guarantee_period', 'In Guarantee Period'),
             ('closed', 'Closed'),
             ('cancelled', 'Cancelled'),
         ],
         default='draft'
     )
+    hiring_status = models.CharField(
+        max_length=40,
+        choices=HIRING_STATUS_CHOICES,
+        default='active_hiring',
+        db_index=True,
+    )
+    guarantee_watch_until = models.DateTimeField(null=True, blank=True, db_index=True)
     approval_chain = models.JSONField(default=list, blank=True)
     current_approver_id = models.UUIDField(null=True, blank=True)
     approved_at = models.DateTimeField(null=True, blank=True)

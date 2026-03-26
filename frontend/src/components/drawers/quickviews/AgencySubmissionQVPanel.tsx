@@ -5,6 +5,16 @@ import type { Application, ApplicationStatus } from '@/types'
 
 const { Text } = Typography
 
+function prettyLabel(value?: string | null) {
+  if (!value) return '—'
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function formatDisplayDate(value?: string | null) {
+  if (!value) return '—'
+  return dayjs(value).isValid() ? dayjs(value).format('MMMM D, YYYY') : value
+}
+
 const STATUS_MAP: Record<ApplicationStatus, { label: string; color: string }> = {
   applied: { label: 'Applied', color: 'blue' },
   screening: { label: 'Screening', color: 'cyan' },
@@ -42,7 +52,42 @@ export default function AgencySubmissionQVPanel({ data }: { data: { submission: 
 
       <div>
         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Status</h3>
-        <Tag color={statusInfo.color} className="border-none font-bold rounded-lg px-3 py-1 text-xs">{submission.status.toUpperCase()}</Tag>
+        <div className="flex flex-wrap gap-2">
+          <Tag color={statusInfo.color} className="border-none font-bold rounded-lg px-3 py-1 text-xs">{submission.status.toUpperCase()}</Tag>
+          {submission.is_agency_protected && (
+            <Tag color="purple" className="border-none font-bold rounded-lg px-3 py-1 text-xs">PROTECTED</Tag>
+          )}
+          {submission.is_under_guarantee && (
+            <Tag color="gold" className="border-none font-bold rounded-lg px-3 py-1 text-xs">UNDER GUARANTEE</Tag>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-violet-100 bg-violet-50/60 p-4">
+          <h3 className="text-xs font-bold text-violet-700 uppercase tracking-widest mb-3">Candidate Protection</h3>
+          {submission.is_agency_protected ? (
+            <Space direction="vertical" size={6}>
+              <Text className="text-sm"><span className="font-semibold">Protected Until:</span> {formatDisplayDate(submission.protected_until)}</Text>
+              <Text className="text-sm"><span className="font-semibold">Scope:</span> {prettyLabel(submission.protection_scope)}</Text>
+            </Space>
+          ) : (
+            <Text className="text-sm text-slate-500">No active protection visible for this submission.</Text>
+          )}
+        </div>
+
+        <div className="rounded-2xl border border-amber-100 bg-amber-50/60 p-4">
+          <h3 className="text-xs font-bold text-amber-700 uppercase tracking-widest mb-3">Guarantee Watch</h3>
+          {submission.guarantee_status ? (
+            <Space direction="vertical" size={6}>
+              <Text className="text-sm"><span className="font-semibold">Status:</span> {prettyLabel(submission.guarantee_status)}</Text>
+              <Text className="text-sm"><span className="font-semibold">Guarantee End:</span> {formatDisplayDate(submission.guarantee_end_date)}</Text>
+              <Text className="text-sm"><span className="font-semibold">Resolution:</span> {prettyLabel(submission.guarantee_resolution_type)}</Text>
+            </Space>
+          ) : (
+            <Text className="text-sm text-slate-500">No active guarantee data available.</Text>
+          )}
+        </div>
       </div>
 
       {!!submission.application_form_data?.cover_note && (

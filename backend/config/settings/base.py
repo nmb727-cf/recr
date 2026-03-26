@@ -207,6 +207,14 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'apps.candidates.tasks.close_not_interested_engagements',
         'schedule': crontab(minute=0),  # runs every hour
     },
+    'expire-candidate-protection-rights': {
+        'task': 'apps.candidates.tasks.expire_candidate_protection_rights',
+        'schedule': crontab(minute='*/30'),
+    },
+    'expire-placement-guarantees': {
+        'task': 'apps.pipeline.tasks.expire_placement_guarantees_task',
+        'schedule': crontab(minute='*/30'),
+    },
 }
 
 # ─── EMAIL ────────────────────────────────────────────────────────────────────

@@ -45,12 +45,21 @@ export default function SubmitCandidate() {
     if (!selectedCandidate || !selectedJob) return
     setSubmitting(true)
     try {
+      const govMode = selectedJob.assignment?.governance_mode || 'direct'
       await agenciesApi.submitCandidate({
         candidate_id: selectedCandidate.id,
         requisition_id: selectedJob.requisition.id,
-        cover_note: coverNote
+        cover_note: coverNote,
+        // Backend should handle initial status based on govMode, 
+        // but we can pass a hint if needed.
+        is_draft: govMode === 'approval_required'
       })
-      message.success('Candidate submitted successfully!')
+      
+      const successMsg = govMode === 'approval_required' 
+        ? 'Draft submitted for internal approval!' 
+        : 'Candidate submitted to client successfully!'
+        
+      message.success(successMsg)
       setSubmitted(true)
     } catch (err: any) {
       message.error(err.response?.data?.message || 'Failed to submit candidate')
@@ -59,16 +68,22 @@ export default function SubmitCandidate() {
     }
   }
 
+  const govMode = selectedJob?.assignment?.governance_mode || 'direct'
+
   if (submitted) {
     return (
       <div className="max-w-2xl mx-auto py-12">
         <Card bordered={false} className="shadow-soft-lg rounded-3xl p-8">
           <Result
             status="success"
-            title={<span className="text-2xl font-black text-slate-900 tracking-tight">Submission Successful</span>}
+            title={<span className="text-2xl font-black text-slate-900 tracking-tight">{govMode === 'approval_required' ? 'Internal Submission Sent' : 'Submission Successful'}</span>}
             subTitle={
               <div className="mt-4 space-y-2">
-                <p className="text-slate-500 font-medium">Your candidate has been successfully submitted to the client.</p>
+                <p className="text-slate-500 font-medium">
+                  {govMode === 'approval_required' 
+                    ? 'Your submission has been sent to your agency administrator for review.' 
+                    : 'Your candidate has been successfully submitted to the client.'}
+                </p>
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 mt-6 text-left">
                   <div className="flex items-center gap-3 mb-2">
                     <Avatar className="bg-blue-100 text-blue-600 shrink-0 font-bold">
@@ -244,17 +259,20 @@ export default function SubmitCandidate() {
             </Col>
             <Col xs={24} md={8}>
               <div className="space-y-4">
-                <Button 
+                  <Button 
                   type="primary" 
                   block 
                   size="large" 
-                  icon={<Send className="h-4 w-4" />}
+                  icon={govMode === 'approval_required' ? <ShieldCheck className="h-4 w-4" /> : <Send className="h-4 w-4" />}
                   loading={submitting}
                   disabled={!selectedCandidate || !selectedJob || !coverNote.trim()}
-                  className="h-14 rounded-xl font-bold bg-blue-600 border-none shadow-soft-md"
+                  className={cn(
+                    "h-14 rounded-xl font-bold border-none shadow-soft-md transition-all",
+                    govMode === 'approval_required' ? "bg-indigo-600 hover:bg-indigo-700" : "bg-blue-600 hover:bg-blue-700"
+                  )}
                   onClick={handleOpenSubmit}
                 >
-                  Submit Candidate
+                  {govMode === 'approval_required' ? 'Send for Internal Approval' : 'Submit to Client'}
                 </Button>
                 {!selectedCandidate || !selectedJob ? (
                   <div className="flex items-center gap-2 text-rose-500 font-bold text-[10px] uppercase tracking-widest justify-center">
@@ -264,7 +282,7 @@ export default function SubmitCandidate() {
                 ) : (
                   <div className="flex items-center gap-2 text-emerald-500 font-bold text-[10px] uppercase tracking-widest justify-center">
                     <CheckCircle className="h-3 w-3" />
-                    Ready for submission
+                    {govMode === 'approval_required' ? 'Ready for internal review' : 'Ready for submission'}
                   </div>
                 )}
               </div>

@@ -13,6 +13,43 @@ import { useState } from 'react'
 
 const { Title } = Typography
 
+function prettyLabel(value?: string | null) {
+  if (!value) return '—'
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function ContractSummaryCard({
+  title,
+  enabled,
+  tone,
+  children,
+  emptyText,
+}: {
+  title: string
+  enabled: boolean
+  tone: 'indigo' | 'amber'
+  children: React.ReactNode
+  emptyText: string
+}) {
+  const toneClass = tone === 'indigo'
+    ? 'border-indigo-100 bg-indigo-50/70'
+    : 'border-amber-100 bg-amber-50/70'
+
+  return (
+    <div className={`rounded-2xl border p-4 ${toneClass}`}>
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{title}</span>
+        <Tag color={enabled ? 'green' : 'default'} className="m-0 border-none font-bold text-[10px] uppercase rounded-full">
+          {enabled ? 'Active' : 'Inactive'}
+        </Tag>
+      </div>
+      {enabled ? children : (
+        <p className="text-sm text-slate-500">{emptyText}</p>
+      )}
+    </div>
+  )
+}
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function MyClients() {
@@ -102,6 +139,28 @@ export default function MyClients() {
       render: (c) => <span className="font-bold text-slate-700">{c}%</span>
     },
     {
+      title: 'Retention',
+      key: 'retention',
+      render: (_, r: any) => (
+        r?.retention_enabled ? (
+          <Tag color="purple" className="m-0 border-none font-bold text-[10px] uppercase rounded-full">
+            {r.retention_days || 0}d Active
+          </Tag>
+        ) : <span className="text-xs text-slate-400">Inactive</span>
+      )
+    },
+    {
+      title: 'Guarantee',
+      key: 'guarantee',
+      render: (_, r: any) => (
+        r?.replacement_guarantee_enabled ? (
+          <Tag color="gold" className="m-0 border-none font-bold text-[10px] uppercase rounded-full">
+            {r.guarantee_period_days || 0}d Active
+          </Tag>
+        ) : <span className="text-xs text-slate-400">Inactive</span>
+      )
+    },
+    {
       title: 'SLA hours',
       dataIndex: 'sla_hours',
       key: 'sla',
@@ -114,6 +173,74 @@ export default function MyClients() {
       render: (d) => <span className="text-sm text-slate-500">{dayjs(d).format('MMM D, YYYY')}</span>
     },
   ]
+
+  const expandedRowRender = (relationship: AgencyRelationship) => (
+    <div className="grid grid-cols-1 gap-4 py-2 lg:grid-cols-2">
+      <ContractSummaryCard
+        title="Candidate Data Retention"
+        enabled={!!relationship.retention_enabled}
+        tone="indigo"
+        emptyText="No specific retention terms active for this client relationship."
+      >
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Retention Days</div>
+            <div className="mt-1 font-semibold text-slate-800">{relationship.retention_days || 0} Days</div>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Scope</div>
+            <div className="mt-1 font-semibold text-slate-800">{prettyLabel(relationship.retention_scope)}</div>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Start Type</div>
+            <div className="mt-1 font-semibold text-slate-800">{prettyLabel(relationship.retention_start_type)}</div>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Post-Retention Rule</div>
+            <div className="mt-1 font-semibold text-slate-800">{prettyLabel(relationship.retention_post_expiry)}</div>
+          </div>
+        </div>
+      </ContractSummaryCard>
+
+      <ContractSummaryCard
+        title="Replacement / Guarantee Clause"
+        enabled={!!relationship.replacement_guarantee_enabled}
+        tone="amber"
+        emptyText="Replacement / guarantee clause is not active for this client relationship."
+      >
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-amber-500">Guarantee Period</div>
+            <div className="mt-1 font-semibold text-slate-800">{relationship.guarantee_period_days || 0} Days</div>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-amber-500">Resolution Type</div>
+            <div className="mt-1 font-semibold text-slate-800">{prettyLabel(relationship.guarantee_resolution_type)}</div>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-amber-500">Start Type</div>
+            <div className="mt-1 font-semibold text-slate-800">{prettyLabel(relationship.guarantee_start_type)}</div>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-amber-500">Replacement Limit</div>
+            <div className="mt-1 font-semibold text-slate-800">{prettyLabel(relationship.replacement_attempt_limit)}</div>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-amber-500">Refund Rule</div>
+            <div className="mt-1 font-semibold text-slate-800">
+              {relationship.refund_mode
+                ? `${prettyLabel(relationship.refund_mode)}${relationship.refund_percentage != null ? ` (${relationship.refund_percentage}%)` : ''}`
+                : '—'}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-wider text-amber-500">Notes</div>
+            <div className="mt-1 font-semibold text-slate-800">{relationship.guarantee_notes || '—'}</div>
+          </div>
+        </div>
+      </ContractSummaryCard>
+    </div>
+  )
 
   const pendingColumns: ColumnsType<AgencyRelationship> = [
     ...sharedColumns,
@@ -175,6 +302,7 @@ export default function MyClients() {
                   dataSource={pendingRelationships}
                   rowKey="id"
                   loading={isLoading}
+                  expandable={{ expandedRowRender }}
                   className="modern-table"
                   locale={{ emptyText: 'No pending client invites' }}
                 />
@@ -189,6 +317,7 @@ export default function MyClients() {
                   dataSource={activeRelationships}
                   rowKey="id"
                   loading={isLoading}
+                  expandable={{ expandedRowRender }}
                   className="modern-table"
                   locale={{ emptyText: 'No active clients yet' }}
                 />

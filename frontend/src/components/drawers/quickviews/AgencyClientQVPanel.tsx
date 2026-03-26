@@ -4,6 +4,11 @@ import { useApiQuery } from '@/hooks/useApiQuery'
 import { agenciesApi } from '@/api/agencies'
 import type { AgencyRelationship, AgencyAssignment } from '@/types'
 
+function prettyLabel(value?: string | null) {
+  if (!value) return '—'
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
 export default function AgencyClientQVPanel({ relationship }: { relationship: AgencyRelationship }) {
   const { data: assignmentsData, isLoading } = useApiQuery(
     ['agency', 'assignments', 'client', relationship.tenant_id],
@@ -32,6 +37,40 @@ export default function AgencyClientQVPanel({ relationship }: { relationship: Ag
           <Descriptions.Item label="SLA hours">{relationship.sla_hours} Hours</Descriptions.Item>
           <Descriptions.Item label="Partner Since">{dayjs(relationship.created_at).format('MMMM D, YYYY')}</Descriptions.Item>
         </Descriptions>
+      </Card>
+
+      <Card title={<span className="text-xs font-bold uppercase tracking-widest text-slate-400">Candidate Data Retention</span>} bordered={false} className="shadow-soft-sm bg-indigo-50/40">
+        {relationship.retention_enabled ? (
+          <Descriptions column={1} size="small" labelStyle={{ color: '#8c8c8c', width: 160 }}>
+            <Descriptions.Item label="Retention Active">Yes</Descriptions.Item>
+            <Descriptions.Item label="Retention Days">{relationship.retention_days || 0}</Descriptions.Item>
+            <Descriptions.Item label="Start Type">{prettyLabel(relationship.retention_start_type)}</Descriptions.Item>
+            <Descriptions.Item label="Scope">{prettyLabel(relationship.retention_scope)}</Descriptions.Item>
+            <Descriptions.Item label="Post-Retention Rule">{prettyLabel(relationship.retention_post_expiry)}</Descriptions.Item>
+          </Descriptions>
+        ) : (
+          <p className="text-sm text-slate-500">No specific retention terms active for this relationship.</p>
+        )}
+      </Card>
+
+      <Card title={<span className="text-xs font-bold uppercase tracking-widest text-slate-400">Replacement / Guarantee Clause</span>} bordered={false} className="shadow-soft-sm bg-amber-50/40">
+        {relationship.replacement_guarantee_enabled ? (
+          <Descriptions column={1} size="small" labelStyle={{ color: '#8c8c8c', width: 160 }}>
+            <Descriptions.Item label="Guarantee Active">Yes</Descriptions.Item>
+            <Descriptions.Item label="Guarantee Period">{relationship.guarantee_period_days || 0} Days</Descriptions.Item>
+            <Descriptions.Item label="Start Type">{prettyLabel(relationship.guarantee_start_type)}</Descriptions.Item>
+            <Descriptions.Item label="Resolution">{prettyLabel(relationship.guarantee_resolution_type)}</Descriptions.Item>
+            <Descriptions.Item label="Refund Rule">
+              {relationship.refund_mode
+                ? `${prettyLabel(relationship.refund_mode)}${relationship.refund_percentage != null ? ` (${relationship.refund_percentage}%)` : ''}`
+                : '—'}
+            </Descriptions.Item>
+            <Descriptions.Item label="Replacement Limit">{prettyLabel(relationship.replacement_attempt_limit)}</Descriptions.Item>
+            <Descriptions.Item label="Notes">{relationship.guarantee_notes || '—'}</Descriptions.Item>
+          </Descriptions>
+        ) : (
+          <p className="text-sm text-slate-500">Replacement / guarantee clause is not active for this relationship.</p>
+        )}
       </Card>
 
       <div>

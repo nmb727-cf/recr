@@ -18,11 +18,44 @@ import type { CandidateDetail, CandidateNote, TimelineEvent } from '@/types'
 dayjs.extend(relativeTime)
 const { Text, Paragraph } = Typography
 
+function formatProtectionDate(value?: string | null, format = 'DD MMM YYYY') {
+  if (!value) return 'Agreement release'
+  const parsed = dayjs(value)
+  return parsed.isValid() ? parsed.format(format) : value
+}
+
+function protectionScopeLabel(scope?: string | null) {
+  if (!scope) return 'Not Protected'
+  if (scope === 'job_only') return 'Job Only'
+  if (scope === 'view_only') return 'View Only'
+  if (scope === 'limited_company_access') return 'Limited Company Access'
+  return scope.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
 // ─── Tabs ───────────────────────────────────────────────────────────────────
 
 function ProfileTab({ candidate }: { candidate: CandidateDetail }) {
   return (
     <div className="space-y-8">
+      {candidate.is_agency_protected && (
+        <Card bordered={false} className="shadow-soft-sm border border-violet-200 bg-violet-50/70">
+          <div className="space-y-4">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-700">Protection Status</p>
+              <p className="mt-1 text-lg font-bold text-slate-900">Agency Protected</p>
+              <p className="mt-1 text-sm text-slate-600">
+                Candidate cannot be reused outside agreed scope during protection period.
+              </p>
+            </div>
+            <Descriptions column={3} size="small">
+              <Descriptions.Item label="Status">Agency Protected</Descriptions.Item>
+              <Descriptions.Item label="Protected Until">{formatProtectionDate(candidate.protected_until)}</Descriptions.Item>
+              <Descriptions.Item label="Scope">{protectionScopeLabel(candidate.protection_scope)}</Descriptions.Item>
+            </Descriptions>
+          </div>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card title={<span className="text-sm font-bold text-slate-900">Quick Stats</span>} bordered={false} className="shadow-soft-sm">
           <Descriptions column={1} size="small">
@@ -198,6 +231,11 @@ export default function CandidateFullView({ candidateId }: { candidateId: string
           </Avatar>
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-2">
+              {candidate.is_agency_protected && (
+                <Tag color="purple" className="m-0 rounded-full px-2.5 py-0.5 border-none bg-violet-50 text-violet-700 font-bold text-[10px] uppercase tracking-wider flex items-center gap-1">
+                  Agency Protected (Until {formatProtectionDate(candidate.protected_until, 'DD MMM')})
+                </Tag>
+              )}
               {candidate.is_actively_looking && (
                 <Tag color="success" className="m-0 rounded-full px-2.5 py-0.5 border-none bg-emerald-50 text-emerald-700 font-bold text-[10px] uppercase tracking-wider">
                   Actively Looking

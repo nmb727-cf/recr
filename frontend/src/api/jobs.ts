@@ -25,7 +25,7 @@ export const jobsPublicApi = {
 // ─── Admin / Recruiter ────────────────────────────────────────────────────────
 
 export const requisitionsApi = {
-  list: (params?: { status?: string; department_id?: string; search?: string }) =>
+  list: (params?: { status?: string; hiring_status?: string; department_id?: string; search?: string }) =>
     http.get<ApiResponse<{ requisitions: JobRequisition[] }>>('/jobs/requisitions/', { params }),
 
   get: (id: string) =>

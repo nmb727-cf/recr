@@ -1,9 +1,9 @@
 import {
   Button, Tag, Typography, Avatar,
-  Spin, Empty, Divider, Timeline
+  Spin, Empty, Divider, Timeline, message, Modal, Input
 } from 'antd'
 import {
-  ExternalLink, Briefcase, Clock
+  ExternalLink, Briefcase, Clock, ShieldCheck, CheckCircle, XCircle, RotateCcw, Send
 } from 'lucide-react'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -11,10 +11,24 @@ import { useApiQuery } from '@/hooks/useApiQuery'
 import { pipelineApi } from '@/api/pipeline'
 import { candidatesApi } from '@/api/candidates'
 import { requisitionsApi } from '@/api/jobs'
-import type { Application, Candidate, JobRequisition, TimelineEvent } from '@/types'
+import { agenciesApi } from '@/api/agencies'
+import { useQueryClient } from '@tanstack/react-query'
+import type { Application, Candidate, JobRequisition, TimelineEvent, SubmissionStatus } from '@/types'
+import { useState } from 'react'
 
 dayjs.extend(relativeTime)
 const { Title, Text } = Typography
+const { TextArea } = Input
+
+function prettyLabel(value?: string | null) {
+  if (!value) return '—'
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function formatDisplayDate(value?: string | null) {
+  if (!value) return '—'
+  return dayjs(value).isValid() ? dayjs(value).format('MMM D, YYYY') : value
+}
 
 interface AgencySubmissionQuickViewProps {
   submission: Application
@@ -38,8 +52,22 @@ interface TimelineResponse {
   events: TimelineEvent[]
 }
 
+const GOV_STATUS_CONFIG: Record<string, { label: string; color: string; icon: any }> = {
+  draft: { label: 'Draft', color: 'default', icon: Clock },
+  pending_approval: { label: 'Pending Approval', color: 'orange', icon: ShieldCheck },
+  approved: { label: 'Approved', color: 'green', icon: CheckCircle },
+  submitted: { label: 'Submitted to Client', color: 'blue', icon: Send },
+  rejected_internally: { label: 'Rejected Internally', color: 'red', icon: XCircle },
+  returned: { label: 'Returned', color: 'gold', icon: RotateCcw },
+}
+
 export default function AgencySubmissionQuickView({ submission: initialSubmission, jobTitle: initialJobTitle, onClose }: AgencySubmissionQuickViewProps) {
   const applicationId = initialSubmission.id
+  const queryClient = useQueryClient()
+  const [govActionLoading, setGovActionLoading] = useState(false)
+  const [govNote, setGovNote] = useState('')
+  const [govModalVisible, setGovModalVisible] = useState(false)
+  const [pendingGovStatus, setPendingGovStatus] = useState<SubmissionStatus | null>(null)
 
   const { data: appData, isLoading: appLoading } = useApiQuery(
     ['application', applicationId],
@@ -47,6 +75,28 @@ export default function AgencySubmissionQuickView({ submission: initialSubmissio
   )
 
   const application = (appData as unknown as { data: ApplicationResponse } | undefined)?.data?.application || initialSubmission
+
+  const handleGovAction = async (status: SubmissionStatus) => {
+    setPendingGovStatus(status)
+    setGovNote('')
+    setGovModalVisible(true)
+  }
+
+  const confirmGovAction = async () => {
+    if (!pendingGovStatus) return
+    setGovActionLoading(true)
+    try {
+      await agenciesApi.updateSubmissionGovernance(applicationId, pendingGovStatus, govNote)
+      message.success(`Submission ${pendingGovStatus.replace('_', ' ')} successfully`)
+      setGovModalVisible(false)
+      queryClient.invalidateQueries({ queryKey: ['application', applicationId] })
+      queryClient.invalidateQueries({ queryKey: ['agency', 'my-submissions'] })
+    } catch (err: any) {
+      message.error(err.response?.data?.message || 'Failed to update governance status')
+    } finally {
+      setGovActionLoading(false)
+    }
+  }
 
   const { data: candidateData, isLoading: candidateLoading } = useApiQuery(
     ['candidate', application.candidate_id],
@@ -96,6 +146,9 @@ export default function AgencySubmissionQuickView({ submission: initialSubmissio
     withdrawn: { label: 'Withdrawn', color: 'default' },
   }[application.status] || { label: application.status, color: 'default' }
 
+  const govStatus = application.governance_status || 'submitted'
+  const govConfig = GOV_STATUS_CONFIG[govStatus] || GOV_STATUS_CONFIG.submitted
+
   return (
     <div className="flex flex-col h-full bg-white">
       <div className="flex-1 overflow-y-auto px-6 py-8">
@@ -119,14 +172,61 @@ export default function AgencySubmissionQuickView({ submission: initialSubmissio
               <Tag color={statusInfo.color} className="m-0 border-none font-bold text-[10px] uppercase rounded-full px-2.5 py-0.5">
                 {statusInfo.label}
               </Tag>
+              <Tag color={govConfig.color} className="m-0 border-none font-bold text-[10px] uppercase rounded-full px-2.5 py-0.5 flex items-center gap-1">
+                <govConfig.icon className="h-3 w-3" />
+                Gov: {govConfig.label}
+              </Tag>
               {application.match_score && (
                 <Tag className="m-0 border-none bg-slate-100 text-slate-600 font-bold text-[10px] uppercase rounded-full px-2.5 py-0.5">
                   {application.match_score}% Match
                 </Tag>
               )}
+              {application.is_agency_protected && (
+                <Tag color="purple" className="m-0 border-none font-bold text-[10px] uppercase rounded-full px-2.5 py-0.5">
+                  Protected
+                </Tag>
+              )}
+              {application.is_under_guarantee && (
+                <Tag color="gold" className="m-0 border-none font-bold text-[10px] uppercase rounded-full px-2.5 py-0.5">
+                  Under Guarantee
+                </Tag>
+              )}
             </div>
           </div>
         </div>
+
+        {(application.is_agency_protected || application.guarantee_status) && (
+          <div className="grid grid-cols-1 gap-4 mb-8 md:grid-cols-2">
+            <div className="rounded-2xl border border-violet-100 bg-violet-50/70 p-4">
+              <Title level={5} className="!text-[10px] !font-bold !uppercase !tracking-widest !text-violet-700 !mb-3">Candidate Protection</Title>
+              {application.is_agency_protected ? (
+                <div className="space-y-2 text-sm text-slate-700">
+                  <div><span className="font-semibold">Status:</span> Protected</div>
+                  <div><span className="font-semibold">Protected Until:</span> {formatDisplayDate(application.protected_until)}</div>
+                  <div><span className="font-semibold">Scope:</span> {prettyLabel(application.protection_scope)}</div>
+                </div>
+              ) : (
+                <Text className="text-sm text-slate-500">No active protection visible for this candidate.</Text>
+              )}
+            </div>
+
+            <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
+              <Title level={5} className="!text-[10px] !font-bold !uppercase !tracking-widest !text-amber-700 !mb-3">Guarantee Watch</Title>
+              {application.guarantee_status ? (
+                <div className="space-y-2 text-sm text-slate-700">
+                  <div><span className="font-semibold">Status:</span> {prettyLabel(application.guarantee_status)}</div>
+                  <div><span className="font-semibold">Guarantee Start:</span> {formatDisplayDate(application.guarantee_start_date)}</div>
+                  <div><span className="font-semibold">Guarantee End:</span> {formatDisplayDate(application.guarantee_end_date)}</div>
+                  <div><span className="font-semibold">Resolution Type:</span> {prettyLabel(application.guarantee_resolution_type)}</div>
+                  <div><span className="font-semibold">Refund Rule:</span> {application.refund_mode ? `${prettyLabel(application.refund_mode)}${application.refund_percentage != null ? ` (${application.refund_percentage}%)` : ''}` : '—'}</div>
+                  <div><span className="font-semibold">Replacement Attempt Limit:</span> {prettyLabel(application.replacement_attempt_limit)}</div>
+                </div>
+              ) : (
+                <Text className="text-sm text-slate-500">No guarantee tracking is available for this submission yet.</Text>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Info Grid */}
         <div className="bg-slate-50/50 rounded-2xl p-5 border border-slate-100 mb-8 space-y-4">
@@ -191,6 +291,37 @@ export default function AgencySubmissionQuickView({ submission: initialSubmissio
 
       {/* Footer Actions */}
       <div className="p-6 border-t border-slate-100 bg-white sticky bottom-0">
+        {govStatus === 'pending_approval' && (
+          <div className="flex flex-col gap-3 mb-6 p-4 bg-orange-50 rounded-2xl border border-orange-100">
+            <div className="flex items-center gap-2 mb-1">
+              <ShieldCheck className="h-4 w-4 text-orange-600" />
+              <Text className="text-xs font-bold text-orange-800 uppercase tracking-wider">Approval Required</Text>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <Button 
+                type="primary" 
+                className="bg-emerald-600 border-none font-bold text-[11px] h-9 rounded-lg"
+                onClick={() => handleGovAction('approved')}
+              >
+                Approve
+              </Button>
+              <Button 
+                className="bg-white border-orange-200 text-orange-600 font-bold text-[11px] h-9 rounded-lg"
+                onClick={() => handleGovAction('returned')}
+              >
+                Return
+              </Button>
+              <Button 
+                danger 
+                className="font-bold text-[11px] h-9 rounded-lg"
+                onClick={() => handleGovAction('rejected_internally')}
+              >
+                Reject
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3 mb-3">
           <Button 
             block 
@@ -216,6 +347,28 @@ export default function AgencySubmissionQuickView({ submission: initialSubmissio
           Close Preview
         </Button>
       </div>
+
+      <Modal
+        title={`Confirm ${pendingGovStatus?.replace('_', ' ')}`}
+        open={govModalVisible}
+        onCancel={() => setGovModalVisible(false)}
+        onOk={confirmGovAction}
+        confirmLoading={govActionLoading}
+        okText="Confirm Action"
+        okButtonProps={{ className: 'rounded-lg font-bold' }}
+        cancelButtonProps={{ className: 'rounded-lg' }}
+      >
+        <div className="py-2">
+          <Text className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Note (Optional)</Text>
+          <TextArea 
+            rows={4} 
+            placeholder={`Add a reason for ${pendingGovStatus?.replace('_', ' ')}...`}
+            value={govNote}
+            onChange={e => setGovNote(e.target.value)}
+            className="rounded-xl border-slate-200 p-3"
+          />
+        </div>
+      </Modal>
     </div>
   )
 }

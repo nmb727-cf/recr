@@ -1,17 +1,41 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { message } from 'antd'
 import type { AxiosResponse } from 'axios'
 import type { ApiResponse } from '@/types'
+import type { QueryKey, UseQueryOptions } from '@tanstack/react-query'
 
 type ApiCall<T> = () => Promise<AxiosResponse<ApiResponse<T>>>
 
+function unwrapApiData<T>(res: AxiosResponse<ApiResponse<T>>) {
+  const payload = res.data as unknown as {
+    success?: boolean
+    message?: string
+    data?: T
+  } | T
+
+  if (
+    payload &&
+    typeof payload === 'object' &&
+    'data' in payload &&
+    (('success' in payload) || ('message' in payload))
+  ) {
+    return (payload as { data: T }).data
+  }
+
+  return payload as T
+}
+
 /** Thin wrapper around useQuery that unwraps the ApiResponse envelope */
-export function useApiQuery<T>(key: unknown[], fn: ApiCall<T>, options?: { enabled?: boolean }) {
+export function useApiQuery<T>(
+  key: QueryKey,
+  fn: ApiCall<T>,
+  options?: Omit<UseQueryOptions<T, Error, T, QueryKey>, 'queryKey' | 'queryFn'>
+) {
   return useQuery({
     queryKey: key,
     queryFn: async () => {
       const res = await fn()
-      return res.data.data
+      return unwrapApiData(res)
     },
     ...options,
   })
@@ -32,7 +56,7 @@ export function useApiMutation<TData, TVariables>(
   return useMutation({
     mutationFn: async (vars: TVariables) => {
       const res = await fn(vars)
-      return res.data.data
+      return unwrapApiData(res)
     },
     onSuccess: (data) => {
       if (options?.successMessage) {

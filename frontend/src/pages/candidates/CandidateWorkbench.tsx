@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
-  Avatar, Badge, Button, Empty, Form, Input, Modal,
+  Alert, Avatar, Badge, Button, Empty, Form, Input, Modal,
   Select, Spin, Tabs, Tag, Typography, message,
   Tooltip, Divider, Switch,
 } from 'antd'
@@ -10,7 +11,7 @@ import {
   Database, ExternalLink, FileDown, FileText, Flag,
   History, Link2, Mail, MapPin, MessageSquare,
   Paperclip, Phone, Plus, RefreshCw, Search, Send, Share2,
-  Sparkles, Star, Target, User, Users, Workflow,
+  Sparkles, Star, Target, Trash2, User, Users, Workflow, ShieldCheck,
 } from 'lucide-react'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -18,6 +19,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { candidatesApi } from '@/api/candidates'
 import { talentPoolsApi, TalentPool } from '@/api/talentPools'
+import { communicationsApi, type EmailAccount, type EmailTemplateDef, type QuickReply } from '@/api/communications'
 
 import { requisitionsApi } from '@/api/jobs'
 import { pipelineApi } from '@/api/pipeline'
@@ -29,6 +31,7 @@ import type {
   WorkflowMode,
 } from '@/types'
 import { usePermission } from '@/hooks/usePermission'
+import AddCandidateWorkflowModal from '@/components/candidates/AddCandidateWorkflowModal'
 
 dayjs.extend(relativeTime)
 
@@ -72,6 +75,20 @@ const PRIORITY_STYLE: Record<string, { color: string; bg: string; label: string 
   normal: { color: '#6366f1', bg: '#eef2ff', label: 'Normal' },
 }
 
+function formatProtectionDate(value?: string | null, format = 'DD MMM YYYY') {
+  if (!value) return 'Agreement release'
+  const parsed = dayjs(value)
+  return parsed.isValid() ? parsed.format(format) : value
+}
+
+function protectionScopeLabel(scope?: string | null) {
+  if (!scope) return 'Not Protected'
+  if (scope === 'job_only') return 'Job Only'
+  if (scope === 'view_only') return 'View Only'
+  if (scope === 'limited_company_access') return 'Limited Company Access'
+  return scope.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
 const WORKFLOW_MODE_OPTIONS: Array<{ label: string; value: WorkflowMode }> = [
   { label: 'Manual', value: 'manual' },
   { label: 'Semi Automated', value: 'semi_automated' },
@@ -86,15 +103,6 @@ const JOB_ENGAGEMENT_STAGE_OPTIONS = [
   'submitted', 'review', 'interviewing', 'offered', 'joined', 'rejected',
 ]
 
-const ADD_METHOD_OPTIONS = [
-  { key: 'quick_add', label: 'Quick Add' },
-  { key: 'detailed_add', label: 'Detailed Add' },
-  { key: 'upload_resume', label: 'Resume Upload' },
-  { key: 'invite_candidate', label: 'Invite Link' },
-  { key: 'import_passport', label: 'Passport Import' },
-  { key: 'agency_submit', label: 'Agency Submit' },
-] as const
-
 const FEED_TONE: Record<string, { badge: string; text: string; icon: string; label: string }> = {
   stage: { badge: 'bg-violet-50 text-violet-700', text: 'text-violet-700', icon: '🟣', label: 'Stage Changed' },
   interview: { badge: 'bg-orange-50 text-orange-700', text: 'text-orange-700', icon: '🟠', label: 'Interview' },
@@ -106,15 +114,6 @@ const FEED_TONE: Record<string, { badge: string; text: string; icon: string; lab
   email: { badge: 'bg-indigo-50 text-indigo-700', text: 'text-indigo-700', icon: '📧', label: 'Email' },
   system: { badge: 'bg-slate-100 text-slate-600', text: 'text-slate-600', icon: '⚙️', label: 'System' },
 }
-
-const NEXT_ACTION_OPTIONS = [
-  { key: 'save_to_database_only', label: 'Save to database only' },
-  { key: 'add_to_active_work', label: 'Add to active work' },
-  { key: 'match_to_jobs', label: 'Match to jobs' },
-  { key: 'send_info_request_link', label: 'Send info request link' },
-  { key: 'assign_to_recruiter', label: 'Assign to recruiter' },
-  { key: 'keep_in_nurture_pool', label: 'Keep in nurture pool' },
-] as const
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -264,6 +263,7 @@ type WorkbenchProps = { initialSurface: 'database' | 'active_work' }
 export default function CandidateWorkbench({ initialSurface }: WorkbenchProps) {
   useTranslation(['candidates', 'common'])
   const canCreateCandidate = usePermission('candidates.candidate.create')
+  const navigate = useNavigate()
 
   // ── Workspace state ──────────────────────────────────────────────────────
   const [surface, setSurface] = useState<'database' | 'active_work'>(initialSurface)
@@ -279,13 +279,11 @@ export default function CandidateWorkbench({ initialSurface }: WorkbenchProps) {
   // ── Settings state ───────────────────────────────────────────────────────
   const [workflowDraft, setWorkflowDraft] = useState<WorkflowMode>('manual')
   const [addOpen, setAddOpen] = useState(false)
-  const [addForm] = Form.useForm()
-  const [addMethod, setAddMethod] = useState<(typeof ADD_METHOD_OPTIONS)[number]['key']>('quick_add')
-  const [nextAction, setNextAction] = useState<(typeof NEXT_ACTION_OPTIONS)[number]['key']>('add_to_active_work')
   const [addNoteOpen, setAddNoteOpen] = useState(false)
   const [noteText, setNoteText] = useState('')
   const [quickNoteText, setQuickNoteText] = useState('')
   const [submitOpen, setSubmitOpen] = useState(false)
+  const [emailComposerOpen, setEmailComposerOpen] = useState(false)
   const [stageChangeOpen, setStageChangeOpen] = useState(false)
   const [stageChangeNote, setStageChangeNote] = useState('')
   const [pendingStage, setPendingStage] = useState<string | null>(null)
@@ -380,24 +378,20 @@ export default function CandidateWorkbench({ initialSurface }: WorkbenchProps) {
     onError: () => message.error('Failed to update workflow policy'),
   })
 
-  const createCandidate = useMutation({
-    mutationFn: (payload: Record<string, any>) => candidatesApi.create(payload),
-    onSuccess: () => {
-      message.success('Candidate added')
-      setAddOpen(false)
-      addForm.resetFields()
-      queryClient.invalidateQueries({ queryKey: ['candidate-database'] })
-      queryClient.invalidateQueries({ queryKey: ['candidate-saved-views'] })
-      queryClient.invalidateQueries({ queryKey: ['candidate-active-work'] })
-    },
-    onError: (err: any) => message.error(err?.response?.data?.message || 'Failed to add candidate'),
-  })
-
   // ── Handlers ──────────────────────────────────────────────────────────────
   const selectCandidate = (id: string) => {
     setSelectedCandidateId(id)
     setSelectedEngagementId(null)
     setActiveTab('overview')
+  }
+
+  const openEmailComposer = () => {
+    const email = commandCenter?.candidate?.email
+    if (!email) {
+      message.warning('Candidate has no email')
+      return
+    }
+    setEmailComposerOpen(true)
   }
 
   /** Stage change always acts on the explicitly selected engagement */
@@ -469,19 +463,6 @@ export default function CandidateWorkbench({ initialSurface }: WorkbenchProps) {
     }
   }
 
-  const submitAddCandidate = async () => {
-    const v = await addForm.validateFields()
-    createCandidate.mutate({
-      first_name: v.first_name, last_name: v.last_name,
-      email: v.email || '', phone: v.phone || '',
-      current_title: v.current_title || '', current_company: v.current_company || '',
-      experience_years: v.experience_years, current_location_city: v.location || '',
-      source: v.source || 'company', entry_method: addMethod,
-      next_action: nextAction, resume_url: v.resume_url || '',
-      send_invite: addMethod === 'invite_candidate',
-    })
-  }
-
   return (
     <div className="-m-8 flex flex-col bg-[#f8fafc]" style={{ height: 'calc(100vh - 64px)' }}>
 
@@ -493,20 +474,17 @@ export default function CandidateWorkbench({ initialSurface }: WorkbenchProps) {
           <div className="mx-1 h-4 w-px bg-slate-200" />
           {/* Database | Active Work — workspace scope switcher */}
           <div className="flex items-center gap-0.5 rounded-xl bg-slate-100 p-1">
-            {(['database', 'active_work'] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setSurface(s)}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                  surface === s
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                {s === 'database' ? <Database size={12} /> : <Activity size={12} />}
-                {s === 'database' ? 'Database' : 'Active Work'}
-              </button>
-            ))}
+            <button
+              onClick={() => navigate('/candidates')}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition text-slate-500 hover:text-slate-700"
+            >
+              <Database size={12} /> Database
+            </button>
+            <button
+              className="flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-900 shadow-sm"
+            >
+              <Activity size={12} /> Active Work
+            </button>
           </div>
         </div>
 
@@ -611,6 +589,7 @@ export default function CandidateWorkbench({ initialSurface }: WorkbenchProps) {
               onAddNote={() => setAddNoteOpen(true)}
               onAddToActiveWork={handleAddToActiveWork}
               onSubmitToJob={() => setSubmitOpen(true)}
+              onOpenEmailComposer={openEmailComposer}
             />
           ) : (
             <CommandEmptyState
@@ -633,51 +612,20 @@ export default function CandidateWorkbench({ initialSurface }: WorkbenchProps) {
           }}
           onStageChange={handleStageChange}
           effectiveMode={effectiveMode}
+          onOpenEmailComposer={openEmailComposer}
         />
       </div>
 
-      {/* ── Add Candidate Modal ──────────────────────────────────────────────── */}
-      <Modal open={addOpen} onCancel={() => setAddOpen(false)} onOk={submitAddCandidate}
-        okText="Add Candidate" title="Add Candidate" confirmLoading={createCandidate.isPending} width={720}>
-        <div className="space-y-4 pt-2">
-          <div>
-            <p className="text-xs font-bold text-slate-600 mb-2">Entry Method</p>
-            <div className="grid grid-cols-3 gap-2">
-              {ADD_METHOD_OPTIONS.map((o) => (
-                <button key={o.key} type="button" onClick={() => setAddMethod(o.key)}
-                  className={`rounded-lg border px-3 py-2 text-left text-xs font-medium ${addMethod === o.key ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-slate-200 hover:bg-slate-50'}`}>
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <Form layout="vertical" form={addForm} initialValues={{ source: 'company' }}>
-            <div className="grid grid-cols-2 gap-3">
-              <Form.Item name="first_name" label="First Name" rules={[{ required: true }]}><Input /></Form.Item>
-              <Form.Item name="last_name" label="Last Name" rules={[{ required: true }]}><Input /></Form.Item>
-              <Form.Item name="email" label="Email"><Input /></Form.Item>
-              <Form.Item name="phone" label="Phone"><Input /></Form.Item>
-              <Form.Item name="current_title" label="Current Title"><Input /></Form.Item>
-              <Form.Item name="current_company" label="Company"><Input /></Form.Item>
-              <Form.Item name="experience_years" label="Experience (yrs)"><Input type="number" min={0} /></Form.Item>
-              <Form.Item name="location" label="Location"><Input /></Form.Item>
-              <Form.Item name="resume_url" label="Resume URL"><Input placeholder="https://..." /></Form.Item>
-              <Form.Item name="source" label="Source"><Input /></Form.Item>
-            </div>
-          </Form>
-          <div>
-            <p className="text-xs font-bold text-slate-600 mb-2">What happens next?</p>
-            <div className="grid grid-cols-2 gap-2">
-              {NEXT_ACTION_OPTIONS.map((o) => (
-                <button key={o.key} type="button" onClick={() => setNextAction(o.key)}
-                  className={`rounded-lg border px-3 py-2 text-left text-xs font-medium ${nextAction === o.key ? 'border-indigo-300 bg-indigo-50 text-indigo-700' : 'border-slate-200 hover:bg-slate-50'}`}>
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </Modal>
+      <AddCandidateWorkflowModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        sourceSurface={surface}
+        onCompleted={() => {
+          queryClient.invalidateQueries({ queryKey: ['candidate-database'] })
+          queryClient.invalidateQueries({ queryKey: ['candidate-saved-views'] })
+          queryClient.invalidateQueries({ queryKey: ['candidate-active-work'] })
+        }}
+      />
 
       {/* ── Add Note Modal ───────────────────────────────────────────────────── */}
       <Modal open={addNoteOpen} onCancel={() => setAddNoteOpen(false)}
@@ -733,6 +681,7 @@ export default function CandidateWorkbench({ initialSurface }: WorkbenchProps) {
           open={submitOpen}
           candidateId={selectedCandidateId}
           candidateName={commandCenter.candidate.full_name}
+          candidate={commandCenter.candidate}
           existingEngagements={commandCenter.tabs?.engagement || []}
           onClose={() => setSubmitOpen(false)}
           onSuccess={() => {
@@ -740,6 +689,19 @@ export default function CandidateWorkbench({ initialSurface }: WorkbenchProps) {
             queryClient.invalidateQueries({ queryKey: ['candidate-command-center', selectedCandidateId] })
             queryClient.invalidateQueries({ queryKey: ['candidate-active-work'] })
             queryClient.invalidateQueries({ queryKey: ['candidate-database'] })
+          }}
+        />
+      )}
+      {selectedCandidateId && commandCenter && (
+        <EmailComposerModal
+          open={emailComposerOpen}
+          onClose={() => setEmailComposerOpen(false)}
+          candidateId={selectedCandidateId}
+          candidateName={commandCenter.candidate.full_name}
+          candidateEmail={commandCenter.candidate.email || ''}
+          activeJobId={commandCenter.tabs?.engagement?.find(e => e.is_active && e.job)?.job ?? undefined}
+          onSent={() => {
+            queryClient.invalidateQueries({ queryKey: ['candidate-command-center', selectedCandidateId] })
           }}
         />
       )}
@@ -1023,7 +985,7 @@ function CommandEmptyState({ isEmpty, isLoading }: { isEmpty: boolean; isLoading
 function CandidateCommandCenterPanel({
   commandCenter, activeTab, setActiveTab,
   selectedEngagementId, setSelectedEngagementId,
-  effectiveMode, onStageChange, onAddNote, onAddToActiveWork, onSubmitToJob,
+  effectiveMode, onStageChange, onAddNote, onAddToActiveWork, onSubmitToJob, onOpenEmailComposer,
 }: {
   commandCenter: CCData
   activeTab: string
@@ -1035,9 +997,15 @@ function CandidateCommandCenterPanel({
   onAddNote: () => void
   onAddToActiveWork: () => void
   onSubmitToJob: () => void
+  onOpenEmailComposer: () => void
 }) {
   const c = commandCenter.candidate
+  const { data: poolMembershipsData } = useQuery({
+    queryKey: ['candidate-pools', c.id],
+    queryFn: () => talentPoolsApi.getCandidatePools(c.id),
+  })
   const engagements = commandCenter.tabs?.engagement || []
+  const currentPools = poolMembershipsData?.data?.data?.talent_pools || []
   const selectedEngagement = engagements.find((e) => e.id === selectedEngagementId) || engagements[0]
 
   // Derive person-level global state from candidate data
@@ -1067,7 +1035,6 @@ function CandidateCommandCenterPanel({
     { key: 'documents',     label: <TabLabel icon={<Paperclip size={12} />}    text="Documents" /> },
     { key: 'history',       label: <TabLabel icon={<History size={12} />}      text="History" /> },
     { key: 'automation',    label: <TabLabel icon={<BrainCircuit size={12} />} text="Automation" /> },
-    { key: 'pools',         label: <TabLabel icon={<Users size={12} />}         text="Pools" /> },
   ]
 
   return (
@@ -1145,6 +1112,31 @@ function CandidateCommandCenterPanel({
               {hasPassport && (
                 <MetaBadge icon={<BadgeCheck size={10} />} label="Passport" color="emerald" />
               )}
+              {c.is_agency_protected && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2.5 py-0.5 text-[10px] font-bold uppercase text-violet-700">
+                  <ShieldCheck size={10} />
+                  Agency Protected
+                </span>
+              )}
+            </div>
+
+            <div className="mt-3">
+              <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">Pools</p>
+              {currentPools.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {currentPools.map((pool: TalentPool) => (
+                    <span
+                      key={pool.id}
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-slate-700"
+                    >
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: pool.color || '#cbd5e1' }} />
+                      {pool.name}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-400">No pool memberships yet.</p>
+              )}
             </div>
           </div>
         </div>
@@ -1154,7 +1146,9 @@ function CandidateCommandCenterPanel({
           <ActionBtn icon={<Phone size={12} />} label="Call"
             onClick={() => c.phone && window.open(`tel:${c.phone}`)} />
           <ActionBtn icon={<Mail size={12} />} label="Email"
-            onClick={() => c.email && window.open(`mailto:${c.email}`)} />
+            onClick={onOpenEmailComposer}
+            disabled={!c.email}
+            disabledReason="Candidate has no email" />
           <ActionBtn icon={<Calendar size={12} />} label="Schedule"
             onClick={() => message.info('Schedule feature coming soon')} />
           <ActionBtn icon={<Send size={12} />} label="Submit" primary
@@ -1202,11 +1196,10 @@ function CandidateCommandCenterPanel({
         )}
         {activeTab === 'activity'      && <ActivityTab cc={commandCenter} selectedEngagementId={selectedEngagementId} />}
         {activeTab === 'notes'         && <NotesTab cc={commandCenter} onAddNote={onAddNote} selectedEngagementId={selectedEngagementId} />}
-        {activeTab === 'communication' && <CommunicationTab cc={commandCenter} />}
+        {activeTab === 'communication' && <CommunicationTab cc={commandCenter} onOpenEmailComposer={onOpenEmailComposer} />}
         {activeTab === 'documents'     && <DocumentsTab cc={commandCenter} />}
         {activeTab === 'history'       && <HistoryTab cc={commandCenter} />}
         {activeTab === 'automation'    && <AutomationTab cc={commandCenter} effectiveMode={effectiveMode} />}
-        {activeTab === 'pools'         && <PoolsTab candidateId={c.id} />}
       </div>
     </div>
   )
@@ -1225,11 +1218,26 @@ function MetaBadge({ icon, label, color }: { icon: React.ReactNode; label: strin
   )
 }
 
-function ActionBtn({ icon, label, onClick, primary }: { icon: React.ReactNode; label: string; onClick: () => void; primary?: boolean }) {
-  return (
+function ActionBtn({
+  icon,
+  label,
+  onClick,
+  primary,
+  disabled,
+  disabledReason,
+}: {
+  icon: React.ReactNode
+  label: string
+  onClick: () => void
+  primary?: boolean
+  disabled?: boolean
+  disabledReason?: string
+}) {
+  const btn = (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition active:scale-95 ${
+      disabled={disabled}
+      className={`flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 ${
         primary
           ? 'border-indigo-500 bg-indigo-600 text-white hover:bg-indigo-700'
           : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
@@ -1238,6 +1246,11 @@ function ActionBtn({ icon, label, onClick, primary }: { icon: React.ReactNode; l
       {icon} {label}
     </button>
   )
+
+  if (disabled && disabledReason) {
+    return <Tooltip title={disabledReason}>{btn}</Tooltip>
+  }
+  return btn
 }
 
 // ── Tab: Overview ─────────────────────────────────────────────────────────────
@@ -1246,9 +1259,20 @@ function OverviewTab({ cc }: { cc: CCData }) {
   const c = cc.candidate
   return (
     <div className="space-y-4">
+      {c.is_agency_protected && (
+        <SectionCard title="Protection Status" icon={<ShieldCheck size={13} className="text-violet-500" />}>
+          <div className="grid grid-cols-2 gap-2">
+            <InfoCell label="Status" value="Agency Protected" />
+            <InfoCell label="Protected Until" value={formatProtectionDate(c.protected_until)} />
+            <InfoCell label="Scope" value={protectionScopeLabel(c.protection_scope)} />
+            <InfoCell label="Note" value="Candidate cannot be reused outside agreed scope during protection period." />
+          </div>
+        </SectionCard>
+      )}
+
       <SectionCard title="Contact" icon={<User size={13} className="text-blue-500" />}>
         <div className="grid grid-cols-2 gap-2">
-          <InfoCell label="Email" value={c.email} href={`mailto:${c.email}`} />
+          <InfoCell label="Email" value={c.email} />
           <InfoCell label="Phone" value={c.phone} href={`tel:${c.phone}`} />
           <InfoCell label="Location" value={[c.current_location_city, c.current_location_country].filter(Boolean).join(', ')} />
           <InfoCell label="LinkedIn" value={c.linkedin_url ? 'View Profile' : undefined} href={c.linkedin_url || undefined} />
@@ -1695,7 +1719,7 @@ function NotesTab({ cc, onAddNote, selectedEngagementId }: { cc: CCData; onAddNo
 
 // ── Tab: Communication ────────────────────────────────────────────────────────
 
-function CommunicationTab({ cc }: { cc: CCData }) {
+function CommunicationTab({ cc, onOpenEmailComposer }: { cc: CCData; onOpenEmailComposer: () => void }) {
   const comm = cc.tabs?.communication
   const c = cc.candidate
   const [tab, setTab] = useState<'emails' | 'messages'>('emails')
@@ -1736,10 +1760,13 @@ function CommunicationTab({ cc }: { cc: CCData }) {
             <p className="text-xs font-semibold text-slate-500">No email threads yet</p>
             <p className="mt-1 text-[11px] text-slate-400">Email conversations will appear here</p>
           </div>
-          <button onClick={() => c.email && window.open(`mailto:${c.email}`)}
-            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-indigo-700">
-            Send First Email
-          </button>
+          <Tooltip title={!c.email ? 'Candidate has no email' : undefined}>
+            <button onClick={onOpenEmailComposer}
+              disabled={!c.email}
+              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-bold text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50">
+              Send First Email
+            </button>
+          </Tooltip>
         </div>
       )}
 
@@ -1914,7 +1941,7 @@ function AutomationTab({ cc, effectiveMode }: { cc: CCData; effectiveMode: Workf
 
 function ActionPanel({
   commandCenter, selectedEngagementId, setSelectedEngagementId, quickNoteText, setQuickNoteText,
-  onSaveQuickNote, onStageChange, effectiveMode,
+  onSaveQuickNote, onStageChange, effectiveMode, onOpenEmailComposer,
 }: {
   commandCenter: CCData | null
   selectedEngagementId: string | null
@@ -1924,6 +1951,7 @@ function ActionPanel({
   onSaveQuickNote: () => void
   onStageChange: (s: string) => void
   effectiveMode: WorkflowMode
+  onOpenEmailComposer: () => void
 }) {
   const c = commandCenter?.candidate
   const engagements = commandCenter?.tabs?.engagement || []
@@ -1983,10 +2011,13 @@ function ActionPanel({
                   className="flex w-full items-center gap-2 rounded-lg border border-indigo-200 bg-white px-3 py-2 text-[11px] font-semibold text-indigo-700 hover:bg-indigo-50 transition">
                   <Phone size={11} /> Call {c.first_name}
                 </button>
-                <button onClick={() => c.email && window.open(`mailto:${c.email}`)}
-                  className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 transition">
-                  <Mail size={11} /> Send Email
-                </button>
+                <Tooltip title={!c.email ? 'Candidate has no email' : undefined}>
+                  <button onClick={onOpenEmailComposer}
+                    disabled={!c.email}
+                    className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 transition disabled:cursor-not-allowed disabled:opacity-50">
+                    <Mail size={11} /> Send Email
+                  </button>
+                </Tooltip>
                 <button onClick={() => message.info('Schedule feature coming soon')}
                   className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-600 hover:bg-slate-50 transition">
                   <Calendar size={11} /> Schedule Interview
@@ -2081,6 +2112,231 @@ function ActionPanel({
   )
 }
 
+function EmailComposerModal({
+  open,
+  onClose,
+  candidateId,
+  candidateName,
+  candidateEmail,
+  activeJobId,
+  onSent,
+}: {
+  open: boolean
+  onClose: () => void
+  candidateId: string
+  candidateName: string
+  candidateEmail: string
+  activeJobId?: string
+  onSent: () => void
+}) {
+  const [form] = Form.useForm()
+  const queryClient = useQueryClient()
+  const [unresolvedTags, setUnresolvedTags] = useState<string[]>([])
+
+  const { data: accountsData, isLoading: accountsLoading } = useQuery({
+    queryKey: ['email_accounts_candidate_composer'],
+    queryFn: async () => (await communicationsApi.listEmailAccounts()).data.data,
+    enabled: open,
+  })
+  const { data: preferencesData } = useQuery({
+    queryKey: ['email_preferences_candidate_composer'],
+    queryFn: async () => (await communicationsApi.getEmailPreferences()).data.data,
+    enabled: open,
+  })
+  const { data: templatesData, isLoading: templatesLoading } = useQuery({
+    queryKey: ['email_templates_candidate_composer'],
+    queryFn: async () => (await communicationsApi.listEmailTemplates()).data.data,
+    enabled: open,
+  })
+  const { data: quickRepliesData, isLoading: quickRepliesLoading } = useQuery({
+    queryKey: ['quick_replies_candidate_composer'],
+    queryFn: async () => (await communicationsApi.listQuickReplies()).data.data,
+    enabled: open,
+  })
+
+  const accounts = ((accountsData as any)?.email_accounts || []) as EmailAccount[]
+  const templates = ((templatesData as any)?.email_templates || []) as EmailTemplateDef[]
+  const quickReplies = ((quickRepliesData as any)?.quick_replies || []) as QuickReply[]
+  const preferences = (preferencesData as any)?.email_preferences
+  const connectedAccounts = accounts.filter((a) => a.status === 'connected' && a.can_send)
+  const noConnectedEmail = connectedAccounts.length === 0
+
+  useEffect(() => {
+    if (!open) return
+    const defaultFromPreference = preferences?.default_sender_account
+    const defaultFromAccount = connectedAccounts.find((a) => a.is_default_sender)?.id
+    const firstAvailable = connectedAccounts[0]?.id
+    form.setFieldsValue({
+      to: candidateEmail,
+      senderAccountId: defaultFromPreference || defaultFromAccount || firstAvailable,
+      subject: '',
+      body: '',
+      templateId: undefined,
+      quickReplyId: undefined,
+      allowFallback: preferences?.allow_system_fallback !== false,
+    })
+  }, [open, form, candidateEmail, preferences?.default_sender_account, preferences?.allow_system_fallback, connectedAccounts])
+
+  const renderTemplateMutation = useMutation({
+    mutationFn: (payload: Parameters<typeof communicationsApi.renderTemplate>[0]) =>
+      communicationsApi.renderTemplate(payload),
+  })
+
+  const sendMutation = useMutation({
+    mutationFn: (payload: any) => communicationsApi.sendEmail(payload),
+    onSuccess: () => {
+      message.success('Email sent')
+      queryClient.invalidateQueries({ queryKey: ['email_messages_candidate_composer', candidateId] })
+      onSent()
+      onClose()
+    },
+    onError: (err: any) => {
+      message.error(err?.response?.data?.message || 'Failed to send email')
+    },
+  })
+
+  const applyTemplate = async (templateId?: string) => {
+    if (!templateId) return
+    const currentSubject = form.getFieldValue('subject') || ''
+    const currentBody = form.getFieldValue('body') || ''
+    if (currentSubject || currentBody) {
+      const confirmed = await new Promise<boolean>((resolve) => {
+        Modal.confirm({
+          title: 'Replace content?',
+          content: 'Applying this template will overwrite the current subject and body.',
+          okText: 'Replace',
+          cancelText: 'Keep editing',
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false),
+        })
+      })
+      if (!confirmed) return
+    }
+    try {
+      const res = await renderTemplateMutation.mutateAsync({
+        template_id: templateId,
+        candidate_id: candidateId,
+        job_id: activeJobId,
+      })
+      const d = (res.data.data as any) || {}
+      form.setFieldsValue({
+        subject: d.rendered_subject || '',
+        body: d.rendered_body_text || '',
+      })
+      setUnresolvedTags(d.unresolved_tags || [])
+    } catch {
+      message.warning('Unable to load template')
+    }
+  }
+
+  const applyQuickReply = (quickReplyId?: string) => {
+    if (!quickReplyId) return
+    const selected = quickReplies.find((q) => q.id === quickReplyId)
+    if (!selected) return
+    const currentSubject = form.getFieldValue('subject') || ''
+    const currentBody = form.getFieldValue('body') || ''
+    form.setFieldValue('subject', selected.subject_template || currentSubject)
+    form.setFieldValue('body', selected.body_text || currentBody)
+  }
+
+  const handleSend = async () => {
+    const values = await form.validateFields()
+    await sendMutation.mutateAsync({
+      email_type: 'business',
+      message_purpose: 'candidate_outreach',
+      recipients: [candidateEmail],
+      related_object_type: 'candidate',
+      related_object_id: candidateId,
+      subject: values.subject,
+      body_text: values.body,
+      preferred_sender_account_id: values.senderAccountId || undefined,
+      template_id: values.templateId || undefined,
+      quick_reply_template_id: values.quickReplyId || undefined,
+      allow_fallback: values.allowFallback !== false,
+      track_delivery: true,
+    })
+  }
+
+  return (
+    <Modal
+      open={open}
+      onCancel={onClose}
+      onOk={handleSend}
+      okText="Send Email"
+      confirmLoading={sendMutation.isPending}
+      title={`Email ${candidateName}`}
+      width={760}
+      destroyOnClose
+    >
+      <div className="space-y-3 pt-2">
+        {noConnectedEmail && (
+          <Alert
+            type="warning"
+            showIcon
+            message="No email connected. System fallback will be used"
+          />
+        )}
+        {unresolvedTags.length > 0 && (
+          <Alert
+            type="info"
+            showIcon
+            message={`Some template tags couldn't be resolved: ${unresolvedTags.map(t => `{{${t}}}`).join(', ')}. Review before sending.`}
+          />
+        )}
+        <Form form={form} layout="vertical">
+          <div className="grid grid-cols-2 gap-3">
+            <Form.Item label="To" name="to">
+              <Input value={candidateEmail} disabled />
+            </Form.Item>
+            <Form.Item label="From account" name="senderAccountId">
+              <Select
+                loading={accountsLoading}
+                allowClear
+                placeholder={noConnectedEmail ? 'No connected sender' : 'Select sender'}
+                options={connectedAccounts.map((a) => ({
+                  value: a.id,
+                  label: `${a.from_name || a.display_name || a.email_address} <${a.email_address}>`,
+                }))}
+              />
+            </Form.Item>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Form.Item label="Template" name="templateId">
+              <Select
+                loading={templatesLoading || renderTemplateMutation.isPending}
+                allowClear
+                showSearch
+                placeholder="Select template"
+                onChange={(value) => applyTemplate(value)}
+                options={templates.map((t) => ({ value: t.id, label: t.name }))}
+              />
+            </Form.Item>
+            <Form.Item label="Quick Reply" name="quickReplyId">
+              <Select
+                loading={quickRepliesLoading}
+                allowClear
+                showSearch
+                placeholder="Select quick reply"
+                onChange={(value) => applyQuickReply(value)}
+                options={quickReplies.map((q) => ({ value: q.id, label: q.name }))}
+              />
+            </Form.Item>
+          </div>
+          <Form.Item label="Subject" name="subject" rules={[{ required: true, message: 'Subject is required' }]}>
+            <Input placeholder="Enter subject" />
+          </Form.Item>
+          <Form.Item label="Body" name="body" rules={[{ required: true, message: 'Body is required' }]}>
+            <Input.TextArea rows={10} placeholder="Write your email..." />
+          </Form.Item>
+          <Form.Item name="allowFallback" valuePropName="checked">
+            <Switch checkedChildren="Fallback On" unCheckedChildren="Fallback Off" />
+          </Form.Item>
+        </Form>
+      </div>
+    </Modal>
+  )
+}
+
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
 function SectionCard({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
@@ -2123,6 +2379,7 @@ function SubmitToJobModal({
   open,
   candidateId,
   candidateName,
+  candidate,
   existingEngagements,
   onClose,
   onSuccess,
@@ -2130,6 +2387,7 @@ function SubmitToJobModal({
   open: boolean
   candidateId: string
   candidateName: string
+  candidate: CCData['candidate']
   existingEngagements: ActiveWorkEngagement[]
   onClose: () => void
   onSuccess: () => void
@@ -2225,7 +2483,7 @@ function SubmitToJobModal({
       setSubmittedJobTitle(selectedJob.title)
       setSubmitted(true)
     } catch (err: any) {
-      message.error(err?.response?.data?.message || 'Submission failed — please try again')
+      message.error(err?.response?.data?.message || err?.response?.data?.error || 'Submission failed — please try again')
     } finally {
       setSubmitting(false)
     }
@@ -2355,6 +2613,22 @@ function SubmitToJobModal({
 
             {/* Right: confirmation + note */}
             <div className="flex flex-1 flex-col bg-white">
+              {candidate.is_agency_protected && (
+                <div className="border-b border-violet-100 bg-violet-50 px-5 py-3">
+                  <div className="flex items-start gap-2">
+                    <ShieldCheck size={15} className="mt-0.5 shrink-0 text-violet-600" />
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-violet-700">Agency Protected</p>
+                      <p className="mt-1 text-xs font-semibold text-slate-700">
+                        Protected Until: {formatProtectionDate(candidate.protected_until)} · Scope: {protectionScopeLabel(candidate.protection_scope)}
+                      </p>
+                      <p className="text-xs text-slate-600">
+                        Candidate cannot be reused outside agreed scope during protection period. Unsupported job submissions will be blocked.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
               {selectedJob ? (
                 <>
                   {/* Selected job details */}
@@ -2450,7 +2724,7 @@ function PoolsTab({ candidateId }: { candidateId: string }) {
     queryFn: () => talentPoolsApi.getCandidatePools(candidateId)
   })
 
-  const pools = data?.data?.talent_pools || []
+  const pools = data?.data?.data?.talent_pools || []
 
   const handleRemove = async (poolId: string) => {
     try {
@@ -2468,9 +2742,6 @@ function PoolsTab({ candidateId }: { candidateId: string }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold text-slate-700">Talent Pool Memberships</h3>
-        <Button size="small" type="primary" className="bg-indigo-600" onClick={() => (window as any).openAddToPoolModal?.(candidateId)}>
-          Add to Pool
-        </Button>
       </div>
       
       {pools.length > 0 ? (
@@ -2507,11 +2778,21 @@ function AddToPoolModal() {
     queryFn: () => talentPoolsApi.list()
   })
 
-  const pools = poolsData?.data?.talent_pools || []
+  const { data: currentPoolsData, isLoading: loadingCurrentPools } = useQuery({
+    queryKey: ['candidate-pools', candidateId],
+    queryFn: () => talentPoolsApi.getCandidatePools(candidateId!),
+    enabled: !!candidateId,
+  })
+
+  const pools = poolsData?.data?.data?.talent_pools || []
+  const currentPools = currentPoolsData?.data?.data?.talent_pools || []
+  const currentPoolIds = new Set(currentPools.map((pool: TalentPool) => pool.id))
+  const availablePools = pools.filter((pool: TalentPool) => !currentPoolIds.has(pool.id))
 
   React.useEffect(() => {
     (window as any).openAddToPoolModal = (id: string) => {
       setCandidateId(id)
+      setSelectedPools([])
       setOpen(true)
     }
   }, [])
@@ -2527,6 +2808,8 @@ function AddToPoolModal() {
       setOpen(false)
       setSelectedPools([])
       queryClient.invalidateQueries({ queryKey: ['candidate-pools', candidateId] })
+      queryClient.invalidateQueries({ queryKey: ['talent-pools-all'] })
+      queryClient.invalidateQueries({ queryKey: ['talent-pools'] })
     } catch (err) {
       message.error('Failed to add to pools')
     } finally {
@@ -2544,17 +2827,80 @@ function AddToPoolModal() {
       okText="Add to Pools"
       okButtonProps={{ disabled: selectedPools.length === 0, className: 'bg-indigo-600' }}
     >
-      <div className="py-4">
-        <p className="text-xs font-medium text-slate-500 mb-3">Select one or more talent pools to add this candidate to.</p>
-        <Select
-          mode="multiple"
-          placeholder="Search and select pools..."
-          className="w-full"
-          value={selectedPools}
-          onChange={setSelectedPools}
-          options={pools.map(p => ({ label: p.name, value: p.id }))}
-          filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
-        />
+      <div className="py-4 space-y-5">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium text-slate-500">Select one or more available pools for this candidate.</p>
+          <span className="text-xs font-bold text-slate-700">{selectedPools.length} selected</span>
+        </div>
+
+        <div>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">Already In</p>
+          {loadingCurrentPools ? (
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-400">Loading current memberships...</div>
+          ) : currentPools.length > 0 ? (
+            <div className="space-y-2">
+              {currentPools.map((pool: TalentPool) => (
+                <div key={pool.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 opacity-80">
+                  <div className="flex items-center gap-3">
+                    <div className="h-3 w-3 rounded-full" style={{ backgroundColor: pool.color || '#cbd5e1' }} />
+                    <div>
+                      <div className="text-sm font-semibold text-slate-800">{pool.name}</div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Already added</div>
+                    </div>
+                  </div>
+                  <Tag>Already in pool</Tag>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-sm text-slate-400">No current pool memberships.</div>
+          )}
+        </div>
+
+        <div>
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">Available Pools</p>
+          {availablePools.length > 0 ? (
+            <div className="space-y-2">
+              {availablePools.map((pool: TalentPool) => {
+                const selected = selectedPools.includes(pool.id)
+                return (
+                  <button
+                    key={pool.id}
+                    type="button"
+                    onClick={() =>
+                      setSelectedPools((current) =>
+                        current.includes(pool.id)
+                          ? current.filter((id) => id !== pool.id)
+                          : [...current, pool.id]
+                      )
+                    }
+                    className={`flex w-full items-center justify-between rounded-xl border px-3 py-3 text-left transition ${
+                      selected
+                        ? 'border-indigo-300 bg-indigo-50 ring-2 ring-indigo-100'
+                        : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="h-3 w-3 rounded-full" style={{ backgroundColor: pool.color || '#cbd5e1' }} />
+                      <div>
+                        <div className="text-sm font-semibold text-slate-800">{pool.name}</div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{pool.pool_type}</div>
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      readOnly
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                    />
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-sm text-slate-400">No available pools in this tenant.</div>
+          )}
+        </div>
       </div>
     </Modal>
   )

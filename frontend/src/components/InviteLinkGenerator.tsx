@@ -16,8 +16,8 @@ import {
 import { QRCodeSVG } from 'qrcode.react'
 import dayjs from 'dayjs'
 import { useApiQuery } from '@/hooks/useApiQuery'
-import http from '@/utils/http'
 import { requisitionsApi } from '@/api/jobs'
+import { candidatesApi } from '@/api/candidates'
 import type { JobRequisition } from '@/types'
 
 const { Title, Text } = Typography
@@ -39,20 +39,23 @@ export default function InviteLinkGenerator({ requisitionId }: { requisitionId?:
 
   // Fetch existing links
   const { data: linksData, refetch: refetchLinks } = useApiQuery(['invite-links'], () => 
-    http.get('/organisation/invite-links/')
+    candidatesApi.listInviteLinks()
   )
-  const existingLinks = (linksData as any)?.data?.links ?? []
+  const existingLinks = (linksData as any)?.links ?? (linksData as any)?.data?.links ?? []
 
   const handleGenerate = async (values: any) => {
     setLoading(true)
     try {
       const payload = {
-        ...values,
-        requisition_id: isSpecificJob ? (requisitionId || values.requisition_id) : null
+        job_id: isSpecificJob ? (requisitionId || values.requisition_id) : undefined,
+        expires_days: Number(values.expires_in || 0) || undefined,
+        max_uses: Number(values.max_uses || 0) || undefined,
+        form_config: values.custom_message ? { custom_message: values.custom_message } : {},
       }
-      const res = await http.post('/organisation/invite-links/', payload)
-      const token = res.data.data.token
-      setGeneratedLink(`https://recruitOS.com/apply/${token}`)
+      const res: any = await candidatesApi.createInviteLink(payload)
+      const link = res?.data?.data?.link || {}
+      const url = link?.url ? `${window.location.origin}${link.url}` : (link?.token ? `${window.location.origin}/apply/${link.token}/` : '')
+      setGeneratedLink(url)
       message.success('Invite link generated successfully!')
       refetchLinks()
     } catch (err: any) {
@@ -90,17 +93,28 @@ export default function InviteLinkGenerator({ requisitionId }: { requisitionId?:
     },
     { 
       title: 'Status', 
-      dataIndex: 'is_active', 
-      render: (active: boolean) => active ? <Tag color="green">Active</Tag> : <Tag color="red">Inactive</Tag> 
+      dataIndex: 'status', 
+      render: (status: string) => status === 'active' ? <Tag color="green">Active</Tag> : <Tag color="red">Inactive</Tag> 
     },
     {
       title: 'Actions',
       key: 'actions',
       render: (_: any, r: any) => (
         <Space>
-          <Button size="small" type="text" icon={<CopyOutlined />} onClick={() => copyToClipboard(`https://recruitOS.com/apply/${r.token}`)} />
-          {r.is_active && (
-            <Popconfirm title="Deactivate this link?">
+          <Button size="small" type="text" icon={<CopyOutlined />} onClick={() => copyToClipboard(`${window.location.origin}${r.url}`)} />
+          {r.status === 'active' && (
+            <Popconfirm
+              title="Deactivate this link?"
+              onConfirm={async () => {
+                try {
+                  await candidatesApi.deactivateInviteLink(r.id)
+                  message.success('Invite link deactivated')
+                  refetchLinks()
+                } catch (err: any) {
+                  message.error(err?.response?.data?.message || 'Failed to deactivate invite link')
+                }
+              }}
+            >
               <Button size="small" type="text" danger icon={<StopOutlined />} />
             </Popconfirm>
           )}

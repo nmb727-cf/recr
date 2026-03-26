@@ -11,6 +11,8 @@ const STATUS_STYLE_MAP: Record<StatusContext, Record<string, { antColor: string;
     pending_approval: { antColor: 'orange', softClass: 'bg-amber-50 text-amber-700', dotClass: 'bg-amber-400' },
     approved: { antColor: 'blue', softClass: 'bg-blue-50 text-blue-700', dotClass: 'bg-blue-400' },
     active: { antColor: 'green', softClass: 'bg-emerald-50 text-emerald-700', dotClass: 'bg-emerald-500' },
+    paused: { antColor: 'orange', softClass: 'bg-amber-50 text-amber-700', dotClass: 'bg-amber-400' },
+    in_guarantee_period: { antColor: 'gold', softClass: 'bg-amber-50 text-amber-800', dotClass: 'bg-amber-500' },
     closed: { antColor: 'red', softClass: 'bg-rose-50 text-rose-700', dotClass: 'bg-rose-400' },
     cancelled: { antColor: 'default', softClass: 'bg-slate-100 text-slate-500', dotClass: 'bg-slate-300' },
   },

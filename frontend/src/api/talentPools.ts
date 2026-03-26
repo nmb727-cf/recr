@@ -40,6 +40,18 @@ export interface TalentPoolMembership {
   note: string
 }
 
+export interface TalentPoolActivity {
+  id: string
+  tenant_id: string
+  talent_pool: string
+  event_type: string
+  actor: string | null
+  actor_name: string
+  payload: Record<string, any>
+  source: 'manual' | 'system' | 'rule' | 'import'
+  created_at: string
+}
+
 export const talentPoolsApi = {
   list: (params?: { search?: string }) =>
     http.get<ApiResponse<{ talent_pools: TalentPool[] }>>('/talent-pools/pools/', { params }),
@@ -60,6 +72,9 @@ export const talentPoolsApi = {
     http.get<ApiResponse<{ memberships: TalentPoolMembership[] }>>('/talent-pools/memberships/', { 
       params: { talent_pool_id: poolId } 
     }),
+
+  listActivity: (poolId: string) =>
+    http.get<ApiResponse<{ activity: TalentPoolActivity[] }>>(`/talent-pools/pools/${poolId}/activity/`),
 
   bulkAdd: (poolId: string, data: { candidate_ids: string[]; note?: string; source?: string }) =>
     http.post<ApiResponse<{ added_count: number }>>(`/talent-pools/pools/${poolId}/bulk-add/`, data),

@@ -67,6 +67,19 @@ interface AgencyRelationship {
   }>
   invited_by?: 'company' | 'agency'
   invited_via?: string
+  retention_enabled?: boolean
+  retention_days?: number
+  retention_start_type?: 'submission_date' | 'rejection_date' | 'last_activity'
+  retention_scope?: 'job_only' | 'view_only' | 'limited_access'
+  retention_post_expiry?: 'shared' | 'company_use' | 'consent_required'
+  replacement_guarantee_enabled?: boolean
+  guarantee_period_days?: number
+  guarantee_start_type?: 'joining_date' | 'offer_acceptance_date' | 'first_working_day'
+  guarantee_resolution_type?: 'replacement_only' | 'refund_only' | 'replacement_or_refund' | 'no_guarantee'
+  refund_mode?: 'full_refund' | 'partial_refund' | 'pro_rated_refund' | ''
+  refund_percentage?: number | null
+  replacement_attempt_limit?: '1' | '2' | 'unlimited'
+  guarantee_notes?: string
 
   connection_type?: 'full_full' | 'agency_guest' | 'client_guest' | 'email_tracking' | 'offline'
   guest_portal_id?: string
@@ -80,6 +93,27 @@ const INDUSTRY_OPTIONS = [
   'Energy', 'Education', 'Construction', 'Logistics', 'Real Estate', 
   'Consulting', 'Other'
 ]
+
+const GUARANTEE_PERIOD_OPTIONS = [
+  { value: 15, label: '15 Days' },
+  { value: 30, label: '30 Days' },
+  { value: 45, label: '45 Days' },
+  { value: 60, label: '60 Days' },
+  { value: 90, label: '90 Days' },
+  { value: 'custom', label: 'Custom' },
+]
+
+function prettyLabel(value?: string | null) {
+  if (!value) return '—'
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function resolveGuaranteeDays(values: any) {
+  if (values.guarantee_period_days === 'custom') {
+    return Number(values.guarantee_custom_days || 0)
+  }
+  return Number(values.guarantee_period_days || 0)
+}
 
 function getClientDisplayName(r: AgencyRelationship): string {
   if (!r.company_tenant_id || r.company_name === 'Unknown Company' || !r.company_name) {
@@ -182,6 +216,19 @@ export default function AgencyClients() {
         contract_start_date: values.contract_start_date?.format('YYYY-MM-DD') || null,
         contract_end_date: values.contract_end_date?.format('YYYY-MM-DD') || null,
         notes: values.notes || '',
+        retention_enabled: values.retention_enabled,
+        retention_days: values.retention_days,
+        retention_start_type: values.retention_start_type,
+        retention_scope: values.retention_scope,
+        retention_post_expiry: values.retention_post_expiry,
+        replacement_guarantee_enabled: values.replacement_guarantee_enabled,
+        guarantee_period_days: resolveGuaranteeDays(values),
+        guarantee_start_type: values.guarantee_start_type,
+        guarantee_resolution_type: values.guarantee_resolution_type,
+        refund_mode: values.refund_mode,
+        refund_percentage: values.refund_percentage,
+        replacement_attempt_limit: values.replacement_attempt_limit,
+        guarantee_notes: values.guarantee_notes || '',
       }
 
       if (lookupResult?.found) {
@@ -249,6 +296,24 @@ export default function AgencyClients() {
       contract_start_date: rel.contract_start_date ? dayjs(rel.contract_start_date) : null,
       contract_end_date: rel.contract_end_date ? dayjs(rel.contract_end_date) : null,
       notes: rel.notes || '',
+      retention_enabled: rel.retention_enabled || false,
+      retention_days: rel.retention_days || 90,
+      retention_start_type: rel.retention_start_type || 'submission_date',
+      retention_scope: rel.retention_scope || 'job_only',
+      retention_post_expiry: rel.retention_post_expiry || 'shared',
+      replacement_guarantee_enabled: rel.replacement_guarantee_enabled || false,
+      guarantee_period_days: [15, 30, 45, 60, 90].includes(Number(rel.guarantee_period_days))
+        ? Number(rel.guarantee_period_days)
+        : 'custom',
+      guarantee_custom_days: [15, 30, 45, 60, 90].includes(Number(rel.guarantee_period_days))
+        ? undefined
+        : rel.guarantee_period_days || 30,
+      guarantee_start_type: rel.guarantee_start_type || 'joining_date',
+      guarantee_resolution_type: rel.guarantee_resolution_type || 'replacement_only',
+      refund_mode: rel.refund_mode || '',
+      refund_percentage: rel.refund_percentage ?? null,
+      replacement_attempt_limit: rel.replacement_attempt_limit || '1',
+      guarantee_notes: rel.guarantee_notes || '',
     })
     setEditDrawerOpen(true)
   }
@@ -275,6 +340,19 @@ export default function AgencyClients() {
         contract_start_date: values.contract_start_date?.format('YYYY-MM-DD') || null,
         contract_end_date: values.contract_end_date?.format('YYYY-MM-DD') || null,
         notes: values.notes,
+        retention_enabled: values.retention_enabled,
+        retention_days: values.retention_days,
+        retention_start_type: values.retention_start_type,
+        retention_scope: values.retention_scope,
+        retention_post_expiry: values.retention_post_expiry,
+        replacement_guarantee_enabled: values.replacement_guarantee_enabled,
+        guarantee_period_days: resolveGuaranteeDays(values),
+        guarantee_start_type: values.guarantee_start_type,
+        guarantee_resolution_type: values.guarantee_resolution_type,
+        refund_mode: values.refund_mode,
+        refund_percentage: values.refund_percentage,
+        replacement_attempt_limit: values.replacement_attempt_limit,
+        guarantee_notes: values.guarantee_notes,
       })
       message.success('Client details updated')
       setEditDrawerOpen(false)
@@ -527,16 +605,30 @@ export default function AgencyClients() {
 
         <div className="space-y-6">
           <section>
-            <div className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">Company Contact</div>
+            <div className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider mb-3">
+              Contact Details
+            </div>
             <div className="space-y-3">
-              <div>
-                <div className="text-[12px] text-slate-500">Point of Contact</div>
-                <div className="text-[14px] font-semibold text-[#111827]">{selectedRelationship?.contact_person_name || 'N/A'}</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-[12px] text-slate-500">Contact Person</div>
+                  <div className="text-[14px] font-semibold text-[#111827]">
+                    {selectedRelationship?.contact_person_name || '—'}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[12px] text-slate-500">Industry</div>
+                  <div className="text-[14px] font-semibold text-[#111827]">
+                    {selectedRelationship?.industry || '—'}
+                  </div>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <div className="text-[12px] text-slate-500">Email</div>
-                  <div className="text-[14px] font-semibold text-[#111827]">{selectedRelationship?.contact_email || 'N/A'}</div>
+                  <div className="text-[14px] font-semibold text-[#111827] break-all">
+                    {selectedRelationship?.contact_email || '—'}
+                  </div>
                 </div>
                 <div>
                   <div className="text-[12px] text-slate-500">Phone</div>
@@ -546,10 +638,6 @@ export default function AgencyClients() {
                       : selectedRelationship?.contact_phone || '—'}
                   </div>
                 </div>
-              </div>
-              <div>
-                <div className="text-[12px] text-slate-500">Industry</div>
-                <div className="text-[14px] font-semibold text-[#111827]">{selectedRelationship?.industry || 'N/A'}</div>
               </div>
             </div>
           </section>
@@ -604,28 +692,30 @@ export default function AgencyClients() {
           <Divider style={{ margin: 0 }} />
 
           <section>
-            <div className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">Performance Targets</div>
+            <div className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider mb-3">
+              SLAs & Contract Period
+            </div>
             <div className="grid grid-cols-2 gap-4 mb-3">
               <div>
-                <div className="text-[12px] text-slate-500">Target Submission</div>
+                <div className="text-[12px] text-slate-500">Submission SLA</div>
                 <div className="text-[14px] font-semibold text-[#111827]">{selectedRelationship?.sla_submission_hours || 48}h</div>
               </div>
               <div>
-                <div className="text-[12px] text-slate-500">Feedback Expectation</div>
+                <div className="text-[12px] text-slate-500">Feedback SLA</div>
                 <div className="text-[14px] font-semibold text-[#111827]">{selectedRelationship?.sla_feedback_hours || 72}h</div>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <div className="text-[12px] text-slate-500">Contract Start</div>
+                <div className="text-[12px] text-slate-500">Start Date</div>
                 <div className="text-[14px] font-semibold text-[#111827]">
-                  {selectedRelationship?.contract_start_date ? dayjs(selectedRelationship.contract_start_date).format('MMM D, YYYY') : '—'}
+                  {selectedRelationship?.contract_start_date ? dayjs(selectedRelationship.contract_start_date).format('MMM D, YYYY') : 'Not set'}
                 </div>
               </div>
               <div>
-                <div className="text-[12px] text-slate-500">Contract End</div>
+                <div className="text-[12px] text-slate-500">End Date</div>
                 <div className="text-[14px] font-semibold text-[#111827]">
-                  {selectedRelationship?.contract_end_date ? dayjs(selectedRelationship.contract_end_date).format('MMM D, YYYY') : '—'}
+                  {selectedRelationship?.contract_end_date ? dayjs(selectedRelationship.contract_end_date).format('MMM D, YYYY') : 'Not set'}
                 </div>
               </div>
             </div>
@@ -634,9 +724,111 @@ export default function AgencyClients() {
           <Divider style={{ margin: 0 }} />
 
           <section>
-            <div className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">Collaboration Notes</div>
-            <div className="p-3 bg-slate-50 rounded-lg text-slate-600 text-[13px] leading-relaxed italic">
-              {selectedRelationship?.notes || 'No notes shared for this client relationship.'}
+            <div className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider mb-3">
+              Documents
+            </div>
+            <div className="space-y-2">
+              {[
+                { label: 'Service Agreement', url: selectedRelationship.contract_file_url },
+                { label: 'Recruitment Policy', url: selectedRelationship.recruitment_policy_url },
+              ].map((doc) => (
+                <div key={doc.label} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <FileTextOutlined className="text-blue-500" />
+                    <span className="text-[13px] font-medium text-slate-700">{doc.label}</span>
+                  </div>
+                  {doc.url
+                    ? <Button type="link" size="small" href={doc.url} target="_blank">View</Button>
+                    : <span className="text-[11px] text-slate-400">Not uploaded</span>}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <Divider style={{ margin: 0 }} />
+
+          <section>
+            <div className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider mb-3">
+              Candidate Data Retention
+            </div>
+            {selectedRelationship.retention_enabled ? (
+              <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-xl">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-[11px] text-indigo-400 font-bold uppercase tracking-tight">Period</div>
+                    <div className="text-[14px] font-bold text-indigo-900">{selectedRelationship.retention_days || 0} Days</div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-indigo-400 font-bold uppercase tracking-tight">Scope</div>
+                    <div className="text-[14px] font-bold text-indigo-900 capitalize">
+                      {selectedRelationship.retention_scope?.replace(/_/g, ' ') || 'Job Only'}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-indigo-100/50">
+                  <div className="text-[12px] text-indigo-700 leading-snug">
+                    Candidates submitted are protected starting from <span className="font-bold underline">{selectedRelationship.retention_start_type?.replace(/_/g, ' ')}</span>.
+                    After expiry, status becomes <span className="font-bold underline">{selectedRelationship.retention_post_expiry?.replace(/_/g, ' ')}</span>.
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg text-slate-400 italic text-[13px]">
+                <InfoCircleOutlined className="text-slate-300" />
+                No specific retention terms active for this agency.
+              </div>
+            )}
+          </section>
+
+          <Divider style={{ margin: 0 }} />
+
+          <section>
+            <div className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider mb-3">
+              Replacement / Guarantee Clause
+            </div>
+            {selectedRelationship.replacement_guarantee_enabled ? (
+              <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-[11px] text-amber-500 font-bold uppercase tracking-tight">Period</div>
+                    <div className="text-[14px] font-bold text-amber-900">{selectedRelationship.guarantee_period_days || 0} Days</div>
+                  </div>
+                  <div>
+                    <div className="text-[11px] text-amber-500 font-bold uppercase tracking-tight">Resolution</div>
+                    <div className="text-[14px] font-bold text-amber-900 capitalize">
+                      {selectedRelationship.guarantee_resolution_type?.replace(/_/g, ' ') || 'Replacement Only'}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-amber-100/70 text-[12px] text-amber-800 leading-snug">
+                  Guarantee starts from <span className="font-bold underline">{selectedRelationship.guarantee_start_type?.replace(/_/g, ' ') || 'joining date'}</span>.
+                  {selectedRelationship.refund_mode ? (
+                    <> Refund mode: <span className="font-bold underline">{selectedRelationship.refund_mode.replace(/_/g, ' ')}</span>{selectedRelationship.refund_percentage ? ` (${selectedRelationship.refund_percentage}%)` : ''}.</>
+                  ) : null}
+                  {!!selectedRelationship.replacement_attempt_limit && (
+                    <> Replacement limit: <span className="font-bold underline">{prettyLabel(selectedRelationship.replacement_attempt_limit)}</span>.</>
+                  )}
+                </div>
+                {!!selectedRelationship.guarantee_notes && (
+                  <div className="mt-3 text-[12px] text-amber-800 bg-amber-100/60 rounded-lg p-2">
+                    {selectedRelationship.guarantee_notes}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-lg text-slate-400 italic text-[13px]">
+                <InfoCircleOutlined className="text-slate-300" />
+                Replacement / guarantee clause is not active for this client.
+              </div>
+            )}
+          </section>
+
+          <Divider style={{ margin: 0 }} />
+
+          <section>
+            <div className="text-[10px] font-bold text-[#9CA3AF] uppercase tracking-wider mb-2">Notes</div>
+            <div className="p-3 bg-slate-50 rounded-lg text-slate-600 text-[13px] leading-relaxed">
+              {selectedRelationship?.notes || 'No notes added.'}
             </div>
           </section>
         </div>
@@ -646,7 +838,9 @@ export default function AgencyClients() {
 
   const contractDetailsFields = (
     <>
-      <Divider titlePlacement="left" plain><span className="text-[12px] text-slate-400 font-medium">Contract Details (Optional)</span></Divider>
+      <Divider className="my-4" titlePlacement="left" plain>
+        <span className="text-[11px] text-slate-400 uppercase tracking-wider">Contract Details (Optional)</span>
+      </Divider>
       
       <Form.Item name="industry" label="Industry">
         <Select placeholder="Select industry">
@@ -660,8 +854,9 @@ export default function AgencyClients() {
         </Form.Item>
         <Form.Item name="commission_type" label="Type" initialValue="percentage">
           <Select>
-            <Option value="percentage">Percentage (%)</Option>
-            <Option value="fixed">Fixed Amount</Option>
+            <Option value="percentage">Percentage of CTC</Option>
+            <Option value="fixed">Fixed Amount per Hire</Option>
+            <Option value="milestone">Milestone Based</Option>
           </Select>
         </Form.Item>
       </div>
@@ -671,25 +866,153 @@ export default function AgencyClients() {
       </Form.Item>
 
       <div className="grid grid-cols-2 gap-4">
-        <Form.Item name="sla_submission_hours" label="SLA Submission (hrs)" initialValue={48}>
-          <InputNumber className="w-full" />
+        <Form.Item name="sla_submission_hours" label="Submission SLA (hours)" initialValue={48}>
+          <InputNumber min={1} className="w-full" />
         </Form.Item>
-        <Form.Item name="sla_feedback_hours" label="SLA Feedback (hrs)" initialValue={72}>
-          <InputNumber className="w-full" />
+        <Form.Item name="sla_feedback_hours" label="Feedback SLA (hours)" initialValue={72}>
+          <InputNumber min={1} className="w-full" />
         </Form.Item>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <Form.Item name="contract_start_date" label="Start Date">
+        <Form.Item name="contract_start_date" label="Contract Start Date">
           <DatePicker className="w-full" />
         </Form.Item>
-        <Form.Item name="contract_end_date" label="End Date">
+        <Form.Item name="contract_end_date" label="Contract End Date">
           <DatePicker className="w-full" />
         </Form.Item>
       </div>
 
-      <Form.Item name="notes" label="Internal Notes">
-        <Input.TextArea rows={2} />
+      <Form.Item name="notes" label="Notes">
+        <Input.TextArea rows={2} placeholder="Internal notes about this client..." />
+      </Form.Item>
+
+      <Divider className="my-4" titlePlacement="left" plain>
+        <span className="text-[11px] text-slate-400 uppercase tracking-wider">Candidate Data Retention</span>
+      </Divider>
+
+      <Form.Item name="retention_enabled" label="Enable Candidate Data Retention" valuePropName="checked" initialValue={false}>
+        <Checkbox>
+          <span className="text-[13px] text-slate-600">Candidates submitted by agency remain protected during retention period.</span>
+        </Checkbox>
+      </Form.Item>
+
+      <Form.Item noStyle dependencies={['retention_enabled']}>
+        {({ getFieldValue }) => getFieldValue('retention_enabled') && (
+          <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-4 animate-in fade-in slide-in-from-top-1">
+            <Form.Item name="retention_days" label="Retention Period" initialValue={90} rules={[{ required: true }]}>
+              <Select options={[
+                { value: 30, label: '30 Days' },
+                { value: 60, label: '60 Days' },
+                { value: 90, label: '90 Days' },
+                { value: 120, label: '120 Days' },
+                { value: 180, label: '180 Days' },
+              ]} />
+            </Form.Item>
+
+            <Form.Item name="retention_start_type" label="Retention Start From" initialValue="submission_date">
+              <Select options={[
+                { value: 'submission_date', label: 'Submission Date' },
+                { value: 'rejection_date', label: 'Rejection Date' },
+                { value: 'last_activity', label: 'Last Activity Date' },
+              ]} />
+            </Form.Item>
+
+            <Form.Item name="retention_scope" label="Usage Scope During Retention" initialValue="job_only">
+              <Select options={[
+                { value: 'job_only', label: 'Job Only (Recommended)' },
+                { value: 'view_only', label: 'View Only' },
+                { value: 'limited_access', label: 'Limited Company Access' },
+              ]} />
+            </Form.Item>
+
+            <Form.Item name="retention_post_expiry" label="After Retention Expiry" initialValue="shared">
+              <Select options={[
+                { value: 'shared', label: 'Shared Ownership' },
+                { value: 'company_use', label: 'Company Can Use Candidate' },
+                { value: 'consent_required', label: 'Require Candidate Consent' },
+              ]} />
+            </Form.Item>
+          </div>
+        )}
+      </Form.Item>
+
+      <Divider className="my-4" titlePlacement="left" plain>
+        <span className="text-[11px] text-slate-400 uppercase tracking-wider">Replacement / Guarantee Clause</span>
+      </Divider>
+
+      <Form.Item name="replacement_guarantee_enabled" label="Enable Replacement / Guarantee Clause" valuePropName="checked" initialValue={false}>
+        <Checkbox>
+          <span className="text-[13px] text-slate-600">
+            If an agency-placed candidate leaves during guarantee window, replacement/refund rules apply.
+          </span>
+        </Checkbox>
+      </Form.Item>
+
+      <Form.Item noStyle dependencies={['replacement_guarantee_enabled', 'guarantee_period_days', 'guarantee_resolution_type', 'refund_mode']}>
+        {({ getFieldValue }) => getFieldValue('replacement_guarantee_enabled') && (
+          <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 space-y-4 animate-in fade-in slide-in-from-top-1">
+            <Form.Item name="guarantee_period_days" label="Guarantee Period" initialValue={30} rules={[{ required: true }]}>
+              <Select options={GUARANTEE_PERIOD_OPTIONS as any} />
+            </Form.Item>
+
+            {getFieldValue('guarantee_period_days') === 'custom' && (
+              <Form.Item name="guarantee_custom_days" label="Custom Guarantee Days" rules={[{ required: true, type: 'number', min: 1 }]}>
+                <InputNumber min={1} className="w-full" />
+              </Form.Item>
+            )}
+
+            <Form.Item name="guarantee_start_type" label="Guarantee Start From" initialValue="joining_date">
+              <Select options={[
+                { value: 'joining_date', label: 'Joining Date' },
+                { value: 'offer_acceptance_date', label: 'Offer Acceptance Date' },
+                { value: 'first_working_day', label: 'First Working Day' },
+              ]} />
+            </Form.Item>
+
+            <Form.Item name="guarantee_resolution_type" label="Guarantee Resolution Type" initialValue="replacement_only">
+              <Select options={[
+                { value: 'replacement_only', label: 'Replacement Only' },
+                { value: 'refund_only', label: 'Refund Only' },
+                { value: 'replacement_or_refund', label: 'Replacement or Refund' },
+                { value: 'no_guarantee', label: 'No Guarantee' },
+              ]} />
+            </Form.Item>
+
+            {['refund_only', 'replacement_or_refund'].includes(getFieldValue('guarantee_resolution_type')) && (
+              <>
+                <Form.Item name="refund_mode" label="Refund Mode">
+                  <Select options={[
+                    { value: 'full_refund', label: 'Full Refund' },
+                    { value: 'partial_refund', label: 'Partial Refund' },
+                    { value: 'pro_rated_refund', label: 'Pro-rated Refund' },
+                  ]} />
+                </Form.Item>
+                {['partial_refund', 'pro_rated_refund'].includes(getFieldValue('refund_mode')) && (
+                  <Form.Item name="refund_percentage" label="Refund Percentage">
+                    <InputNumber min={1} max={100} className="w-full" addonAfter="%" />
+                  </Form.Item>
+                )}
+              </>
+            )}
+
+            <Form.Item name="replacement_attempt_limit" label="Replacement Attempt Limit" initialValue="1">
+              <Select options={[
+                { value: '1', label: '1' },
+                { value: '2', label: '2' },
+                { value: 'unlimited', label: 'Unlimited' },
+              ]} />
+            </Form.Item>
+
+            <Form.Item name="guarantee_notes" label="Clause Notes">
+              <Input.TextArea rows={2} placeholder="Define any custom guarantee or exception terms..." />
+            </Form.Item>
+
+            <div className="text-[12px] text-amber-700 bg-amber-100/70 rounded-lg p-2">
+              If a candidate placed through agency leaves within the guarantee period, company may raise replacement or refund request based on contract terms.
+            </div>
+          </div>
+        )}
       </Form.Item>
     </>
   )
@@ -982,7 +1305,9 @@ export default function AgencyClients() {
             </Select>
           </Form.Item>
 
-          <Divider titlePlacement="left" plain><span className="text-[12px] text-slate-400 font-medium">Contract Terms</span></Divider>
+          <Divider className="my-4" titlePlacement="left" plain>
+            <span className="text-[11px] text-slate-400 uppercase tracking-wider">Contract Details (Optional)</span>
+          </Divider>
 
           <div className="grid grid-cols-2 gap-4">
             <Form.Item name="commission_percentage" label="Commission">
@@ -990,8 +1315,9 @@ export default function AgencyClients() {
             </Form.Item>
             <Form.Item name="commission_type" label="Type">
               <Select>
-                <Option value="percentage">Percentage (%)</Option>
-                <Option value="fixed">Fixed Amount</Option>
+                <Option value="percentage">Percentage of CTC</Option>
+                <Option value="fixed">Fixed Amount per Hire</Option>
+                <Option value="milestone">Milestone Based</Option>
               </Select>
             </Form.Item>
           </div>
@@ -1001,25 +1327,153 @@ export default function AgencyClients() {
           </Form.Item>
 
           <div className="grid grid-cols-2 gap-4">
-            <Form.Item name="sla_submission_hours" label="SLA Submission (hrs)">
-              <InputNumber className="w-full" />
+            <Form.Item name="sla_submission_hours" label="Submission SLA (hours)">
+              <InputNumber min={1} className="w-full" />
             </Form.Item>
-            <Form.Item name="sla_feedback_hours" label="SLA Feedback (hrs)">
-              <InputNumber className="w-full" />
+            <Form.Item name="sla_feedback_hours" label="Feedback SLA (hours)">
+              <InputNumber min={1} className="w-full" />
             </Form.Item>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <Form.Item name="contract_start_date" label="Start Date">
+            <Form.Item name="contract_start_date" label="Contract Start Date">
               <DatePicker className="w-full" />
             </Form.Item>
-            <Form.Item name="contract_end_date" label="End Date">
+            <Form.Item name="contract_end_date" label="Contract End Date">
               <DatePicker className="w-full" />
             </Form.Item>
           </div>
 
-          <Form.Item name="notes" label="Internal Notes">
-            <Input.TextArea rows={4} />
+          <Form.Item name="notes" label="Notes">
+            <Input.TextArea rows={3} placeholder="Internal notes..." />
+          </Form.Item>
+
+          <Divider className="my-4" titlePlacement="left" plain>
+            <span className="text-[11px] text-slate-400 uppercase tracking-wider">Candidate Data Retention</span>
+          </Divider>
+
+          <Form.Item name="retention_enabled" label="Enable Candidate Data Retention" valuePropName="checked">
+            <Checkbox>
+              <span className="text-[13px] text-slate-600">Candidates submitted by agency remain protected during retention period.</span>
+            </Checkbox>
+          </Form.Item>
+
+          <Form.Item noStyle dependencies={['retention_enabled']}>
+            {({ getFieldValue }) => getFieldValue('retention_enabled') && (
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 space-y-4 animate-in fade-in slide-in-from-top-1">
+                <Form.Item name="retention_days" label="Retention Period" rules={[{ required: true }]}>
+                  <Select options={[
+                    { value: 30, label: '30 Days' },
+                    { value: 60, label: '60 Days' },
+                    { value: 90, label: '90 Days' },
+                    { value: 120, label: '120 Days' },
+                    { value: 180, label: '180 Days' },
+                  ]} />
+                </Form.Item>
+
+                <Form.Item name="retention_start_type" label="Retention Start From">
+                  <Select options={[
+                    { value: 'submission_date', label: 'Submission Date' },
+                    { value: 'rejection_date', label: 'Rejection Date' },
+                    { value: 'last_activity', label: 'Last Activity Date' },
+                  ]} />
+                </Form.Item>
+
+                <Form.Item name="retention_scope" label="Usage Scope During Retention">
+                  <Select options={[
+                    { value: 'job_only', label: 'Job Only (Recommended)' },
+                    { value: 'view_only', label: 'View Only' },
+                    { value: 'limited_access', label: 'Limited Company Access' },
+                  ]} />
+                </Form.Item>
+
+                <Form.Item name="retention_post_expiry" label="After Retention Expiry">
+                  <Select options={[
+                    { value: 'shared', label: 'Shared Ownership' },
+                    { value: 'company_use', label: 'Company Can Use Candidate' },
+                    { value: 'consent_required', label: 'Require Candidate Consent' },
+                  ]} />
+                </Form.Item>
+              </div>
+            )}
+          </Form.Item>
+
+          <Divider className="my-4" titlePlacement="left" plain>
+            <span className="text-[11px] text-slate-400 uppercase tracking-wider">Replacement / Guarantee Clause</span>
+          </Divider>
+
+          <Form.Item name="replacement_guarantee_enabled" label="Enable Replacement / Guarantee Clause" valuePropName="checked">
+            <Checkbox>
+              <span className="text-[13px] text-slate-600">
+                If an agency-placed candidate leaves during guarantee window, replacement/refund rules apply.
+              </span>
+            </Checkbox>
+          </Form.Item>
+
+          <Form.Item noStyle dependencies={['replacement_guarantee_enabled', 'guarantee_period_days', 'guarantee_resolution_type', 'refund_mode']}>
+            {({ getFieldValue }) => getFieldValue('replacement_guarantee_enabled') && (
+              <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 space-y-4 animate-in fade-in slide-in-from-top-1">
+                <Form.Item name="guarantee_period_days" label="Guarantee Period" rules={[{ required: true }]}>
+                  <Select options={GUARANTEE_PERIOD_OPTIONS as any} />
+                </Form.Item>
+
+                {getFieldValue('guarantee_period_days') === 'custom' && (
+                  <Form.Item name="guarantee_custom_days" label="Custom Guarantee Days" rules={[{ required: true, type: 'number', min: 1 }]}>
+                    <InputNumber min={1} className="w-full" />
+                  </Form.Item>
+                )}
+
+                <Form.Item name="guarantee_start_type" label="Guarantee Start From">
+                  <Select options={[
+                    { value: 'joining_date', label: 'Joining Date' },
+                    { value: 'offer_acceptance_date', label: 'Offer Acceptance Date' },
+                    { value: 'first_working_day', label: 'First Working Day' },
+                  ]} />
+                </Form.Item>
+
+                <Form.Item name="guarantee_resolution_type" label="Guarantee Resolution Type">
+                  <Select options={[
+                    { value: 'replacement_only', label: 'Replacement Only' },
+                    { value: 'refund_only', label: 'Refund Only' },
+                    { value: 'replacement_or_refund', label: 'Replacement or Refund' },
+                    { value: 'no_guarantee', label: 'No Guarantee' },
+                  ]} />
+                </Form.Item>
+
+                {['refund_only', 'replacement_or_refund'].includes(getFieldValue('guarantee_resolution_type')) && (
+                  <>
+                    <Form.Item name="refund_mode" label="Refund Mode">
+                      <Select options={[
+                        { value: 'full_refund', label: 'Full Refund' },
+                        { value: 'partial_refund', label: 'Partial Refund' },
+                        { value: 'pro_rated_refund', label: 'Pro-rated Refund' },
+                      ]} />
+                    </Form.Item>
+                    {['partial_refund', 'pro_rated_refund'].includes(getFieldValue('refund_mode')) && (
+                      <Form.Item name="refund_percentage" label="Refund Percentage">
+                        <InputNumber min={1} max={100} className="w-full" addonAfter="%" />
+                      </Form.Item>
+                    )}
+                  </>
+                )}
+
+                <Form.Item name="replacement_attempt_limit" label="Replacement Attempt Limit">
+                  <Select options={[
+                    { value: '1', label: '1' },
+                    { value: '2', label: '2' },
+                    { value: 'unlimited', label: 'Unlimited' },
+                  ]} />
+                </Form.Item>
+
+                <Form.Item name="guarantee_notes" label="Clause Notes">
+                  <Input.TextArea rows={2} placeholder="Define any custom guarantee or exception terms..." />
+                </Form.Item>
+
+                <div className="text-[12px] text-amber-700 bg-amber-100/70 rounded-lg p-2">
+                  If a candidate placed through agency leaves within the guarantee period, company may raise replacement or refund request based on contract terms.
+                </div>
+              </div>
+            )}
           </Form.Item>
 
           <div className="flex gap-3 pt-6">

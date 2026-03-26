@@ -1,7 +1,7 @@
 import axios from 'axios'
 
 const http = axios.create({
-  baseURL: '/api/v1',
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
   headers: { 'Content-Type': 'application/json' },
   timeout: 15000,
 })
@@ -32,11 +32,13 @@ http.interceptors.request.use((config) => {
 
   // Always check Zustand store first for most up-to-date token
   let token = null
+  let tenantId = null
   try {
     const raw = localStorage.getItem('auth-store')
     if (raw) {
       const parsed = JSON.parse(raw)
       token = parsed?.state?.accessToken ?? null
+      tenantId = parsed?.state?.user?.tenant_id ?? null
     }
   } catch (err) {
     console.error('Error parsing auth-store', err)
@@ -49,6 +51,9 @@ http.interceptors.request.use((config) => {
 
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+  if (tenantId) {
+    config.headers['X-Tenant-ID'] = tenantId
   }
   return config
 })

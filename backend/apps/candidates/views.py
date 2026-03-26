@@ -11,6 +11,7 @@ from apps.candidates.models import (
     Candidate,
     CandidateProfile,
     CandidateNote,
+    CandidateTenantRight,
     CandidateWorkspace,
     CandidateEngagement,
     CandidateTimelineEvent,
@@ -26,9 +27,15 @@ from apps.candidates.serializers import (
     CandidateTimelineEventSerializer,
     CandidateWorkflowPolicySerializer,
 )
+from apps.candidates.protection import (
+    check_protected_action,
+    find_duplicate_protected_candidate,
+    protection_badge_payload,
+)
 from apps.core.responses import success_response, error_response
 from apps.rbac.permissions import require_permission
 from apps.organisations.models import TeamMembership
+from apps.accounts.models import CustomUser
 from apps.pipeline.models import Application
 
 
@@ -148,12 +155,13 @@ def _candidate_warning_signals(candidate):
     return warnings
 
 
-def _candidate_smart_row(candidate, job_summary=None):
+def _candidate_smart_row(candidate, job_summary=None, owner_name_map=None, tenant_id=None):
     owner_name = None
-    if hasattr(candidate, 'owner_user') and candidate.owner_user:
-        owner_name = candidate.owner_user.get_full_name() or candidate.owner_user.email
+    owner_id = str(candidate.owner_user_id) if candidate.owner_user_id else None
+    if owner_name_map and owner_id:
+        owner_name = owner_name_map.get(owner_id)
     open_engagements = sum(job_summary.values()) if job_summary else 0
-    return {
+    payload = {
         'id': str(candidate.id),
         'name': candidate.full_name,
         'current_title': candidate.current_title,
@@ -182,6 +190,9 @@ def _candidate_smart_row(candidate, job_summary=None):
         'availability_status': candidate.availability_status,
         'open_engagements': open_engagements,
     }
+    if tenant_id:
+        payload.update(protection_badge_payload(candidate_id=candidate.id, target_tenant_id=tenant_id))
+    return payload
 
 
 def _structured_activity_item(event):
@@ -251,6 +262,8 @@ def _apply_saved_view(qs, view_name, stale_days=21):
         )
     if view_name == 'dormant':
         return qs.filter(last_activity_at__lt=now - timedelta(days=stale_days))
+    if view_name == 'general_pool':
+        return qs.filter(candidate_pool='GENERAL', active_job_id__isnull=True)
     if view_name == 'follow_up_due':
         return qs.filter(next_follow_up_at__isnull=False, next_follow_up_at__lte=now)
     if view_name == 'ready_to_submit':
@@ -326,6 +339,33 @@ class CandidateListView(APIView):
         # Deduplication check
         email = request.data.get('email', '').strip().lower()
         phone = request.data.get('phone', '').strip()
+        passport_id = request.data.get('passport_id')
+        global_hash = request.data.get('global_hash', '').strip()
+
+        protected_candidate, protected_right = find_duplicate_protected_candidate(
+            tenant_id=request.user.tenant_id,
+            email=email,
+            phone=phone,
+            passport_id=passport_id,
+            global_hash=global_hash,
+        )
+        if protected_candidate and protected_right:
+            _, message, _ = check_protected_action(
+                candidate_id=protected_candidate.id,
+                tenant_id=request.user.tenant_id,
+                action='manual_import_candidate',
+                actor_user_id=request.user.id,
+            )
+            return error_response(
+                message or "Candidate is protected under agency agreement.",
+                errors={
+                    'candidate_id': str(protected_candidate.id),
+                    'is_agency_protected': True,
+                    'protection_scope': protected_right.retention_scope,
+                    'protected_until': protected_right.protected_until,
+                },
+                status_code=status.HTTP_409_CONFLICT,
+            )
 
         existing = None
         if email:
@@ -372,6 +412,9 @@ class CandidateListView(APIView):
             workflow_mode=_resolve_workflow_mode(request.user),
             source_type=payload.get('source_type') or 'direct',
             last_activity_at=timezone.now(),
+            candidate_state='NEW_LEAD',
+            candidate_pool='GENERAL',
+            is_general_pool_used=False,
         )
 
         # Auto-create empty profile
@@ -400,9 +443,24 @@ class CandidateListView(APIView):
         if send_invite_bool and candidate.claim_token:
             candidate.account_status = 'invited'
             candidate.invite_sent_at = timezone.now()
+            # ── Source 1: Notify candidate that their profile was added ────
+            # The claim link carries the candidate's identity context (email +
+            # phone) prefilled from this record.  When the candidate follows
+            # the link they are taken to /candidate/claim/<token> where:
+            #   • If no user account exists  → signup form (email/phone prefilled)
+            #   • If a user account exists   → login screen
+            # On successful auth the backend links the user to this candidate
+            # record and marks account_status = 'claimed'.
+            #
+            # TODO (Phase 2): Replace print stub with actual email/SMS/WhatsApp
+            # delivery via the communications service.
+            claim_url = f"/candidate/claim/{candidate.claim_token}"
             print(
-                f"[STUB] Invite: "
-                f"/candidate/complete/{candidate.claim_token}"
+                f"[NOTIFICATION STUB] Source 1 — candidate profile added.\n"
+                f"  To: {candidate.email or candidate.phone}\n"
+                f"  Claim link: {claim_url}\n"
+                f"  Message: 'Your profile has been added. "
+                f"Click the link to view and claim your profile.'"
             )
 
         candidate.save()
@@ -490,8 +548,10 @@ class CandidateListView(APIView):
         }
         if candidate.claim_token:
             response_data['claim_token'] = candidate.claim_token
+            # Use /candidate/claim/ path — matches the frontend route and
+            # the CandidateClaimVerifyView backend endpoint.
             response_data['claim_link'] = (
-                f"/candidate/complete/{candidate.claim_token}"
+                f"/candidate/claim/{candidate.claim_token}"
             )
 
         return success_response(
@@ -547,9 +607,13 @@ class CandidateDetailView(APIView):
         candidate = self.get_object(request, pk)
         if not candidate:
             return error_response("Candidate not found.", status_code=status.HTTP_404_NOT_FOUND)
+        candidate_payload = CandidateDetailSerializer(candidate).data
+        candidate_payload.update(
+            protection_badge_payload(candidate_id=candidate.id, target_tenant_id=request.user.tenant_id)
+        )
 
         return success_response(
-            data={'candidate': CandidateDetailSerializer(candidate).data},
+            data={'candidate': candidate_payload},
             message="Candidate retrieved."
         )
 
@@ -951,6 +1015,16 @@ class CandidateEngagementListView(APIView):
         data = request.data.copy()
         data['candidate'] = candidate_id
         job_id = data.get('job')
+        if job_id:
+            allowed, message, _ = check_protected_action(
+                candidate_id=candidate_id,
+                tenant_id=request.user.tenant_id,
+                action='workflow_allowed_job',
+                job_id=job_id,
+                actor_user_id=request.user.id,
+            )
+            if not allowed:
+                return error_response(message, status_code=status.HTTP_403_FORBIDDEN)
         
         if not data.get('stage'):
             data['stage'] = 'submitted' if job_id else 'new_lead'
@@ -1076,6 +1150,17 @@ class CandidateEngagementDetailView(APIView):
         )
         if not engagement:
             return error_response("Engagement not found", status_code=404)
+        target_job_id = request.data.get('job', engagement.job_id)
+        if target_job_id:
+            allowed, message, _ = check_protected_action(
+                candidate_id=candidate_id,
+                tenant_id=request.user.tenant_id,
+                action='workflow_allowed_job',
+                job_id=target_job_id,
+                actor_user_id=request.user.id,
+            )
+            if not allowed:
+                return error_response(message, status_code=status.HTTP_403_FORBIDDEN)
 
         effective_mode = _resolve_workflow_mode(
             request.user,
@@ -1245,12 +1330,16 @@ class CandidateEngagementReviveView(APIView):
             created_by=request.user,
             last_activity_at=timezone.now()
         )
-        Candidate.objects.filter(id=candidate_id).update(
-            is_in_active_work=True,
-            engagement_stage='new_lead',
-            lifecycle_state='active',
-            last_activity_at=timezone.now()
-        )
+        candidate = Candidate.objects.filter(id=candidate_id).first()
+        revive_updates = {
+            'is_in_active_work': True,
+            'engagement_stage': 'new_lead',
+            'lifecycle_state': 'active',
+            'last_activity_at': timezone.now(),
+            'candidate_pool': 'GENERAL',
+            'candidate_state': 'REVIVED' if (candidate and candidate.is_general_pool_used) else 'NEW_LEAD',
+        }
+        Candidate.objects.filter(id=candidate_id).update(**revive_updates)
 
         CandidateTimelineEvent.objects.create(
             tenant_id=request.user.tenant_id,
@@ -1285,8 +1374,9 @@ class ActiveCandidatesView(APIView):
             tenant_id=request.user.tenant_id,
             is_active=True,
             is_deleted=False,
-            job__isnull=True,
-            stage__in=ACTIVE_WORK_STAGES,
+        ).filter(
+            Q(job__isnull=True, candidate__candidate_pool='GENERAL') |
+            Q(job__isnull=False)
         ).select_related('candidate', 'owner_user', 'job')
 
         if priority:
@@ -1420,7 +1510,7 @@ class CandidateDatabaseView(APIView):
             Q(tenant_id=request.user.tenant_id) |
             Q(id__in=visible_candidate_ids_from_apps) |
             Q(id__in=visible_candidate_ids_from_engagements)
-        ).select_related('owner_user')
+        )
 
         view_name = request.query_params.get('view', 'all_candidates')
         stale_days = 21
@@ -1472,6 +1562,20 @@ class CandidateDatabaseView(APIView):
             qs = qs.filter(Q(is_duplicate=True) | Q(duplicate_of__isnull=False))
         if request.query_params.get('active_work') == 'true':
             qs = qs.filter(is_in_active_work=True)
+        protection_status = request.query_params.get('protection_status')
+        if protection_status in ['protected', 'not_protected']:
+            active_protected_candidate_ids = CandidateTenantRight.objects.filter(
+                target_tenant_id=request.user.tenant_id,
+                relationship_type='protected',
+                status='active',
+                is_deleted=False,
+            ).filter(
+                Q(protected_until__isnull=True) | Q(protected_until__gt=timezone.now())
+            ).values_list('candidate_id', flat=True)
+            if protection_status == 'protected':
+                qs = qs.filter(id__in=active_protected_candidate_ids)
+            else:
+                qs = qs.exclude(id__in=active_protected_candidate_ids)
 
         total = qs.count()
         limit = min(int(request.query_params.get('limit', 50)), 200)
@@ -1480,6 +1584,7 @@ class CandidateDatabaseView(APIView):
 
         candidate_ids = [c.id for c in qs]
         summary_map = {}
+        owner_name_map = {}
         if candidate_ids:
             summary_rows = CandidateEngagement.objects.filter(
                 tenant_id=request.user.tenant_id,
@@ -1495,14 +1600,28 @@ class CandidateDatabaseView(APIView):
                 summary_map.setdefault(cid, {})
                 summary_map[cid][stage] = row['count']
 
+            owner_ids = {c.owner_user_id for c in qs if c.owner_user_id}
+            if owner_ids:
+                owners = CustomUser.objects.filter(id__in=owner_ids).values('id', 'first_name', 'last_name', 'email')
+                for owner in owners:
+                    full_name = f"{owner.get('first_name', '')} {owner.get('last_name', '')}".strip()
+                    owner_name_map[str(owner['id'])] = full_name or owner.get('email')
+
         return success_response(
             data={
-                'items': [_candidate_smart_row(c, summary_map.get(str(c.id), {})) for c in qs],
+                'items': [
+                    _candidate_smart_row(
+                        c,
+                        summary_map.get(str(c.id), {}),
+                        owner_name_map,
+                        request.user.tenant_id,
+                    ) for c in qs
+                ],
                 'view': view_name,
                 'available_views': [
                     'all_candidates', 'active_work', 'recently_added', 'passport_linked',
                     'agency_submitted', 'duplicates', 'dormant', 'follow_up_due',
-                    'ready_to_submit', 'missing_contact_info'
+                    'ready_to_submit', 'missing_contact_info', 'general_pool'
                 ]
             },
             meta={'total': total, 'limit': limit, 'offset': offset},
@@ -1653,7 +1772,13 @@ class CandidateCommandCenterView(APIView):
 
         return success_response(
             data={
-                'candidate': CandidateDetailSerializer(candidate).data,
+                'candidate': {
+                    **CandidateDetailSerializer(candidate).data,
+                    **protection_badge_payload(
+                        candidate_id=candidate.id,
+                        target_tenant_id=request.user.tenant_id,
+                    ),
+                },
                 'tabs': {
                     'overview': CandidateSerializer(candidate).data,
                     'activity_timeline': CandidateTimelineEventSerializer(timeline_list[:50], many=True).data,

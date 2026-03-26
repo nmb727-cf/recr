@@ -1,23 +1,37 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Button, Card, Descriptions, Tag,
-  Typography, Spin, Empty, Tabs, Table, Avatar
+  Typography, Spin, Empty, Tabs, Table, Avatar,
+  Modal, Form, Select, InputNumber, DatePicker, Input,
+  message, Divider, Timeline, Space, Dropdown
 } from 'antd'
 import {
   ArrowLeft, Edit, Briefcase,
-  Activity, MapPin,
+  Activity, MapPin, Plus, Users, Globe, Lock, ShieldCheck, Clock, ExternalLink,
+  DollarSign, CheckCircle, XCircle, Calendar, FileText, MoreVertical, AlertTriangle,
+  Info, Scale, Receipt
 } from 'lucide-react'
 import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+dayjs.extend(relativeTime)
 import { useApiQuery } from '@/hooks/useApiQuery'
 import { requisitionsApi } from '@/api/jobs'
 import { pipelineApi } from '@/api/pipeline'
 import { interviewsApi } from '@/api/interviews'
-import type { JobRequisition, RequisitionStatus, Application } from '@/types'
+import { agenciesApi } from '@/api/agencies'
+import { candidatesApi } from '@/api/candidates'
+import type { 
+  JobRequisition, RequisitionStatus, Application, Candidate, 
+  PlacementStatus, CommissionStatus, CommissionBasisType 
+} from '@/types'
 import { cn } from '@/utils/cn'
 import PipelineBoard from '../pipeline/PipelineBoard'
 
-const { Text, Paragraph } = Typography
+import JobTrackingView from './JobTrackingView'
+import JobInterviewsTab from './JobInterviewsTab'
+
+const { Text, Paragraph, Title } = Typography
 
 const STATUS_CONFIG: Record<RequisitionStatus, { label: string, color: string, dot: string }> = {
   draft: { label: 'Draft', color: 'bg-slate-100 text-slate-700', dot: 'bg-slate-400' },
@@ -28,146 +42,1010 @@ const STATUS_CONFIG: Record<RequisitionStatus, { label: string, color: string, d
   cancelled: { label: 'Cancelled', color: 'bg-slate-100 text-slate-500', dot: 'bg-slate-300' },
 }
 
-// ─── Tabs ───────────────────────────────────────────────────────────────────
+// ── Placement Helper Components ──────────────────────────────────────────
+
+function PlacementModal({
+  open,
+  application,
+  onClose,
+  onSuccess,
+}: {
+  open: boolean
+  application: Application | null
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [form] = Form.useForm()
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (application && open) {
+      form.setFieldsValue({
+        placement_status: application.placement_status || 'pending_join',
+        expected_joining_date: application.expected_joining_date ? dayjs(application.expected_joining_date) : (application.joining_date ? dayjs(application.joining_date) : null),
+        joined_at: application.joined_at ? dayjs(application.joined_at) : null,
+        placement_confirmed_at: application.placement_confirmed_at ? dayjs(application.placement_confirmed_at) : null,
+        note: application.placement_notes || '',
+      })
+    }
+  }, [application, open, form])
+
+  const onFinish = async (values: any) => {
+    if (!application) return
+    setLoading(true)
+    try {
+      await pipelineApi.updatePlacement(application.id, {
+        ...values,
+        expected_joining_date: values.expected_joining_date?.format('YYYY-MM-DD'),
+        joined_at: values.joined_at?.format('YYYY-MM-DD'),
+        placement_confirmed_at: values.placement_confirmed_at?.format('YYYY-MM-DD'),
+      })
+      message.success('Placement status updated')
+      onSuccess()
+    } catch (err: any) {
+      message.error(err.response?.data?.message || 'Failed to update placement')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Modal
+      title="Update Placement Status"
+      open={open}
+      onCancel={onClose}
+      onOk={() => form.submit()}
+      confirmLoading={loading}
+      className="rounded-3xl overflow-hidden"
+    >
+      <Form form={form} layout="vertical" onFinish={onFinish}>
+        <Form.Item name="placement_status" label="Status" rules={[{ required: true }]}>
+          <Select>
+            <Select.Option value="pending_join">Pending Join</Select.Option>
+            <Select.Option value="joined">Joined</Select.Option>
+            <Select.Option value="placement_confirmed">Placement Confirmed</Select.Option>
+            <Select.Option value="cancelled">Cancelled</Select.Option>
+            <Select.Option value="not_applicable">Not Applicable</Select.Option>
+          </Select>
+        </Form.Item>
+
+        <Form.Item
+          noStyle
+          shouldUpdate={(prevValues, currentValues) => prevValues.placement_status !== currentValues.placement_status}
+        >
+          {({ getFieldValue }) => {
+            const status = getFieldValue('placement_status')
+            return (
+              <>
+                {(status === 'pending_join' || status === 'joined' || status === 'placement_confirmed') && (
+                  <Form.Item name="expected_joining_date" label="Expected Joining Date">
+                    <DatePicker className="w-full" />
+                  </Form.Item>
+                )}
+                {(status === 'joined' || status === 'placement_confirmed') && (
+                  <Form.Item name="joined_at" label="Actual Joined Date">
+                    <DatePicker className="w-full" />
+                  </Form.Item>
+                )}
+                {status === 'placement_confirmed' && (
+                  <Form.Item name="placement_confirmed_at" label="Placement Confirmed Date">
+                    <DatePicker className="w-full" />
+                  </Form.Item>
+                )}
+              </>
+            )
+          }}
+        </Form.Item>
+
+        <Form.Item name="note" label="Placement Notes">
+          <Input.TextArea rows={3} placeholder="Add any placement-related notes or conditions..." />
+        </Form.Item>
+      </Form>
+    </Modal>
+  )
+}
+
+function CommissionModal({
+  open,
+  application,
+  onClose,
+  onSuccess,
+}: {
+  open: boolean
+  application: Application | null
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [form] = Form.useForm()
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (application && open) {
+      form.setFieldsValue({
+        commission_applicable: application.commission_applicable ?? (application.is_agency_submission),
+        commission_basis_type: application.commission_basis_type || 'inherited_from_relationship',
+        commission_value: application.commission_value || 0,
+        expected_commission_amount: application.expected_commission_amount || 0,
+        commission_currency: application.commission_currency || application.offer_currency || 'INR',
+        commission_status: application.commission_status || 'pending_calculation',
+        commission_rule_source: application.commission_rule_source || '',
+        commission_notes: application.commission_notes || '',
+      })
+    }
+  }, [application, open, form])
+
+  const onFinish = async (values: any) => {
+    if (!application) return
+    setLoading(true)
+    try {
+      await pipelineApi.updateCommission(application.id, values)
+      message.success('Commission status updated')
+      onSuccess()
+    } catch (err: any) {
+      message.error(err.response?.data?.message || 'Failed to update commission')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <Modal
+      title="Update Commission Details"
+      open={open}
+      onCancel={onClose}
+      onOk={() => form.submit()}
+      confirmLoading={loading}
+      className="rounded-3xl overflow-hidden"
+    >
+      <Form form={form} layout="vertical" onFinish={onFinish}>
+        <Form.Item name="commission_applicable" label="Commission Applicable?">
+          <Select>
+            <Select.Option value={true}>Yes — Applicable</Select.Option>
+            <Select.Option value={false}>No — Not Applicable</Select.Option>
+          </Select>
+        </Form.Item>
+
+        <Form.Item
+          noStyle
+          shouldUpdate={(prevValues, currentValues) => prevValues.commission_applicable !== currentValues.commission_applicable}
+        >
+          {({ getFieldValue }) => {
+            const applicable = getFieldValue('commission_applicable')
+            if (!applicable) return null
+            return (
+              <>
+                <Form.Item name="commission_basis_type" label="Basis Type" rules={[{ required: true }]}>
+                  <Select>
+                    <Select.Option value="inherited_from_relationship">Inherited from Relationship</Select.Option>
+                    <Select.Option value="custom_job_rule">Custom Job Rule</Select.Option>
+                    <Select.Option value="percentage">Percentage (%)</Select.Option>
+                    <Select.Option value="fixed">Fixed Amount</Select.Option>
+                    <Select.Option value="milestone">Milestone Based</Select.Option>
+                  </Select>
+                </Form.Item>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Form.Item name="commission_value" label="Commission Value">
+                    <InputNumber className="w-full" placeholder="e.g. 15 for 15%" />
+                  </Form.Item>
+                  <Form.Item name="expected_commission_amount" label="Expected Amount">
+                    <InputNumber className="w-full" placeholder="Total Amount" />
+                  </Form.Item>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <Form.Item name="commission_currency" label="Currency">
+                    <Select>
+                      <Select.Option value="INR">INR</Select.Option>
+                      <Select.Option value="USD">USD</Select.Option>
+                      <Select.Option value="GBP">GBP</Select.Option>
+                      <Select.Option value="EUR">EUR</Select.Option>
+                    </Select>
+                  </Form.Item>
+                  <Form.Item name="commission_status" label="Commission Status" rules={[{ required: true }]}>
+                    <Select>
+                      <Select.Option value="pending_calculation">Pending Calculation</Select.Option>
+                      <Select.Option value="calculated">Calculated</Select.Option>
+                      <Select.Option value="awaiting_payment_tracking">Awaiting Payment Tracking</Select.Option>
+                      <Select.Option value="cancelled">Cancelled</Select.Option>
+                    </Select>
+                  </Form.Item>
+                </div>
+
+                <Form.Item name="commission_rule_source" label="Rule Source Reference">
+                  <Input placeholder="e.g. Master Service Agreement 2024" />
+                </Form.Item>
+              </>
+            )
+          }}
+        </Form.Item>
+
+        <Form.Item name="commission_notes" label="Commission Notes">
+          <Input.TextArea rows={3} placeholder="Add any commercial notes..." />
+        </Form.Item>
+      </Form>
+    </Modal>
+  )
+}
+
+// ── Tab Components ─────────────────────────────────────────────────────────
 
 function OverviewTab({ requisition }: { requisition: JobRequisition }) {
+  const formatSalary = (amount: number | string, currency: string = 'INR') => 
+    new Intl.NumberFormat('en-IN', { 
+      style: 'currency', 
+      currency: currency,
+      maximumFractionDigits: 0
+    }).format(Number(amount))
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card title="Details" bordered={false} className="shadow-soft-sm">
-          <Descriptions column={1} size="small">
-            <Descriptions.Item label="Type">{requisition.job_type.replace('_', ' ')}</Descriptions.Item>
-            <Descriptions.Item label="Mode">{requisition.work_mode}</Descriptions.Item>
-            <Descriptions.Item label="Headcount">{requisition.headcount}</Descriptions.Item>
-            <Descriptions.Item label="Experience">{requisition.experience_min}-{requisition.experience_max}y</Descriptions.Item>
-          </Descriptions>
+        <Card className="shadow-soft-sm border-none">
+          <Text className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-1">Experience</Text>
+          <Title level={4} className="!m-0">{requisition.experience_min} - {requisition.experience_max} Years</Title>
         </Card>
-        <Card title="Salary" bordered={false} className="shadow-soft-sm">
-          {requisition.salary_visible ? (
-            <div>
-              <Text className="text-2xl font-bold text-slate-900">
-                {requisition.salary_currency} {Number(requisition.salary_min).toLocaleString()}
-              </Text>
-              <Text className="block text-xs text-slate-400 font-bold uppercase mt-1">Minimum per annum</Text>
-            </div>
-          ) : (
-            <Text className="italic text-slate-400">Salary hidden from candidates</Text>
-          )}
+        <Card className="shadow-soft-sm border-none">
+          <Text className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-1">Salary Range</Text>
+          <Title level={4} className="!m-0">
+            {requisition.salary_visible ? `${formatSalary(requisition.salary_min, requisition.salary_currency)} - ${formatSalary(requisition.salary_max, requisition.salary_currency)}` : 'Competitive'}
+          </Title>
         </Card>
-        <Card title="Location" bordered={false} className="shadow-soft-sm">
-          <div className="flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-slate-400" />
-            <Text className="font-semibold text-slate-700">{requisition.location_id || 'Remote / Head Office'}</Text>
-          </div>
+        <Card className="shadow-soft-sm border-none">
+          <Text className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-1">Headcount</Text>
+          <Title level={4} className="!m-0">{requisition.headcount} Openings</Title>
         </Card>
       </div>
 
-      <Card title="Job Description" bordered={false} className="shadow-soft-sm">
-        <Paragraph className="text-slate-600 leading-relaxed whitespace-pre-wrap">
-          {requisition.description}
-        </Paragraph>
-      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card title="Job Description" bordered={false} className="shadow-soft-sm">
+          <Paragraph className="text-slate-600 whitespace-pre-wrap">
+            {requisition.description}
+          </Paragraph>
+          {requisition.requirements && (
+            <>
+              <Divider className="my-4" />
+              <Title level={5} className="!text-sm font-bold uppercase tracking-wider text-slate-900 mb-3">Requirements</Title>
+              <Paragraph className="text-slate-600 whitespace-pre-wrap">
+                {requisition.requirements}
+              </Paragraph>
+            </>
+          )}
+        </Card>
 
-      <Card title="Requirements" bordered={false} className="shadow-soft-sm">
-        <Paragraph className="text-slate-600 leading-relaxed whitespace-pre-wrap">
-          {requisition.requirements}
-        </Paragraph>
-      </Card>
+        <div className="space-y-6">
+          <Card title="Key Details" bordered={false} className="shadow-soft-sm">
+            <Descriptions column={1} size="small">
+              <Descriptions.Item label="Department">{requisition.department_id || 'Not Specified'}</Descriptions.Item>
+              <Descriptions.Item label="Location">{requisition.location_id || 'Remote'}</Descriptions.Item>
+              <Descriptions.Item label="Job Type"><Tag className="capitalize">{requisition.job_type.replace('_', ' ')}</Tag></Descriptions.Item>
+              <Descriptions.Item label="Work Mode"><Tag className="capitalize">{requisition.work_mode}</Tag></Descriptions.Item>
+            </Descriptions>
+          </Card>
 
-      <Card title="Key Responsibilities" bordered={false} className="shadow-soft-sm">
-        <Paragraph className="text-slate-600 leading-relaxed whitespace-pre-wrap">
-          {requisition.responsibilities}
-        </Paragraph>
-      </Card>
+          <Card title="Required Skills" bordered={false} className="shadow-soft-sm">
+            <div className="flex flex-wrap gap-2">
+              {(requisition.skills_required || []).map(skill => (
+                <Tag key={skill} color="blue" className="m-0 border-none font-bold text-[10px] uppercase rounded-md px-2 py-0.5">
+                  {skill}
+                </Tag>
+              ))}
+            </div>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }
 
-function ApplicationsTab({ jobId }: { jobId: string }) {
-  const { data, isLoading } = useApiQuery(['job-applications', jobId], () => 
-    pipelineApi.listApplications({ requisition_id: jobId })
+function OffersTab({ jobId }: { jobId: string }) {
+  const [placementModalOpen, setPlacementModalOpen] = useState(false)
+  const [commissionModalOpen, setCommissionModalOpen] = useState(false)
+  const [selectedApp, setSelectedApp] = useState<Application | null>(null)
+
+  const { data: pipelineData, isLoading: pipelineLoading, refetch } = useApiQuery(
+    ['job-offers', jobId],
+    () => pipelineApi.listApplications({ requisition_id: jobId })
   )
-  const applications = (data as any)?.applications ?? []
+
+  const { data: candidatesData } = useApiQuery(
+    ['candidates', 'all'],
+    () => candidatesApi.list()
+  )
+
+  const candidateMap = new Map<string, Candidate>(
+    ((candidatesData as any)?.candidates ?? []).map((c: any) => [c.id, c])
+  )
+
+  const allApplications = (pipelineData as any)?.applications ?? []
+  
+  // Filter for those in offer stages or with offer data or placement data or commission data
+  const offerApplications = allApplications.filter((app: any) => 
+    (['offer_extended', 'offer_accepted', 'joined', 'placement_confirmed', 'placement_cancelled', 'rejected', 'withdrawn'].includes(app.status) 
+    && (app.offer_amount || app.placement_status || app.commission_applicable)) || app.status === 'offer_extended'
+  )
+
+  const stats = {
+    total: offerApplications.length,
+    offer_accepted: offerApplications.filter((a: any) => a.status === 'offer_accepted').length,
+    pending_join: offerApplications.filter((a: any) => a.placement_status === 'pending_join').length,
+    joined: offerApplications.filter((a: any) => a.placement_status === 'joined' || a.status === 'joined').length,
+    placed: offerApplications.filter((a: any) => a.placement_status === 'placement_confirmed' || a.status === 'placement_confirmed').length,
+    // Commission Stats
+    agency_placements: offerApplications.filter((a: any) => a.is_agency_submission && (a.status === 'joined' || a.status === 'placement_confirmed' || a.placement_status === 'joined')).length,
+    comm_applicable: offerApplications.filter((a: any) => a.commission_applicable).length,
+    comm_calculated: offerApplications.filter((a: any) => a.commission_status === 'calculated').length,
+    comm_awaiting_payment: offerApplications.filter((a: any) => a.commission_status === 'awaiting_payment_tracking').length,
+  }
 
   const columns = [
     {
-      title: 'Candidate',
+      title: 'Candidate Name',
       key: 'candidate',
-      render: (_: any, record: Application) => (
-        <div className="flex items-center gap-3">
-          <Avatar className="bg-blue-100 text-blue-600 font-bold">
-            {record.candidate_id.slice(0, 1).toUpperCase()}
-          </Avatar>
-          <Text className="font-bold text-slate-900">Candidate {record.candidate_id.slice(0, 4)}</Text>
+      render: (_: any, app: any) => {
+        const candidate = candidateMap.get(app.candidate_id)
+        return (
+          <div className="flex items-center gap-3">
+            <Avatar className="bg-indigo-50 text-indigo-600 font-bold border-none shrink-0">
+              {candidate?.full_name?.charAt(0) || 'C'}
+            </Avatar>
+            <div className="min-w-0">
+              <Text className="block font-bold text-slate-900 text-xs leading-tight">
+                {candidate?.full_name || 'Loading...'}
+              </Text>
+              <Text className="text-[10px] text-slate-400 font-medium">
+                {candidate?.current_title || 'No Title'}
+              </Text>
+            </div>
+          </div>
+        )
+      }
+    },
+    {
+      title: 'Offer Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (s: string) => {
+        const configs: Record<string, { label: string, color: string }> = {
+          offer_extended: { label: 'Offer Sent', color: 'blue' },
+          offer_accepted: { label: 'Offer Accepted', color: 'green' },
+          joined: { label: 'Joined', color: 'cyan' },
+          placement_confirmed: { label: 'Placed', color: 'purple' },
+          rejected: { label: 'Offer Rejected', color: 'red' },
+          withdrawn: { label: 'Offer Withdrawn', color: 'orange' }
+        }
+        const conf = configs[s] || { label: s.replace('_', ' '), color: 'default' }
+        return (
+          <Tag color={conf.color} className="m-0 border-none font-bold text-[9px] uppercase px-2 rounded-full">
+            {conf.label}
+          </Tag>
+        )
+      }
+    },
+    {
+      title: 'Placement Status',
+      key: 'placement',
+      render: (_: any, app: Application) => {
+        if (!app.placement_status || app.placement_status === 'not_applicable') return <Text className="text-[10px] text-slate-300">—</Text>
+        const configs: Record<string, { label: string, color: string }> = {
+          pending_join: { label: 'Pending Join', color: 'amber' },
+          joined: { label: 'Joined', color: 'cyan' },
+          placement_confirmed: { label: 'Placed', color: 'purple' },
+          cancelled: { label: 'Cancelled', color: 'red' },
+        }
+        const conf = configs[app.placement_status] || { label: app.placement_status, color: 'default' }
+        return (
+          <Tag color={conf.color} className="m-0 border-none font-bold text-[9px] uppercase px-2 rounded-full">
+            {conf.label}
+          </Tag>
+        )
+      }
+    },
+    {
+      title: 'Joining',
+      key: 'joining_dates',
+      render: (_: any, app: Application) => (
+        <div className="flex flex-col gap-0.5">
+          {app.expected_joining_date && (
+            <div className="flex items-center gap-1 text-[10px] font-medium text-slate-500">
+              <Calendar size={10} className="text-slate-400" />
+              Exp: {dayjs(app.expected_joining_date).format('MMM D, YY')}
+            </div>
+          )}
+          {app.joined_at && (
+            <div className="flex items-center gap-1 text-[10px] font-bold text-slate-700">
+              <CheckCircle size={10} className="text-emerald-500" />
+              Actual: {dayjs(app.joined_at).format('MMM D, YY')}
+            </div>
+          )}
+          {!app.expected_joining_date && !app.joined_at && <Text className="text-[10px] text-slate-300">No dates</Text>}
         </div>
       )
     },
     {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (s: string) => <Tag className="rounded-full px-2.5 py-0.5 border-none bg-slate-100 text-slate-600 font-bold text-[10px] uppercase">{s}</Tag>
+      title: 'Commission',
+      key: 'commission',
+      render: (_: any, app: Application) => {
+        if (!app.commission_applicable) return <Text className="text-[10px] text-slate-300">N/A</Text>
+        return (
+          <div className="flex flex-col gap-0.5">
+            <div className="flex items-center gap-1">
+              <Text className="text-[10px] font-bold text-slate-800">
+                {app.commission_currency} {app.expected_commission_amount?.toLocaleString()}
+              </Text>
+              <Tag className="m-0 border-none bg-indigo-50 text-indigo-600 font-bold text-[8px] uppercase px-1 rounded">
+                {app.commission_basis_type === 'percentage' ? `${app.commission_value}%` : app.commission_basis_type?.replace('_', ' ')}
+              </Tag>
+            </div>
+            <Tag 
+              color={app.commission_status === 'awaiting_payment_tracking' ? 'orange' : app.commission_status === 'calculated' ? 'green' : 'default'}
+              className="m-0 border-none font-bold text-[8px] uppercase px-1.5 rounded-full w-fit"
+            >
+              {app.commission_status?.replace('_', ' ')}
+            </Tag>
+          </div>
+        )
+      }
     },
     {
-      title: 'Applied Date',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      render: (d: string) => dayjs(d).format('MMM D, YYYY')
+      title: 'Current Stage',
+      key: 'stage',
+      render: (_: any, app: any) => (
+        <Tag className="m-0 border-none bg-slate-100 text-slate-600 font-bold text-[9px] uppercase px-2 rounded">
+          {app.status.replace('_', ' ')}
+        </Tag>
+      )
+    },
+    {
+      title: '',
+      key: 'actions',
+      align: 'right' as const,
+      render: (_: any, app: Application) => (
+        <Dropdown
+          menu={{
+            items: [
+              {
+                key: 'update_placement',
+                label: 'Update Placement Status',
+                icon: <Activity size={14} />,
+                onClick: () => {
+                  setSelectedApp(app)
+                  setPlacementModalOpen(true)
+                }
+              },
+              {
+                key: 'update_commission',
+                label: 'Commission Details',
+                icon: <DollarSign size={14} />,
+                onClick: () => {
+                  setSelectedApp(app)
+                  setCommissionModalOpen(true)
+                }
+              },
+              { type: 'divider' },
+              {
+                key: 'view_details',
+                label: 'View Details',
+                icon: <ExternalLink size={14} />,
+              }
+            ]
+          }}
+          trigger={['click']}
+        >
+          <Button type="text" size="small" icon={<MoreVertical size={14} className="text-slate-400" />} />
+        </Dropdown>
+      )
     }
   ]
 
   return (
-    <Card bordered={false} className="shadow-soft-sm p-0 overflow-hidden">
-      <Table 
-        dataSource={applications} 
-        columns={columns} 
-        rowKey="id" 
-        loading={isLoading} 
-        pagination={{ pageSize: 10 }}
+    <div className="space-y-6">
+      {/* Summary Section */}
+      <div className="space-y-4">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Placement Summary</span>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: 'Offer Accepted', value: stats.offer_accepted, icon: CheckCircle, color: 'emerald' },
+            { label: 'Pending Join', value: stats.pending_join, icon: Clock, color: 'amber' },
+            { label: 'Joined', value: stats.joined, icon: Users, color: 'cyan' },
+            { label: 'Placement Confirmed', value: stats.placed, icon: ShieldCheck, color: 'purple' },
+          ].map(s => (
+            <Card key={s.label} className="shadow-soft-sm border-none bg-white">
+              <div className="flex items-start justify-between mb-2">
+                <div className={`p-1.5 rounded-lg bg-${s.color}-50 text-${s.color}-600`}>
+                  <s.icon size={14} />
+                </div>
+              </div>
+              <Text className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-1">{s.label}</Text>
+              <Title level={3} className="!m-0 !font-black text-slate-800">{s.value}</Title>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* Commission Summary */}
+      <div className="space-y-4">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Commission Foundation</span>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: 'Agency Placements', value: stats.agency_placements, icon: Scale, color: 'blue' },
+            { label: 'Commission Applicable', value: stats.comm_applicable, icon: DollarSign, color: 'indigo' },
+            { label: 'Calculated', value: stats.comm_calculated, icon: Receipt, color: 'green' },
+            { label: 'Awaiting Payment', value: stats.comm_awaiting_payment, icon: Clock, color: 'orange' },
+          ].map(s => (
+            <Card key={s.label} className="shadow-soft-sm border-none bg-slate-50/50">
+              <div className="flex items-start justify-between mb-2">
+                <div className={`p-1.5 rounded-lg bg-${s.color}-50 text-${s.color}-600`}>
+                  <s.icon size={14} />
+                </div>
+              </div>
+              <Text className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-1">{s.label}</Text>
+              <Title level={3} className="!m-0 !font-black text-slate-800">{s.value}</Title>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* Placement List Table */}
+      <Card 
+        title={
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Candidate Placement & Commission</span>
+          </div>
+        }
+        bordered={false} 
+        className="shadow-soft-sm overflow-hidden" 
+        bodyStyle={{ padding: 0 }}
+      >
+        <Table 
+          dataSource={offerApplications} 
+          columns={columns} 
+          rowKey="id" 
+          loading={pipelineLoading}
+          pagination={false}
+          className="modern-table"
+          size="small"
+          locale={{ emptyText: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No candidate placements found" /> }}
+        />
+      </Card>
+
+      <PlacementModal 
+        open={placementModalOpen}
+        application={selectedApp}
+        onClose={() => setPlacementModalOpen(false)}
+        onSuccess={() => {
+          setPlacementModalOpen(false)
+          refetch()
+        }}
       />
-    </Card>
+
+      <CommissionModal 
+        open={commissionModalOpen}
+        application={selectedApp}
+        onClose={() => setCommissionModalOpen(false)}
+        onSuccess={() => {
+          setCommissionModalOpen(false)
+          refetch()
+        }}
+      />
+    </div>
+  )
+}
+function HiringTeamTab({ requisition }: { requisition: JobRequisition }) {
+  return (
+    <div className="space-y-6">
+      <Card title="Hiring Team" bordered={false} className="shadow-soft-sm">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+            <div className="flex items-center gap-3">
+              <Avatar className="bg-indigo-100 text-indigo-600 font-bold">HM</Avatar>
+              <div>
+                <Text className="block font-bold text-slate-800">Hiring Manager</Text>
+                <Text className="text-xs text-slate-500">Approver & Final Interviewer</Text>
+              </div>
+            </div>
+            <Tag color="blue">Primary</Tag>
+          </div>
+          <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl">
+            <div className="flex items-center gap-3">
+              <Avatar className="bg-emerald-100 text-emerald-600 font-bold">IR</Avatar>
+              <div>
+                <Text className="block font-bold text-slate-800">Internal Recruiter</Text>
+                <Text className="text-xs text-slate-500">Sourcing & Screening</Text>
+              </div>
+            </div>
+            <Tag color="green">Owner</Tag>
+          </div>
+        </div>
+      </Card>
+      
+      {requisition.sourcing_mode !== 'internal' && (
+        <Card title="External Partners Visibility" bordered={false} className="shadow-soft-sm">
+          <Text className="text-slate-500 text-sm">
+            Assigned agencies can see candidate feedback and stage movements based on their agreement.
+          </Text>
+        </Card>
+      )}
+    </div>
   )
 }
 
-function InterviewsTab({ jobId }: { jobId: string }) {
-  const { data, isLoading } = useApiQuery(['job-interviews', jobId], () => 
-    interviewsApi.list({ requisition_id: jobId })
-  )
-  const interviews = (data as any)?.interviews ?? []
+function AssignAgencyModal({
+  open,
+  jobId,
+  onClose,
+  onSuccess,
+}: {
+  open: boolean
+  jobId: string
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [form] = Form.useForm()
+  const [loading, setLoading] = useState(false)
+  const { data: relationshipsData } = useApiQuery(['agency-relationships'], () => agenciesApi.listRelationships())
+  const relationships = (relationshipsData as any)?.relationships || []
 
-  const columns = [
-    {
-      title: 'Candidate',
-      dataIndex: 'candidate_name',
-      key: 'candidate',
-      render: (name: string) => <Text className="font-bold text-slate-900">{name || 'N/A'}</Text>
-    },
-    {
-      title: 'Round',
-      dataIndex: 'interview_round',
-      key: 'round'
-    },
-    {
-      title: 'Scheduled At',
-      dataIndex: 'scheduled_at',
-      key: 'scheduled_at',
-      render: (d: string) => dayjs(d).format('MMM D, YYYY HH:mm')
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (s: string) => <Tag color="blue">{s}</Tag>
+  const onFinish = async (values: any) => {
+    setLoading(true)
+    try {
+      await agenciesApi.createAssignment({
+        requisition_id: jobId,
+        agency_tenant_id: values.agency_id,
+        max_submissions: values.max_submissions,
+        deadline: values.deadline?.format('YYYY-MM-DD'),
+        notes: values.notes,
+      })
+      message.success('Agency assigned to job')
+      form.resetFields()
+      onSuccess()
+    } catch (err: any) {
+      message.error(err.response?.data?.message || 'Failed to assign agency')
+    } finally {
+      setLoading(false)
     }
-  ]
+  }
 
   return (
-    <Card bordered={false} className="shadow-soft-sm p-0 overflow-hidden">
-      <Table 
-        dataSource={interviews} 
-        columns={columns} 
-        rowKey="id" 
-        loading={isLoading} 
+    <Modal
+      title="Assign Agency to Job"
+      open={open}
+      onCancel={onClose}
+      onOk={() => form.submit()}
+      confirmLoading={loading}
+    >
+      <Form form={form} layout="vertical" onFinish={onFinish}>
+        <Form.Item name="agency_id" label="Select Agency" rules={[{ required: true }]}>
+          <Select placeholder="Choose an agency partner...">
+            {relationships.map((rel: any) => (
+              <Select.Option key={rel.agency_id} value={rel.agency_id}>
+                {rel.agency_name}
+              </Select.Option>
+            ))}
+          </Select>
+        </Form.Item>
+        <div className="grid grid-cols-2 gap-4">
+          <Form.Item name="max_submissions" label="Max Submissions" initialValue={10}>
+             <InputNumber min={1} className="w-full" />
+          </Form.Item>
+          <Form.Item name="deadline" label="Submission Deadline">
+             <DatePicker className="w-full" disabledDate={d => d && d < dayjs().startOf('day')} />
+          </Form.Item>
+        </div>
+        <Form.Item name="notes" label="Special Instructions">
+          <Input.TextArea rows={3} placeholder="Add any specific requirements for this agency..." />
+        </Form.Item>
+      </Form>
+    </Modal>
+  )
+}
+
+function SourcingTab({ requisition }: { requisition: JobRequisition }) {
+  const [assignModalOpen, setAssignModalOpen] = useState(false)
+  const { data: assignmentsData, isLoading, refetch } = useApiQuery(
+    ['job-assignments', requisition.id],
+    () => agenciesApi.listAssignments({ requisition_id: requisition.id })
+  )
+  const assignments = (assignmentsData as any)?.assignments || []
+
+  const modeConfig = {
+    internal: { label: 'Internal Only', icon: Lock, color: 'blue', desc: 'Only visible to the internal hiring team.' },
+    external: { label: 'External Only', icon: Globe, color: 'purple', desc: 'Visible only to assigned external agencies.' },
+    hybrid: { label: 'Hybrid Sourcing', icon: ShieldCheck, color: 'emerald', desc: 'Open to both internal team and assigned agencies.' }
+  }
+  const config = modeConfig[requisition.sourcing_mode || 'internal']
+
+  return (
+    <div className="space-y-6">
+      <Card bordered={false} className="shadow-soft-sm">
+        <div className="flex items-start justify-between">
+          <div className="flex items-center gap-4">
+            <div className={`h-12 w-12 rounded-2xl bg-${config.color}-50 flex items-center justify-center text-${config.color}-600`}>
+              <config.icon size={24} />
+            </div>
+            <div>
+              <Title level={5} className="!m-0">{config.label}</Title>
+              <Text className="text-slate-500 text-xs">{config.desc}</Text>
+            </div>
+          </div>
+          <Button type="primary" ghost size="small">Change Mode</Button>
+        </div>
+      </Card>
+
+      <Card 
+        title={
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Assigned Agencies</span>
+            <Button 
+              type="text" 
+              size="small" 
+              icon={<Plus size={14} />} 
+              className="text-blue-600 font-bold flex items-center gap-1"
+              onClick={() => setAssignModalOpen(true)}
+            >
+              Assign Agency
+            </Button>
+          </div>
+        } 
+        bordered={false} 
+        className="shadow-soft-sm overflow-hidden"
+        bodyStyle={{ padding: 0 }}
+      >
+        <Table
+          dataSource={assignments}
+          pagination={false}
+          size="small"
+          className="modern-table"
+          loading={isLoading}
+          columns={[
+            {
+              title: 'Agency Name',
+              dataIndex: 'agency_name',
+              key: 'agency',
+              render: (name) => <Text className="font-bold text-slate-800 text-xs">{name}</Text>
+            },
+            {
+              title: 'Status',
+              dataIndex: 'status',
+              key: 'status',
+              render: (s) => (
+                <Tag className="m-0 border-none rounded-full font-bold text-[9px] uppercase px-2" color={s === 'active' ? 'green' : 'default'}>
+                  {s}
+                </Tag>
+              )
+            },
+            {
+              title: 'Submissions',
+              key: 'usage',
+              render: (_, r: any) => (
+                <div className="flex items-center gap-2">
+                  <Text className="text-[11px] font-bold text-slate-600">{r.submissions_count || 0} / {r.max_submissions || '∞'}</Text>
+                </div>
+              )
+            },
+            {
+              title: 'Deadline',
+              dataIndex: 'deadline',
+              key: 'deadline',
+              render: (d) => d ? (
+                <div className="flex items-center gap-1 text-[10px] text-slate-500 font-medium">
+                  <Clock size={10} /> {dayjs(d).format('MMM D, YYYY')}
+                </div>
+              ) : '—'
+            },
+            {
+              title: 'Agency Owner',
+              key: 'owner',
+              render: (_, r: any) => <Text className="text-[10px] text-slate-400 font-medium">{r.internal_recruiter_id ? `Recruiter ID: ${r.internal_recruiter_id.slice(0, 8)}` : 'Admin/Manager'}</Text>
+            },
+            {
+              title: '',
+              key: 'actions',
+              align: 'right',
+              render: () => <Button type="text" size="small" icon={<ExternalLink size={14} className="text-slate-300" />} />
+            }
+          ]}
+        />
+      </Card>
+
+      <AssignAgencyModal 
+        open={assignModalOpen} 
+        jobId={requisition.id} 
+        onClose={() => setAssignModalOpen(false)}
+        onSuccess={() => {
+          setAssignModalOpen(false)
+          refetch()
+        }}
+      />
+    </div>
+  )
+}
+
+function ActivityTab({ jobId }: { jobId: string }) {
+  const { data: pipelineData, isLoading } = useApiQuery(
+    ['job-activity-timeline', jobId],
+    async () => {
+      const appRes = await pipelineApi.listApplications({ requisition_id: jobId })
+      const apps = (appRes as any).applications || []
+      
+      const historyPromises = apps.map((app: any) => pipelineApi.getApplication(app.id))
+      const historyResults = await Promise.all(historyPromises)
+      
+      const allEvents: any[] = []
+      historyResults.forEach((res: any) => {
+        const app = res.data.data.application
+        const history = (res as any).data.data.history || []
+        
+        // Add initial submission
+        allEvents.push({
+          candidate_id: app.candidate_id,
+          text: `submitted application`,
+          date: app.created_at,
+          type: 'submission'
+        })
+        
+        // Add stage movements
+        history.forEach((h: any) => {
+          allEvents.push({
+            candidate_id: app.candidate_id,
+            text: `moved to ${h.to_stage_name || 'next stage'}`,
+            date: h.moved_at,
+            type: 'move'
+          })
+        })
+        
+        // Add offer events
+        if (app.offer_date) {
+           allEvents.push({
+             candidate_id: app.candidate_id,
+             text: `Offer sent — ${app.offer_currency} ${app.offer_amount?.toLocaleString()}`,
+             date: app.offer_date,
+             type: 'offer'
+           })
+        }
+        if (app.offer_accepted_at) {
+          allEvents.push({
+            candidate_id: app.candidate_id,
+            text: `Offer accepted`,
+            date: app.offer_accepted_at,
+            type: 'offer_accepted'
+          })
+        }
+        if (app.offer_rejected_at) {
+          allEvents.push({
+            candidate_id: app.candidate_id,
+            text: `Offer rejected`,
+            date: app.offer_rejected_at,
+            type: 'offer_rejected'
+          })
+        }
+        if (app.joined_at) {
+          allEvents.push({
+            candidate_id: app.candidate_id,
+            text: `Joined the company`,
+            date: app.joined_at,
+            type: 'joined'
+          })
+        }
+        if (app.placement_status === 'pending_join' && !app.joined_at) {
+          allEvents.push({
+            candidate_id: app.candidate_id,
+            text: `Marked as Pending Join (Expected: ${app.expected_joining_date ? dayjs(app.expected_joining_date).format('MMM D') : 'TBD'})`,
+            date: app.updated_at,
+            type: 'move'
+          })
+        }
+        if (app.placement_status === 'placement_confirmed' || app.status === 'placement_confirmed') {
+          allEvents.push({
+            candidate_id: app.candidate_id,
+            text: `Placement confirmed`,
+            date: app.placement_confirmed_at || app.updated_at,
+            type: 'placed'
+          })
+        }
+        if (app.placement_status === 'cancelled') {
+          allEvents.push({
+            candidate_id: app.candidate_id,
+            text: `Placement cancelled`,
+            date: app.updated_at,
+            type: 'offer_rejected'
+          })
+        }
+        if (app.status === 'withdrawn' && app.offer_amount) {
+          allEvents.push({
+            candidate_id: app.candidate_id,
+            text: `Offer withdrawn by candidate`,
+            date: app.updated_at,
+            type: 'offer_rejected' // Use red for withdrawn too
+          })
+        }
+
+        // Commission Events
+        if (app.commission_applicable) {
+          if (app.commission_status === 'calculated') {
+            allEvents.push({
+              candidate_id: app.candidate_id,
+              text: `Commission calculated: ${app.commission_currency} ${app.expected_commission_amount?.toLocaleString()}`,
+              date: app.updated_at,
+              type: 'commission'
+            })
+          } else if (app.commission_status === 'awaiting_payment_tracking') {
+            allEvents.push({
+              candidate_id: app.candidate_id,
+              text: `Commission awaiting payment tracking`,
+              date: app.updated_at,
+              type: 'commission'
+            })
+          } else if (app.commission_status === 'cancelled') {
+            allEvents.push({
+              candidate_id: app.candidate_id,
+              text: `Commission cancelled`,
+              date: app.updated_at,
+              type: 'offer_rejected'
+            })
+          }
+        }
+      })
+      
+      return allEvents.sort((a, b) => dayjs(b.date).unix() - dayjs(a.date).unix())
+    }
+  )
+
+  const activities = (pipelineData as any) ?? []
+  const [candidateNames, setCandidateNames] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    if (activities.length > 0) {
+      const fetchNames = async () => {
+        const uniqueIds = Array.from(new Set(activities.map((a: any) => a.candidate_id)))
+        const names: Record<string, string> = {}
+        await Promise.all(uniqueIds.map(async (id: any) => {
+          try {
+            const res = await candidatesApi.get(id)
+            names[id] = (res as any).data.data.candidate.full_name
+          } catch {}
+        }))
+        setCandidateNames(prev => ({ ...prev, ...names }))
+      }
+      fetchNames()
+    }
+  }, [activities])
+
+  if (isLoading) return <div className="p-20 text-center"><Spin /></div>
+  if (activities.length === 0) return (
+    <Card bordered={false} className="shadow-soft-sm py-20 text-center rounded-3xl">
+      <Empty description="No job activity yet" />
+    </Card>
+  )
+
+  const colorMap: Record<string, string> = {
+    submission: 'blue',
+    move: 'indigo',
+    offer: 'amber',
+    offer_accepted: 'emerald',
+    offer_rejected: 'rose',
+    joined: 'cyan',
+    placed: 'purple',
+    commission: 'indigo'
+  }
+
+  return (
+    <Card bordered={false} className="shadow-soft-sm p-8 rounded-3xl">
+      <Timeline
+        items={activities.map((act: any, i: number) => ({
+          key: i,
+          children: (
+            <div className="flex flex-col">
+              <Text className="text-sm font-medium text-slate-900">
+                <span className="font-bold text-blue-600">{candidateNames[act.candidate_id] || 'Candidate'}</span> {act.text}
+              </Text>
+              <Text type="secondary" className="text-[11px] font-bold uppercase mt-1 text-slate-400">
+                {dayjs(act.date).format('MMM D, YYYY · HH:mm')} ({dayjs(act.date).fromNow()})
+              </Text>
+            </div>
+          ),
+          dot: <div className={cn("h-2 w-2 rounded-full", `bg-${colorMap[act.type] || 'slate'}-500`)} />,
+        }))}
       />
     </Card>
   )
@@ -251,23 +1129,34 @@ export default function JobDetail() {
             children: <OverviewTab requisition={requisition} />
           },
           {
-            key: 'pipeline',
-            label: 'Pipeline',
-            children: (
-              <div className="h-[calc(100vh-350px)] overflow-hidden -mx-8 px-8">
-                <PipelineBoard jobId={id} />
-              </div>
-            )
+            key: 'hiring_team',
+            label: 'Hiring Team',
+            children: <HiringTeamTab requisition={requisition} />
           },
           {
-            key: 'applications',
-            label: 'Applications',
-            children: <ApplicationsTab jobId={id!} />
+            key: 'sourcing',
+            label: 'Sourcing',
+            children: <SourcingTab requisition={requisition} />
+          },
+          {
+            key: 'tracking',
+            label: 'Tracking',
+            children: <JobTrackingView jobId={id!} />
           },
           {
             key: 'interviews',
             label: 'Interviews',
-            children: <InterviewsTab jobId={id!} />
+            children: <JobInterviewsTab jobId={id!} />
+          },
+          {
+            key: 'offers',
+            label: 'Offers',
+            children: <OffersTab jobId={id!} />
+          },
+          {
+            key: 'activity',
+            label: 'Activity',
+            children: <ActivityTab jobId={id!} />
           }
         ]}
       />

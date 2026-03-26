@@ -13,7 +13,18 @@ from apps.agencies.serializers import (
     AgencyClientRelationshipSerializer, AgencyJobAssignmentSerializer,
     AgencyPerformanceScoreSerializer,
 )
+from apps.candidates.protection import create_or_update_protection_on_submission
 from apps.core.responses import success_response, error_response
+
+
+def _to_bool(value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    return str(value).strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
 class AvailableAgencyListView(APIView):
@@ -606,7 +617,10 @@ class AgencySubmitCandidateView(APIView):
                 source_detail=f"Submitted by Agency (Tenant ID: {request.user.tenant_id})",
                 owner_tenant_id=request.user.tenant_id,
                 owner_user_id=request.user.id,
-                created_by=request.user.id
+                created_by=request.user.id,
+                candidate_state='NEW_LEAD',
+                candidate_pool='GENERAL',
+                is_general_pool_used=False,
             )
             
             # Copy profile if exists
@@ -701,6 +715,13 @@ class AgencySubmitCandidateView(APIView):
             application=application,
             agency_user=request.user,
             request=request
+        )
+        create_or_update_protection_on_submission(
+            candidate_id=target_candidate.id,
+            source_tenant_id=request.user.tenant_id,
+            target_tenant_id=company_id,
+            context_job_id=requisition_id,
+            actor_user_id=request.user.id,
         )
         events.application.created.send(
             sender=self.__class__,
@@ -919,6 +940,19 @@ class GuestPortalCreateView(APIView):
                 sla_feedback_hours=request.data.get('sla_feedback_hours', 72),
                 contract_start_date=request.data.get('contract_start_date') or None,
                 contract_end_date=request.data.get('contract_end_date') or None,
+                retention_enabled=_to_bool(request.data.get('retention_enabled', False)),
+                retention_days=request.data.get('retention_days') or 90,
+                retention_start_type=request.data.get('retention_start_type') or 'submission_date',
+                retention_scope=request.data.get('retention_scope') or 'job_only',
+                retention_post_expiry=request.data.get('retention_post_expiry') or 'shared',
+                replacement_guarantee_enabled=_to_bool(request.data.get('replacement_guarantee_enabled', False)),
+                guarantee_period_days=request.data.get('guarantee_period_days') or 30,
+                guarantee_start_type=request.data.get('guarantee_start_type') or 'joining_date',
+                guarantee_resolution_type=request.data.get('guarantee_resolution_type') or 'replacement_only',
+                refund_mode=request.data.get('refund_mode', ''),
+                refund_percentage=request.data.get('refund_percentage') or None,
+                replacement_attempt_limit=str(request.data.get('replacement_attempt_limit') or '1'),
+                guarantee_notes=request.data.get('guarantee_notes', ''),
                 notes=request.data.get('notes', ''),
                 status='pending',
                 created_by=request.user.id,
@@ -945,6 +979,19 @@ class GuestPortalCreateView(APIView):
                 sla_feedback_hours=request.data.get('sla_feedback_hours', 72),
                 contract_start_date=request.data.get('contract_start_date') or None,
                 contract_end_date=request.data.get('contract_end_date') or None,
+                retention_enabled=_to_bool(request.data.get('retention_enabled', False)),
+                retention_days=request.data.get('retention_days') or 90,
+                retention_start_type=request.data.get('retention_start_type') or 'submission_date',
+                retention_scope=request.data.get('retention_scope') or 'job_only',
+                retention_post_expiry=request.data.get('retention_post_expiry') or 'shared',
+                replacement_guarantee_enabled=_to_bool(request.data.get('replacement_guarantee_enabled', False)),
+                guarantee_period_days=request.data.get('guarantee_period_days') or 30,
+                guarantee_start_type=request.data.get('guarantee_start_type') or 'joining_date',
+                guarantee_resolution_type=request.data.get('guarantee_resolution_type') or 'replacement_only',
+                refund_mode=request.data.get('refund_mode', ''),
+                refund_percentage=request.data.get('refund_percentage') or None,
+                replacement_attempt_limit=str(request.data.get('replacement_attempt_limit') or '1'),
+                guarantee_notes=request.data.get('guarantee_notes', ''),
                 notes=request.data.get('notes', ''),
                 status='pending',
                 created_by=request.user.id,
@@ -1033,6 +1080,19 @@ class EmailTrackingCreateView(APIView):
             sla_feedback_hours=request.data.get('sla_feedback_hours', 72),
             contract_start_date=request.data.get('contract_start_date') or None,
             contract_end_date=request.data.get('contract_end_date') or None,
+            retention_enabled=_to_bool(request.data.get('retention_enabled', False)),
+            retention_days=request.data.get('retention_days') or 90,
+            retention_start_type=request.data.get('retention_start_type') or 'submission_date',
+            retention_scope=request.data.get('retention_scope') or 'job_only',
+            retention_post_expiry=request.data.get('retention_post_expiry') or 'shared',
+            replacement_guarantee_enabled=_to_bool(request.data.get('replacement_guarantee_enabled', False)),
+            guarantee_period_days=request.data.get('guarantee_period_days') or 30,
+            guarantee_start_type=request.data.get('guarantee_start_type') or 'joining_date',
+            guarantee_resolution_type=request.data.get('guarantee_resolution_type') or 'replacement_only',
+            refund_mode=request.data.get('refund_mode', ''),
+            refund_percentage=request.data.get('refund_percentage') or None,
+            replacement_attempt_limit=str(request.data.get('replacement_attempt_limit') or '1'),
+            guarantee_notes=request.data.get('guarantee_notes', ''),
             notes=request.data.get('notes', ''),
             status='active',
             created_by=request.user.id,
@@ -1091,6 +1151,19 @@ class OfflineClientCreateView(APIView):
             sla_feedback_hours=request.data.get('sla_feedback_hours', 72),
             contract_start_date=request.data.get('contract_start_date') or None,
             contract_end_date=request.data.get('contract_end_date') or None,
+            retention_enabled=_to_bool(request.data.get('retention_enabled', False)),
+            retention_days=request.data.get('retention_days') or 90,
+            retention_start_type=request.data.get('retention_start_type') or 'submission_date',
+            retention_scope=request.data.get('retention_scope') or 'job_only',
+            retention_post_expiry=request.data.get('retention_post_expiry') or 'shared',
+            replacement_guarantee_enabled=_to_bool(request.data.get('replacement_guarantee_enabled', False)),
+            guarantee_period_days=request.data.get('guarantee_period_days') or 30,
+            guarantee_start_type=request.data.get('guarantee_start_type') or 'joining_date',
+            guarantee_resolution_type=request.data.get('guarantee_resolution_type') or 'replacement_only',
+            refund_mode=request.data.get('refund_mode', ''),
+            refund_percentage=request.data.get('refund_percentage') or None,
+            replacement_attempt_limit=str(request.data.get('replacement_attempt_limit') or '1'),
+            guarantee_notes=request.data.get('guarantee_notes', ''),
             notes=notes,
             status='active',
             created_by=request.user.id,

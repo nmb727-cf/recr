@@ -46,6 +46,11 @@ const { Header, Sider, Content } = Layout
 function NotificationDropdown({ badgeOverrideCount }: { badgeOverrideCount?: number }) {
   const { data, refetch } = useApiQuery(['notifications', 'unread'], () =>
     notificationsApi.list({ is_read: false })
+  , {
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
+  }
   )
   const notifications = (data as { notifications: Notification[] } | undefined)?.notifications ?? []
   const badgeCount = badgeOverrideCount ?? notifications.length

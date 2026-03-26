@@ -24,6 +24,7 @@ import OnboardingWizard from '@/pages/onboarding/OnboardingWizard'
 import CompanyOnboarding from '@/pages/onboarding/CompanyOnboarding'
 import AgencyOnboarding from '@/pages/onboarding/AgencyOnboarding'
 import ApplyForm from '@/pages/public/ApplyForm'
+import ClaimProfile from '@/pages/candidate/ClaimProfile'
 
 // App pages
 import Dashboard from '@/pages/dashboard/Dashboard'
@@ -211,6 +212,8 @@ export default function App() {
               <Route path="/register/candidate" element={<RegisterCandidate />} />
               <Route path="/verify-email" element={<VerifyEmail />} />
               <Route path="/apply/:token" element={<ApplyForm />} />
+              {/* Claim flow: recruiter-added candidates follow this link to claim/link their profile */}
+              <Route path="/candidate/claim/:token" element={<ClaimProfile />} />
 
               {/* ── Onboarding wizard (no AppLayout, no OnboardingGuard) ── */}
               <Route path="/onboarding/wizard" element={

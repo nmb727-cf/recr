@@ -3,6 +3,8 @@ from datetime import timedelta
 from celery import shared_task
 from django.utils import timezone
 
+from apps.candidates.protection import expire_protection_rights
+
 
 @shared_task
 def close_not_interested_engagements():
@@ -59,3 +61,9 @@ def close_not_interested_engagements():
         count += 1
 
     return f"Auto-closed {count} not_interested engagements"
+
+
+@shared_task
+def expire_candidate_protection_rights():
+    updated = expire_protection_rights(now_dt=timezone.now())
+    return f"Expired/transitioned {updated} candidate protection rights"

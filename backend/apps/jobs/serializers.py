@@ -23,6 +23,7 @@ class JobRequisitionSerializer(serializers.ModelSerializer):
             'headcount', 'priority', 'is_confidential',
             'description', 'requirements', 'responsibilities',
             'skills_required', 'status', 'approval_chain',
+            'hiring_status', 'guarantee_watch_until',
             'current_approver_id', 'approved_at', 'approved_by',
             'target_date', 'closed_at', 'closed_reason',
             'source',

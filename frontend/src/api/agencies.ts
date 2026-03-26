@@ -85,4 +85,10 @@ export const agenciesApi = {
 
   mySubmissions: (params?: any) => 
     http.get('/agencies/my-submissions/', { params }),
+
+  assignInternalRecruiter: (assignmentId: string, recruiterId: string) =>
+    http.post(`/agencies/assignments/${assignmentId}/assign-recruiter/`, { recruiter_id: recruiterId }),
+
+  updateSubmissionGovernance: (submissionId: string, status: string, note?: string) =>
+    http.post(`/agencies/submissions/${submissionId}/governance/`, { status, note }),
 }

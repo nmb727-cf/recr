@@ -1,11 +1,19 @@
 import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import {
-  Form, Input, Button, Typography, Spin, 
+  Form, Input, Button, Typography, Spin,
   message, Result, Checkbox, Select, Divider, InputNumber, Row, Col
 } from 'antd'
 import { candidatesApi } from '@/api/candidates'
 import { Globe, Briefcase, Zap, FileText } from 'lucide-react'
+import { COUNTRIES } from '@/utils/locale'
+import {
+  WORK_AUTHORIZATION_OPTIONS,
+  EDUCATION_OPTIONS,
+  WORK_MODE_OPTIONS,
+  AVAILABILITY_STATUS_OPTIONS,
+  NOTICE_PERIOD_OPTIONS,
+} from '@/constants/candidateFields'
 
 const { Title, Text } = Typography
 
@@ -213,16 +221,13 @@ export default function ApplyForm() {
               </Row>
               <Row gutter={16}>
                 <Col span={12}>
+                  {/* Canonical EDUCATION_OPTIONS from candidateFields.ts */}
                   <Form.Item name="highest_education" label="Highest Education">
-                    <Select placeholder="Select education level" 
-                            className="h-11" options={[
-                      { value: 'high_school', label: 'High School' },
-                      { value: 'diploma', label: 'Diploma' },
-                      { value: 'bachelor', label: "Bachelor's Degree" },
-                      { value: 'master', label: "Master's Degree" },
-                      { value: 'phd', label: 'PhD / Doctorate' },
-                      { value: 'other', label: 'Other' },
-                    ]} />
+                    <Select
+                      placeholder="Select education level"
+                      className="h-11"
+                      options={EDUCATION_OPTIONS}
+                    />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
@@ -262,60 +267,58 @@ export default function ApplyForm() {
               </Form.Item>
               <Row gutter={16}>
                 <Col span={12}>
+                  {/* nationality: canonical Select from COUNTRIES (matches Detailed Add) */}
                   <Form.Item name="nationality" label="Nationality">
-                    <Input 
-                      placeholder="e.g. Indian, American" 
-                      className="h-11 rounded-xl" 
+                    <Select
+                      showSearch
+                      allowClear
+                      placeholder="Select nationality"
+                      className="h-11"
+                      optionFilterProp="label"
+                      options={COUNTRIES.map((c) => ({ value: c.name, label: c.name }))}
                     />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
-                  <Form.Item name="work_authorization" 
-                             label="Work Authorization">
-                    <Select placeholder="Select status" 
-                            className="h-11" options={[
-                      { value: 'citizen', label: 'Citizen' },
-                      { value: 'permanent_resident', 
-                        label: 'Permanent Resident' },
-                      { value: 'work_visa', label: 'Work Visa' },
-                      { value: 'need_sponsorship', 
-                        label: 'Needs Sponsorship' },
-                      { value: 'not_specified', 
-                        label: 'Prefer not to say' },
-                    ]} />
+                  {/* Canonical work_authorization options from candidateFields.ts */}
+                  <Form.Item name="work_authorization" label="Work Authorization">
+                    <Select
+                      placeholder="Select status"
+                      className="h-11"
+                      options={WORK_AUTHORIZATION_OPTIONS}
+                    />
                   </Form.Item>
                 </Col>
               </Row>
               <Row gutter={16}>
                 <Col span={12}>
+                  {/* Canonical availability_status options */}
                   <Form.Item name="availability_status" label="Availability">
-                    <Select placeholder="Select status" className="h-11" options={[
-                      { value: 'available_now', label: 'Available Now' },
-                      { value: 'notice_period', label: 'Serving Notice' },
-                      { value: 'open_to_offers', label: 'Open to Offers' },
-                      { value: 'not_looking', label: 'Not Looking' },
-                    ]} />
+                    <Select
+                      placeholder="Select status"
+                      className="h-11"
+                      options={AVAILABILITY_STATUS_OPTIONS}
+                    />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
+                  {/* Canonical notice_period options (45 days added) */}
                   <Form.Item name="notice_period_days" label="Notice Period (Days)">
-                    <Select placeholder="Select days" className="h-11" options={[
-                      { value: 0, label: 'Immediate' },
-                      { value: 15, label: '15 Days' },
-                      { value: 30, label: '30 Days' },
-                      { value: 60, label: '60 Days' },
-                      { value: 90, label: '90 Days' },
-                    ]} />
+                    <Select
+                      placeholder="Select days"
+                      className="h-11"
+                      options={NOTICE_PERIOD_OPTIONS}
+                    />
                   </Form.Item>
                 </Col>
               </Row>
+              {/* Canonical work_mode options */}
               <Form.Item name="work_mode_preference" label="Work Mode Preference">
-                <Select placeholder="Select preference" className="h-11" options={[
-                  { value: 'any', label: 'Any (Remote/On-site/Hybrid)' },
-                  { value: 'remote', label: 'Remote Only' },
-                  { value: 'hybrid', label: 'Hybrid' },
-                  { value: 'onsite', label: 'On-site' },
-                ]} />
+                <Select
+                  placeholder="Select preference"
+                  className="h-11"
+                  options={WORK_MODE_OPTIONS}
+                />
               </Form.Item>
             </section>
 

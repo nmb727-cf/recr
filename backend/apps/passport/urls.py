@@ -1,6 +1,7 @@
 from django.urls import path
 from apps.passport import views
 from apps.passport.withdrawal_views import DataWithdrawalView
+from apps.passport.candidate_sync_views import MyCandidateView
 
 urlpatterns = [
     # Candidate passport management
@@ -13,6 +14,9 @@ urlpatterns = [
 
     # Public access
     path('public/<str:token>/', views.PublicPassportView.as_view(), name='passport-public'),
+
+    # Linked candidate — prefill source for onboarding (GET) + candidate-model field update (PATCH)
+    path('my-candidate/', MyCandidateView.as_view(), name='passport-my-candidate'),
 
     # Import by company/agency
     path('import/', views.PassportImportView.as_view(), name='passport-import'),

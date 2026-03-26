@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Table, Button, Input, Select, Typography, Row, Col, Card,
@@ -37,11 +37,13 @@ const { Title, Text } = Typography
 // ─── Status Config ──────────────────────────────────────────────────────────
 
 const JOB_STATUS_OPTIONS = [
-  { value: 'active', label: 'Active / Published' },
+  { value: 'active', label: 'Active Jobs' },
+  { value: 'paused', label: 'Paused Jobs' },
+  { value: 'in_guarantee_period', label: 'In Guarantee Period' },
   { value: 'pending_approval', label: 'Pending Approval' },
   { value: 'approved', label: 'Approved (Not Published)' },
   { value: 'draft', label: 'Drafts' },
-  { value: 'closed', label: 'Closed' },
+  { value: 'closed', label: 'Closed Jobs' },
 ]
 
 // ─── Sub-components ─────────────────────────────────────────────────────────
@@ -312,6 +314,11 @@ const JobDetailPanel = ({
     () => agenciesApi.listAssignments({ requisition_id: jobId }),
     { enabled: !!jobId }
   )
+  const { data: requisitionDetail } = useApiQuery(
+    ['job-detail', jobId],
+    () => requisitionsApi.get(jobId!),
+    { enabled: !!jobId }
+  )
 
   // Actions
   const submitMutation = useMutation({
@@ -340,6 +347,11 @@ const JobDetailPanel = ({
 
   const pipeline = (pipelineData as any)?.data?.pipeline || {}
   const assignments = Array.isArray((agenciesData as any)?.data?.assignments) ? (agenciesData as any).data.assignments : []
+  const placementGuarantees = (
+    (requisitionDetail as any)?.placement_guarantees ??
+    (requisitionDetail as any)?.data?.placement_guarantees ??
+    []
+  ) as Array<any>
 
   const formatSalary = (amount: any) => {
     if (!amount) return 'N/A'
@@ -364,7 +376,12 @@ const JobDetailPanel = ({
               { label: 'Job Type', value: job?.job_type?.replace('_', ' ') || 'N/A' },
               { label: 'Work Mode', value: job?.work_mode || 'N/A' },
               { label: 'Priority', value: job?.priority || 'Medium', type: 'tag' },
-              { label: 'Agencies', value: assignments.length }
+              { label: 'Agencies', value: assignments.length },
+              { label: 'Hiring Status', value: formatStatusLabel(job?.hiring_status || 'active_hiring') },
+              {
+                label: 'Guarantee Watch Until',
+                value: job?.guarantee_watch_until ? dayjs(job.guarantee_watch_until).format('MMM D, YYYY') : 'N/A'
+              }
             ].map((stat, i) => (
               <div key={i} className="bg-slate-50/50 rounded-xl p-4 border border-slate-100">
                 <Text className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">{stat.label}</Text>
@@ -378,6 +395,24 @@ const JobDetailPanel = ({
           </div>
 
           <div className="space-y-6">
+            {placementGuarantees.length > 0 && (
+              <div>
+                <Title level={5} className="!text-xs !font-bold !uppercase !tracking-widest !text-slate-400 !mb-3">
+                  Post Placement Monitoring
+                </Title>
+                <div className="space-y-2">
+                  {placementGuarantees.slice(0, 5).map((g: any) => (
+                    <div key={g.id} className="rounded-xl border border-amber-100 bg-amber-50 p-3">
+                      <div className="flex items-center justify-between">
+                        <Text className="font-bold text-amber-900 text-xs uppercase tracking-wide">{(g.status || 'active').replace(/_/g, ' ')}</Text>
+                        <Text className="text-[11px] text-amber-700">Ends: {g.guarantee_end_date ? dayjs(g.guarantee_end_date).format('MMM D, YYYY') : 'N/A'}</Text>
+                      </div>
+                      <Text className="text-[11px] text-amber-700">Resolution: {(g.guarantee_resolution_type || 'replacement_only').replace(/_/g, ' ')}</Text>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div>
               <Title level={5} className="!text-xs !font-bold !uppercase !tracking-widest !text-slate-400 !mb-3">Description</Title>
               <Text className="text-slate-600 leading-relaxed block whitespace-pre-wrap">{job?.description || 'No description provided.'}</Text>
@@ -560,14 +595,6 @@ export default function JobsList() {
     ((data as any)?.requisitions as JobRequisition[] | undefined) ??
     ((data as any)?.data?.requisitions as JobRequisition[] | undefined) ??
     []
-
-  useEffect(() => {
-    // Temporary debug visibility to validate backend payload vs UI rendering.
-    if (import.meta.env.DEV) {
-      console.debug('[JobsList] requisitions response', data)
-      console.debug('[JobsList] rendered requisitions count', requisitions.length)
-    }
-  }, [data, requisitions.length])
 
   return (
     <div className="h-[calc(100vh-100px)] flex flex-col -m-6">

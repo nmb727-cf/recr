@@ -20,6 +20,11 @@ from apps.candidates.pipeline_hooks import (
     on_offer_made,
     on_candidate_hired,
 )
+from apps.candidates.protection import (
+    check_protected_action,
+    mark_placement_via_source,
+    start_rejection_based_protection_if_needed,
+)
 
 
 def _extract_stage_note(payload):
@@ -111,7 +116,11 @@ def perform_application_move(application, target_stage, user, notes=None, reason
     # Update Application
     application.current_stage_id = target_stage.id
     application.status = target_stage.stage_type
-    application.save(update_fields=['current_stage_id', 'status', 'updated_at'])
+    application_update_fields = ['current_stage_id', 'status', 'updated_at']
+    if target_stage.stage_type == 'joined' and not application.joined_at:
+        application.joined_at = timezone.now()
+        application_update_fields.append('joined_at')
+    application.save(update_fields=application_update_fields)
 
     # Record history
     ApplicationStageHistory.objects.create(
@@ -139,11 +148,7 @@ def perform_application_move(application, target_stage, user, notes=None, reason
             job = JobRequisition.objects.get(id=application.requisition_id)
             if job.headcount > 0:
                 job.headcount -= 1
-                if job.headcount == 0:
-                    job.status = 'closed'
-                    job.closed_at = timezone.now()
-                    job.closed_reason = "Headcount reached"
-                job.save(update_fields=['headcount', 'status', 'closed_at', 'closed_reason', 'updated_at'])
+                job.save(update_fields=['headcount', 'updated_at'])
         except JobRequisition.DoesNotExist:
             pass
 
@@ -152,6 +157,11 @@ def perform_application_move(application, target_stage, user, notes=None, reason
             on_candidate_hired(application, user)
         except Exception:
             pass
+        mark_placement_via_source(
+            candidate_id=application.candidate_id,
+            tenant_id=application.tenant_id,
+            actor_user_id=user.id,
+        )
 
     # Event Emission
     events.application.stage_changed.send(
@@ -211,6 +221,15 @@ class ApplicationListView(APIView):
             return error_response("Validation failed.", serializer.errors)
 
         data = serializer.validated_data
+        allowed, message, _ = check_protected_action(
+            candidate_id=data['candidate_id'],
+            tenant_id=request.user.tenant_id,
+            action='workflow_allowed_job',
+            job_id=data['requisition_id'],
+            actor_user_id=request.user.id,
+        )
+        if not allowed:
+            return error_response(message, status_code=status.HTTP_403_FORBIDDEN)
 
         # Check duplicate application
         existing_app = Application.objects.filter(
@@ -577,6 +596,11 @@ class ApplicationRejectView(APIView):
             on_application_rejected(application, reason, request.user)
         except Exception:
             pass
+        start_rejection_based_protection_if_needed(
+            candidate_id=application.candidate_id,
+            tenant_id=application.tenant_id,
+            actor_user_id=request.user.id,
+        )
 
         return success_response(
             data={'application': ApplicationSerializer(application).data},
@@ -833,6 +857,11 @@ class BulkActionView(APIView):
                         on_application_rejected(application, stage_note, request.user)
                     except Exception:
                         pass
+                    start_rejection_based_protection_if_needed(
+                        candidate_id=application.candidate_id,
+                        tenant_id=application.tenant_id,
+                        actor_user_id=request.user.id,
+                    )
                     updated_count += 1
 
                 elif action == 'shortlist':

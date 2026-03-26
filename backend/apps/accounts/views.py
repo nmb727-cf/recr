@@ -317,6 +317,17 @@ class RegisterAgencyView(APIView):
 
 
 class RegisterCandidateView(APIView):
+    """
+    Source 3 — Direct candidate signup.
+
+    Identity deduplication:
+      • If a user account already exists with the submitted email or phone,
+        return needs_login=True so the frontend routes to login / forgot-password
+        instead of creating a duplicate account.
+      • If a candidate record (without a user) already exists with the same
+        email/phone, create the user and immediately link it to that record so
+        the candidate's pre-existing profile is not lost.
+    """
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -325,17 +336,42 @@ class RegisterCandidateView(APIView):
             return error_response("Validation failed", serializer.errors)
 
         data = serializer.validated_data
+        email = data['email'].strip().lower()
+        phone = data.get('phone', '').strip()
+
+        # ── Source 3: Check if a user account already exists ───────────────
+        # If yes, do not create a duplicate — tell the frontend to redirect
+        # to login / forgot-password.
+        from apps.candidates.identity_service import match_user, match_candidate, link_user_to_candidate
+        existing_user = match_user(email=email, phone=phone)
+        if existing_user:
+            return success_response(
+                data={'needs_login': True, 'email': existing_user.email},
+                message=(
+                    "An account with this email or phone already exists. "
+                    "Please log in or use forgot password."
+                ),
+                status_code=200,
+            )
 
         public_tenant = Client.objects.get(schema_name='public')
 
         user = CustomUser.objects.create_user(
-            email=data['email'],
+            email=email,
             password=data['password'],
             first_name=data['first_name'],
             last_name=data['last_name'],
             role='candidate',
             tenant_id=public_tenant.id,
         )
+
+        # ── Source 3: Link to existing candidate record if one exists ───────
+        # A recruiter may have already added this candidate (Source 1) before
+        # they signed up.  Link the new account so the candidate can see their
+        # pre-populated profile without any duplicate being created.
+        existing_candidate = match_candidate(email=email, phone=phone)
+        if existing_candidate:
+            link_user_to_candidate(user, existing_candidate)
 
         # Send email verification OTP
         otp_code = _issue_otp(user.email)
@@ -349,6 +385,9 @@ class RegisterCandidateView(APIView):
         if settings.ENVIRONMENT == 'development':
             response_data['otp_code'] = otp_code
             response_data['is_development_mode'] = True
+
+        if existing_candidate:
+            response_data['linked_candidate_id'] = str(existing_candidate.id)
 
         return success_response(
             data=response_data,
@@ -511,28 +550,52 @@ class CompleteOnboardingView(APIView):
             'agency_recruiter': 'agency',
         }
         data = dict(serializer.validated_data)
-        data.setdefault('user_type', _ROLE_TO_USER_TYPE.get(user.role, 'company'))
+        derived_user_type = _ROLE_TO_USER_TYPE.get(user.role)
+        if not user.tenant_id:
+            return error_response(
+                "Authenticated user is not attached to a tenant.",
+                errors={'tenant_id': 'missing'},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        if not derived_user_type:
+            return error_response(
+                "Unsupported user role for onboarding.",
+                errors={'role': user.role},
+                status_code=status.HTTP_400_BAD_REQUEST,
+            )
+        data.setdefault('user_type', derived_user_type)
 
         # Persist onboarding preferences to user metadata
-        user.metadata['onboarding'] = {
+        metadata = user.metadata if isinstance(user.metadata, dict) else {}
+        metadata['onboarding'] = {
             'user_type': data['user_type'],
             'hiring_style': data['hiring_style'],
             'team_size': data['team_size'],
             'automation_preference': data['automation_preference'],
             'completed_at': timezone.now().isoformat(),
         }
+        user.metadata = metadata
         user.save(update_fields=['metadata'])
 
         # Auto-configure workspace
         _auto_configure(user, data)
 
-        # Emit event
-        events.onboarding.completed.send(
+        # Emit event. Onboarding completion should not fail if optional async
+        # email/event infrastructure is unavailable.
+        signal_responses = events.onboarding.completed.send_robust(
             sender=self.__class__,
             user=user,
             preferences=data,
             request=request,
         )
+        for receiver, response in signal_responses:
+            if isinstance(response, Exception):
+                logger.exception(
+                    "Onboarding completion receiver failed for user %s via %s",
+                    user.id,
+                    getattr(receiver, '__name__', repr(receiver)),
+                    exc_info=response,
+                )
 
         return success_response(
             data={'user': UserSerializer(user).data},

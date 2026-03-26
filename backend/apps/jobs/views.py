@@ -10,6 +10,7 @@ from apps.jobs.serializers import (
 )
 from apps.core.responses import success_response, error_response
 from apps.core import events
+from apps.candidates.protection import mark_direct_apply_during_protection
 
 
 class JobRequisitionListView(APIView):
@@ -24,6 +25,9 @@ class JobRequisitionListView(APIView):
         status_filter = request.query_params.get('status')
         if status_filter:
             qs = qs.filter(status=status_filter)
+        hiring_status = request.query_params.get('hiring_status')
+        if hiring_status:
+            qs = qs.filter(hiring_status=hiring_status)
 
         department_id = request.query_params.get('department_id')
         if department_id:
@@ -108,10 +112,25 @@ class JobRequisitionDetailView(APIView):
             return error_response("Requisition not found.", status_code=status.HTTP_404_NOT_FOUND)
 
         stages = JobStage.objects.filter(requisition_id=pk, is_active=True)
+        from apps.pipeline.models import PlacementGuarantee
+        guarantees = PlacementGuarantee.objects.filter(requisition_id=pk).order_by('-created_at')[:10]
         return success_response(
             data={
                 'requisition': JobRequisitionSerializer(req).data,
                 'stages': JobStageSerializer(stages, many=True).data,
+                'placement_guarantees': [
+                    {
+                        'id': str(g.id),
+                        'candidate_id': str(g.candidate_id),
+                        'application_id': str(g.application_id),
+                        'status': g.status,
+                        'guarantee_start_date': g.guarantee_start_date,
+                        'guarantee_end_date': g.guarantee_end_date,
+                        'guarantee_resolution_type': g.guarantee_resolution_type,
+                        'refund_mode': g.refund_mode,
+                        'refund_percentage': g.refund_percentage,
+                    } for g in guarantees
+                ],
             },
             message="Requisition retrieved."
         )
@@ -656,6 +675,11 @@ class JobApplyView(APIView):
             submitted_by=request.user.id,
             submitted_by_tenant_id=request.user.tenant_id,
             created_by=request.user.id,
+        )
+        mark_direct_apply_during_protection(
+            candidate_id=request.user.id,
+            tenant_id=posting.tenant_id,
+            actor_user_id=request.user.id,
         )
 
         # Emit Event

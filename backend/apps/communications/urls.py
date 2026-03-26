@@ -55,6 +55,7 @@ urlpatterns = [
     path('communications/email/send', dispatch_views.EmailSendView.as_view(), name='email-send'),
     path('communications/email/send-test', dispatch_views.EmailSendTestView.as_view(), name='email-send-test'),
     path('communications/email/render-preview', dispatch_views.EmailRenderPreviewView.as_view(), name='email-render-preview'),
+    path('communications/email/render-template', dispatch_views.EmailRenderTemplateView.as_view(), name='email-render-template'),
 
     # History / audit / webhooks
     path('communications/email-messages/', dispatch_views.EmailMessageListView.as_view(), name='email-message-list'),

@@ -38,10 +38,18 @@ class MyPassportView(APIView):
                 is_deleted=False
             )
         except TalentPassport.DoesNotExist:
-            # Auto-create passport
+            # Auto-create passport on first onboarding save
             passport = TalentPassport(user_id=request.user.id)
 
-        serializer = TalentPassportSerializer(passport, data=request.data, partial=True)
+        # ── Append-safe merge ─────────────────────────────────────────────────
+        # Build a request-data dict that:
+        #   1. Skips empty strings for text fields — never erase existing data
+        #   2. Unions list fields (skills, languages, etc.) instead of replacing
+        # This makes the PUT idempotent for blank/partial submissions and safe
+        # for multi-step onboarding where each step only sends its own fields.
+        merged = _merge_passport_data(passport, request.data)
+
+        serializer = TalentPassportSerializer(passport, data=merged, partial=True)
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors)
 
@@ -55,6 +63,66 @@ class MyPassportView(APIView):
             data={'passport': TalentPassportSerializer(passport).data},
             message="Passport updated."
         )
+
+
+# List fields that use union-merge semantics (new items are appended, not replaced)
+_LIST_FIELDS = frozenset([
+    'skills', 'languages', 'certifications', 'projects', 'publications',
+    'awards', 'volunteer_work', 'preferred_locations', 'preferred_job_types',
+    'preferred_industries', 'test_scores', 'references', 'work_history',
+    'education',
+])
+
+# Text fields where an empty string means "not provided" — never overwrite with blank
+_TEXT_FIELDS = frozenset([
+    'headline', 'summary', 'profile_photo_url', 'cover_image_url',
+    'video_intro_url', 'current_title', 'current_company',
+    'current_location_city', 'current_location_country',
+    'current_cv_url', 'current_cv_filename',
+    'linkedin_url', 'github_url', 'portfolio_url',
+    'twitter_url', 'behance_url', 'dribbble_url',
+])
+
+
+def _merge_passport_data(passport, incoming: dict) -> dict:
+    """
+    Produce a merged data dict to pass to the serializer.
+
+    Rules:
+      • Text fields: skip if incoming is an empty string and field already has a value.
+      • List fields: union of existing + incoming (deduplicated, order preserved).
+      • All other fields (numbers, booleans, dates): pass through as-is.
+
+    This ensures a partial submission (e.g. only step 1 fields) never erases
+    data saved by a previous step or by a recruiter's quick-add form.
+    """
+    result = dict(incoming)
+
+    for field in _TEXT_FIELDS:
+        if field not in incoming:
+            continue
+        incoming_val = incoming[field]
+        existing_val = getattr(passport, field, None)
+        # Skip empty string if field already has a non-empty value
+        if (incoming_val == '' or incoming_val is None) and existing_val:
+            del result[field]
+
+    for field in _LIST_FIELDS:
+        if field not in incoming:
+            continue
+        incoming_list = incoming[field] if isinstance(incoming[field], list) else []
+        existing_list = getattr(passport, field, None) or []
+        # Union: existing first to preserve order, then any new items appended
+        merged_list = list(existing_list)
+        seen = set(str(x).lower() for x in existing_list)
+        for item in incoming_list:
+            key = str(item).lower()
+            if key and key not in seen:
+                merged_list.append(item)
+                seen.add(key)
+        result[field] = merged_list
+
+    return result
 
 
 def _calculate_completeness(passport):
@@ -285,6 +353,9 @@ class PassportImportView(APIView):
                 'owner_user_id': request.user.id,
                 'owner_tenant_id': request.user.tenant_id,
                 'created_by': request.user.id,
+                'candidate_state': 'NEW_LEAD',
+                'candidate_pool': 'GENERAL',
+                'is_general_pool_used': False,
             }
         )
 

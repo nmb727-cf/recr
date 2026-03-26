@@ -3,6 +3,9 @@ from apps.candidates import views
 from apps.candidates.invite_views import (
     InviteLinkListView, InviteLinkDeactivateView
 )
+from apps.candidates.claim_views import (
+    CandidateIdentityCheckView,
+)
 from apps.candidates.crm_views import (
     CRMPipelineView, CRMAddToPipelineView, CRMMovePipelineView,
     CRMInteractionListView, CRMRemindersView, CRMSuggestionsView
@@ -31,6 +34,9 @@ urlpatterns = [
     # Invite links
     path('invite-links/', InviteLinkListView.as_view(), name='invite-link-list'),
     path('invite-links/<uuid:pk>/deactivate/', InviteLinkDeactivateView.as_view(), name='invite-link-deactivate'),
+
+    # Identity deduplication check (public, used before signup/form submit)
+    path('check-identity/', CandidateIdentityCheckView.as_view(), name='candidate-check-identity'),
 
     # CRM
     path('crm/pipeline/', CRMPipelineView.as_view(), name='crm-pipeline'),

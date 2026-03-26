@@ -20,8 +20,8 @@ KNOWN_REQ_ID = "9fe3e47d-ea4e-4d47-963e-2a33a3a24dda"
 # ─── Credentials ─────────────────────────────────────────────────────────────
 ADMIN_EMAIL = "john@acmecorp.com"
 ADMIN_PASSWORD = "TestPass123!"
-CANDIDATE_EMAIL = "test@example.com"
-CANDIDATE_PASSWORD = "TestPass123!"
+CANDIDATE_EMAIL = "cat5@test.com"
+CANDIDATE_PASSWORD = "Test@123!"
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────

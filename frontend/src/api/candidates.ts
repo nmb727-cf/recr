@@ -35,6 +35,7 @@ export const candidatesApi = {
     passport_linked?: boolean
     duplicates?: boolean
     active_work?: boolean
+    protection_status?: 'protected' | 'not_protected'
     limit?: number
     offset?: number
   }) =>
@@ -110,17 +111,41 @@ export const candidatesApi = {
     job_id?: string
     expires_days?: number
     max_uses?: number
+    form_config?: Record<string, unknown>
   }) =>
-    http.post('/organisation/invite-links/', data),
+    http.post('/candidates/invite-links/', data),
 
   listInviteLinks: () =>
-    http.get('/organisation/invite-links/'),
+    http.get('/candidates/invite-links/'),
+
+  deactivateInviteLink: (id: string) =>
+    http.post(`/candidates/invite-links/${id}/deactivate/`),
 
   getPublicForm: (token: string) =>
     http.get(`/apply/${token}/`, { headers: { 'X-Skip-Auth': '1' } }),
 
   submitPublicForm: (token: string, data: any) =>
-    http.post(`/apply/${token}/submit/`, data, { 
-      headers: { 'X-Skip-Auth': '1' } 
+    http.post(`/apply/${token}/submit/`, data, {
+      headers: { 'X-Skip-Auth': '1' },
     }),
+
+  // ── Claim flow (Source 1 / Source 2) ──────────────────────────────────────
+  // Used by /candidate/claim/:token — the page candidates visit when a recruiter
+  // adds them or after they complete an apply-link form.
+
+  /** Verify a claim token and retrieve prefilled identity data (no auth required). */
+  getClaimInfo: (token: string) =>
+    http.get(`/candidates/claim/${token}/`, { headers: { 'X-Skip-Auth': '1' } }),
+
+  /** Link the authenticated user's account to the candidate record identified by token. */
+  claimProfile: (token: string) =>
+    http.post(`/candidates/claim/${token}/`),
+
+  // ── Identity pre-check (Source 2 / Source 3) ──────────────────────────────
+  // Call before showing a signup form to detect if a user account already exists.
+  // If it does, route to login / forgot-password instead of creating a duplicate.
+
+  /** Check whether an email or phone is already associated with an existing account or candidate record. */
+  checkIdentity: (data: { email?: string; phone?: string }) =>
+    http.post('/candidates/check-identity/', data, { headers: { 'X-Skip-Auth': '1' } }),
 }

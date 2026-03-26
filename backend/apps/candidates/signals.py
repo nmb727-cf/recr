@@ -31,6 +31,9 @@ def transition_candidate_to_job_track(candidate_id, tenant_id, job_id=None):
     candidate_updates = {
         'is_in_active_work': False,
         'last_activity_at': now,
+        'candidate_pool': 'NONE',
+        'candidate_state': 'JOB_ASSOCIATED',
+        'is_general_pool_used': True,
     }
     if job_id:
         candidate_updates['active_job_id'] = job_id

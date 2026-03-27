@@ -10,6 +10,7 @@ from apps.passport.serializers import (
     PassportAccessLogSerializer,
 )
 from apps.core.responses import success_response, error_response
+from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 
 class MyPassportView(APIView):
@@ -268,6 +269,12 @@ class MyPassportRegenerateLinkView(APIView):
             message="Share link regenerated."
         )
 
+@extend_schema(
+    responses={
+        200: OpenApiResponse(description="Success"),
+        404: OpenApiResponse(description="Passport not found or link has expired."),
+    }
+)
 
 class PublicPassportView(APIView):
     permission_classes = [AllowAny]

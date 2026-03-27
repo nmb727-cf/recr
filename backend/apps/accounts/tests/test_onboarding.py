@@ -14,7 +14,7 @@ class CompleteOnboardingViewTests(TestCase):
         self.view = CompleteOnboardingView.as_view()
 
     def _post(self, user, payload):
-        request = self.factory.post('/api/v1/auth/onboarding/complete/', payload, format='json')
+        request = self.factory.post('/api/v1/accounts/onboarding/complete/', payload, format='json')
         force_authenticate(request, user=user)
         return self.view(request)
 

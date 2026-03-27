@@ -25,7 +25,8 @@ from apps.accounts.serializers import (
 )
 from apps.core.responses import success_response, error_response
 from apps.core import events
-
+from drf_spectacular.utils import extend_schema, OpenApiResponse, inline_serializer
+from rest_framework import serializers as drf_serializers
 
 import logging
 
@@ -206,6 +207,13 @@ def _auto_configure(user, prefs):
 class RegisterCompanyView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=RegisterCompanySerializer,
+        responses={
+            201: OpenApiResponse(description="Company account created successfully"),
+            400: OpenApiResponse(description="Validation failed"),
+        }
+    )
     def post(self, request):
         serializer = RegisterCompanySerializer(data=request.data)
         if not serializer.is_valid():
@@ -266,6 +274,13 @@ class RegisterCompanyView(APIView):
 class RegisterAgencyView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=RegisterAgencySerializer,
+        responses={
+            201: OpenApiResponse(description="Agency account created successfully"),
+            400: OpenApiResponse(description="Validation failed"),
+        }
+    )
     def post(self, request):
         serializer = RegisterAgencySerializer(data=request.data)
         if not serializer.is_valid():
@@ -330,6 +345,13 @@ class RegisterCandidateView(APIView):
     """
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=RegisterCandidateSerializer,
+        responses={
+            201: OpenApiResponse(description="Candidate account created successfully"),
+            400: OpenApiResponse(description="Validation failed"),
+        }
+    )
     def post(self, request):
         serializer = RegisterCandidateSerializer(data=request.data)
         if not serializer.is_valid():
@@ -402,6 +424,13 @@ class SendOTPView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    @extend_schema(
+        request=SendOTPSerializer,
+        responses={
+            200: OpenApiResponse(description="OTP sent successfully"),
+            400: OpenApiResponse(description="Validation failed"),
+        }
+    )
     def post(self, request):
         serializer = SendOTPSerializer(data=request.data)
         if not serializer.is_valid():
@@ -443,6 +472,13 @@ class VerifyOTPView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    @extend_schema(
+        request=VerifyOTPSerializer,
+        responses={
+            200: OpenApiResponse(description="OTP verified successfully"),
+            400: OpenApiResponse(description="Validation failed"),
+        }
+    )
     def post(self, request):
         serializer = VerifyOTPSerializer(data=request.data)
         if not serializer.is_valid():
@@ -454,12 +490,16 @@ class VerifyOTPView(APIView):
 
         logger.info(f"OTP verify attempt for {email}")
 
-        # Look up the user by email (no JWT required)
+        # Look up the user by email (no JWT required).
+        # Return 200 with verified=False for unknown emails to avoid user enumeration.
         try:
             user = CustomUser.objects.get(email=email)
         except CustomUser.DoesNotExist:
             logger.warning(f"OTP verification failed: No account for {email}")
-            return error_response("No account found for this email.")
+            return success_response(
+                data={'verified': False},
+                message="No active verification code found for this email.",
+            )
 
         # Find the latest unused OTP
         try:
@@ -608,6 +648,15 @@ class CompleteOnboardingView(APIView):
 class LoginView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=LoginSerializer,
+        responses={
+            200: OpenApiResponse(description="Login successful"),
+            400: OpenApiResponse(description="Validation failed"),
+            401: OpenApiResponse(description="Invalid email or password"),
+            403: OpenApiResponse(description="Account inactive or email not verified"),
+        }
+    )
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         if not serializer.is_valid():
@@ -658,6 +707,14 @@ class LoginView(APIView):
 class RefreshTokenView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=RefreshTokenSerializer,
+        responses={
+            200: OpenApiResponse(description="Token refreshed successfully"),
+            400: OpenApiResponse(description="Invalid or missing refresh token"),
+            401: OpenApiResponse(description="Refresh token is invalid or expired"),
+        }
+    )
     def post(self, request):
         serializer = RefreshTokenSerializer(data=request.data)
         if not serializer.is_valid():
@@ -679,6 +736,13 @@ class RefreshTokenView(APIView):
 class ForgotPasswordView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=ForgotPasswordSerializer,
+        responses={
+            200: OpenApiResponse(description="Password reset OTP sent successfully"),
+            400: OpenApiResponse(description="Validation failed"),
+        }
+    )
     def post(self, request):
         serializer = ForgotPasswordSerializer(data=request.data)
         if not serializer.is_valid():
@@ -692,6 +756,13 @@ class ForgotPasswordView(APIView):
 class ResetPasswordView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=ResetPasswordSerializer,
+        responses={
+            200: OpenApiResponse(description="Password reset successfully"),
+            400: OpenApiResponse(description="Validation failed"),
+        }
+    )
     def post(self, request):
         serializer = ResetPasswordSerializer(data=request.data)
         if not serializer.is_valid():
@@ -699,14 +770,26 @@ class ResetPasswordView(APIView):
 
         return success_response(message="Password reset successfully.")
 
-
 class VerifyEmailView(APIView):
+
     """Legacy endpoint — kept for backward compat. Use /verify-otp/ instead."""
+
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=inline_serializer(
+            name='VerifyEmailRequest',
+            fields={'token': drf_serializers.CharField()},
+        ),
+        responses={
+            200: OpenApiResponse(description="Email verified successfully"),
+            400: OpenApiResponse(description="Token is required or invalid"),
+        }
+    )
     def post(self, request):
-        token = request.data.get('token')
-        if not token:
+        data = request.data if isinstance(request.data, dict) else {}
+        token = data.get('token')
+        if not token or not isinstance(token, str):
             return error_response("Token is required.", status_code=status.HTTP_400_BAD_REQUEST)
 
         return success_response(message="Email verified successfully.")

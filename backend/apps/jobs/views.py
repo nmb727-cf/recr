@@ -11,6 +11,7 @@ from apps.jobs.serializers import (
 from apps.core.responses import success_response, error_response
 from apps.core import events
 from apps.candidates.protection import mark_direct_apply_during_protection
+from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 
 class JobRequisitionListView(APIView):
@@ -484,6 +485,12 @@ class JobStageDetailView(APIView):
         except JobStage.DoesNotExist:
             return None
 
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Stage updated"),
+            404: OpenApiResponse(description="Stage not found"),
+        }
+    )
     def put(self, request, requisition_id, stage_id):
         stage = self.get_object(request, requisition_id, stage_id)
         if not stage:
@@ -499,6 +506,12 @@ class JobStageDetailView(APIView):
             message="Stage updated."
         )
 
+    @extend_schema(
+        responses={
+            204: OpenApiResponse(description="Stage deleted"),
+            404: OpenApiResponse(description="Stage not found"),
+        }
+    )
     def delete(self, request, requisition_id, stage_id):
         stage = self.get_object(request, requisition_id, stage_id)
         if not stage:
@@ -584,7 +597,12 @@ class JobSearchView(APIView):
             meta={'total': qs.count()}
         )
 
-
+@extend_schema(
+    responses={
+        200: OpenApiResponse(description="Success"),
+        404: OpenApiResponse(description="Job not found."),
+    }
+)
 class JobPublicDetailView(APIView):
     permission_classes = [AllowAny]
 
@@ -617,7 +635,12 @@ class JobPublicDetailView(APIView):
             message="Job retrieved."
         )
 
-
+@extend_schema(
+    responses={
+        200: OpenApiResponse(description="Success"),
+        404: OpenApiResponse(description="Job not found."),
+    }
+)
 class JobApplyView(APIView):
     permission_classes = [IsAuthenticated]
 

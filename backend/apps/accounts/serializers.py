@@ -1,9 +1,17 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
+from django.core.validators import RegexValidator
 from apps.accounts.models import CustomUser
 from apps.tenants.models import Client
 from apps.rbac.utils import get_user_permissions
+
+# Forces at least one letter — prevents all-numeric strings from being
+# schema-compliant, matching Django's NumericPasswordValidator requirement.
+_password_has_letter = RegexValidator(
+    r'[a-zA-Z]',
+    'Password must contain at least one letter.',
+)
 
 
 class TenantSerializer(serializers.ModelSerializer):
@@ -40,8 +48,8 @@ class RegisterCompanySerializer(serializers.Serializer):
     first_name = serializers.CharField(max_length=100)
     last_name = serializers.CharField(max_length=100)
     email = serializers.EmailField()
-    password = serializers.CharField(write_only=True, validators=[validate_password])
-    password_confirm = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True, min_length=8, validators=[_password_has_letter, validate_password])
+    password_confirm = serializers.CharField(write_only=True, min_length=8)
     country_code = serializers.CharField(max_length=5, required=False, default='IN')
     timezone = serializers.CharField(max_length=50, required=False, default='UTC')
 
@@ -61,8 +69,8 @@ class RegisterAgencySerializer(serializers.Serializer):
     first_name = serializers.CharField(max_length=100)
     last_name = serializers.CharField(max_length=100)
     email = serializers.EmailField()
-    password = serializers.CharField(write_only=True, validators=[validate_password])
-    password_confirm = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True, min_length=8, validators=[_password_has_letter, validate_password])
+    password_confirm = serializers.CharField(write_only=True, min_length=8)
     country_code = serializers.CharField(max_length=5, required=False, default='IN')
     timezone = serializers.CharField(max_length=50, required=False, default='UTC')
 
@@ -81,8 +89,8 @@ class RegisterCandidateSerializer(serializers.Serializer):
     first_name = serializers.CharField(max_length=100)
     last_name = serializers.CharField(max_length=100)
     email = serializers.EmailField()
-    password = serializers.CharField(write_only=True, validators=[validate_password])
-    password_confirm = serializers.CharField(write_only=True)
+    password = serializers.CharField(write_only=True, min_length=8, validators=[_password_has_letter, validate_password])
+    password_confirm = serializers.CharField(write_only=True, min_length=8)
 
     def validate(self, data):
         if data['password'] != data['password_confirm']:
@@ -111,7 +119,7 @@ class ForgotPasswordSerializer(serializers.Serializer):
 
 class ResetPasswordSerializer(serializers.Serializer):
     token = serializers.CharField()
-    new_password = serializers.CharField(validators=[validate_password])
+    new_password = serializers.CharField(min_length=8, validators=[_password_has_letter, validate_password])
 
 
 class VerifyEmailSerializer(serializers.Serializer):

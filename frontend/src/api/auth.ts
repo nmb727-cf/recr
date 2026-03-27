@@ -16,44 +16,44 @@ export interface OnboardingPayload {
 
 export const authApi = {
   login: (payload: LoginPayload) =>
-    http.post<ApiResponse<LoginResponse>>('/auth/login/', payload),
+    http.post<ApiResponse<LoginResponse>>('/accounts/login/', payload),
 
   registerCompany: (payload: RegisterCompanyPayload) =>
-    http.post<ApiResponse<LoginResponse>>('/auth/register/company/', payload),
+    http.post<ApiResponse<LoginResponse>>('/accounts/register/company/', payload),
 
   registerAgency: (payload: RegisterAgencyPayload) =>
-    http.post<ApiResponse<LoginResponse>>('/auth/register/agency/', payload),
+    http.post<ApiResponse<LoginResponse>>('/accounts/register/agency/', payload),
 
   registerCandidate: (payload: RegisterCandidatePayload) =>
-    http.post<ApiResponse<LoginResponse>>('/auth/register/candidate/', payload),
+    http.post<ApiResponse<LoginResponse>>('/accounts/register/candidate/', payload),
 
   sendOTP: (email: string) =>
-    http.post<ApiResponse<null>>('/auth/send-otp/', { email }),
+    http.post<ApiResponse<null>>('/accounts/send-otp/', { email }),
 
   verifyOTP: (email: string, code: string) =>
-    http.post<ApiResponse<{ user: User; access_token: string; refresh_token: string }>>('/auth/verify-otp/', { email, code }),
+    http.post<ApiResponse<{ user: User; access_token: string; refresh_token: string }>>('/accounts/verify-otp/', { email, code }),
 
   completeOnboarding: (payload: OnboardingPayload) =>
-    http.post<ApiResponse<{ user: User }>>('/auth/onboarding/complete/', payload),
+    http.post<ApiResponse<{ user: User }>>('/accounts/onboarding/complete/', payload),
 
   me: () =>
-    http.get<ApiResponse<{ user: User }>>('/auth/me/'),
+    http.get<ApiResponse<{ user: User }>>('/accounts/me/'),
 
   updateMe: (data: Partial<User>) =>
-    http.put<ApiResponse<{ user: User }>>('/auth/me/', data),
+    http.put<ApiResponse<{ user: User }>>('/accounts/me/', data),
 
   logout: () =>
-    http.post<ApiResponse<null>>('/auth/logout/'),
+    http.post<ApiResponse<null>>('/accounts/logout/'),
 
   refreshToken: (refresh_token: string) =>
-    http.post<ApiResponse<AuthTokens>>('/auth/refresh/', { refresh: refresh_token }),
+    http.post<ApiResponse<AuthTokens>>('/accounts/refresh/', { refresh: refresh_token }),
 
   changePassword: (old_password: string, new_password: string) =>
-    http.post<ApiResponse<null>>('/auth/change-password/', { old_password, new_password }),
+    http.post<ApiResponse<null>>('/accounts/change-password/', { old_password, new_password }),
 
   forgotPassword: (email: string) =>
-    http.post<ApiResponse<null>>('/auth/forgot-password/', { email }),
+    http.post<ApiResponse<null>>('/accounts/forgot-password/', { email }),
 
   resetPassword: (token: string, password: string) =>
-    http.post<ApiResponse<null>>('/auth/reset-password/', { token, password }),
+    http.post<ApiResponse<null>>('/accounts/reset-password/', { token, password }),
 }

@@ -10,6 +10,7 @@ from apps.communications.serializers import (
     NotificationSerializer, EmailTemplateSerializer, EmailAccountSerializer
 )
 from apps.core.responses import success_response, error_response
+from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 
 class EmailAccountViewSet(ModelViewSet):
@@ -49,6 +50,12 @@ class EmailAccountViewSet(ModelViewSet):
             )
         return error_response(message="Invalid data", errors=serializer.errors)
 
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Email account updated successfully"),
+            404: OpenApiResponse(description="Email account not found"),
+        }
+    )
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()

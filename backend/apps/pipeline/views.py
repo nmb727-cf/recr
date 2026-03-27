@@ -47,7 +47,7 @@ def _require_stage_note(payload):
     return note, None
 
 
-def validate_application_move(application, target_stage, reason=None):
+def validate_application_move(application, target_stage, reason=None, user=None):
     """
     Validates if an application can move to the target stage.
     Returns (True, None) if valid, (False, error_message) if invalid.
@@ -55,7 +55,13 @@ def validate_application_move(application, target_stage, reason=None):
     from apps.interviews.models import Interview
     from apps.jobs.models import JobStage
 
-    # 1. State Machine Enforcement (Dynamic)
+    # 1. RBAC Check for Joined
+    if target_stage.stage_type == 'joined' and user:
+        allowed_roles = ['super_admin', 'tenant_admin', 'hr_manager']
+        if user.role not in allowed_roles and not user.is_staff:
+            return False, "Only HR Managers or Admins can mark a candidate as Joined."
+
+    # 2. State Machine Enforcement (Dynamic)
     current_stage = None
     if application.current_stage_id:
         try:
@@ -221,9 +227,20 @@ class ApplicationListView(APIView):
             return error_response("Validation failed.", serializer.errors)
 
         data = serializer.validated_data
+        # Verify requisition exists
+        try:
+            requisition = JobRequisition.objects.get(
+                id=data['requisition_id'],
+                is_deleted=False
+            )
+        except JobRequisition.DoesNotExist:
+            return error_response("Requisition not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        tenant_id = request.user.tenant_id or requisition.tenant_id
+
         allowed, message, _ = check_protected_action(
             candidate_id=data['candidate_id'],
-            tenant_id=request.user.tenant_id,
+            tenant_id=tenant_id,
             action='workflow_allowed_job',
             job_id=data['requisition_id'],
             actor_user_id=request.user.id,
@@ -233,7 +250,7 @@ class ApplicationListView(APIView):
 
         # Check duplicate application
         existing_app = Application.objects.filter(
-            tenant_id=request.user.tenant_id,
+            tenant_id=tenant_id,
             candidate_id=data['candidate_id'],
             requisition_id=data['requisition_id'],
             is_deleted=False
@@ -256,16 +273,6 @@ class ApplicationListView(APIView):
                 status_code=status.HTTP_409_CONFLICT
             )
 
-        # Verify requisition belongs to tenant
-        try:
-            requisition = JobRequisition.objects.get(
-                id=data['requisition_id'],
-                tenant_id=request.user.tenant_id,
-                is_deleted=False
-            )
-        except JobRequisition.DoesNotExist:
-            return error_response("Requisition not found.", status_code=status.HTTP_404_NOT_FOUND)
-
         # Get first stage
         first_stage = JobStage.objects.filter(
             requisition_id=data['requisition_id'],
@@ -273,7 +280,7 @@ class ApplicationListView(APIView):
         ).order_by('stage_order').first()
 
         application = serializer.save(
-            tenant_id=request.user.tenant_id,
+            tenant_id=tenant_id,
             submitted_by=request.user.id,
             submitted_by_tenant_id=request.user.tenant_id,
             current_stage_id=first_stage.id if first_stage else None,
@@ -283,7 +290,7 @@ class ApplicationListView(APIView):
 
         # Record stage history
         ApplicationStageHistory.objects.create(
-            tenant_id=request.user.tenant_id,
+            tenant_id=tenant_id,
             application_id=application.id,
             to_stage_id=first_stage.id if first_stage else None,
             to_status='applied',
@@ -293,7 +300,7 @@ class ApplicationListView(APIView):
 
         # Create 24hr review deadline
         ActionDeadline.objects.create(
-            tenant_id=request.user.tenant_id,
+            tenant_id=tenant_id,
             entity_type='application',
             entity_id=application.id,
             action_required='Review new application',
@@ -304,7 +311,7 @@ class ApplicationListView(APIView):
         # Update CRM status if candidate exists in CRM pipeline
         from apps.candidates.crm_models import CandidatePipelineStatus
         CandidatePipelineStatus.objects.filter(
-            tenant_id=request.user.tenant_id,
+            tenant_id=tenant_id,
             candidate_id=data['candidate_id'],
             status__in=['ready_to_submit', 'in_process']
         ).update(
@@ -380,6 +387,17 @@ class ApplicationDetailView(APIView):
             stage_note, note_error = _require_stage_note(request.data)
             if note_error:
                 return note_error
+            
+            # Protection Enforcement
+            allowed, message, _ = check_protected_action(
+                candidate_id=application.candidate_id,
+                tenant_id=request.user.tenant_id,
+                action='workflow_allowed_job',
+                job_id=application.requisition_id,
+                actor_user_id=request.user.id,
+            )
+            if not allowed:
+                return error_response(message, status_code=status.HTTP_403_FORBIDDEN)
         else:
             stage_note = None
 
@@ -447,6 +465,17 @@ class ApplicationMoveStageView(APIView):
         if not stage_id:
             return error_response("stage_id is required.")
 
+        # Protection Enforcement
+        allowed, message, _ = check_protected_action(
+            candidate_id=application.candidate_id,
+            tenant_id=request.user.tenant_id,
+            action='workflow_allowed_job',
+            job_id=application.requisition_id,
+            actor_user_id=request.user.id,
+        )
+        if not allowed:
+            return error_response(message, status_code=status.HTTP_403_FORBIDDEN)
+
         # Verify stage
         try:
             target_stage = JobStage.objects.get(
@@ -458,7 +487,7 @@ class ApplicationMoveStageView(APIView):
             return error_response("Target stage not found.", status_code=status.HTTP_404_NOT_FOUND)
 
         # 1. Validate Move
-        is_valid, error_msg = validate_application_move(application, target_stage, stage_note)
+        is_valid, error_msg = validate_application_move(application, target_stage, stage_note, user=request.user)
         if not is_valid:
             return error_response(error_msg)
 
@@ -890,7 +919,7 @@ class BulkActionView(APIView):
 
                 elif action == 'move_stage' and target_stage:
                     # ENFORCE VALIDATION IN BULK
-                    is_valid, error_msg = validate_application_move(application, target_stage, reason=stage_note)
+                    is_valid, error_msg = validate_application_move(application, target_stage, reason=stage_note, user=request.user)
                     if is_valid:
                         old_status = application.status
                         perform_application_move(

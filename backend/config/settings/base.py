@@ -3,6 +3,7 @@ from pathlib import Path
 from datetime import timedelta
 from celery.schedules import crontab
 
+
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 SECRET_KEY = 'django-insecure-8y*ihm=-03(z@=$-rcr7l9z&2%9r2c7ux&n20uq9%e39_4avpo'
@@ -53,6 +54,10 @@ SHARED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
+
+    # Testing and Documentation
+    'drf_spectacular',
+    'django_extensions',
 ]
 
 TENANT_APPS = [
@@ -74,6 +79,7 @@ AUTH_USER_MODEL = 'accounts.CustomUser'
 
 MIDDLEWARE = [
     'django_tenants.middleware.main.TenantMainMiddleware',
+    'apps.core.middleware.DisallowNonStandardMethodsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -113,7 +119,7 @@ DATABASES = {
         'NAME': 'postgres',
         'USER': 'postgres',
         'PASSWORD': 'Admin@123',
-        'HOST': '192.168.1.17',
+        'HOST': '127.0.0.1',
         'PORT': '5432',
     }
 }
@@ -144,15 +150,42 @@ SIMPLE_JWT = {
 
 # ─── REST FRAMEWORK ───────────────────────────────────────────────────────────
 
+# ─────────────────────────────────────────────────────────────
+# DRF Spectacular (API Documentation & Testing)
+# ─────────────────────────────────────────────────────────────
+
+# ─── REST FRAMEWORK ───────────────────────────────────────────────────────────
+
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    "DEFAULT_SCHEMA_CLASS": "apps.core.schema.TalentOSAutoSchema",
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "apps.core.authentication.SilentJWTAuthentication",
     ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
     ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.CursorPagination',
-    'PAGE_SIZE': 20,
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.CursorPagination",
+    "PAGE_SIZE": 20,
+
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'TalentOS API',
+    'DESCRIPTION': 'Auto-generated API schema for testing and documentation',
+    'VERSION': '1.0.0',
+
+    # reduce serializer issues
+    'COMPONENT_SPLIT_REQUEST': True,
+
+    # avoid schema recursion issues
+    'SERVE_INCLUDE_SCHEMA': False,
+
+    # better endpoint grouping
+    'SCHEMA_PATH_PREFIX': r'/api',
+
+    # allow missing serializers gracefully
+    'SORT_OPERATIONS': False,
+    
 }
 
 # ─── INTERNATIONALISATION ─────────────────────────────────────────────────────
@@ -263,3 +296,6 @@ MINIO_ACCESS_KEY = 'minioadmin'
 MINIO_SECRET_KEY = 'minioadmin123'
 MINIO_USE_HTTPS = False
 MINIO_BUCKET_NAME = 'recruitment-platform'
+
+
+

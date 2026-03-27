@@ -3,31 +3,31 @@ import type { ApiResponse, Application, PipelineData } from '@/types'
 
 export const pipelineApi = {
   listApplications: (params?: { requisition_id?: string; candidate_id?: string; status?: string }) =>
-    http.get<ApiResponse<{ applications: Application[]; total: number }>>('/applications/', { params }),
+    http.get<ApiResponse<{ applications: Application[]; total: number }>>('/pipeline/pipeline/applications/', { params }),
 
   getApplication: (id: string) =>
-    http.get<ApiResponse<{ application: Application }>>(`/applications/${id}/`),
+    http.get<ApiResponse<{ application: Application }>>(`/pipeline/pipeline/applications/${id}/`),
 
   createApplication: (data: { candidate_id: string; requisition_id: string; source?: string; source_detail?: string }) =>
-    http.post<ApiResponse<Application>>('/applications/', data),
+    http.post<ApiResponse<Application>>('/pipeline/pipeline/applications/', data),
 
   moveStage: (id: string, stage_id: string, note: string) =>
-    http.post<ApiResponse<{ application: Application }>>(`/applications/${id}/move-stage/`, { stage_id, note }),
+    http.post<ApiResponse<{ application: Application }>>(`/pipeline/pipeline/applications/${id}/move-stage/`, { stage_id, note }),
 
   shortlist: (id: string, note: string) =>
-    http.post<ApiResponse<{ application: Application }>>(`/applications/${id}/shortlist/`, { note }),
+    http.post<ApiResponse<{ application: Application }>>(`/pipeline/pipeline/applications/${id}/shortlist/`, { note }),
 
   reject: (id: string, note: string, category?: string) =>
-    http.post<ApiResponse<{ application: Application }>>(`/applications/${id}/reject/`, { note, category }),
+    http.post<ApiResponse<{ application: Application }>>(`/pipeline/pipeline/applications/${id}/reject/`, { note, category }),
 
   withdraw: (id: string, note: string) =>
-    http.post<ApiResponse<{ application: Application }>>(`/applications/${id}/withdraw/`, { note }),
+    http.post<ApiResponse<{ application: Application }>>(`/pipeline/pipeline/applications/${id}/withdraw/`, { note }),
 
   getPipeline: (requisitionId: string) =>
-    http.get<ApiResponse<PipelineData>>(`/pipeline/${requisitionId}/`),
+    http.get<ApiResponse<PipelineData>>(`/pipeline/pipeline/${requisitionId}/`),
 
   bulkAction: (application_ids: string[], action: string, data?: Record<string, unknown>) =>
-    http.post('/pipeline/bulk-action/', { application_ids, action, data: data || {} }),
+    http.post('/pipeline/pipeline/bulk-action/', { application_ids, action, data: data || {} }),
 
   updatePlacement: (id: string, data: {
     placement_status: string;
@@ -36,7 +36,7 @@ export const pipelineApi = {
     placement_confirmed_at?: string;
     note?: string;
   }) =>
-    http.post<ApiResponse<{ application: Application }>>(`/applications/${id}/update-placement/`, data),
+    http.post<ApiResponse<{ application: Application }>>(`/pipeline/pipeline/applications/${id}/update-placement/`, data),
 
   updateCommission: (id: string, data: {
     commission_applicable: boolean;
@@ -48,5 +48,5 @@ export const pipelineApi = {
     commission_rule_source?: string;
     commission_notes?: string;
   }) =>
-    http.post<ApiResponse<{ application: Application }>>(`/applications/${id}/update-commission/`, data),
+    http.post<ApiResponse<{ application: Application }>>(`/pipeline/pipeline/applications/${id}/update-commission/`, data),
 }

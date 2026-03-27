@@ -1,6 +1,7 @@
 from django.db.models import Count, Avg, Q
 from django.utils import timezone
 from datetime import timedelta
+from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 
@@ -83,6 +84,9 @@ class RecruitmentAnalyticsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        if request.user.role not in ['super_admin', 'tenant_admin', 'hr_manager'] and not request.user.is_staff:
+            return error_response("You do not have permission to view analytics.", status_code=status.HTTP_403_FORBIDDEN)
+
         tenant_id = request.user.tenant_id
 
         start_date = request.query_params.get('start_date')
@@ -97,6 +101,14 @@ class RecruitmentAnalyticsView(APIView):
             apps_qs = apps_qs.filter(created_at__gte=start_date)
         if end_date:
             apps_qs = apps_qs.filter(created_at__lte=end_date)
+        
+        if department_id:
+            # Filter applications by jobs in that department
+            req_ids = JobRequisition.objects.filter(
+                tenant_id=tenant_id, 
+                department_id=department_id
+            ).values_list('id', flat=True)
+            apps_qs = apps_qs.filter(requisition_id__in=req_ids)
 
         # Funnel
         total = apps_qs.count()

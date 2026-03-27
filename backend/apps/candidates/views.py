@@ -2,6 +2,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+from drf_spectacular.utils import extend_schema, OpenApiResponse
 from django.db.models import Q, Count
 from django.utils import timezone
 from datetime import timedelta
@@ -391,7 +392,7 @@ class CandidateListView(APIView):
                     'phone': existing.phone,
                     'current_title': existing.current_title,
                 }
-            }, status=200)
+            }, status=status.HTTP_409_CONFLICT)
 
         payload = request.data.copy()
         entry_type = payload.pop('entry_type', payload.pop('entry_method', 'manual'))
@@ -835,6 +836,12 @@ class CandidateNoteDetailView(APIView):
         except CandidateNote.DoesNotExist:
             return None
 
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Note updated"),
+            404: OpenApiResponse(description="Note not found"),
+        }
+    )
     def put(self, request, pk, note_id):
         note = self.get_object(request, pk, note_id)
         if not note:
@@ -857,6 +864,12 @@ class CandidateNoteDetailView(APIView):
             message="Note updated."
         )
 
+    @extend_schema(
+        responses={
+            204: OpenApiResponse(description="Note deleted"),
+            404: OpenApiResponse(description="Note not found"),
+        }
+    )
     def delete(self, request, pk, note_id):
         note = self.get_object(request, pk, note_id)
         if not note:
@@ -1029,8 +1042,21 @@ class CandidateEngagementListView(APIView):
         if not data.get('stage'):
             data['stage'] = 'submitted' if job_id else 'new_lead'
 
-        # Enforce: one active general presence maximum per candidate.
-        if not job_id:
+        # Enforce: one active presence maximum per candidate per job (or general).
+        if job_id:
+            existing_job_eng = CandidateEngagement.objects.filter(
+                candidate_id=candidate_id,
+                tenant_id=request.user.tenant_id,
+                job_id=job_id,
+                is_active=True,
+                is_deleted=False,
+            ).order_by('-started_at').first()
+            if existing_job_eng:
+                return error_response(
+                    message="Candidate already has an active engagement for this job.",
+                    status_code=status.HTTP_409_CONFLICT
+                )
+        else:
             existing_general = CandidateEngagement.objects.filter(
                 candidate_id=candidate_id,
                 tenant_id=request.user.tenant_id,
@@ -1041,6 +1067,14 @@ class CandidateEngagementListView(APIView):
             if existing_general:
                 old_stage = existing_general.stage
                 new_stage = data.get('stage', old_stage)
+                
+                # If stage is same, return conflict to prevent misleading "Updated" notification
+                if old_stage == new_stage:
+                    return error_response(
+                        message="Candidate is already in the active general pool.",
+                        status_code=status.HTTP_409_CONFLICT
+                    )
+                
                 existing_general.stage = new_stage
                 existing_general.last_activity_at = timezone.now()
                 existing_general.save()
@@ -1135,6 +1169,12 @@ class CandidateEngagementDetailView(APIView):
         except CandidateEngagement.DoesNotExist:
             return None
 
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Engagement retrieved"),
+            404: OpenApiResponse(description="Engagement not found"),
+        }
+    )
     def get(self, request, candidate_id, engagement_id):
         engagement = self.get_object(
             candidate_id, engagement_id, request.user.tenant_id
@@ -1144,6 +1184,12 @@ class CandidateEngagementDetailView(APIView):
         serializer = CandidateEngagementSerializer(engagement)
         return success_response(serializer.data)
 
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Engagement updated"),
+            404: OpenApiResponse(description="Engagement not found"),
+        }
+    )
     def put(self, request, candidate_id, engagement_id):
         engagement = self.get_object(
             candidate_id, engagement_id, request.user.tenant_id
@@ -1227,6 +1273,12 @@ class CandidateEngagementDetailView(APIView):
 class CandidateEngagementCloseView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Engagement closed"),
+            404: OpenApiResponse(description="Engagement not found"),
+        }
+    )
     def post(self, request, candidate_id, engagement_id):
         try:
             engagement = CandidateEngagement.objects.get(
@@ -1292,6 +1344,12 @@ class CandidateEngagementCloseView(APIView):
 class CandidateEngagementReviveView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Engagement revived"),
+            404: OpenApiResponse(description="Engagement not found"),
+        }
+    )
     def post(self, request, candidate_id, engagement_id):
         try:
             old_engagement = CandidateEngagement.objects.get(

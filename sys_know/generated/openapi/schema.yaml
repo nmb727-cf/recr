@@ -1,0 +1,5269 @@
+openapi: 3.0.3
+info:
+  title: TalentOS API
+  version: 1.0.0
+  description: Auto-generated API schema for testing and documentation
+paths:
+  /api/v1/apply/{token}/:
+    get:
+      operationId: v1_apply_retrieve
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success
+        '404':
+          description: Invalid or expired link.
+    post:
+      operationId: v1_apply_create
+      description: |-
+        Source 2 — Candidate submits the apply form.
+
+        Identity deduplication:
+          1. If a user account already exists with the submitted email/phone →
+             return needs_login=True so the frontend shows the login screen.
+          2. If a candidate record already exists (no user yet) → append the
+             submission data but do NOT create a second candidate row.
+          3. If neither exists → create candidate + optional user account.
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success
+        '404':
+          description: Invalid or expired link.
+  /api/v1/apply/{token}/submit/:
+    get:
+      operationId: v1_apply_submit_retrieve
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success
+        '404':
+          description: Invalid or expired link.
+    post:
+      operationId: v1_apply_submit_create
+      description: |-
+        Source 2 — Candidate submits the apply form.
+
+        Identity deduplication:
+          1. If a user account already exists with the submitted email/phone →
+             return needs_login=True so the frontend shows the login screen.
+          2. If a candidate record already exists (no user yet) → append the
+             submission data but do NOT create a second candidate row.
+          3. If neither exists → create candidate + optional user account.
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success
+        '404':
+          description: Invalid or expired link.
+  /api/v1/candidates/claim/{token}/:
+    get:
+      operationId: v1_candidates_claim_retrieve
+      description: |-
+        Validate claim token and return prefilled candidate identity data.
+        No authentication required — the candidate may not have an account yet.
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: Claim token is valid
+        '404':
+          description: Invalid or expired claim link
+    post:
+      operationId: v1_candidates_claim_create
+      description: |-
+        Link the authenticated user to the candidate record identified by token.
+        Must be called after the candidate has signed up or logged in.
+        Requires: Authorization header with a valid JWT.
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/organisation/invite-links/:
+    get:
+      operationId: v1_organisation_invite_links_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_organisation_invite_links_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/organisation/invite-links/{id}/deactivate/:
+    post:
+      operationId: v1_organisation_invite_links_deactivate_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/auth/register/company/:
+    post:
+      operationId: v1_auth_register_company_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          description: Company account created successfully
+        '400':
+          description: Validation failed
+  /api/v1/auth/register/agency/:
+    post:
+      operationId: v1_auth_register_agency_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          description: Agency account created successfully
+        '400':
+          description: Validation failed
+  /api/v1/auth/register/candidate/:
+    post:
+      operationId: v1_auth_register_candidate_create
+      description: |-
+        Source 3 — Direct candidate signup.
+
+        Identity deduplication:
+          • If a user account already exists with the submitted email or phone,
+            return needs_login=True so the frontend routes to login / forgot-password
+            instead of creating a duplicate account.
+          • If a candidate record (without a user) already exists with the same
+            email/phone, create the user and immediately link it to that record so
+            the candidate's pre-existing profile is not lost.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          description: Candidate account created successfully
+        '400':
+          description: Validation failed
+  /api/v1/auth/login/:
+    post:
+      operationId: v1_auth_login_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: Login successful
+        '400':
+          description: Validation failed
+  /api/v1/auth/refresh/:
+    post:
+      operationId: v1_auth_refresh_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: Token refreshed successfully
+        '400':
+          description: Invalid or missing refresh token
+  /api/v1/auth/forgot-password/:
+    post:
+      operationId: v1_auth_forgot_password_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: Password reset OTP sent successfully
+        '400':
+          description: Validation failed
+  /api/v1/auth/reset-password/:
+    post:
+      operationId: v1_auth_reset_password_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: Password reset successfully
+        '400':
+          description: Validation failed
+  /api/v1/auth/verify-email/:
+    post:
+      operationId: v1_auth_verify_email_create
+      description: Legacy endpoint — kept for backward compat. Use /verify-otp/ instead.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: Email verified successfully
+        '400':
+          description: Token is required or invalid
+  /api/v1/auth/send-otp/:
+    post:
+      operationId: v1_auth_send_otp_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: OTP sent successfully
+        '400':
+          description: Validation failed
+  /api/v1/auth/verify-otp/:
+    post:
+      operationId: v1_auth_verify_otp_create
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: OTP verified successfully
+        '400':
+          description: Validation failed
+  /api/v1/auth/onboarding/complete/:
+    post:
+      operationId: v1_auth_onboarding_complete_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/auth/logout/:
+    post:
+      operationId: v1_auth_logout_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/auth/me/:
+    get:
+      operationId: v1_auth_me_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_auth_me_update
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/auth/change-password/:
+    post:
+      operationId: v1_auth_change_password_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/auth/mfa/enable/:
+    post:
+      operationId: v1_auth_mfa_enable_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/auth/mfa/verify/:
+    post:
+      operationId: v1_auth_mfa_verify_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/organisation/profile/:
+    get:
+      operationId: v1_organisation_profile_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_organisation_profile_update
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/organisation/users/:
+    get:
+      operationId: v1_organisation_users_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_organisation_users_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/organisation/users/{id}/:
+    get:
+      operationId: v1_organisation_users_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_organisation_users_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    delete:
+      operationId: v1_organisation_users_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/organisation/departments/:
+    get:
+      operationId: v1_organisation_departments_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_organisation_departments_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/organisation/departments/{id}/:
+    get:
+      operationId: v1_organisation_departments_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_organisation_departments_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    delete:
+      operationId: v1_organisation_departments_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/organisation/locations/:
+    get:
+      operationId: v1_organisation_locations_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_organisation_locations_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/organisation/locations/{id}/:
+    get:
+      operationId: v1_organisation_locations_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_organisation_locations_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    delete:
+      operationId: v1_organisation_locations_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/organisation/teams/:
+    get:
+      operationId: v1_organisation_teams_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_organisation_teams_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/organisation/teams/{id}/:
+    get:
+      operationId: v1_organisation_teams_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_organisation_teams_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    delete:
+      operationId: v1_organisation_teams_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/organisation/teams/{team_id}/members/:
+    get:
+      operationId: v1_organisation_teams_members_retrieve
+      parameters:
+      - in: path
+        name: team_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_organisation_teams_members_create
+      parameters:
+      - in: path
+        name: team_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/organisation/teams/{team_id}/members/{user_id}/:
+    delete:
+      operationId: v1_organisation_teams_members_destroy
+      parameters:
+      - in: path
+        name: team_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: user_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/jobs/requisitions/:
+    get:
+      operationId: v1_jobs_requisitions_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_jobs_requisitions_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/jobs/requisitions/{id}/:
+    get:
+      operationId: v1_jobs_requisitions_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_jobs_requisitions_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    delete:
+      operationId: v1_jobs_requisitions_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/jobs/requisitions/{id}/submit-for-approval/:
+    post:
+      operationId: v1_jobs_requisitions_submit_for_approval_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/jobs/requisitions/{id}/approve/:
+    post:
+      operationId: v1_jobs_requisitions_approve_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/jobs/requisitions/{id}/reject/:
+    post:
+      operationId: v1_jobs_requisitions_reject_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/jobs/requisitions/{id}/publish/:
+    post:
+      operationId: v1_jobs_requisitions_publish_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/jobs/requisitions/{id}/clone/:
+    post:
+      operationId: v1_jobs_requisitions_clone_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/jobs/requisitions/{requisition_id}/stages/:
+    get:
+      operationId: v1_jobs_requisitions_stages_retrieve
+      parameters:
+      - in: path
+        name: requisition_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_jobs_requisitions_stages_create
+      parameters:
+      - in: path
+        name: requisition_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/jobs/requisitions/{requisition_id}/stages/{stage_id}/:
+    put:
+      operationId: v1_jobs_requisitions_stages_update
+      parameters:
+      - in: path
+        name: requisition_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: stage_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: Stage updated
+        '404':
+          description: Stage not found
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    delete:
+      operationId: v1_jobs_requisitions_stages_destroy
+      parameters:
+      - in: path
+        name: requisition_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: stage_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: Stage deleted
+        '404':
+          description: Stage not found
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/jobs/requisitions/{requisition_id}/stages/reorder/:
+    post:
+      operationId: v1_jobs_requisitions_stages_reorder_create
+      parameters:
+      - in: path
+        name: requisition_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/jobs/postings/:
+    get:
+      operationId: v1_jobs_postings_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/jobs/postings/{id}/:
+    get:
+      operationId: v1_jobs_postings_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_jobs_postings_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/jobs/postings/{id}/pause/:
+    post:
+      operationId: v1_jobs_postings_pause_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/jobs/postings/{id}/close/:
+    post:
+      operationId: v1_jobs_postings_close_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/jobs/search/:
+    get:
+      operationId: v1_jobs_search_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/jobs/{id}/:
+    get:
+      operationId: v1_jobs_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success
+        '404':
+          description: Job not found.
+  /api/v1/jobs/{id}/apply/:
+    post:
+      operationId: v1_jobs_apply_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: Success
+        '404':
+          description: Job not found.
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/jobs/{id}/save/:
+    post:
+      operationId: v1_jobs_save_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/:
+    get:
+      operationId: v1_candidates_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_candidates_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/database/:
+    get:
+      operationId: v1_candidates_database_retrieve
+      description: System-of-record layer with smart rows and enterprise saved views.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/database/saved-views/:
+    get:
+      operationId: v1_candidates_database_saved_views_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/active-work/:
+    get:
+      operationId: v1_candidates_active_work_retrieve
+      description: 'Recruiter-first Active Work surface: board + focus + follow-up
+        queue.'
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/workflow-policy/:
+    get:
+      operationId: v1_candidates_workflow_policy_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_candidates_workflow_policy_update
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/{id}/:
+    get:
+      operationId: v1_candidates_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_candidates_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    delete:
+      operationId: v1_candidates_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/{id}/command-center/:
+    get:
+      operationId: v1_candidates_command_center_retrieve
+      description: Candidate command center payload for tabs + sticky actions.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/{id}/timeline/:
+    get:
+      operationId: v1_candidates_timeline_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/{id}/talent-pools/:
+    get:
+      operationId: v1_candidates_talent_pools_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/duplicates/:
+    get:
+      operationId: v1_candidates_duplicates_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/merge/:
+    post:
+      operationId: v1_candidates_merge_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/{id}/notes/:
+    get:
+      operationId: v1_candidates_notes_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_candidates_notes_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/{id}/notes/{note_id}/:
+    put:
+      operationId: v1_candidates_notes_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: note_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: Note updated
+        '404':
+          description: Note not found
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    delete:
+      operationId: v1_candidates_notes_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: note_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: Note deleted
+        '404':
+          description: Note not found
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/invite-links/:
+    get:
+      operationId: v1_candidates_invite_links_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_candidates_invite_links_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/invite-links/{id}/deactivate/:
+    post:
+      operationId: v1_candidates_invite_links_deactivate_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/check-identity/:
+    post:
+      operationId: v1_candidates_check_identity_create
+      description: |-
+        Public pre-check used by Source 2 (apply form) and Source 3 (direct signup)
+        before creating a new user account.
+
+        POST { email, phone } → returns whether a user/candidate already exists so
+        the frontend can redirect to login / forgot-password instead of proceeding
+        with account creation and creating a duplicate.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: Identity check complete
+        '400':
+          description: Provide at least an email or phone to check
+  /api/v1/candidates/crm/pipeline/:
+    get:
+      operationId: v1_candidates_crm_pipeline_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/crm/pipeline/add/:
+    post:
+      operationId: v1_candidates_crm_pipeline_add_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/crm/pipeline/{id}/move/:
+    put:
+      operationId: v1_candidates_crm_pipeline_move_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/crm/candidates/{candidate_id}/interactions/:
+    get:
+      operationId: v1_candidates_crm_candidates_interactions_retrieve
+      parameters:
+      - in: path
+        name: candidate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_candidates_crm_candidates_interactions_create
+      parameters:
+      - in: path
+        name: candidate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/crm/reminders/:
+    get:
+      operationId: v1_candidates_crm_reminders_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/crm/suggestions/{job_id}/:
+    get:
+      operationId: v1_candidates_crm_suggestions_retrieve
+      parameters:
+      - in: path
+        name: job_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/skills/search/:
+    get:
+      operationId: v1_candidates_skills_search_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/locations/search/:
+    get:
+      operationId: v1_candidates_locations_search_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/{candidate_id}/workspace/:
+    get:
+      operationId: v1_candidates_workspace_retrieve
+      parameters:
+      - in: path
+        name: candidate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_candidates_workspace_update
+      parameters:
+      - in: path
+        name: candidate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/{candidate_id}/engagements/:
+    get:
+      operationId: v1_candidates_engagements_retrieve
+      parameters:
+      - in: path
+        name: candidate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_candidates_engagements_create
+      parameters:
+      - in: path
+        name: candidate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/{candidate_id}/engagements/{engagement_id}/:
+    get:
+      operationId: v1_candidates_engagements_retrieve_2
+      parameters:
+      - in: path
+        name: candidate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: engagement_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: Engagement retrieved
+        '404':
+          description: Engagement not found
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_candidates_engagements_update
+      parameters:
+      - in: path
+        name: candidate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: engagement_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: Engagement updated
+        '404':
+          description: Engagement not found
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/{candidate_id}/engagements/{engagement_id}/close/:
+    post:
+      operationId: v1_candidates_engagements_close_create
+      parameters:
+      - in: path
+        name: candidate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: engagement_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: Engagement closed
+        '404':
+          description: Engagement not found
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/{candidate_id}/engagements/{engagement_id}/revive/:
+    post:
+      operationId: v1_candidates_engagements_revive_create
+      parameters:
+      - in: path
+        name: candidate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: engagement_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: Engagement revived
+        '404':
+          description: Engagement not found
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/{candidate_id}/timeline-events/:
+    get:
+      operationId: v1_candidates_timeline_events_retrieve
+      description: Full immutable timeline for a candidate
+      parameters:
+      - in: path
+        name: candidate_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidates/active/:
+    get:
+      operationId: v1_candidates_active_retrieve
+      description: 'Recruiter-first Active Work surface: board + focus + follow-up
+        queue.'
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/applications/:
+    get:
+      operationId: v1_applications_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_applications_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/applications/{id}/:
+    get:
+      operationId: v1_applications_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_applications_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/applications/{id}/move-stage/:
+    post:
+      operationId: v1_applications_move_stage_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/applications/{id}/shortlist/:
+    post:
+      operationId: v1_applications_shortlist_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/applications/{id}/reject/:
+    post:
+      operationId: v1_applications_reject_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/applications/{id}/withdraw/:
+    post:
+      operationId: v1_applications_withdraw_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/applications/{id}/make-offer/:
+    post:
+      operationId: v1_applications_make_offer_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/pipeline/{requisition_id}/:
+    get:
+      operationId: v1_pipeline_retrieve
+      parameters:
+      - in: path
+        name: requisition_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/pipeline/bulk-action/:
+    post:
+      operationId: v1_pipeline_bulk_action_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/deadlines/:
+    get:
+      operationId: v1_deadlines_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/deadlines/{id}/complete/:
+    post:
+      operationId: v1_deadlines_complete_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/deadlines/overdue/:
+    get:
+      operationId: v1_deadlines_overdue_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/agencies/lookup/:
+    get:
+      operationId: v1_agencies_lookup_retrieve
+      description: |-
+        Enhanced lookup: search by email, return tenant status.
+        Returns whether found as full tenant, guest portal, or not found.
+        Used by both company and agency sides in Add Agency / Add Client forms.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/agencies/available/:
+    get:
+      operationId: v1_agencies_available_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/agencies/relationships/:
+    get:
+      operationId: v1_agencies_relationships_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_agencies_relationships_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/agencies/relationships/{id}/:
+    get:
+      operationId: v1_agencies_relationships_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_agencies_relationships_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    delete:
+      operationId: v1_agencies_relationships_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/agencies/relationships/{id}/invite/:
+    post:
+      operationId: v1_agencies_relationships_invite_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/agencies/relationships/{id}/accept/:
+    post:
+      operationId: v1_agencies_relationships_accept_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/agencies/relationships/{id}/suspend/:
+    post:
+      operationId: v1_agencies_relationships_suspend_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/agencies/assignments/:
+    get:
+      operationId: v1_agencies_assignments_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_agencies_assignments_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/agencies/assignments/{id}/:
+    get:
+      operationId: v1_agencies_assignments_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_agencies_assignments_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    delete:
+      operationId: v1_agencies_assignments_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/agencies/performance/:
+    get:
+      operationId: v1_agencies_performance_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/agencies/guest-portals/:
+    post:
+      operationId: v1_agencies_guest_portals_create
+      description: |-
+        Creates a guest portal and sends invite email.
+        Used when:
+        - Company invites agency not in system (portal_type=agency_guest)
+        - Agency invites company not in system (portal_type=client_guest)
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/agencies/guest-portals/{id}/resend/:
+    post:
+      operationId: v1_agencies_guest_portals_resend_create
+      description: Resend invite for a pending/expired guest portal.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/agencies/email-tracking/:
+    post:
+      operationId: v1_agencies_email_tracking_create
+      description: |-
+        Agency adds client as email tracking only.
+        No portal, no invite. System monitors email domain.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/agencies/offline-clients/:
+    post:
+      operationId: v1_agencies_offline_clients_create
+      description: Agency adds client as offline (no portal, no email tracking).
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/agencies/my-jobs/:
+    get:
+      operationId: v1_agencies_my_jobs_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/agencies/submit-candidate/:
+    post:
+      operationId: v1_agencies_submit_candidate_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/agencies/my-submissions/:
+    get:
+      operationId: v1_agencies_my_submissions_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/agencies/my-clients/:
+    get:
+      operationId: v1_agencies_my_clients_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/interviews/templates/:
+    get:
+      operationId: v1_interviews_templates_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_interviews_templates_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/interviews/templates/{id}/:
+    get:
+      operationId: v1_interviews_templates_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_interviews_templates_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    delete:
+      operationId: v1_interviews_templates_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/interviews/:
+    get:
+      operationId: v1_interviews_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_interviews_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/interviews/{id}/:
+    get:
+      operationId: v1_interviews_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_interviews_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/interviews/{id}/start/:
+    post:
+      operationId: v1_interviews_start_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/interviews/{id}/complete/:
+    post:
+      operationId: v1_interviews_complete_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/interviews/{id}/cancel/:
+    post:
+      operationId: v1_interviews_cancel_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/interviews/{id}/reschedule/:
+    post:
+      operationId: v1_interviews_reschedule_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/interviews/{id}/feedback/:
+    get:
+      operationId: v1_interviews_feedback_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_interviews_feedback_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidate/interviews/:
+    get:
+      operationId: v1_candidate_interviews_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidate/interviews/{id}/start/:
+    post:
+      operationId: v1_candidate_interviews_start_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidate/interviews/{id}/submit-answer/:
+    post:
+      operationId: v1_candidate_interviews_submit_answer_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidate/interviews/{id}/complete/:
+    post:
+      operationId: v1_candidate_interviews_complete_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/passport/my-passport/:
+    get:
+      operationId: v1_passport_my_passport_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_passport_my_passport_update
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/passport/my-passport/access-log/:
+    get:
+      operationId: v1_passport_my_passport_access_log_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/passport/my-passport/revoke-access/:
+    post:
+      operationId: v1_passport_my_passport_revoke_access_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/passport/my-passport/revoke-all/:
+    post:
+      operationId: v1_passport_my_passport_revoke_all_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/passport/my-passport/share-link/:
+    get:
+      operationId: v1_passport_my_passport_share_link_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/passport/my-passport/regenerate-link/:
+    post:
+      operationId: v1_passport_my_passport_regenerate_link_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/passport/public/{token}/:
+    get:
+      operationId: v1_passport_public_retrieve
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: Success
+        '404':
+          description: Passport not found or link has expired.
+  /api/v1/passport/my-candidate/:
+    get:
+      operationId: v1_passport_my_candidate_retrieve
+      description: |-
+        Prefill data source for onboarding.
+        Returns the Candidate record linked to the authenticated user, flattened
+        into a shape the onboarding form can consume directly.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    patch:
+      operationId: v1_passport_my_candidate_partial_update
+      description: |-
+        Update Candidate-model fields collected during onboarding that don't
+        have a home on the Passport model.
+
+        Accepted fields:
+          availability_status, nationality, work_authorization,
+          notice_period_days, work_mode_preference, is_actively_looking
+
+        Append semantics: empty / None values are skipped — existing data is
+        never erased.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/passport/import/:
+    post:
+      operationId: v1_passport_import_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/passport/withdraw-data/:
+    get:
+      operationId: v1_passport_withdraw_data_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_passport_withdraw_data_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/passport/withdrawal-status/:
+    get:
+      operationId: v1_passport_withdrawal_status_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_passport_withdrawal_status_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/messages/threads/:
+    get:
+      operationId: v1_messages_threads_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_messages_threads_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/messages/threads/{id}/:
+    get:
+      operationId: v1_messages_threads_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/messages/threads/{id}/reply/:
+    post:
+      operationId: v1_messages_threads_reply_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/notifications/:
+    get:
+      operationId: v1_notifications_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/notifications/{id}/read/:
+    post:
+      operationId: v1_notifications_read_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/notifications/read-all/:
+    post:
+      operationId: v1_notifications_read_all_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communication/templates/:
+    get:
+      operationId: v1_communication_templates_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_communication_templates_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communication/templates/{id}/:
+    get:
+      operationId: v1_communication_templates_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_communication_templates_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    delete:
+      operationId: v1_communication_templates_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communication/email-accounts/:
+    get:
+      operationId: v1_communication_email_accounts_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedEmailAccountList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_communication_email_accounts_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailAccountRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EmailAccountRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EmailAccountRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailAccount'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communication/email-accounts/{id}/:
+    get:
+      operationId: v1_communication_email_accounts_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailAccount'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_communication_email_accounts_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailAccountRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EmailAccountRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EmailAccountRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: Email account updated successfully
+        '404':
+          description: Email account not found
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    delete:
+      operationId: v1_communication_email_accounts_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    patch:
+      operationId: v1_communication_email_accounts_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedEmailAccountRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedEmailAccountRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedEmailAccountRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: Email account updated successfully
+        '404':
+          description: Email account not found
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email/feature-status:
+    get:
+      operationId: v1_communications_email_feature_status_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email/oauth-status:
+    get:
+      operationId: v1_communications_email_oauth_status_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email-accounts/:
+    get:
+      operationId: v1_communications_email_accounts_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email-accounts/gmail/connect/initiate:
+    post:
+      operationId: v1_communications_email_accounts_gmail_connect_initiate_create
+      description: |-
+        Start the Gmail OAuth flow.
+        Returns an authorization URL that the frontend should redirect the browser to.
+        The redirect_uri embedded in the auth URL points to the backend callback endpoint
+        registered in Google Cloud Console — never to the frontend.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email-accounts/gmail/callback:
+    get:
+      operationId: v1_communications_email_accounts_gmail_callback_retrieve
+      description: |-
+        Backend OAuth callback for Gmail.
+        Google redirects here with ?code=...&state=...
+        No user authentication needed — security is guaranteed by the state token.
+        Exchanges code for tokens, stores them encrypted, then redirects to frontend.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/communications/email-accounts/microsoft/connect/initiate:
+    post:
+      operationId: v1_communications_email_accounts_microsoft_connect_initiate_create
+      description: |-
+        Start the Microsoft OAuth flow.
+        Returns an authorization URL that the frontend should redirect the browser to.
+        The redirect_uri embedded in the auth URL points to the backend callback endpoint
+        registered in Azure — never to the frontend.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email-accounts/microsoft/callback:
+    get:
+      operationId: v1_communications_email_accounts_microsoft_callback_retrieve
+      description: |-
+        Backend OAuth callback for Microsoft / Outlook.
+        Microsoft redirects here with ?code=...&state=...
+        No user authentication needed — security is guaranteed by the state token.
+        Exchanges code for tokens, stores them encrypted, then redirects to frontend.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/communications/email-accounts/{id}/set-default:
+    post:
+      operationId: v1_communications_email_accounts_set_default_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email-accounts/{id}/test:
+    post:
+      operationId: v1_communications_email_accounts_test_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email-accounts/{id}/reconnect:
+    post:
+      operationId: v1_communications_email_accounts_reconnect_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email-accounts/{id}/disconnect:
+    post:
+      operationId: v1_communications_email_accounts_disconnect_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email-accounts/smtp:
+    post:
+      operationId: v1_communications_email_accounts_smtp_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email-accounts/smtp/{id}:
+    patch:
+      operationId: v1_communications_email_accounts_smtp_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email-preferences/:
+    get:
+      operationId: v1_communications_email_preferences_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    patch:
+      operationId: v1_communications_email_preferences_partial_update
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email-templates/:
+    get:
+      operationId: v1_communications_email_templates_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_communications_email_templates_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email-templates/{id}:
+    patch:
+      operationId: v1_communications_email_templates_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email-templates/{id}/duplicate:
+    post:
+      operationId: v1_communications_email_templates_duplicate_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email-templates/{id}/preview:
+    post:
+      operationId: v1_communications_email_templates_preview_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/quick-replies/:
+    get:
+      operationId: v1_communications_quick_replies_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_communications_quick_replies_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/quick-replies/{id}:
+    patch:
+      operationId: v1_communications_quick_replies_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email/send:
+    post:
+      operationId: v1_communications_email_send_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email/send-test:
+    post:
+      operationId: v1_communications_email_send_test_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email/render-preview:
+    post:
+      operationId: v1_communications_email_render_preview_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email/render-template:
+    post:
+      operationId: v1_communications_email_render_template_create
+      description: |-
+        POST /communications/email/render-template
+
+        Resolves all template variables from DB using entity IDs,
+        renders the template, and returns subject + body + list of unresolved tags.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email-messages/:
+    get:
+      operationId: v1_communications_email_messages_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email-messages/{id}:
+    get:
+      operationId: v1_communications_email_messages_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email-audit/:
+    get:
+      operationId: v1_communications_email_audit_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/communications/email-webhooks/{provider}:
+    post:
+      operationId: v1_communications_email_webhooks_create
+      parameters:
+      - in: path
+        name: provider
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/documents/:
+    get:
+      operationId: v1_documents_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_documents_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/documents/{id}/:
+    get:
+      operationId: v1_documents_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    delete:
+      operationId: v1_documents_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/documents/{id}/download/:
+    get:
+      operationId: v1_documents_download_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/offers/:
+    get:
+      operationId: v1_offers_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_offers_create
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/offers/{id}/:
+    get:
+      operationId: v1_offers_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/offers/{id}/send/:
+    post:
+      operationId: v1_offers_send_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/offers/{id}/approve/:
+    post:
+      operationId: v1_offers_approve_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/offers/{id}/revoke/:
+    post:
+      operationId: v1_offers_revoke_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidate/offers/{id}/accept/:
+    post:
+      operationId: v1_candidate_offers_accept_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidate/offers/{id}/reject/:
+    post:
+      operationId: v1_candidate_offers_reject_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/analytics/dashboard/:
+    get:
+      operationId: v1_analytics_dashboard_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/analytics/recruitment/:
+    get:
+      operationId: v1_analytics_recruitment_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/analytics/pipeline/:
+    get:
+      operationId: v1_analytics_pipeline_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/analytics/agencies/:
+    get:
+      operationId: v1_analytics_agencies_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/analytics/candidates/:
+    get:
+      operationId: v1_analytics_candidates_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/analytics/interviews/:
+    get:
+      operationId: v1_analytics_interviews_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/rbac/debug/:
+    get:
+      operationId: v1_rbac_debug_retrieve
+      description: |-
+        Returns all system roles + permissions + current user's effective permissions.
+        Used by the frontend RBAC debug/admin page at /rbac-debug.
+        Safe for any authenticated user — read-only.
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/rbac/roles/:
+    get:
+      operationId: v1_rbac_roles_retrieve
+      description: |-
+        Tenant-aware role catalog:
+          - system_templates: platform-managed defaults
+          - tenant_roles: editable roles for current tenant
+          - all_permissions: active permissions with friendly metadata
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_rbac_roles_create
+      description: |-
+        Tenant-aware role catalog:
+          - system_templates: platform-managed defaults
+          - tenant_roles: editable roles for current tenant
+          - all_permissions: active permissions with friendly metadata
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/rbac/roles/{template_role_id}/clone-template/:
+    post:
+      operationId: v1_rbac_roles_clone_template_create
+      parameters:
+      - in: path
+        name: template_role_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/rbac/roles/{role_id}/:
+    put:
+      operationId: v1_rbac_roles_update
+      parameters:
+      - in: path
+        name: role_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    delete:
+      operationId: v1_rbac_roles_destroy
+      parameters:
+      - in: path
+        name: role_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/translations/overrides/:
+    get:
+      operationId: v1_translations_overrides_retrieve
+      description: |-
+        Returns active DB-backed translation overrides for a given language.
+
+        The frontend merges these on top of its static JSON translation files,
+        allowing corrections and tenant-custom labels without a frontend deploy.
+
+        Hierarchy: tenant override > global override > static JSON
+
+        Query params:
+            lang    (required) — language code, e.g. "en", "hi"
+            module  (optional) — filter by module, e.g. "sidebar", "candidates"
+            tenant  (optional) — UUID; when provided also returns tenant-specific overrides
+      tags:
+      - v1
+      security:
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/v1/candidate/applications/:
+    get:
+      operationId: v1_candidate_applications_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidate/applications/{id}/:
+    get:
+      operationId: v1_candidate_applications_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/candidate/recommended-jobs/:
+    get:
+      operationId: v1_candidate_recommended_jobs_retrieve
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/talent-pools/pools/:
+    get:
+      operationId: v1_talent_pools_pools_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedTalentPoolList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_talent_pools_pools_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TalentPool'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/talent-pools/pools/{id}/:
+    get:
+      operationId: v1_talent_pools_pools_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Talent Pool.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TalentPool'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_talent_pools_pools_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Talent Pool.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TalentPool'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    delete:
+      operationId: v1_talent_pools_pools_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Talent Pool.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    patch:
+      operationId: v1_talent_pools_pools_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Talent Pool.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedTalentPoolRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedTalentPoolRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedTalentPoolRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TalentPool'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/talent-pools/pools/{id}/activity/:
+    get:
+      operationId: v1_talent_pools_pools_activity_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Talent Pool.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TalentPool'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/talent-pools/pools/{id}/bulk-add/:
+    post:
+      operationId: v1_talent_pools_pools_bulk_add_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Talent Pool.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TalentPool'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/talent-pools/pools/{id}/bulk-remove/:
+    post:
+      operationId: v1_talent_pools_pools_bulk_remove_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Talent Pool.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TalentPool'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/talent-pools/memberships/:
+    get:
+      operationId: v1_talent_pools_memberships_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCandidateTalentPoolMembershipList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    post:
+      operationId: v1_talent_pools_memberships_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CandidateTalentPoolMembershipRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CandidateTalentPoolMembershipRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CandidateTalentPoolMembershipRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CandidateTalentPoolMembership'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/talent-pools/memberships/{id}/:
+    get:
+      operationId: v1_talent_pools_memberships_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Candidate Talent Pool Membership.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CandidateTalentPoolMembership'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_talent_pools_memberships_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Candidate Talent Pool Membership.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CandidateTalentPoolMembershipRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CandidateTalentPoolMembershipRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CandidateTalentPoolMembershipRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CandidateTalentPoolMembership'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    delete:
+      operationId: v1_talent_pools_memberships_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Candidate Talent Pool Membership.
+        required: true
+      tags:
+      - v1
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    patch:
+      operationId: v1_talent_pools_memberships_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Candidate Talent Pool Membership.
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCandidateTalentPoolMembershipRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCandidateTalentPoolMembershipRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCandidateTalentPoolMembershipRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CandidateTalentPoolMembership'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+components:
+  schemas:
+    CandidateBrief:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        first_name:
+          type: string
+          maxLength: 100
+        last_name:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        phone:
+          type: string
+          maxLength: 20
+        current_title:
+          type: string
+          maxLength: 255
+        current_location_city:
+          type: string
+          maxLength: 100
+        experience_years:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,1})?$
+          nullable: true
+      required:
+      - first_name
+      - id
+      - last_name
+    CandidateBriefRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        phone:
+          type: string
+          maxLength: 20
+        current_title:
+          type: string
+          maxLength: 255
+        current_location_city:
+          type: string
+          maxLength: 100
+        experience_years:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,1})?$
+          nullable: true
+      required:
+      - first_name
+      - last_name
+    CandidateTalentPoolMembership:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        tenant_id:
+          type: string
+          format: uuid
+        talent_pool:
+          type: string
+          format: uuid
+        candidate:
+          type: string
+          format: uuid
+        candidate_details:
+          allOf:
+          - $ref: '#/components/schemas/CandidateBrief'
+          readOnly: true
+        added_by:
+          type: string
+          format: uuid
+          nullable: true
+        added_at:
+          type: string
+          format: date-time
+          readOnly: true
+        source:
+          $ref: '#/components/schemas/SourceEnum'
+        note:
+          type: string
+      required:
+      - added_at
+      - candidate
+      - candidate_details
+      - id
+      - talent_pool
+      - tenant_id
+    CandidateTalentPoolMembershipRequest:
+      type: object
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        talent_pool:
+          type: string
+          format: uuid
+        candidate:
+          type: string
+          format: uuid
+        added_by:
+          type: string
+          format: uuid
+          nullable: true
+        source:
+          $ref: '#/components/schemas/SourceEnum'
+        note:
+          type: string
+      required:
+      - candidate
+      - talent_pool
+      - tenant_id
+    EmailAccount:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        tenant_id:
+          type: string
+          format: uuid
+          readOnly: true
+        user_id:
+          type: string
+          format: uuid
+          readOnly: true
+        email_address:
+          type: string
+          format: email
+          maxLength: 254
+        provider:
+          $ref: '#/components/schemas/ProviderEnum'
+        is_default:
+          type: boolean
+        smtp_host:
+          type: string
+          maxLength: 255
+        smtp_port:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+        smtp_username:
+          type: string
+          maxLength: 255
+        smtp_encryption:
+          $ref: '#/components/schemas/SmtpEncryptionEnum'
+        from_name:
+          type: string
+          maxLength: 255
+        signature:
+          type: string
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - email_address
+      - id
+      - provider
+      - tenant_id
+      - updated_at
+      - user_id
+    EmailAccountRequest:
+      type: object
+      properties:
+        email_address:
+          type: string
+          format: email
+          minLength: 1
+          maxLength: 254
+        provider:
+          $ref: '#/components/schemas/ProviderEnum'
+        is_default:
+          type: boolean
+        smtp_host:
+          type: string
+          maxLength: 255
+        smtp_port:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+        smtp_username:
+          type: string
+          maxLength: 255
+        smtp_password:
+          type: string
+          writeOnly: true
+        smtp_encryption:
+          $ref: '#/components/schemas/SmtpEncryptionEnum'
+        from_name:
+          type: string
+          maxLength: 255
+        signature:
+          type: string
+        oauth_token:
+          writeOnly: true
+          nullable: true
+        is_active:
+          type: boolean
+      required:
+      - email_address
+      - provider
+    PaginatedCandidateTalentPoolMembershipList:
+      type: object
+      required:
+      - results
+      properties:
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?cursor=cD00ODY%3D"
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/CandidateTalentPoolMembership'
+    PaginatedEmailAccountList:
+      type: object
+      required:
+      - results
+      properties:
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?cursor=cD00ODY%3D"
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/EmailAccount'
+    PaginatedTalentPoolList:
+      type: object
+      required:
+      - results
+      properties:
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?cursor=cD00ODY%3D"
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?cursor=cj0xJnA9NDg3
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/TalentPool'
+    PatchedCandidateTalentPoolMembershipRequest:
+      type: object
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        talent_pool:
+          type: string
+          format: uuid
+        candidate:
+          type: string
+          format: uuid
+        added_by:
+          type: string
+          format: uuid
+          nullable: true
+        source:
+          $ref: '#/components/schemas/SourceEnum'
+        note:
+          type: string
+    PatchedEmailAccountRequest:
+      type: object
+      properties:
+        email_address:
+          type: string
+          format: email
+          minLength: 1
+          maxLength: 254
+        provider:
+          $ref: '#/components/schemas/ProviderEnum'
+        is_default:
+          type: boolean
+        smtp_host:
+          type: string
+          maxLength: 255
+        smtp_port:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          nullable: true
+        smtp_username:
+          type: string
+          maxLength: 255
+        smtp_password:
+          type: string
+          writeOnly: true
+        smtp_encryption:
+          $ref: '#/components/schemas/SmtpEncryptionEnum'
+        from_name:
+          type: string
+          maxLength: 255
+        signature:
+          type: string
+        oauth_token:
+          writeOnly: true
+          nullable: true
+        is_active:
+          type: boolean
+    PatchedTalentPoolRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        pool_type:
+          $ref: '#/components/schemas/PoolTypeEnum'
+        color:
+          type: string
+          description: Hex code or color name for UI indicator
+          maxLength: 50
+        is_active:
+          type: boolean
+        filters_json:
+          description: Search filters for smart pools
+        metadata: {}
+    PoolTypeEnum:
+      enum:
+      - manual
+      - smart
+      type: string
+      description: |-
+        * `manual` - Manual
+        * `smart` - Smart
+    ProviderEnum:
+      enum:
+      - gmail
+      - outlook
+      - smtp
+      type: string
+      description: |-
+        * `gmail` - Gmail
+        * `outlook` - Outlook
+        * `smtp` - Custom SMTP
+    SmtpEncryptionEnum:
+      enum:
+      - none
+      - ssl
+      - tls
+      type: string
+      description: |-
+        * `none` - None
+        * `ssl` - SSL
+        * `tls` - TLS
+    SourceEnum:
+      enum:
+      - manual
+      - rule
+      - import
+      type: string
+      description: |-
+        * `manual` - Manual
+        * `rule` - Rule
+        * `import` - Import
+    TalentPool:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        tenant_id:
+          type: string
+          format: uuid
+          readOnly: true
+        tenant_type:
+          allOf:
+          - $ref: '#/components/schemas/TenantTypeEnum'
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        slug:
+          type: string
+          readOnly: true
+          pattern: ^[-a-zA-Z0-9_]+$
+        description:
+          type: string
+        pool_type:
+          $ref: '#/components/schemas/PoolTypeEnum'
+        color:
+          type: string
+          description: Hex code or color name for UI indicator
+          maxLength: 50
+        is_active:
+          type: boolean
+        created_by:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        filters_json:
+          description: Search filters for smart pools
+        metadata: {}
+        member_count:
+          type: integer
+          readOnly: true
+      required:
+      - created_at
+      - created_by
+      - id
+      - member_count
+      - name
+      - slug
+      - tenant_id
+      - tenant_type
+      - updated_at
+    TalentPoolRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+        pool_type:
+          $ref: '#/components/schemas/PoolTypeEnum'
+        color:
+          type: string
+          description: Hex code or color name for UI indicator
+          maxLength: 50
+        is_active:
+          type: boolean
+        filters_json:
+          description: Search filters for smart pools
+        metadata: {}
+      required:
+      - name
+    TenantTypeEnum:
+      enum:
+      - company
+      - agency
+      type: string
+      description: |-
+        * `company` - Company
+        * `agency` - Agency
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

@@ -1,0 +1,273 @@
+{
+  "run_at": "2026-03-28T02:07:11.984603",
+  "total": 33,
+  "passed": 21,
+  "failed": 10,
+  "skipped": 2,
+  "results": [
+    {
+      "scenario": "1. Company Onboarding",
+      "step": "Register page loads",
+      "status": "PASS",
+      "detail": "",
+      "screenshot": "",
+      "time": "2026-03-28T02:05:01.432872"
+    },
+    {
+      "scenario": "1. Company Onboarding",
+      "step": "Registration form submit",
+      "status": "PASS",
+      "detail": "Landed on: http://localhost:5173/register/company",
+      "screenshot": "",
+      "time": "2026-03-28T02:05:23.085987"
+    },
+    {
+      "scenario": "1. Company Onboarding",
+      "step": "Post-register redirect",
+      "status": "FAIL",
+      "detail": "Still on register page \u2014 likely form error. URL: http://localhost:5173/register/company",
+      "screenshot": "/home/nirav/projects/SaaS_Project/qa_ui_reports/screenshots/020523_1._Company_Onboarding_post_register.png",
+      "time": "2026-03-28T02:05:23.156097"
+    },
+    {
+      "scenario": "1. Company Onboarding",
+      "step": "Onboarding form save",
+      "status": "SKIP",
+      "detail": "Onboarding screen not shown",
+      "screenshot": "",
+      "time": "2026-03-28T02:05:23.156186"
+    },
+    {
+      "scenario": "1. Company Onboarding",
+      "step": "Re-login skips onboarding",
+      "status": "PASS",
+      "detail": "Landed: http://localhost:5173/dashboard",
+      "screenshot": "",
+      "time": "2026-03-28T02:05:25.847481"
+    },
+    {
+      "scenario": "2. Organisation Setup",
+      "step": "Department page loads",
+      "status": "PASS",
+      "detail": "",
+      "screenshot": "",
+      "time": "2026-03-28T02:05:29.260449"
+    },
+    {
+      "scenario": "2. Organisation Setup",
+      "step": "Create Department",
+      "status": "FAIL",
+      "detail": "'QA Engineering' not found after save",
+      "screenshot": "/home/nirav/projects/SaaS_Project/qa_ui_reports/screenshots/020536_2._Organisation_Setup_save_department.png",
+      "time": "2026-03-28T02:05:36.289675"
+    },
+    {
+      "scenario": "2. Organisation Setup",
+      "step": "Location page loads",
+      "status": "PASS",
+      "detail": "",
+      "screenshot": "",
+      "time": "2026-03-28T02:05:38.078003"
+    },
+    {
+      "scenario": "2. Organisation Setup",
+      "step": "Create Location",
+      "status": "FAIL",
+      "detail": "'Ahmedabad' not found after save",
+      "screenshot": "/home/nirav/projects/SaaS_Project/qa_ui_reports/screenshots/020545_2._Organisation_Setup_save_location.png",
+      "time": "2026-03-28T02:05:45.105258"
+    },
+    {
+      "scenario": "2. Organisation Setup",
+      "step": "Team page loads",
+      "status": "PASS",
+      "detail": "",
+      "screenshot": "",
+      "time": "2026-03-28T02:05:46.766905"
+    },
+    {
+      "scenario": "2. Organisation Setup",
+      "step": "Create Team",
+      "status": "FAIL",
+      "detail": "'QA Team' not found after save",
+      "screenshot": "/home/nirav/projects/SaaS_Project/qa_ui_reports/screenshots/020553_2._Organisation_Setup_save_team.png",
+      "time": "2026-03-28T02:05:53.840033"
+    },
+    {
+      "scenario": "3. Jobs Flow",
+      "step": "Jobs page loads",
+      "status": "PASS",
+      "detail": "",
+      "screenshot": "",
+      "time": "2026-03-28T02:05:57.250752"
+    },
+    {
+      "scenario": "3. Jobs Flow",
+      "step": "Create Job button visible",
+      "status": "PASS",
+      "detail": "",
+      "screenshot": "",
+      "time": "2026-03-28T02:05:57.253639"
+    },
+    {
+      "scenario": "3. Jobs Flow",
+      "step": "Create Job drawer opens",
+      "status": "PASS",
+      "detail": "",
+      "screenshot": "",
+      "time": "2026-03-28T02:05:58.167146"
+    },
+    {
+      "scenario": "3. Jobs Flow",
+      "step": "Fill and save job form",
+      "status": "FAIL",
+      "detail": "Locator.click: Timeout 5000ms exceeded.\nCall log:\n  - waiting for locator(\".ant-select\").first\n    - locator resolved to <div class=\"ant-select ant-select-outlined w-full h-10 css-var-r0 ant-select-css-var css-dev-only-do-not-override-151uw82 ant-select-single ant-select-allow-clear ant-select-show-arrow\">\u2026</div>\n  - attempting click action\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <input readonly value=\"\" id=\"job_type\" type=\"search\" role=\"combobox\" autocomplete=\"off\" aria-required=\"true\" aria-expanded=\"false\" aria-haspopup=\"listbox\" class=\"ant-select-input\" aria-autocomplete=\"list\"/> from <div>\u2026</div> subtree intercepts pointer events\n    - retrying click action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <input readonly value=\"\" id=\"job_type\" type=\"search\" role=\"combobox\" autocomplete=\"off\" aria-required=\"true\" aria-expanded=\"false\" aria-haspopup=\"listbox\" class=\"ant-select-input\" aria-autocomplete=\"list\"/> from <div>\u2026</div> subtree intercepts pointer events\n    - retrying click action\n      - waiting 100ms\n    10 \u00d7 waiting for element to be visible, enabled and stable\n       - element is visible, enabled and stable\n       - scrolling into view if needed\n       - done scrolling\n       - <input readonly value=\"\" id=\"job_type\" type=\"search\" role=\"combobox\" autocomplete=\"off\" aria-required=\"true\" aria-expanded=\"false\" aria-haspopup=\"listbox\" class=\"ant-select-input\" aria-autocomplete=\"list\"/> from <div>\u2026</div> subtree intercepts pointer events\n     - retrying click action\n       - waiting 500ms\n",
+      "screenshot": "/home/nirav/projects/SaaS_Project/qa_ui_reports/screenshots/020613_3._Jobs_Flow_job_form_error.png",
+      "time": "2026-03-28T02:06:13.263787"
+    },
+    {
+      "scenario": "4. Agency Linking",
+      "step": "Agencies page loads",
+      "status": "PASS",
+      "detail": "",
+      "screenshot": "",
+      "time": "2026-03-28T02:06:16.595536"
+    },
+    {
+      "scenario": "4. Agency Linking",
+      "step": "Agencies list renders",
+      "status": "PASS",
+      "detail": "",
+      "screenshot": "",
+      "time": "2026-03-28T02:06:17.599846"
+    },
+    {
+      "scenario": "4. Agency Linking",
+      "step": "Invite/Add Agency modal opens",
+      "status": "PASS",
+      "detail": "",
+      "screenshot": "",
+      "time": "2026-03-28T02:06:18.477255"
+    },
+    {
+      "scenario": "4. Agency Linking",
+      "step": "Agency right panel opens",
+      "status": "FAIL",
+      "detail": "Locator.click: Timeout 5000ms exceeded.\nCall log:\n  - waiting for locator(\"tr.ant-table-row, .agency-row\").first\n    - locator resolved to <tr data-row-key=\"e832e60b-9ffc-4fda-91e6-a4aab65129f8\" class=\"ant-table-row ant-table-row-level-0 cursor-pointer transition-all duration-200 hover:bg-[#EEF2FF]\">\u2026</tr>\n  - attempting click action\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <div class=\"ant-drawer-mask\"></div> from <div>\u2026</div> subtree intercepts pointer events\n    - retrying click action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is visible, enabled and stable\n      - scrolling into view if needed\n      - done scrolling\n      - <div class=\"ant-drawer-mask\"></div> from <div>\u2026</div> subtree intercepts pointer events\n    - retrying click action\n      - waiting 100ms\n    10 \u00d7 waiting for element to be visible, enabled and stable\n       - element is visible, enabled and stable\n       - scrolling into view if needed\n       - done scrolling\n       - <div class=\"ant-drawer-mask\"></div> from <div>\u2026</div> subtree intercepts pointer events\n     - retrying click action\n       - waiting 500ms\n",
+      "screenshot": "",
+      "time": "2026-03-28T02:06:23.483069"
+    },
+    {
+      "scenario": "5. Candidates",
+      "step": "Candidates page loads",
+      "status": "PASS",
+      "detail": "",
+      "screenshot": "",
+      "time": "2026-03-28T02:06:26.880865"
+    },
+    {
+      "scenario": "5. Candidates",
+      "step": "Candidates list renders",
+      "status": "PASS",
+      "detail": "",
+      "screenshot": "",
+      "time": "2026-03-28T02:06:27.884548"
+    },
+    {
+      "scenario": "5. Candidates",
+      "step": "Add Candidate",
+      "status": "FAIL",
+      "detail": "Locator.click: Timeout 5000ms exceeded.\nCall log:\n  - waiting for locator(\"button:has-text('Save'), button:has-text('Add')\").last\n    - locator resolved to <button disabled class=\"rounded-xl border p-3 text-left transition border-slate-200 bg-white opacity-65 cursor-not-allowed\">\u2026</button>\n  - attempting click action\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is not enabled\n    - retrying click action\n    - waiting 20ms\n    2 \u00d7 waiting for element to be visible, enabled and stable\n      - element is not enabled\n    - retrying click action\n      - waiting 100ms\n    10 \u00d7 waiting for element to be visible, enabled and stable\n       - element is not enabled\n     - retrying click action\n       - waiting 500ms\n",
+      "screenshot": "/home/nirav/projects/SaaS_Project/qa_ui_reports/screenshots/020653_5._Candidates_add_candidate_error.png",
+      "time": "2026-03-28T02:06:53.889754"
+    },
+    {
+      "scenario": "6. Pipeline",
+      "step": "Pipeline page loads",
+      "status": "PASS",
+      "detail": "",
+      "screenshot": "",
+      "time": "2026-03-28T02:06:57.217581"
+    },
+    {
+      "scenario": "6. Pipeline",
+      "step": "Kanban columns render",
+      "status": "FAIL",
+      "detail": "Only 0 columns \u2014 expected 4+",
+      "screenshot": "/home/nirav/projects/SaaS_Project/qa_ui_reports/screenshots/020658_6._Pipeline_kanban_columns.png",
+      "time": "2026-03-28T02:06:58.766664"
+    },
+    {
+      "scenario": "6. Pipeline",
+      "step": "Pipeline card opens right panel",
+      "status": "SKIP",
+      "detail": "No candidate cards in pipeline \u2014 add candidates first",
+      "screenshot": "",
+      "time": "2026-03-28T02:06:58.769518"
+    },
+    {
+      "scenario": "7. Agency Submissions",
+      "step": "Agency login",
+      "status": "PASS",
+      "detail": "URL: http://localhost:5173/dashboard",
+      "screenshot": "",
+      "time": "2026-03-28T02:07:01.453707"
+    },
+    {
+      "scenario": "7. Agency Submissions",
+      "step": "Agency sidebar shows correct menu",
+      "status": "FAIL",
+      "detail": "Unexpected sidebar: Dashboard\nWork\nRecords\nNetwork\nIntelligence\nAdmin",
+      "screenshot": "/home/nirav/projects/SaaS_Project/qa_ui_reports/screenshots/020701_7._Agency_Submissions_sidebar_unknown.png",
+      "time": "2026-03-28T02:07:01.503883"
+    },
+    {
+      "scenario": "7. Agency Submissions",
+      "step": "Submissions page loads",
+      "status": "PASS",
+      "detail": "",
+      "screenshot": "",
+      "time": "2026-03-28T02:07:03.118674"
+    },
+    {
+      "scenario": "8. Interviews",
+      "step": "Interviews page loads",
+      "status": "PASS",
+      "detail": "",
+      "screenshot": "",
+      "time": "2026-03-28T02:07:06.489955"
+    },
+    {
+      "scenario": "8. Interviews",
+      "step": "Interviews list renders",
+      "status": "PASS",
+      "detail": "",
+      "screenshot": "",
+      "time": "2026-03-28T02:07:07.492773"
+    },
+    {
+      "scenario": "8. Interviews",
+      "step": "Schedule Interview button visible",
+      "status": "FAIL",
+      "detail": "Button not found",
+      "screenshot": "/home/nirav/projects/SaaS_Project/qa_ui_reports/screenshots/020707_8._Interviews_no_schedule_btn.png",
+      "time": "2026-03-28T02:07:07.547430"
+    },
+    {
+      "scenario": "9. Offers",
+      "step": "Offers page loads",
+      "status": "PASS",
+      "detail": "",
+      "screenshot": "",
+      "time": "2026-03-28T02:07:10.815772"
+    },
+    {
+      "scenario": "9. Offers",
+      "step": "Offers list renders",
+      "status": "PASS",
+      "detail": "",
+      "screenshot": "",
+      "time": "2026-03-28T02:07:11.819565"
+    }
+  ]
+}

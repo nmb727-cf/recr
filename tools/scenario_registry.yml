@@ -1,0 +1,125 @@
+version: 1
+
+scenarios:
+  - id: auth_login
+    module: auth
+    roles: [company, agency, candidate, admin]
+    type: ui
+    priority: high
+    status: active
+    pages:
+      - /login
+    api_endpoints:
+      - /api/v1/auth/login/
+    covered_by:
+      - qa_ui_runner
+    notes: Basic login flow
+
+  - id: auth_signup_company
+    module: auth
+    roles: [company]
+    type: ui
+    priority: high
+    status: active
+    pages:
+      - /signup
+      - /onboarding
+    api_endpoints:
+      - /api/v1/auth/register/
+      - /api/v1/auth/onboarding/complete/
+    covered_by:
+      - qa_ui_runner
+
+  - id: candidate_quick_add
+    module: candidates
+    roles: [company, agency]
+    type: ui
+    priority: high
+    status: active
+    pages:
+      - /candidates
+      - /candidates/database
+    api_endpoints:
+      - /api/v1/candidates/
+      - /api/v1/candidates/database/
+    covered_by:
+      - qa_ui_runner
+
+  - id: candidate_detailed_add
+    module: candidates
+    roles: [company, agency]
+    type: ui
+    priority: high
+    status: planned
+    pages:
+      - /candidates
+    api_endpoints:
+      - /api/v1/candidates/
+    covered_by: []
+
+  - id: candidate_claim_profile
+    module: candidates
+    roles: [candidate]
+    type: ui
+    priority: medium
+    status: planned
+    pages:
+      - /claim
+    api_endpoints:
+      - /api/v1/candidates/claim/{token}/
+    covered_by: []
+
+  - id: jobs_create
+    module: jobs
+    roles: [company]
+    type: ui
+    priority: high
+    status: active
+    pages:
+      - /jobs
+      - /jobs/create
+    api_endpoints:
+      - /api/v1/jobs/
+    covered_by:
+      - qa_ui_runner
+
+  - id: jobs_detail_view
+    module: jobs
+    roles: [company, agency, candidate]
+    type: ui
+    priority: high
+    status: active
+    pages:
+      - /jobs/{id}
+    api_endpoints:
+      - /api/v1/jobs/{id}/
+    covered_by:
+      - qa_ui_runner
+
+  - id: agency_accept_invite
+    module: agencies
+    roles: [agency]
+    type: ui
+    priority: high
+    status: planned
+    pages:
+      - /agency/invite
+    api_endpoints:
+      - /api/v1/agencies/relationships/
+    covered_by: []
+
+  - id: email_send
+    module: communications
+    roles: [company, agency]
+    type: ui
+    priority: medium
+    status: planned
+    pages:
+      - /communication
+    api_endpoints:
+      - /api/v1/communications/email-messages/
+    covered_by: []
+
+metadata:
+  owner: nirav
+  purpose: master list of known flows

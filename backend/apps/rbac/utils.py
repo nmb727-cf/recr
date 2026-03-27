@@ -102,3 +102,18 @@ def user_has_all_permissions(user, *permission_codes: str) -> bool:
 def invalidate_user_permission_cache(user) -> None:
     """Explicitly clear the cached permissions for a user."""
     cache.delete(_cache_key(user))
+
+
+def invalidate_cache_for_role(role_name: str, tenant_id=None) -> None:
+    """
+    Invalidates the permission cache for all users assigned to the specified role.
+    Handles both tenant-specific roles and system roles.
+    """
+    from apps.accounts.models import CustomUser
+    
+    users = CustomUser.objects.filter(role=role_name)
+    if tenant_id:
+        users = users.filter(tenant_id=tenant_id)
+        
+    for user in users:
+        invalidate_user_permission_cache(user)

@@ -20,7 +20,7 @@ from apps.candidates.models import CandidateInviteLink, CandidateFormSubmission
 from apps.candidates.identity_service import match_candidate, match_user, link_user_to_candidate
 from apps.core.responses import success_response, error_response
 from django.utils import timezone
-
+from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 class InviteLinkListView(APIView):
     permission_classes = [IsAuthenticated]
@@ -88,7 +88,12 @@ class InviteLinkDeactivateView(APIView):
         link.save()
         return success_response(message="Link deactivated.")
 
-
+@extend_schema(
+    responses={
+        200: OpenApiResponse(description="Success"),
+        404: OpenApiResponse(description="Invalid or expired link."),
+    }
+)
 class PublicApplyFormView(APIView):
     permission_classes = [AllowAny]
 

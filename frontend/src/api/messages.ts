@@ -3,14 +3,14 @@ import type { ApiResponse, MessageThread, Message } from '@/types'
 
 export const messagesApi = {
   listThreads: () =>
-    http.get<ApiResponse<{ threads: MessageThread[] }>>('/messages/threads/'),
+    http.get<ApiResponse<{ threads: MessageThread[] }>>('/communications/messages/threads/'),
 
   getThreadMessages: (threadId: string) =>
-    http.get<ApiResponse<{ messages: Message[] }>>(`/messages/threads/${threadId}/`),
+    http.get<ApiResponse<{ messages: Message[] }>>(`/communications/messages/threads/${threadId}/`),
 
   createThread: (data: { recipient_id: string; subject: string; message: string }) =>
-    http.post<ApiResponse<{ thread: MessageThread }>>('/messages/threads/', data),
+    http.post<ApiResponse<{ thread: MessageThread }>>('/communications/messages/threads/', data),
 
   replyToThread: (threadId: string, message: string) =>
-    http.post<ApiResponse<{ message: Message }>>(`/messages/threads/${threadId}/reply/`, { message }),
+    http.post<ApiResponse<{ message: Message }>>(`/communications/messages/threads/${threadId}/reply/`, { message }),
 }

@@ -5,7 +5,11 @@ from rest_framework.views import APIView
 from apps.core.responses import success_response
 from apps.core.responses import error_response
 from apps.rbac.models import Permission, Role
-from apps.rbac.utils import get_user_permissions
+from apps.rbac.utils import (
+    get_user_permissions, 
+    invalidate_user_permission_cache,
+    invalidate_cache_for_role
+)
 
 
 def _can_manage_roles(user) -> bool:
@@ -287,6 +291,7 @@ class RBACRoleDetailView(APIView):
         description = request.data.get('description')
         permission_codes = request.data.get('permission_codes')
 
+        old_role_name = role.name
         if name is not None:
             candidate = str(name).strip()
             if not candidate:
@@ -308,6 +313,11 @@ class RBACRoleDetailView(APIView):
             perms = list(Permission.objects.filter(code__in=permission_codes, is_active=True))
             role.permissions.set(perms)
 
+        # Invalidate cache for users of this role (and the old name if renamed)
+        invalidate_cache_for_role(old_role_name, request.user.tenant_id)
+        if role.name != old_role_name:
+            invalidate_cache_for_role(role.name, request.user.tenant_id)
+
         return success_response(data={'role': _serialize_role(role)}, message='Role updated')
 
     @transaction.atomic
@@ -327,5 +337,10 @@ class RBACRoleDetailView(APIView):
         if role.name == request.user.role:
             return error_response(message='You cannot delete a role currently assigned to yourself')
 
+        role_name = role.name
         role.delete()
+        
+        # Invalidate cache for users who had this role
+        invalidate_cache_for_role(role_name, request.user.tenant_id)
+        
         return success_response(message='Role deleted')

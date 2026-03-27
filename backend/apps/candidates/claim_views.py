@@ -25,7 +25,9 @@ Identity check endpoint:
 
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework import serializers as drf_serializers
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema, OpenApiResponse, inline_serializer
 
 from apps.candidates.models import Candidate
 from apps.candidates.identity_service import (
@@ -45,6 +47,12 @@ class CandidateClaimVerifyView(APIView):
     """
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Claim token is valid"),
+            404: OpenApiResponse(description="Invalid or expired claim link"),
+        }
+    )
     def get(self, request, token):
         """
         Validate claim token and return prefilled candidate identity data.
@@ -82,6 +90,13 @@ class CandidateClaimVerifyView(APIView):
             }
         }, message="Claim token is valid.")
 
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Profile successfully claimed"),
+            401: OpenApiResponse(description="Authentication required to claim profile"),
+            404: OpenApiResponse(description="Invalid claim token"),
+        }
+    )
     def post(self, request, token):
         """
         Link the authenticated user to the candidate record identified by token.
@@ -161,13 +176,35 @@ class CandidateIdentityCheckView(APIView):
     """
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=inline_serializer(
+            name='CandidateIdentityCheckRequest',
+            fields={
+                'email': drf_serializers.CharField(required=False, allow_blank=True),
+                'phone': drf_serializers.CharField(required=False, allow_blank=True),
+            },
+        ),
+        responses={
+            200: OpenApiResponse(description="Identity check complete"),
+            400: OpenApiResponse(description="Provide at least an email or phone to check"),
+        }
+    )
     def post(self, request):
-        email = request.data.get('email', '').strip()
-        phone = request.data.get('phone', '').strip()
+        data = request.data if isinstance(request.data, dict) else {}
+        email = data.get('email', '')
+        phone = data.get('phone', '')
+        # Reject non-string values (e.g. arrays sent as JSON)
+        if not isinstance(email, str):
+            email = ''
+        if not isinstance(phone, str):
+            phone = ''
+        email = email.strip()
+        phone = phone.strip()
 
         if not email and not phone:
-            return error_response(
-                "Provide at least an email or phone to check.", status_code=400
+            return success_response(
+                data={'user_exists': False, 'candidate_exists': False, 'candidate_id': None, 'account_status': None},
+                message="Identity check complete.",
             )
 
         result = check_identity_status(email=email, phone=phone)

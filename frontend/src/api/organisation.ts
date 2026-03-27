@@ -4,42 +4,42 @@ import type { ApiResponse, Organisation, Department, Location, User } from '@/ty
 export const organisationApi = {
   // Organisation
   getProfile: () =>
-    http.get<ApiResponse<{ organisation: Organisation }>>('/organisation/profile/'),
+    http.get<ApiResponse<{ organisation: Organisation }>>('/organisations/profile/'),
   updateProfile: (data: Partial<Organisation>) =>
-    http.put<ApiResponse<{ organisation: Organisation }>>('/organisation/profile/', data),
+    http.put<ApiResponse<{ organisation: Organisation }>>('/organisations/profile/', data),
 
   // Users
   listUsers: () =>
-    http.get<ApiResponse<{ users: User[] }>>('/organisation/users/'),
+    http.get<ApiResponse<{ users: User[] }>>('/organisations/users/'),
   inviteUser: (data: { email: string; role: string; first_name?: string; last_name?: string }) =>
-    http.post<ApiResponse<{ user: User }>>('/organisation/users/', data),
+    http.post<ApiResponse<{ user: User }>>('/organisations/users/', data),
   updateUser: (id: string, data: { role?: string; is_active?: boolean }) =>
-    http.put<ApiResponse<{ user: User }>>(`/organisation/users/${id}/`, data),
+    http.put<ApiResponse<{ user: User }>>(`/organisations/users/${id}/`, data),
   deleteUser: (id: string) =>
-    http.delete<ApiResponse<null>>(`/organisation/users/${id}/`),
+    http.delete<ApiResponse<null>>(`/organisations/users/${id}/`),
 
   // Departments
   listDepartments: () =>
-    http.get<ApiResponse<{ departments: Department[] }>>('/organisation/departments/'),
+    http.get<ApiResponse<{ departments: Department[] }>>('/organisations/departments/'),
   getDepartment: (id: string) =>
-    http.get<ApiResponse<{ department: Department }>>(`/organisation/departments/${id}/`),
+    http.get<ApiResponse<{ department: Department }>>(`/organisations/departments/${id}/`),
   createDepartment: (data: Partial<Department>) =>
-    http.post<ApiResponse<{ department: Department }>>('/organisation/departments/', data),
+    http.post<ApiResponse<{ department: Department }>>('/organisations/departments/', data),
   updateDepartment: (id: string, data: Partial<Department>) =>
-    http.put<ApiResponse<{ department: Department }>>(`/organisation/departments/${id}/`, data),
+    http.put<ApiResponse<{ department: Department }>>(`/organisations/departments/${id}/`, data),
   deleteDepartment: (id: string) =>
-    http.delete<ApiResponse<null>>(`/organisation/departments/${id}/`),
+    http.delete<ApiResponse<null>>(`/organisations/departments/${id}/`),
 
   // Locations
   listLocations: () =>
-    http.get<ApiResponse<{ locations: Location[] }>>('/organisation/locations/'),
+    http.get<ApiResponse<{ locations: Location[] }>>('/organisations/locations/'),
   getLocation: (id: string) =>
-    http.get<ApiResponse<{ location: Location }>>(`/organisation/locations/${id}/`),
+    http.get<ApiResponse<{ location: Location }>>(`/organisations/locations/${id}/`),
   createLocation: (data: Partial<Location>) =>
-    http.post<ApiResponse<{ location: Location }>>('/organisation/locations/', data),
+    http.post<ApiResponse<{ location: Location }>>('/organisations/locations/', data),
   updateLocation: (id: string, data: Partial<Location>) =>
-    http.put<ApiResponse<{ location: Location }>>(`/organisation/locations/${id}/`, data),
+    http.put<ApiResponse<{ location: Location }>>(`/organisations/locations/${id}/`, data),
   deleteLocation: (id: string) =>
-    http.delete<ApiResponse<null>>(`/organisation/locations/${id}/`),
+    http.delete<ApiResponse<null>>(`/organisations/locations/${id}/`),
 
 }

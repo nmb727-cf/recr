@@ -1,0 +1,18 @@
+site_name: TalentOS System Documentation
+
+theme:
+  name: material
+
+docs_dir: sys_know/docs
+
+nav:
+  - Dashboard: dashboard/index.md
+  - Home: index.md
+  - Architecture: architecture.md
+  - API: api.md
+  - Testing: testing.md
+  - Testing Setup: testing_setup.md
+
+plugins:
+  - search
+  - include-markdown

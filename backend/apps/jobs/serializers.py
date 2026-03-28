@@ -17,7 +17,7 @@ class JobRequisitionSerializer(serializers.ModelSerializer):
     class Meta:
         model = JobRequisition
         fields = [
-            'id', 'tenant_id', 'title', 'department_id', 'location_id',
+            'id', 'job_ref_id', 'tenant_id', 'title', 'department_id', 'location_id',
             'job_type', 'work_mode', 'experience_min', 'experience_max',
             'salary_min', 'salary_max', 'salary_currency', 'salary_visible',
             'headcount', 'priority', 'is_confidential',
@@ -36,7 +36,7 @@ class JobRequisitionSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at', 'created_by', 'metadata',
         ]
         read_only_fields = [
-            'id', 'tenant_id', 'created_at', 'updated_at',
+            'id', 'job_ref_id', 'tenant_id', 'created_at', 'updated_at',
             'approved_at', 'approved_by', 'closed_at',
         ]
 

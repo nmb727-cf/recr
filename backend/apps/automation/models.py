@@ -12,6 +12,13 @@ class AutomationRule(BaseModel):
         ('deadline.overdue', 'Deadline Overdue'),
         ('agency.submitted', 'Agency Submitted'),
         ('job.approved', 'Job Approved'),
+        ('candidate.applied', 'Candidate Applied'),
+        ('prequalification.completed', 'Prequalification Completed'),
+        ('interview.scheduled', 'Interview Scheduled'),
+        ('feedback.submitted', 'Feedback Submitted'),
+        ('decision.made', 'Decision Made'),
+        ('candidate.no_show', 'Candidate No Show'),
+        ('interview.cancelled', 'Interview Cancelled'),
     ]
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True)

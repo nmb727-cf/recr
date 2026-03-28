@@ -40,7 +40,7 @@ class CandidateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Candidate
         fields = [
-            'id', 'tenant_id', 'first_name', 'last_name', 'full_name',
+            'id', 'candidate_ref_id', 'tenant_id', 'first_name', 'last_name', 'full_name',
             'email', 'phone', 'whatsapp', 'linkedin_url',
             'current_title', 'current_company',
             'current_location_city', 'current_location_country',
@@ -70,7 +70,7 @@ class CandidateSerializer(serializers.ModelSerializer):
             'engagement_summary',
         ]
         read_only_fields = [
-            'id', 'tenant_id', 'created_at', 'updated_at',
+            'id', 'candidate_ref_id', 'tenant_id', 'created_at', 'updated_at',
             'global_hash', 'is_duplicate', 'duplicate_of',
         ]
 
@@ -155,6 +155,7 @@ class CandidateWorkspaceSerializer(serializers.ModelSerializer):
 
 class CandidateEngagementSerializer(serializers.ModelSerializer):
     candidate_name = serializers.SerializerMethodField()
+    candidate_ref_id = serializers.SerializerMethodField()
     owner_name = serializers.SerializerMethodField()
     job_title = serializers.SerializerMethodField()
     is_follow_up_overdue = serializers.SerializerMethodField()
@@ -163,6 +164,7 @@ class CandidateEngagementSerializer(serializers.ModelSerializer):
         model = CandidateEngagement
         fields = [
             'id', 'tenant_id', 'candidate', 'candidate_name',
+            'candidate_ref_id',
             'workspace', 'job', 'job_title',
             'engagement_type', 'stage', 'priority', 'is_active',
             'owner_user', 'owner_name', 'source_channel',
@@ -175,6 +177,9 @@ class CandidateEngagementSerializer(serializers.ModelSerializer):
 
     def get_candidate_name(self, obj):
         return f"{obj.candidate.first_name} {obj.candidate.last_name}".strip()
+
+    def get_candidate_ref_id(self, obj):
+        return obj.candidate.candidate_ref_id
 
     def get_owner_name(self, obj):
         if obj.owner_user:

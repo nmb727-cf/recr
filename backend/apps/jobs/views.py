@@ -1,5 +1,6 @@
 from django.utils import timezone
 from django.utils.text import slugify
+from django.db.models import Q
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
@@ -36,11 +37,51 @@ class JobRequisitionListView(APIView):
 
         search = request.query_params.get('search')
         if search:
-            qs = qs.filter(title__icontains=search)
+            qs = qs.filter(Q(title__icontains=search) | Q(job_ref_id__icontains=search))
+
+        # Get counts from Application model
+        from apps.pipeline.models import Application
+        
+        # Optimize by getting all applications for these requisitions in one go
+        apps = Application.objects.filter(requisition_id__in=qs.values_list('id', flat=True), is_deleted=False)
+        
+        stats_map = {}
+        for app in apps:
+            rid = str(app.requisition_id)
+            if rid not in stats_map:
+                stats_map[rid] = {
+                    'applications_count': 0,
+                    'applied': 0,
+                    'screening': 0,
+                    'interview': 0,
+                    'offer': 0,
+                    'joined': 0
+                }
+            stats_map[rid]['applications_count'] += 1
+            status_key = app.status if app.status in stats_map[rid] else None
+            if status_key:
+                stats_map[rid][status_key] += 1
+
+        requisitions_data = JobRequisitionSerializer(qs, many=True, context={'request': request}).data
+        for req in requisitions_data:
+            rid = req['id']
+            # Ensure metadata exists and inject counts
+            if 'metadata' not in req or req['metadata'] is None:
+                req['metadata'] = {}
+            
+            req['metadata'].update(stats_map.get(rid, {
+                'applications_count': 0,
+                'applied': 0,
+                'screening': 0,
+                'interview': 0,
+                'offer': 0,
+                'joined': 0
+            }))
 
         return success_response(
-            data={'requisitions': JobRequisitionSerializer(qs, many=True).data},
-            message="Requisitions retrieved."
+            data={'requisitions': requisitions_data},
+            message="Requisitions retrieved.",
+            meta={'total': qs.count()}
         )
 
     def post(self, request):
@@ -112,12 +153,29 @@ class JobRequisitionDetailView(APIView):
         if not req:
             return error_response("Requisition not found.", status_code=status.HTTP_404_NOT_FOUND)
 
+        # Get stats
+        from apps.pipeline.models import Application
+        apps = Application.objects.filter(requisition_id=pk, is_deleted=False)
+        stats = {
+            'applications_count': apps.count(),
+            'applied': apps.filter(status='applied').count(),
+            'screening': apps.filter(status='screening').count(),
+            'interview': apps.filter(status='interview').count(),
+            'offer': apps.filter(status='offer').count(),
+            'joined': apps.filter(status='joined').count(),
+        }
+
+        req_data = JobRequisitionSerializer(req, context={'request': request}).data
+        if 'metadata' not in req_data or req_data['metadata'] is None:
+            req_data['metadata'] = {}
+        req_data['metadata'].update(stats)
+
         stages = JobStage.objects.filter(requisition_id=pk, is_active=True)
         from apps.pipeline.models import PlacementGuarantee
         guarantees = PlacementGuarantee.objects.filter(requisition_id=pk).order_by('-created_at')[:10]
         return success_response(
             data={
-                'requisition': JobRequisitionSerializer(req).data,
+                'requisition': req_data,
                 'stages': JobStageSerializer(stages, many=True).data,
                 'placement_guarantees': [
                     {

@@ -3,7 +3,7 @@ Custom authentication classes for TalentOS.
 """
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import AuthenticationFailed
-
+from rest_framework.permissions import AllowAny
 
 class SilentJWTAuthentication(JWTAuthentication):
     """

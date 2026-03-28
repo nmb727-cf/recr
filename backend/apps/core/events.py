@@ -48,7 +48,17 @@ class PlacementEvents:
     guarantee_expired = Signal()
     guarantee_breached = Signal()
 
-# Instantiate for dot notation usage: events.application.created
+
+class InterviewEvents:
+    scheduled          = Signal()  # kwargs: interview
+    started            = Signal()  # kwargs: interview
+    completed          = Signal()  # kwargs: interview
+    cancelled          = Signal()  # kwargs: interview
+    feedback_submitted = Signal()  # kwargs: interview, feedback
+    decision_recorded  = Signal()  # kwargs: interview, decision, created
+
+
+# Instantiate for dot notation usage: events.interview.scheduled
 company = CompanyEvents()
 job = JobEvents()
 agency = AgencyEvents()
@@ -57,6 +67,4 @@ onboarding = OnboardingEvents()
 talent_pool = TalentPoolEvents()
 candidate = CandidateEvents()
 placement = PlacementEvents()
-
-# Legacy / Compatibility (if needed, but user said REPLACE)
-# Keeping these commented for now or just removing them if I'm sure I'll update all refs
+interview = InterviewEvents()

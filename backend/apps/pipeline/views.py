@@ -11,6 +11,7 @@ from apps.pipeline.serializers import (
 )
 from apps.jobs.models import JobRequisition, JobStage
 from apps.candidates.models import Candidate
+from apps.accounts.models import CustomUser
 from apps.core.responses import success_response, error_response
 from apps.core import events
 from apps.candidates.pipeline_hooks import (
@@ -26,6 +27,32 @@ from apps.candidates.protection import (
     start_rejection_based_protection_if_needed,
 )
 
+OWNER_ONLY_STAGE_MOVE_MESSAGE = "Only the job owner can manually change stages for submitted candidates."
+COMPANY_VISIBLE_STAGE_TYPES = {
+    'submitted',
+    'under_review',
+    'review',
+    'client_review',
+    'shortlisted',
+    'interview',
+    'offer',
+    'placement',
+    'joined',
+}
+COMPANY_VISIBLE_APP_STATUSES = {
+    'submitted',
+    'under_review',
+    'review',
+    'client_review',
+    'applied',
+    'screening',
+    'shortlisted',
+    'interview',
+    'offer',
+    'placement',
+    'joined',
+}
+
 
 def _extract_stage_note(payload):
     note = (
@@ -35,6 +62,73 @@ def _extract_stage_note(payload):
         or ''
     )
     return str(note).strip()
+
+
+def _is_automation_actor(user):
+    if not user:
+        return True
+
+    role = str(getattr(user, 'role', '') or '').lower()
+    if role in {'system', 'automation'}:
+        return True
+
+    metadata = getattr(user, 'metadata', {}) or {}
+    actor_mode = str(metadata.get('actor_mode', '') or '').lower()
+    trigger = str(metadata.get('workflow_trigger', '') or '').lower()
+    if actor_mode in {'system_automation', 'threshold_automation'}:
+        return True
+    if trigger in {'approved_threshold', 'approved_threshold_automation'}:
+        return True
+
+    return False
+
+
+def _is_company_visible_stage_context(application, target_stage=None, target_status=None):
+    current_status = str(application.status or '').lower()
+    if current_status in COMPANY_VISIBLE_APP_STATUSES:
+        return True
+
+    if target_stage and str(target_stage.stage_type or '').lower() in COMPANY_VISIBLE_STAGE_TYPES:
+        return True
+
+    if target_status and str(target_status).lower() in COMPANY_VISIBLE_STAGE_TYPES:
+        return True
+
+    if application.current_stage_id:
+        try:
+            current_stage = JobStage.objects.get(id=application.current_stage_id)
+            if str(current_stage.stage_type or '').lower() in COMPANY_VISIBLE_STAGE_TYPES:
+                return True
+        except JobStage.DoesNotExist:
+            pass
+
+    return False
+
+
+def enforce_post_submission_stage_owner_lock(application, user, target_stage=None, target_status=None):
+    """
+    For manual movement in company-visible stages, only the job owner can move stages.
+    System automation / approved-threshold automation bypasses this lock.
+    """
+    if _is_automation_actor(user):
+        return True, None
+
+    if not _is_company_visible_stage_context(
+        application,
+        target_stage=target_stage,
+        target_status=target_status,
+    ):
+        return True, None
+
+    try:
+        job = JobRequisition.objects.get(id=application.requisition_id)
+    except JobRequisition.DoesNotExist:
+        return False, "Requisition not found."
+
+    if job.created_by != user.id:
+        return False, OWNER_ONLY_STAGE_MOVE_MESSAGE
+
+    return True, None
 
 
 def _require_stage_note(payload):
@@ -53,7 +147,16 @@ def validate_application_move(application, target_stage, reason=None, user=None)
     Returns (True, None) if valid, (False, error_message) if invalid.
     """
     from apps.interviews.models import Interview
-    from apps.jobs.models import JobStage
+    from apps.jobs.models import JobStage, JobRequisition
+
+    # 0. Job Owner Authority Lock for Post-Submission Stages
+    owner_allowed, owner_error = enforce_post_submission_stage_owner_lock(
+        application,
+        user,
+        target_stage=target_stage,
+    )
+    if not owner_allowed:
+        return False, owner_error
 
     # 1. RBAC Check for Joined
     if target_stage.stage_type == 'joined' and user:
@@ -387,6 +490,28 @@ class ApplicationDetailView(APIView):
             stage_note, note_error = _require_stage_note(request.data)
             if note_error:
                 return note_error
+
+            target_stage = None
+            requested_stage_id = request.data.get('current_stage_id')
+            if requested_stage_id:
+                try:
+                    target_stage = JobStage.objects.get(
+                        id=requested_stage_id,
+                        requisition_id=application.requisition_id,
+                        is_active=True,
+                    )
+                except JobStage.DoesNotExist:
+                    target_stage = None
+
+            requested_status = request.data.get('status')
+            owner_allowed, owner_error = enforce_post_submission_stage_owner_lock(
+                application,
+                request.user,
+                target_stage=target_stage,
+                target_status=requested_status,
+            )
+            if not owner_allowed:
+                return error_response(owner_error, status_code=status.HTTP_403_FORBIDDEN)
             
             # Protection Enforcement
             allowed, message, _ = check_protected_action(
@@ -489,6 +614,8 @@ class ApplicationMoveStageView(APIView):
         # 1. Validate Move
         is_valid, error_msg = validate_application_move(application, target_stage, stage_note, user=request.user)
         if not is_valid:
+            if error_msg == OWNER_ONLY_STAGE_MOVE_MESSAGE:
+                return error_response(error_msg, status_code=status.HTTP_403_FORBIDDEN)
             return error_response(error_msg)
 
         # 2. Perform Move
@@ -532,6 +659,15 @@ class ApplicationShortlistView(APIView):
         stage_note, note_error = _require_stage_note(request.data)
         if note_error:
             return note_error
+
+        owner_allowed, owner_error = enforce_post_submission_stage_owner_lock(
+            application,
+            request.user,
+            target_status='shortlisted',
+        )
+        if not owner_allowed:
+            return error_response(owner_error, status_code=status.HTTP_403_FORBIDDEN)
+
         old_status = application.status
 
         application.status = 'shortlisted'
@@ -594,6 +730,15 @@ class ApplicationRejectView(APIView):
         stage_note, note_error = _require_stage_note(request.data)
         if note_error:
             return note_error
+
+        owner_allowed, owner_error = enforce_post_submission_stage_owner_lock(
+            application,
+            request.user,
+            target_status='rejected',
+        )
+        if not owner_allowed:
+            return error_response(owner_error, status_code=status.HTTP_403_FORBIDDEN)
+
         reason = stage_note
         category = request.data.get('category', '')
         old_status = application.status
@@ -650,6 +795,18 @@ class ApplicationWithdrawView(APIView):
         except Application.DoesNotExist:
             return error_response("Application not found.", status_code=status.HTTP_404_NOT_FOUND)
 
+        # Allow if candidate themselves or job owner
+        is_candidate = str(application.candidate_id) == str(request.user.id)
+        is_owner = False
+        try:
+            job = JobRequisition.objects.get(id=application.requisition_id)
+            is_owner = (job.created_by == request.user.id)
+        except JobRequisition.DoesNotExist:
+            pass
+
+        if not (is_candidate or is_owner):
+            return error_response("Only the candidate or the job owner can withdraw an application.", status_code=status.HTTP_403_FORBIDDEN)
+
         stage_note, note_error = _require_stage_note(request.data)
         if note_error:
             return note_error
@@ -695,6 +852,14 @@ class ApplicationMakeOfferView(APIView):
             )
         except Application.DoesNotExist:
             return error_response("Application not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        owner_allowed, owner_error = enforce_post_submission_stage_owner_lock(
+            application,
+            request.user,
+            target_status='offer',
+        )
+        if not owner_allowed:
+            return error_response(owner_error, status_code=status.HTTP_403_FORBIDDEN)
 
         offer_amount = request.data.get('offer_amount')
         currency = request.data.get('currency', 'INR')
@@ -860,6 +1025,20 @@ class BulkActionView(APIView):
 
         for application in applications:
             try:
+                owner_allowed, owner_error = enforce_post_submission_stage_owner_lock(
+                    application,
+                    request.user,
+                    target_stage=target_stage if action == 'move_stage' else None,
+                    target_status=(
+                        'rejected' if action == 'reject'
+                        else 'shortlisted' if action == 'shortlist'
+                        else None
+                    ),
+                )
+                if not owner_allowed:
+                    errors.append(f"Permission denied for application {application.id}: {owner_error}")
+                    continue
+
                 if action == 'reject':
                     old_status = application.status
                     application.status = 'rejected'
@@ -943,6 +1122,81 @@ class BulkActionView(APIView):
                 'errors': errors
             },
             message=f"Bulk action '{action}' processed. {updated_count} applications updated."
+        )
+
+
+class RequisitionActivityView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, requisition_id):
+        # Verify requisition exists
+        try:
+            JobRequisition.objects.get(
+                id=requisition_id,
+                tenant_id=request.user.tenant_id,
+                is_deleted=False
+            )
+        except JobRequisition.DoesNotExist:
+            return error_response("Requisition not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        # Get all applications for this requisition
+        application_ids = Application.objects.filter(
+            requisition_id=requisition_id,
+            tenant_id=request.user.tenant_id,
+            is_deleted=False
+        ).values_list('id', flat=True)
+
+        # Get stage history
+        history = ApplicationStageHistory.objects.filter(
+            application_id__in=application_ids
+        ).select_related('application', 'application__candidate').order_by('-moved_at')
+
+        # Format events
+        events = []
+        
+        # Add submission events
+        apps = Application.objects.filter(id__in=application_ids).select_related('candidate')
+        for app in apps:
+            events.append({
+                'type': 'submission',
+                'application_id': str(app.id),
+                'candidate_id': str(app.candidate_id),
+                'candidate_name': app.candidate.full_name,
+                'text': 'submitted application',
+                'date': app.created_at,
+                'actor_name': app.candidate.full_name, # Usually candidate themselves
+                'method': 'system' if app.source == 'direct' else 'manual',
+                'notes': app.source_detail,
+            })
+
+        # Add movement events
+        for h in history:
+            actor_name = 'System'
+            if h.moved_by:
+                try:
+                    user = CustomUser.objects.get(id=h.moved_by)
+                    actor_name = f"{user.first_name} {user.last_name}".strip() or user.email
+                except CustomUser.DoesNotExist:
+                    pass
+
+            events.append({
+                'type': 'move',
+                'application_id': str(h.application_id),
+                'candidate_id': str(h.application.candidate_id),
+                'candidate_name': h.application.candidate.full_name,
+                'text': f"moved to {h.to_status.replace('_', ' ')}",
+                'date': h.moved_at,
+                'actor_name': actor_name,
+                'method': 'manual' if h.moved_by else 'system',
+                'notes': h.notes or h.reason,
+            })
+
+        # Sort all by date desc
+        events.sort(key=lambda x: x['date'], reverse=True)
+
+        return success_response(
+            data={'events': events[:100]}, # Limit to 100 recent
+            message="Requisition activity retrieved."
         )
 
 

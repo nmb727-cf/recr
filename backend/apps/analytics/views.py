@@ -1,5 +1,6 @@
 from django.db.models import Count, Avg, Q
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from datetime import timedelta
 from rest_framework import status
 from rest_framework.views import APIView
@@ -8,7 +9,7 @@ from rest_framework.permissions import IsAuthenticated
 from apps.jobs.models import JobRequisition, JobPosting
 from apps.candidates.models import Candidate
 from apps.pipeline.models import Application
-from apps.interviews.models import Interview
+from apps.interviews.models import Interview, InterviewFeedback, InterviewDecision
 from apps.agencies.models import AgencyJobAssignment
 from apps.core.responses import success_response, error_response
 
@@ -261,4 +262,159 @@ class InterviewAnalyticsView(APIView):
                 'average_score': avg_score['avg'],
             },
             message="Interview analytics retrieved."
+        )
+
+
+class InterviewIntelligenceAnalyticsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        tenant_id = request.user.tenant_id
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+        interview_type = request.query_params.get('interview_type')
+        interviewer_id = request.query_params.get('interviewer_id')
+
+        if start_date and not parse_date(start_date):
+            return error_response("start_date must be in YYYY-MM-DD format.")
+        if end_date and not parse_date(end_date):
+            return error_response("end_date must be in YYYY-MM-DD format.")
+
+        apps_qs = Application.objects.filter(tenant_id=tenant_id, is_deleted=False)
+        interviews_qs = Interview.objects.filter(tenant_id=tenant_id, is_deleted=False)
+        feedback_qs = InterviewFeedback.objects.filter(tenant_id=tenant_id, is_deleted=False)
+        decisions_qs = InterviewDecision.objects.filter(tenant_id=tenant_id)
+
+        if start_date:
+            apps_qs = apps_qs.filter(created_at__date__gte=start_date)
+            interviews_qs = interviews_qs.filter(created_at__date__gte=start_date)
+            feedback_qs = feedback_qs.filter(created_at__date__gte=start_date)
+            decisions_qs = decisions_qs.filter(created_at__date__gte=start_date)
+        if end_date:
+            apps_qs = apps_qs.filter(created_at__date__lte=end_date)
+            interviews_qs = interviews_qs.filter(created_at__date__lte=end_date)
+            feedback_qs = feedback_qs.filter(created_at__date__lte=end_date)
+            decisions_qs = decisions_qs.filter(created_at__date__lte=end_date)
+        if interview_type:
+            interviews_qs = interviews_qs.filter(interview_type=interview_type)
+            feedback_qs = feedback_qs.filter(interview_id__in=interviews_qs.values_list('id', flat=True))
+            decisions_qs = decisions_qs.filter(interview_id__in=interviews_qs.values_list('id', flat=True))
+        if interviewer_id:
+            feedback_qs = feedback_qs.filter(panelist_id=interviewer_id)
+
+        applied = apps_qs.filter(status='applied').count()
+        prequalified = apps_qs.filter(status__in=['screening', 'shortlisted', 'interview', 'offer', 'joined']).count()
+        interviewed = apps_qs.filter(status='interview').count()
+        shortlisted = apps_qs.filter(status='shortlisted').count()
+        offered = apps_qs.filter(status='offer').count()
+        hired = apps_qs.filter(status='joined').count()
+        rejected = apps_qs.filter(status='rejected').count()
+
+        total_apps = apps_qs.count()
+        interview_success_rate = round((offered / interviewed * 100), 1) if interviewed else 0
+        rejection_rate = round((rejected / total_apps * 100), 1) if total_apps else 0
+        conversion = {
+            'applied_to_prequalified': round((prequalified / applied * 100), 1) if applied else 0,
+            'prequalified_to_interviewed': round((interviewed / prequalified * 100), 1) if prequalified else 0,
+            'interviewed_to_shortlisted': round((shortlisted / interviewed * 100), 1) if interviewed else 0,
+            'shortlisted_to_offer': round((offered / shortlisted * 100), 1) if shortlisted else 0,
+            'offer_to_hired': round((hired / offered * 100), 1) if offered else 0,
+            'interview_success_rate': interview_success_rate,
+            'rejection_rate': rejection_rate,
+        }
+
+        interviewer_stats = []
+        grouped_feedback = feedback_qs.values('panelist_id').annotate(
+            total=Count('id'),
+            avg_score=Avg('score'),
+            pass_count=Count('id', filter=Q(recommendation__in=['hire', 'next_round'])),
+            reject_count=Count('id', filter=Q(recommendation='reject')),
+        )
+        for row in grouped_feedback:
+            total = row['total'] or 0
+            interviewer_stats.append({
+                'interviewer_id': str(row['panelist_id']),
+                'total_feedback': total,
+                'average_score': row['avg_score'],
+                'pass_rate': round((row['pass_count'] / total * 100), 1) if total else 0,
+                'reject_rate': round((row['reject_count'] / total * 100), 1) if total else 0,
+            })
+
+        app_map = {str(a.id): a for a in apps_qs}
+        time_to_interview_hours = []
+        rounds_by_application = {}
+        for iv in interviews_qs.exclude(scheduled_at__isnull=True):
+            app = app_map.get(str(iv.application_id))
+            if app:
+                delta = iv.scheduled_at - app.created_at
+                time_to_interview_hours.append(delta.total_seconds() / 3600)
+            rounds_by_application.setdefault(str(iv.application_id), []).append(iv)
+
+        time_between_rounds_hours = []
+        for arr in rounds_by_application.values():
+            sorted_arr = sorted(arr, key=lambda x: (x.interview_round, x.scheduled_at or timezone.now()))
+            for idx in range(1, len(sorted_arr)):
+                prev = sorted_arr[idx - 1].scheduled_at
+                curr = sorted_arr[idx].scheduled_at
+                if prev and curr:
+                    time_between_rounds_hours.append((curr - prev).total_seconds() / 3600)
+
+        time_to_hire_hours = []
+        for app in apps_qs.filter(status='joined'):
+            joined_at = app.joined_at or app.updated_at
+            time_to_hire_hours.append((joined_at - app.created_at).total_seconds() / 3600)
+
+        type_rows = interviews_qs.values('interview_type').annotate(total=Count('id'))
+        decision_map = {}
+        for row in decisions_qs.values('interview_id', 'decision'):
+            decision_map[str(row['interview_id'])] = row['decision']
+        type_analytics = []
+        for row in type_rows:
+            itype = row['interview_type']
+            ids = list(interviews_qs.filter(interview_type=itype).values_list('id', flat=True))
+            success = 0
+            for iv_id in ids:
+                if decision_map.get(str(iv_id)) in {'hire', 'next_round'}:
+                    success += 1
+            total = row['total'] or 0
+            type_analytics.append({
+                'interview_type': itype,
+                'total': total,
+                'success': success,
+                'success_rate': round((success / total * 100), 1) if total else 0,
+            })
+
+        drop_off = {
+            'no_show': interviews_qs.filter(status='no_show').count(),
+            'incomplete_interview': interviews_qs.filter(status='in_progress').count(),
+            'rejected_after_stage': apps_qs.filter(status='rejected').count(),
+        }
+
+        return success_response(
+            data={
+                'funnel': {
+                    'applied': applied,
+                    'prequalified': prequalified,
+                    'interviewed': interviewed,
+                    'shortlisted': shortlisted,
+                    'offer': offered,
+                    'hired': hired,
+                },
+                'conversion': conversion,
+                'interviewer_analytics': interviewer_stats,
+                'time_analytics': {
+                    'time_to_interview_hours': round(sum(time_to_interview_hours) / len(time_to_interview_hours), 1) if time_to_interview_hours else 0,
+                    'time_between_rounds_hours': round(sum(time_between_rounds_hours) / len(time_between_rounds_hours), 1) if time_between_rounds_hours else 0,
+                    'time_to_hire_hours': round(sum(time_to_hire_hours) / len(time_to_hire_hours), 1) if time_to_hire_hours else 0,
+                },
+                'interview_type_analytics': type_analytics,
+                'candidate_drop_off': drop_off,
+                'integration': {
+                    'flow_engine': True,
+                    'scorecard_engine': True,
+                    'decision_engine': True,
+                    'scheduling_engine': True,
+                },
+            },
+            message="Interview intelligence analytics retrieved.",
         )

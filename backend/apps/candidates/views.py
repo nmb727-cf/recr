@@ -1,7 +1,7 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from django.db.models import Q, Count
 from django.utils import timezone
@@ -164,6 +164,7 @@ def _candidate_smart_row(candidate, job_summary=None, owner_name_map=None, tenan
     open_engagements = sum(job_summary.values()) if job_summary else 0
     payload = {
         'id': str(candidate.id),
+        'candidate_ref_id': candidate.candidate_ref_id or '',
         'name': candidate.full_name,
         'current_title': candidate.current_title,
         'company': candidate.current_company,
@@ -288,9 +289,21 @@ class CandidateListView(APIView):
         # 1. Candidates they created (tenant_id = their tenant)
         # 2. Self-registered candidates (tenant_id = null) — only if they have an application
         qs = Candidate.objects.filter(
-            tenant_id=request.user.tenant_id,
             is_deleted=False
         )
+        
+        if not request.user.is_staff:
+            qs = qs.filter(
+                Q(tenant_id=request.user.tenant_id) |
+                Q(id__in=Application.objects.filter(tenant_id=request.user.tenant_id, is_deleted=False).values('candidate_id')) |
+                Q(id__in=CandidateEngagement.objects.filter(tenant_id=request.user.tenant_id, is_deleted=False).values('candidate_id'))
+            )
+
+        # Filter by specific IDs if provided
+        ids = request.query_params.get('ids')
+        if ids:
+            id_list = ids.split(',')
+            qs = qs.filter(id__in=id_list)
 
         # Search
         search = request.query_params.get('search')
@@ -300,7 +313,8 @@ class CandidateListView(APIView):
                 Q(last_name__icontains=search) |
                 Q(email__icontains=search) |
                 Q(current_title__icontains=search) |
-                Q(current_company__icontains=search)
+                Q(current_company__icontains=search) |
+                Q(candidate_ref_id__icontains=search)
             )
 
         # Filter by skills
@@ -565,17 +579,32 @@ class CandidateListView(APIView):
 from apps.talent_pools.models import TalentPool, CandidateTalentPoolMembership
 from apps.talent_pools.serializers import TalentPoolSerializer
 
+def _get_visible_candidate(request, pk):
+    """
+    Visibility logic consistent with CandidateDatabaseView:
+    1. Candidate owned by tenant
+    2. Candidate visible via an application in this tenant
+    3. Candidate visible via an engagement in this tenant
+    """
+    try:
+        qs = Candidate.objects.filter(id=pk, is_deleted=False)
+        if not request.user.is_staff:
+            qs = qs.filter(
+                Q(tenant_id=request.user.tenant_id) |
+                Q(id__in=Application.objects.filter(tenant_id=request.user.tenant_id, is_deleted=False).values('candidate_id')) |
+                Q(id__in=CandidateEngagement.objects.filter(tenant_id=request.user.tenant_id, is_deleted=False).values('candidate_id'))
+            )
+        return qs.first()
+    except (Candidate.DoesNotExist, ValueError):
+        return None
+
+
 class CandidateTalentPoolsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        try:
-            candidate = Candidate.objects.get(
-                id=pk,
-                tenant_id=request.user.tenant_id,
-                is_deleted=False
-            )
-        except Candidate.DoesNotExist:
+        candidate = _get_visible_candidate(request, pk)
+        if not candidate:
             return error_response("Candidate not found.", status_code=status.HTTP_404_NOT_FOUND)
 
         memberships = CandidateTalentPoolMembership.objects.filter(
@@ -595,14 +624,7 @@ class CandidateDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get_object(self, request, pk):
-        try:
-            return Candidate.objects.get(
-                id=pk,
-                tenant_id=request.user.tenant_id,
-                is_deleted=False
-            )
-        except Candidate.DoesNotExist:
-            return None
+        return _get_visible_candidate(request, pk)
 
     def get(self, request, pk):
         candidate = self.get_object(request, pk)
@@ -672,13 +694,8 @@ class CandidateTimelineView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        try:
-            Candidate.objects.get(
-                id=pk,
-                tenant_id=request.user.tenant_id,
-                is_deleted=False
-            )
-        except Candidate.DoesNotExist:
+        candidate = _get_visible_candidate(request, pk)
+        if not candidate:
             return error_response("Candidate not found.", status_code=status.HTTP_404_NOT_FOUND)
 
         # Get notes as timeline events
@@ -769,14 +786,8 @@ class CandidateNoteListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        # Verify candidate belongs to tenant
-        try:
-            Candidate.objects.get(
-                id=pk,
-                tenant_id=request.user.tenant_id,
-                is_deleted=False
-            )
-        except Candidate.DoesNotExist:
+        candidate = _get_visible_candidate(request, pk)
+        if not candidate:
             return error_response("Candidate not found.", status_code=status.HTTP_404_NOT_FOUND)
 
         notes = CandidateNote.objects.filter(
@@ -797,13 +808,8 @@ class CandidateNoteListView(APIView):
         )
 
     def post(self, request, pk):
-        try:
-            Candidate.objects.get(
-                id=pk,
-                tenant_id=request.user.tenant_id,
-                is_deleted=False
-            )
-        except Candidate.DoesNotExist:
+        candidate = _get_visible_candidate(request, pk)
+        if not candidate:
             return error_response("Candidate not found.", status_code=status.HTTP_404_NOT_FOUND)
 
         serializer = CandidateNoteSerializer(data=request.data)
@@ -889,7 +895,8 @@ class CandidateNoteDetailView(APIView):
 
 
 class SkillSearchView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
+    authentication_classes = []
 
     def get(self, request):
         from apps.candidates.models import Skill
@@ -1592,7 +1599,8 @@ class CandidateDatabaseView(APIView):
                 Q(email__icontains=search) |
                 Q(current_title__icontains=search) |
                 Q(current_company__icontains=search) |
-                Q(source_subtype__icontains=search)
+                Q(source_subtype__icontains=search) |
+                Q(candidate_ref_id__icontains=search)
             )
 
         source_type = request.query_params.get('source_type')
@@ -1797,13 +1805,8 @@ class CandidateCommandCenterView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
-        try:
-            candidate = Candidate.objects.get(
-                id=pk,
-                tenant_id=request.user.tenant_id,
-                is_deleted=False
-            )
-        except Candidate.DoesNotExist:
+        candidate = _get_visible_candidate(request, pk)
+        if not candidate:
             return error_response("Candidate not found.", status_code=404)
 
         engagements = CandidateEngagement.objects.filter(

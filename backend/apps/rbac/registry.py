@@ -44,6 +44,8 @@ PERMISSION_REGISTRY = [
     {'code': 'pipeline.application.reject',     'module': 'pipeline', 'resource': 'application', 'action': 'reject',     'description': 'Reject applications'},
 
     # ── Interviews ────────────────────────────────────────────────────────────
+    {'code': 'interviews.type.view',           'module': 'interviews', 'resource': 'type',      'action': 'view',     'description': 'View interview type registry'},
+    {'code': 'interviews.type.manage',         'module': 'interviews', 'resource': 'type',      'action': 'manage',   'description': 'Create, configure and enable/disable interview types'},
     {'code': 'interviews.interview.view',      'module': 'interviews', 'resource': 'interview', 'action': 'view',     'description': 'View scheduled interviews'},
     {'code': 'interviews.interview.schedule',  'module': 'interviews', 'resource': 'interview', 'action': 'schedule', 'description': 'Schedule and update interviews'},
     {'code': 'interviews.interview.cancel',    'module': 'interviews', 'resource': 'interview', 'action': 'cancel',   'description': 'Cancel interviews'},
@@ -117,6 +119,7 @@ ROLE_PERMISSION_MAP = {
         # Pipeline — full
         'pipeline.application.view', 'pipeline.application.move_stage', 'pipeline.application.reject',
         # Interviews — full
+        'interviews.type.view', 'interviews.type.manage',
         'interviews.interview.view', 'interviews.interview.schedule', 'interviews.interview.cancel',
         'interviews.feedback.view', 'interviews.feedback.submit',
         # Agencies — view + manage
@@ -140,6 +143,7 @@ ROLE_PERMISSION_MAP = {
         'candidates.candidate.view', 'candidates.candidate.create', 'candidates.candidate.edit',
         'candidates.note.view', 'candidates.note.create',
         'pipeline.application.view', 'pipeline.application.move_stage',
+        'interviews.type.view',
         'interviews.interview.view', 'interviews.interview.schedule',
         'interviews.feedback.view',
         'agencies.relationship.view', 'agencies.assignment.view',
@@ -157,6 +161,7 @@ ROLE_PERMISSION_MAP = {
         'jobs.job.view', 'jobs.job.create', 'jobs.job.approve',
         'candidates.candidate.view', 'candidates.note.view', 'candidates.note.create',
         'pipeline.application.view', 'pipeline.application.reject',
+        'interviews.type.view',
         'interviews.interview.view', 'interviews.interview.schedule',
         'interviews.feedback.view', 'interviews.feedback.submit',
         'organisations.settings.view', 'organisations.users.view',
@@ -169,6 +174,7 @@ ROLE_PERMISSION_MAP = {
 
     'interviewer': [
         'candidates.candidate.view', 'candidates.note.view',
+        'interviews.type.view',
         'interviews.interview.view',
         'interviews.feedback.view', 'interviews.feedback.submit',
     ],
@@ -178,6 +184,7 @@ ROLE_PERMISSION_MAP = {
         'jobs.job.view',
         'candidates.candidate.view', 'candidates.note.view',
         'pipeline.application.view',
+        'interviews.type.view',
         'interviews.interview.view', 'interviews.feedback.view',
         'agencies.relationship.view', 'agencies.assignment.view',
         'organisations.settings.view', 'organisations.users.view',
@@ -194,6 +201,7 @@ ROLE_PERMISSION_MAP = {
         'candidates.candidate.view', 'candidates.candidate.create', 'candidates.candidate.edit',
         'candidates.note.view', 'candidates.note.create',
         'pipeline.application.view', 'pipeline.application.move_stage',
+        'interviews.type.view',
         'interviews.interview.view',
         'agencies.relationship.view', 'agencies.relationship.manage',
         'agencies.assignment.view', 'agencies.assignment.create',
@@ -213,6 +221,7 @@ ROLE_PERMISSION_MAP = {
         'candidates.candidate.view', 'candidates.candidate.create', 'candidates.candidate.edit',
         'candidates.note.view', 'candidates.note.create',
         'pipeline.application.view', 'pipeline.application.move_stage',
+        'interviews.type.view',
         'interviews.interview.view',
         'agencies.relationship.view',
         'agencies.assignment.view', 'agencies.assignment.create',
@@ -232,6 +241,7 @@ ROLE_PERMISSION_MAP = {
         'candidates.candidate.view', 'candidates.candidate.create', 'candidates.candidate.edit',
         'candidates.note.view', 'candidates.note.create',
         'pipeline.application.view', 'pipeline.application.move_stage',
+        'interviews.type.view',
         'interviews.interview.view',
         'agencies.assignment.view',
         'communications.email.view', 'communications.email.send',

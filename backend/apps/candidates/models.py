@@ -1,6 +1,7 @@
 import uuid
 import hashlib
 from django.db import models
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 from django.conf import settings
 from apps.candidates.field_schema import (
@@ -89,6 +90,7 @@ class Candidate(models.Model):
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    candidate_ref_id = models.CharField(max_length=32, blank=True, null=True, unique=True, db_index=True)
     # tenant_id is nullable — null means self-registered candidate
     # not null means added by agency or company
     tenant_id = models.UUIDField(null=True, blank=True, db_index=True)
@@ -289,6 +291,21 @@ class Candidate(models.Model):
     is_general_pool_used = models.BooleanField(default=False, db_index=True)
 
     def save(self, *args, **kwargs):
+        if self.pk:
+            old_ref = Candidate.objects.filter(pk=self.pk).values_list('candidate_ref_id', flat=True).first()
+            if old_ref and self.candidate_ref_id != old_ref:
+                raise ValidationError("candidate_ref_id is immutable once generated.")
+
+        if self._state.adding and not self.candidate_ref_id:
+            from apps.tenants.reference_ids import build_reference, candidate_type_code
+
+            tenant_for_ref = self.tenant_id or self.owner_tenant_id
+            self.candidate_ref_id = build_reference(
+                tenant_id=tenant_for_ref,
+                entity_type=candidate_type_code(self),
+                created_at=self.created_at,
+            )
+
         if self.email or self.phone:
             hash_input = f"{self.email.lower().strip()}{self.phone.strip()}".encode()
             self.global_hash = hashlib.sha256(hash_input).hexdigest()

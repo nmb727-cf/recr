@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 
@@ -18,6 +19,7 @@ class JobRequisition(models.Model):
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    job_ref_id = models.CharField(max_length=32, blank=True, null=True, unique=True, db_index=True)
     tenant_id = models.UUIDField(db_index=True)
     title = models.CharField(max_length=255)
     department_id = models.UUIDField(null=True, blank=True)
@@ -113,6 +115,23 @@ class JobRequisition(models.Model):
         self.is_deleted = True
         self.deleted_at = timezone.now()
         self.save()
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            old_ref = JobRequisition.objects.filter(pk=self.pk).values_list('job_ref_id', flat=True).first()
+            if old_ref and self.job_ref_id != old_ref:
+                raise ValidationError("job_ref_id is immutable once generated.")
+
+        if self._state.adding and not self.job_ref_id:
+            from apps.tenants.reference_ids import build_reference, job_type_code
+
+            self.job_ref_id = build_reference(
+                tenant_id=self.tenant_id,
+                entity_type=job_type_code(self),
+                created_at=self.created_at,
+            )
+
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.title

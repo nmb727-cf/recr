@@ -23,10 +23,45 @@ class Client(TenantMixin, models.Model):
     master_id = models.UUIDField(null=True, blank=True)
     is_master = models.BooleanField(default=False)
     is_deleted = models.BooleanField(default=False)
+    reference_prefix_auto = models.CharField(max_length=12, unique=True, blank=True, null=True)
+    reference_prefix_custom = models.CharField(max_length=12, blank=True, null=True)
     auto_create_schema = True
+
+    @property
+    def effective_reference_prefix(self):
+        if self.reference_prefix_custom:
+            return self.reference_prefix_custom
+        return self.reference_prefix_auto
 
     def __str__(self):
         return self.name
+
+
+class TenantReferenceSequence(models.Model):
+    ENTITY_TYPE_CHOICES = [
+        ('CC', 'Company Candidate'),
+        ('AC', 'Agency Candidate'),
+        ('DC', 'Direct Candidate'),
+        ('CJ', 'Company Job'),
+        ('AJ', 'Agency Job'),
+    ]
+
+    tenant_id = models.UUIDField(db_index=True)
+    entity_type = models.CharField(max_length=2, choices=ENTITY_TYPE_CHOICES)
+    year_suffix = models.CharField(max_length=2, db_index=True)
+    next_value = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'tenants_reference_sequence'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tenant_id', 'entity_type', 'year_suffix'],
+                name='uniq_ref_seq_tenant_type_year',
+            ),
+        ]
+
 
 class Domain(DomainMixin):
     def __str__(self):

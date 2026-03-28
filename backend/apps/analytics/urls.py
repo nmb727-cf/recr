@@ -8,4 +8,5 @@ urlpatterns = [
     path('agencies/', views.AgencyAnalyticsView.as_view(), name='analytics-agencies'),
     path('candidates/', views.CandidateAnalyticsView.as_view(), name='analytics-candidates'),
     path('interviews/', views.InterviewAnalyticsView.as_view(), name='analytics-interviews'),
+    path('interviews/intelligence/', views.InterviewIntelligenceAnalyticsView.as_view(), name='analytics-interviews-intelligence'),
 ]

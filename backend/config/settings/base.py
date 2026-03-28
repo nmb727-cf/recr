@@ -36,11 +36,12 @@ SHARED_APPS = [
     'apps.analytics',
     'apps.communications',
     'apps.notifications',
-    'apps.automation',
+    'apps.automation.apps.AutomationConfig',
     'apps.cafe',
     'apps.marketplace',
     'apps.translations',
     'apps.talent_pools',
+    'apps.prequalification',
 
     # Django built-ins
     'django.contrib.admin',
@@ -296,6 +297,5 @@ MINIO_ACCESS_KEY = 'minioadmin'
 MINIO_SECRET_KEY = 'minioadmin123'
 MINIO_USE_HTTPS = False
 MINIO_BUCKET_NAME = 'recruitment-platform'
-
 
 

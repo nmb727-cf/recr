@@ -11,6 +11,8 @@ from apps.core.responses import success_response, error_response
 from apps.accounts.models import CustomUser
 from apps.accounts.serializers import UserSerializer
 from django.db.models import Count
+from apps.tenants.models import Client
+from apps.tenants.reference_ids import ensure_tenant_prefix, normalize_prefix
 
 
 class OrganisationProfileView(APIView):
@@ -22,8 +24,16 @@ class OrganisationProfileView(APIView):
                 tenant_id=request.user.tenant_id,
                 is_deleted=False
             )
+            tenant = Client.objects.filter(id=request.user.tenant_id).first()
+            effective_prefix = ensure_tenant_prefix(request.user.tenant_id)
+            data = OrganisationSerializer(org).data
+            data.update({
+                'reference_prefix_auto': (tenant.reference_prefix_auto if tenant else ''),
+                'reference_prefix_custom': (tenant.reference_prefix_custom if tenant else ''),
+                'effective_reference_prefix': effective_prefix,
+            })
             return success_response(
-                data={'organisation': OrganisationSerializer(org).data},
+                data={'organisation': data},
                 message="Organisation profile retrieved."
             )
         except Organisation.DoesNotExist:
@@ -33,6 +43,9 @@ class OrganisationProfileView(APIView):
             )
 
     def put(self, request):
+        payload = request.data.copy()
+        custom_prefix = payload.pop('reference_prefix_custom', None)
+
         try:
             org = Organisation.objects.get(
                 tenant_id=request.user.tenant_id,
@@ -42,7 +55,7 @@ class OrganisationProfileView(APIView):
             # Create if not exists
             org = Organisation(tenant_id=request.user.tenant_id)
 
-        serializer = OrganisationSerializer(org, data=request.data, partial=True)
+        serializer = OrganisationSerializer(org, data=payload, partial=True)
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors)
 
@@ -50,8 +63,19 @@ class OrganisationProfileView(APIView):
             tenant_id=request.user.tenant_id,
             created_by=request.user.id
         )
+        tenant = Client.objects.filter(id=request.user.tenant_id).first()
+        if tenant and custom_prefix is not None:
+            tenant.reference_prefix_custom = normalize_prefix(custom_prefix)
+            tenant.save(update_fields=['reference_prefix_custom'])
+        effective_prefix = ensure_tenant_prefix(request.user.tenant_id)
+        response_data = serializer.data
+        response_data.update({
+            'reference_prefix_auto': (tenant.reference_prefix_auto if tenant else ''),
+            'reference_prefix_custom': (tenant.reference_prefix_custom if tenant else ''),
+            'effective_reference_prefix': effective_prefix,
+        })
         return success_response(
-            data={'organisation': serializer.data},
+            data={'organisation': response_data},
             message="Organisation profile updated."
         )
 

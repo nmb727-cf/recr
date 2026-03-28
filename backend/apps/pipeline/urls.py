@@ -13,6 +13,7 @@ urlpatterns = [
 
     # Pipeline view
     path('pipeline/<uuid:requisition_id>/', views.PipelineView.as_view(), name='pipeline-view'),
+    path('pipeline/<uuid:requisition_id>/activity/', views.RequisitionActivityView.as_view(), name='requisition-activity'),
     path('pipeline/bulk-action/', views.BulkActionView.as_view(), name='pipeline-bulk-action'),
 
     # Deadlines

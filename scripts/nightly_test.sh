@@ -23,6 +23,8 @@ echo "=== OPENAPI ==="
 cd "$ROOT/backend"
 python manage.py spectacular --file "$ROOT/sys_know/generated/openapi/schema.yaml" \
   > "$ROOT/sys_know/testing/schema.log" 2>&1 || true
+# Keep the copy inside docs_dir in sync so the mkdocs site serves the fresh schema.
+cp "$ROOT/sys_know/generated/openapi/schema.yaml" "$ROOT/sys_know/docs/generated/schema.yaml"
 
 cd "$ROOT/backend"
 python manage.py runserver 127.0.0.1:8000 > "$ROOT/sys_know/testing/django_server.log" 2>&1 &

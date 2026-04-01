@@ -16,7 +16,21 @@ class ApplicationStageHistorySerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'moved_at']
 
 
+class CandidateApplicationStageHistorySerializer(serializers.ModelSerializer):
+    """Candidate-facing stage history — omits internal recruiter fields."""
+    class Meta:
+        model = ApplicationStageHistory
+        fields = [
+            'id', 'application_id', 'from_status', 'to_status', 'moved_at',
+        ]
+        read_only_fields = ['id', 'moved_at']
+
+
 class ApplicationSerializer(serializers.ModelSerializer):
+    candidate_name = serializers.SerializerMethodField()
+    candidate_email = serializers.SerializerMethodField()
+    candidate_phone = serializers.SerializerMethodField()
+    candidate_title = serializers.SerializerMethodField()
     is_under_guarantee = serializers.SerializerMethodField()
     guarantee_end_date = serializers.SerializerMethodField()
     guarantee_start_date = serializers.SerializerMethodField()
@@ -32,7 +46,8 @@ class ApplicationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Application
         fields = [
-            'id', 'tenant_id', 'candidate_id', 'requisition_id',
+            'id', 'tenant_id', 'candidate_id', 'candidate_name', 'candidate_email',
+            'candidate_phone', 'candidate_title', 'requisition_id',
             'current_stage_id', 'status', 'source', 'source_detail',
             'submitted_by', 'submitted_by_tenant_id',
             'agency_id', 'is_agency_submission', 'match_score',
@@ -51,6 +66,26 @@ class ApplicationSerializer(serializers.ModelSerializer):
             'id', 'tenant_id', 'created_at', 'updated_at',
             'offer_accepted_at', 'offer_rejected_at', 'joined_at',
         ]
+
+    def get_candidate_name(self, obj):
+        from apps.candidates.models import Candidate
+        candidate = Candidate.objects.filter(id=obj.candidate_id).first()
+        return candidate.full_name if candidate else None
+
+    def get_candidate_email(self, obj):
+        from apps.candidates.models import Candidate
+        candidate = Candidate.objects.filter(id=obj.candidate_id).first()
+        return candidate.email if candidate else None
+
+    def get_candidate_phone(self, obj):
+        from apps.candidates.models import Candidate
+        candidate = Candidate.objects.filter(id=obj.candidate_id).first()
+        return candidate.phone if candidate else None
+
+    def get_candidate_title(self, obj):
+        from apps.candidates.models import Candidate
+        candidate = Candidate.objects.filter(id=obj.candidate_id).first()
+        return candidate.current_title if candidate else None
 
     def get_is_under_guarantee(self, obj):
         return PlacementGuarantee.objects.filter(
@@ -106,6 +141,78 @@ class ApplicationSerializer(serializers.ModelSerializer):
             candidate_id=obj.candidate_id,
             target_tenant_id=obj.tenant_id,
         ).get('protection_scope')
+
+
+class CandidateApplicationSerializer(serializers.ModelSerializer):
+    """
+    Candidate-facing application serializer.
+    Exposes only candidate-appropriate fields — no internal recruiter data.
+    """
+    job_title = serializers.SerializerMethodField()
+    company_name = serializers.SerializerMethodField()
+    current_stage_name = serializers.SerializerMethodField()
+    next_step_guidance = serializers.SerializerMethodField()
+    expected_timeline = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Application
+        fields = [
+            'id', 'requisition_id', 'job_title', 'company_name',
+            'current_stage_id', 'current_stage_name',
+            'status', 'source',
+            'offer_date', 'joining_date',
+            'next_step_guidance', 'expected_timeline',
+            'application_form_data',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = fields
+
+    def get_job_title(self, obj):
+        from apps.jobs.models import JobRequisition
+        req = JobRequisition.objects.filter(id=obj.requisition_id).first()
+        return req.title if req else None
+
+    def get_company_name(self, obj):
+        from apps.organisations.models import Organisation
+        org = Organisation.objects.filter(tenant_id=obj.tenant_id).first()
+        return org.name if org else None
+
+    def get_current_stage_name(self, obj):
+        from apps.jobs.models import JobStage
+        stage = JobStage.objects.filter(id=obj.current_stage_id).first()
+        if stage:
+            return stage.name
+        return "Application Submitted"
+
+    def get_next_step_guidance(self, obj):
+        if obj.status == 'rejected':
+            return "Application not proceeding at this time."
+        if obj.status == 'joined':
+            return "Hired! Welcome aboard."
+        
+        from apps.jobs.models import JobStage
+        stage = JobStage.objects.filter(id=obj.current_stage_id).first()
+        if not stage:
+            return "Our team is reviewing your application."
+            
+        # Dynamic guidance based on stage type
+        guidance_map = {
+            'sourcing': "Your profile is being reviewed for alignment.",
+            'screening': "A recruiter will contact you for a brief screening.",
+            'interview': "Interview scheduling is in progress.",
+            'assessment': "Please complete the assigned assessments.",
+            'offer': "Your offer is being prepared.",
+        }
+        return guidance_map.get(stage.stage_type, "Wait for the next update from our hiring team.")
+
+    def get_expected_timeline(self, obj):
+        if obj.status in ('rejected', 'joined', 'withdrawn'):
+            return "Process concluded."
+            
+        from apps.jobs.models import JobStage
+        stage = JobStage.objects.filter(id=obj.current_stage_id).first()
+        hours = stage.action_deadline_hours if stage else 48
+        return f"Expect an update within {max(24, hours // 24 * 24)} hours."
 
 
 class ActionDeadlineSerializer(serializers.ModelSerializer):

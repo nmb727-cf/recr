@@ -1,7 +1,8 @@
+import { useState } from 'react'
 import { Button, Tag, Space, Divider, Typography, Spin, Empty, message } from 'antd'
 import {
   EnvironmentOutlined, ClockCircleOutlined, DollarOutlined,
-  SendOutlined, CheckCircleOutlined,
+  SendOutlined, CheckCircleOutlined, LoadingOutlined,
 } from '@ant-design/icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { useApiQuery } from '@/hooks/useApiQuery'
@@ -13,6 +14,7 @@ const { Title, Paragraph } = Typography
 
 export default function CandidateJobQVPanel({ job }: { job: JobPosting }) {
   const queryClient = useQueryClient()
+  const [applying, setApplying] = useState(false)
 
   const { data, isLoading } = useApiQuery(
     ['job_posting', job.id],
@@ -31,12 +33,26 @@ export default function CandidateJobQVPanel({ job }: { job: JobPosting }) {
   const isApplied = applications.some(a => a.requisition_id === job.requisition_id)
 
   const handleApply = async () => {
+    if (applying || isApplied) return
+    setApplying(true)
     try {
       await candidateApi.applyJob(job.id)
-      message.success('Application submitted!')
+      message.success('Application submitted! Good luck!')
       queryClient.invalidateQueries({ queryKey: ['candidate_applications'] })
+      queryClient.invalidateQueries({ queryKey: ['candidate', 'applications'] })
     } catch (err: any) {
-      message.error(err.response?.data?.message || 'Failed to apply')
+      const statusCode = err.response?.status
+      const msg = err.response?.data?.message || ''
+      if (statusCode === 409 || msg.toLowerCase().includes('already applied')) {
+        // Treat as soft duplicate — refresh state so the "Already Applied" badge shows
+        message.warning('You have already applied for this position.')
+        queryClient.invalidateQueries({ queryKey: ['candidate_applications'] })
+        queryClient.invalidateQueries({ queryKey: ['candidate', 'applications'] })
+      } else {
+        message.error(msg || 'Failed to submit application. Please try again.')
+      }
+    } finally {
+      setApplying(false)
     }
   }
 
@@ -64,9 +80,16 @@ export default function CandidateJobQVPanel({ job }: { job: JobPosting }) {
           Already Applied
         </Button>
       ) : (
-        <Button type="primary" size="large" block icon={<SendOutlined />} onClick={handleApply}
-          className="h-12 rounded-xl font-bold bg-blue-600 border-none">
-          Apply for this Position
+        <Button
+          type="primary"
+          size="large"
+          block
+          icon={applying ? <LoadingOutlined /> : <SendOutlined />}
+          onClick={handleApply}
+          disabled={applying}
+          className="h-12 rounded-xl font-bold bg-blue-600 border-none"
+        >
+          {applying ? 'Submitting…' : 'Apply for this Position'}
         </Button>
       )}
 

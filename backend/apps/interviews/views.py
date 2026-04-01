@@ -18,6 +18,7 @@ from apps.interviews.models import (
     InterviewExecutionMapping,
     InterviewQuestionBank, InterviewQuestionAttachment,
     InterviewQuestionGroup,
+    InterviewPackage, InterviewPackageBinding,
 )
 from apps.interviews.serializers import (
     InterviewSerializer, InterviewDetailSerializer,
@@ -36,6 +37,7 @@ from apps.interviews.serializers import (
     InterviewQuestionBankSerializer,
     InterviewQuestionAttachmentSerializer,
     InterviewQuestionGroupSerializer,
+    InterviewPackageSerializer, InterviewPackageBindingSerializer,
 )
 from apps.interviews.services import (
     InterviewTypeService, InterviewService,
@@ -57,6 +59,177 @@ from apps.core import events
 from apps.interviews.scheduling import compute_common_slots
 
 
+class InterviewPackageListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        qs = InterviewPackage.objects.filter(
+            tenant_id=request.user.tenant_id,
+            is_deleted=False
+        )
+        is_active = request.query_params.get('is_active')
+        if is_active:
+            qs = qs.filter(is_active=is_active.lower() == 'true')
+            
+        return success_response(
+            data={'packages': InterviewPackageSerializer(qs, many=True).data},
+            message="Interview packages retrieved."
+        )
+
+    def post(self, request):
+        serializer = InterviewPackageSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error_response("Validation failed.", serializer.errors)
+
+        package = serializer.save(
+            tenant_id=request.user.tenant_id,
+            created_by=request.user.id
+        )
+        return success_response(
+            data={'package': InterviewPackageSerializer(package).data},
+            message="Interview package created.",
+            status_code=status.HTTP_201_CREATED
+        )
+
+
+class InterviewPackageDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self, request, pk):
+        try:
+            return InterviewPackage.objects.get(
+                id=pk,
+                tenant_id=request.user.tenant_id,
+                is_deleted=False
+            )
+        except InterviewPackage.DoesNotExist:
+            return None
+
+    def get(self, request, pk):
+        package = self.get_object(request, pk)
+        if not package:
+            return error_response("Package not found.", status_code=status.HTTP_404_NOT_FOUND)
+        return success_response(
+            data={'package': InterviewPackageSerializer(package).data},
+            message="Package retrieved."
+        )
+
+    def put(self, request, pk):
+        package = self.get_object(request, pk)
+        if not package:
+            return error_response("Package not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        serializer = InterviewPackageSerializer(package, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return error_response("Validation failed.", serializer.errors)
+
+        serializer.save()
+        return success_response(
+            data={'package': serializer.data},
+            message="Package updated."
+        )
+
+    def delete(self, request, pk):
+        package = self.get_object(request, pk)
+        if not package:
+            return error_response("Package not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        package.soft_delete()
+        return success_response(
+            message="Package deleted.",
+            status_code=status.HTTP_204_NO_CONTENT
+        )
+
+
+class JobInterviewBindingView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, requisition_id):
+        try:
+            binding = InterviewPackageBinding.objects.filter(
+                tenant_id=request.user.tenant_id,
+                job_id=requisition_id,
+                is_deleted=False
+            ).first()
+            
+            if not binding:
+                return success_response(data={'binding': None}, message="No binding found.")
+                
+            return success_response(
+                data={'binding': InterviewPackageBindingSerializer(binding).data},
+                message="Job interview binding retrieved."
+            )
+        except Exception as e:
+            return error_response(str(e), status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def post(self, request, requisition_id):
+        package_id = request.data.get('package_id')
+        if not package_id:
+            return error_response("package_id is required.")
+            
+        try:
+            package = InterviewPackage.objects.get(
+                id=package_id,
+                tenant_id=request.user.tenant_id,
+                is_deleted=False
+            )
+        except InterviewPackage.DoesNotExist:
+            return error_response("Interview package not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        binding, created = InterviewPackageBinding.objects.update_or_create(
+            job_id=requisition_id,
+            defaults={
+                'tenant_id': request.user.tenant_id,
+                'package': package,
+                'automation_enabled': request.data.get('automation_enabled', True),
+                'metadata': request.data.get('metadata', {}),
+                'is_deleted': False
+            }
+        )
+        
+        return success_response(
+            data={'binding': InterviewPackageBindingSerializer(binding).data},
+            message="Interview package bound to job.",
+            status_code=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        )
+
+    def put(self, request, requisition_id):
+        binding = InterviewPackageBinding.objects.filter(
+            tenant_id=request.user.tenant_id,
+            job_id=requisition_id,
+            is_deleted=False
+        ).first()
+        
+        if not binding:
+            return error_response("No binding found.", status_code=status.HTTP_404_NOT_FOUND)
+            
+        serializer = InterviewPackageBindingSerializer(binding, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return error_response("Validation failed.", serializer.errors)
+            
+        serializer.save()
+        return success_response(
+            data={'binding': serializer.data},
+            message="Binding updated."
+        )
+
+    def delete(self, request, requisition_id):
+        binding = InterviewPackageBinding.objects.filter(
+            tenant_id=request.user.tenant_id,
+            job_id=requisition_id,
+            is_deleted=False
+        ).first()
+        
+        if not binding:
+            return error_response("No binding found.", status_code=status.HTTP_404_NOT_FOUND)
+            
+        binding.soft_delete()
+        return success_response(
+            message="Interview package unbound from job.",
+            status_code=status.HTTP_204_NO_CONTENT
+        )
+
+
 INTEGRATION_PROVIDER_DEFAULTS = [
     {'name': 'Google Meet', 'code': 'google_meet', 'provider_type': 'meeting'},
     {'name': 'Zoom', 'code': 'zoom', 'provider_type': 'meeting'},
@@ -66,6 +239,89 @@ INTEGRATION_PROVIDER_DEFAULTS = [
     {'name': 'Apple Calendar', 'code': 'apple_calendar', 'provider_type': 'calendar'},
     {'name': 'ICS External', 'code': 'ics_external', 'provider_type': 'external'},
 ]
+
+AI_INTERVIEW_SUPPORTED_TYPES = {
+    'one_way_video',
+    'async_text',
+    'async_audio',
+    'ai_screening',
+    'ai_technical',
+    'ai_behavioral',
+}
+
+
+def _default_ai_engine_config(itype):
+    response_type = 'video'
+    if itype.code == 'async_text':
+        response_type = 'text'
+    elif itype.code == 'async_audio':
+        response_type = 'audio'
+
+    return {
+        'enabled': itype.code in AI_INTERVIEW_SUPPORTED_TYPES,
+        'builder': {
+            'question_set_id': '',
+            'question_set_name': '',
+            'response_type': response_type,
+            'allowed_response_types': [response_type] if response_type in {'text', 'audio'} else ['video', 'audio', 'text'],
+            'time_limit_minutes': 30,
+            'retries': 1,
+            'preparation_time_seconds': 60,
+        },
+        'candidate_experience': {
+            'intro_message': '',
+            'instructions': '',
+            'practice_mode_enabled': True,
+            'camera_required': response_type == 'video',
+            'microphone_required': response_type in {'video', 'audio'},
+        },
+        'evaluation': {
+            'scoring_enabled': True,
+            'manual_override_allowed': True,
+            'ai_scoring_weight': 70,
+            'skill_mapping': [],
+        },
+        'response_handling': {
+            'store_video_responses': response_type == 'video',
+            'store_text_responses': response_type == 'text',
+            'store_audio_responses': response_type == 'audio',
+        },
+        'scoring_shell': {
+            'store_ai_score': True,
+            'store_ai_notes': True,
+            'store_ai_recommendation': True,
+        },
+        'integrations': {
+            'question_engine': True,
+            'scorecard_engine': True,
+            'flow_engine': True,
+            'decision_engine': True,
+            'scorecard_template_id': '',
+            'flow_id': '',
+            'decision_mode': 'manual_review',
+        },
+    }
+
+
+def _merged_type_config(itype):
+    stored = dict(itype.type_configuration or {})
+    configuration = {
+        'template': bool(stored.get('template', True)),
+        'scorecard': bool(stored.get('scorecard', True)),
+        'scheduling': bool(stored.get('scheduling', True)),
+        'automation': bool(stored.get('automation', True)),
+        'prequalification': bool(stored.get('prequalification', False)),
+    }
+    ai_engine = _default_ai_engine_config(itype)
+    stored_ai_engine = stored.get('ai_interview')
+    if isinstance(stored_ai_engine, dict):
+        for key, value in stored_ai_engine.items():
+            if isinstance(ai_engine.get(key), dict) and isinstance(value, dict):
+                ai_engine[key] = {**ai_engine[key], **value}
+            else:
+                ai_engine[key] = value
+    configuration['ai_interview'] = ai_engine
+    return configuration
 
 
 def _ensure_integration_provider_registry():
@@ -1613,6 +1869,36 @@ class InterviewFeedbackView(APIView):
         )
 
 
+def _get_candidate_id_for_user(user):
+    """
+    Return the Candidate.id linked to this user account, or None.
+
+    Look-up order:
+      1. Candidate.user_id == user.id  (fast path)
+      2. Email / phone match via identity_service (recruiter pre-added this person)
+
+    Does NOT auto-create — if the user has no candidate record they have no
+    interviews to show, so None → empty list / 404 is the correct response.
+    If a match is found via email/phone the user_id is stamped so future
+    calls hit the fast path.
+    """
+    from apps.candidates.identity_service import match_candidate
+
+    candidate = Candidate.objects.filter(user_id=user.id, is_deleted=False).first()
+    if candidate:
+        return candidate.id
+
+    candidate = match_candidate(email=user.email, phone=getattr(user, 'phone', '') or '')
+    if candidate:
+        if not candidate.user_id:
+            candidate.user_id = user.id
+            candidate.account_status = 'active'
+            candidate.save(update_fields=['user_id', 'account_status', 'updated_at'])
+        return candidate.id
+
+    return None
+
+
 class CandidateInterviewListView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -1701,10 +1987,11 @@ class CandidateInterviewListView(APIView):
         return runtime, (session_id or active_session_id or uuid4().hex), None
 
     def get(self, request):
+        candidate_id = _get_candidate_id_for_user(request.user)
         interviews = Interview.objects.filter(
-            candidate_id=request.user.id,
+            candidate_id=candidate_id,
             is_deleted=False
-        ).order_by('scheduled_at')
+        ).order_by('scheduled_at') if candidate_id else Interview.objects.none()
 
         now = timezone.now()
         buckets = {
@@ -1749,11 +2036,12 @@ class CandidateInterviewInstructionsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        candidate_id = _get_candidate_id_for_user(request.user)
         interview = Interview.objects.filter(
             id=pk,
-            candidate_id=request.user.id,
+            candidate_id=candidate_id,
             is_deleted=False,
-        ).first()
+        ).first() if candidate_id else None
         if not interview:
             return error_response("Interview not found.", status_code=status.HTTP_404_NOT_FOUND)
 
@@ -1781,11 +2069,12 @@ class CandidateInterviewRuntimeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        candidate_id = _get_candidate_id_for_user(request.user)
         interview = Interview.objects.filter(
             id=pk,
-            candidate_id=request.user.id,
+            candidate_id=candidate_id,
             is_deleted=False,
-        ).first()
+        ).first() if candidate_id else None
         if not interview:
             return error_response("Interview not found.", status_code=status.HTTP_404_NOT_FOUND)
 
@@ -1817,11 +2106,12 @@ class CandidateInterviewStatusView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        candidate_id = _get_candidate_id_for_user(request.user)
         interview = Interview.objects.filter(
             id=pk,
-            candidate_id=request.user.id,
+            candidate_id=candidate_id,
             is_deleted=False,
-        ).first()
+        ).first() if candidate_id else None
         if not interview:
             return error_response("Interview not found.", status_code=status.HTTP_404_NOT_FOUND)
         candidate_status = 'missed' if interview.status == 'no_show' else interview.status
@@ -1845,10 +2135,13 @@ class CandidateInterviewStartView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        candidate_id = _get_candidate_id_for_user(request.user)
+        if not candidate_id:
+            return error_response("Interview not found.", status_code=status.HTTP_404_NOT_FOUND)
         try:
             interview = Interview.objects.get(
                 id=pk,
-                candidate_id=request.user.id,
+                candidate_id=candidate_id,
                 is_deleted=False
             )
         except Interview.DoesNotExist:
@@ -1923,10 +2216,13 @@ class CandidateSubmitAnswerView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        candidate_id = _get_candidate_id_for_user(request.user)
+        if not candidate_id:
+            return error_response("Interview not found or not in progress.", status_code=status.HTTP_404_NOT_FOUND)
         try:
             interview = Interview.objects.get(
                 id=pk,
-                candidate_id=request.user.id,
+                candidate_id=candidate_id,
                 status='in_progress',
                 is_deleted=False
             )
@@ -1964,10 +2260,13 @@ class CandidateCompleteInterviewView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        candidate_id = _get_candidate_id_for_user(request.user)
+        if not candidate_id:
+            return error_response("Interview not found or not in progress.", status_code=status.HTTP_404_NOT_FOUND)
         try:
             interview = Interview.objects.get(
                 id=pk,
-                candidate_id=request.user.id,
+                candidate_id=candidate_id,
                 status='in_progress',
                 is_deleted=False
             )
@@ -2007,11 +2306,12 @@ class CandidateInterviewSecurityEventView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        candidate_id = _get_candidate_id_for_user(request.user)
         interview = Interview.objects.filter(
             id=pk,
-            candidate_id=request.user.id,
+            candidate_id=candidate_id,
             is_deleted=False,
-        ).first()
+        ).first() if candidate_id else None
         if not interview:
             return error_response("Interview not found.", status_code=status.HTTP_404_NOT_FOUND)
 
@@ -2168,13 +2468,7 @@ class InterviewTypeConfigView(APIView):
         itype = self._get(pk)
         if not itype:
             return error_response("Interview type not found.", status_code=status.HTTP_404_NOT_FOUND)
-        payload = {
-            'template': bool((itype.type_configuration or {}).get('template', True)),
-            'scorecard': bool((itype.type_configuration or {}).get('scorecard', True)),
-            'scheduling': bool((itype.type_configuration or {}).get('scheduling', True)),
-            'automation': bool((itype.type_configuration or {}).get('automation', True)),
-            'prequalification': bool((itype.type_configuration or {}).get('prequalification', False)),
-        }
+        payload = _merged_type_config(itype)
         return success_response(
             data={'type': InterviewTypeSerializer(itype).data, 'configuration': payload},
             message="Interview type configuration retrieved.",
@@ -2188,6 +2482,7 @@ class InterviewTypeConfigView(APIView):
         if not itype:
             return error_response("Interview type not found.", status_code=status.HTTP_404_NOT_FOUND)
 
+        current = _merged_type_config(itype)
         cfg = {
             'template': bool(request.data.get('template', True)),
             'scorecard': bool(request.data.get('scorecard', True)),
@@ -2195,6 +2490,10 @@ class InterviewTypeConfigView(APIView):
             'automation': bool(request.data.get('automation', True)),
             'prequalification': bool(request.data.get('prequalification', False)),
         }
+        ai_payload = request.data.get('ai_interview', current.get('ai_interview', {}))
+        if not isinstance(ai_payload, dict):
+            ai_payload = current.get('ai_interview', {})
+        cfg['ai_interview'] = ai_payload
         itype.type_configuration = cfg
         itype.configurable = bool(request.data.get('configurable', itype.configurable))
         if request.data.get('execution_mode'):

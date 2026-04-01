@@ -395,4 +395,76 @@ Over:
 
 ---
 
+# 11A. RBAC RULES
+
+## 11A.1 Permission Mapping Rule
+Every new:
+- Page
+- Button
+- API
+- Action
+- Tab
+- Menu item
+
+Must map to an explicit permission.
+
+No feature should exist without permission definition.
+
+## 11A.2 Backend Enforcement Rule
+Frontend hiding is not enough.
+
+All permissions must be enforced in backend API and service logic.
+
+## 11A.3 Default Deny Rule
+If permission is not explicitly allowed, access must be denied by default.
+
+## 11A.4 Role Template Rule
+Default RBAC templates may be provided, but tenant/company-specific custom roles and templates must be supported.
+
+## 11A.5 No Hardcoded Role Rule
+Do not hardcode role checks in scattered UI/backend logic unless centrally defined and approved.
+
+Use shared RBAC services / permission checks.
+
+## 11A.6 UI Permission Consistency Rule
+If user cannot perform action:
+- button must be hidden or disabled
+- route/tab/menu visibility must follow permission model
+- backend must still validate permission independently
+
+# 11B. TRANSLATION RULES
+
+## 11B.1 No Hardcoded User-Facing Text Rule
+All user-facing text must support translation.
+
+Do not hardcode labels, button text, messages, headings, placeholders, or helper text directly in UI.
+
+## 11B.2 Translation Key Rule
+New UI features must add translation keys when developed.
+
+Feature is not complete until translation keys are added.
+
+## 11B.3 Backend Message Rule
+Important backend validation messages, API messages, and system notifications must follow translation-ready structure where applicable.
+
+## 11B.4 Consistency Rule
+A screen must not be partially translated in inconsistent way.
+
+Avoid mixed translated and untranslated UI on same flow.
+
+## 11B.5 Fallback Language Rule
+If translation is missing, system must fall back to default language safely.
+
+## 11B.6 Shared Terminology Rule
+Common terms must remain consistent across modules:
+- Candidate
+- Job
+- Agency
+- Company
+- Interview
+- Offer
+- Pipeline
+- Stage
+- Status
+
 # END OF FILE

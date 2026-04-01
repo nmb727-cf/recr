@@ -20,6 +20,15 @@ logger = logging.getLogger(__name__)
 
 
 class EmailDispatchService:
+    ACTIVE_DEDUPE_STATUSES = {
+        EmailMessageStatus.QUEUED,
+        EmailMessageStatus.SENDING,
+        EmailMessageStatus.SENT,
+        EmailMessageStatus.DELIVERED,
+        EmailMessageStatus.OPENED,
+        EmailMessageStatus.CLICKED,
+    }
+
     @staticmethod
     def _render_content(request: EmailSendRequest) -> tuple[str, str, str]:
         subject = request.subject or ''
@@ -111,6 +120,15 @@ class EmailDispatchService:
 
     @classmethod
     def send_now(cls, request: EmailSendRequest) -> EmailMessage:
+        dedupe_key = (request.metadata or {}).get('orchestration_dedupe_key', '')
+        if dedupe_key:
+            existing = EmailMessage.objects.filter(
+                tenant_id=request.tenant_id,
+                status__in=cls.ACTIVE_DEDUPE_STATUSES,
+                metadata_json__orchestration_dedupe_key=dedupe_key,
+            ).first()
+            if existing:
+                return existing
         route = EmailRoutingService.resolve_route(request)
         subject, body_html, body_text = cls._render_content(request)
 

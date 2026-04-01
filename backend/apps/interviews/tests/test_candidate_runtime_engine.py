@@ -2,6 +2,7 @@ from django.test import TestCase
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.accounts.models import CustomUser
+from apps.candidates.models import Candidate
 from apps.interviews.models import Interview, InterviewQuestion
 from apps.interviews.views import (
     CandidateInterviewListView,
@@ -17,21 +18,32 @@ from apps.interviews.views import (
 class CandidateRuntimeEngineTests(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
-        self.candidate = CustomUser.objects.create_user(
+        self.user = CustomUser.objects.create_user(
             email='candidate-runtime@example.com',
             password='testpass123',
             role='candidate',
             tenant_id='00000000-0000-0000-0000-000000000001',
         )
+        # Interview.candidate_id must be Candidate.id (not User.id).
+        self.candidate_record = Candidate.objects.create(
+            tenant_id=self.user.tenant_id,
+            user_id=self.user.id,
+            email=self.user.email,
+            first_name='Runtime',
+            last_name='Candidate',
+            source='self',
+        )
         self.interview = Interview.objects.create(
-            tenant_id=self.candidate.tenant_id,
+            tenant_id=self.user.tenant_id,
             application_id='00000000-0000-0000-0000-000000000101',
-            candidate_id=self.candidate.id,
+            candidate_id=self.candidate_record.id,
             requisition_id='00000000-0000-0000-0000-000000000102',
             interview_type='ai_screening',
             status='scheduled',
             title='AI Screening Runtime',
         )
+        # Keep self.candidate pointing to the user for force_authenticate
+        self.candidate = self.user
         self.question = InterviewQuestion.objects.create(
             tenant_id=self.candidate.tenant_id,
             interview_id=self.interview.id,

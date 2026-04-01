@@ -56,6 +56,31 @@ class JobRequisition(models.Model):
         default='medium'
     )
     is_confidential = models.BooleanField(default=False)
+    job_owner_id = models.UUIDField(null=True, blank=True, db_index=True)
+    hiring_manager_id = models.UUIDField(null=True, blank=True, db_index=True)
+    recruiter_id = models.UUIDField(null=True, blank=True, db_index=True)
+    backup_recruiter_id = models.UUIDField(null=True, blank=True, db_index=True)
+    coordinator_id = models.UUIDField(null=True, blank=True, db_index=True)
+    job_category = models.CharField(max_length=100, blank=True)
+    sourcing_mode = models.CharField(
+        max_length=30,
+        choices=[
+            ('internal_only', 'Internal Only'),
+            ('external_only', 'External Only'),
+            ('hybrid', 'Hybrid')
+        ],
+        default='internal_only'
+    )
+    agency_submission_governance = models.CharField(
+        max_length=30,
+        choices=[
+            ('direct', 'Direct Submission'),
+            ('approval_required', 'Approval Required'),
+            ('draft_only', 'Draft Submission')
+        ],
+        default='direct'
+    )
+    is_published_to_agencies = models.BooleanField(default=False)
     description = models.TextField(blank=True)
     requirements = models.TextField(blank=True)
     responsibilities = models.TextField(blank=True)
@@ -100,10 +125,50 @@ class JobRequisition(models.Model):
         max_length=30, choices=WORKFLOW_MODE_CHOICES, blank=True
     )
     auto_match_candidates = models.BooleanField(default=False)
+    auto_assign_recruiter = models.BooleanField(default=False)
+    recruiter_assignment_policy = models.CharField(
+        max_length=50,
+        choices=[
+            ('round_robin', 'Round Robin'),
+            ('workload_balanced', 'Workload Balanced'),
+            ('performance_based', 'Performance Based'),
+            ('manual', 'Manual')
+        ],
+        default='manual'
+    )
+    auto_distribute_to_agencies = models.BooleanField(default=False)
+    agency_distribution_policy = models.CharField(
+        max_length=50,
+        choices=[
+            ('all', 'All Preferred Agencies'),
+            ('performance_ranked', 'Performance Ranked'),
+            ('manual', 'Manual')
+        ],
+        default='manual'
+    )
+    auto_schedule_interviews = models.BooleanField(default=False)
+    sla_automation_enabled = models.BooleanField(default=True)
     auto_push_to_recruiter_queue = models.BooleanField(default=False)
     auto_followup_after_source = models.BooleanField(default=False)
     auto_nurture_unqualified_candidates = models.BooleanField(default=False)
     budget_code = models.CharField(max_length=100, blank=True)
+    # Offer & Closure Defaults
+    offer_salary_default = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    offer_currency_default = models.CharField(max_length=10, default='INR')
+    auto_close_on_fulfillment = models.BooleanField(default=True)
+    # Agency Commercial Defaults (per job)
+    agency_commission_model = models.CharField(
+        max_length=30,
+        choices=[
+            ('percentage', 'Percentage of Salary'),
+            ('fixed', 'Fixed Fee'),
+            ('inherited', 'Inherited from Agency Relationship')
+        ],
+        default='inherited'
+    )
+    agency_commission_percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
+    agency_commission_fixed_fee = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
+    agency_payment_terms_days = models.IntegerField(default=30)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.UUIDField(null=True, blank=True)
@@ -148,6 +213,9 @@ class JobPosting(models.Model):
     title = models.CharField(max_length=255)
     slug = models.SlugField(max_length=255, blank=True)
     description_html = models.TextField(blank=True)
+    requirements = models.TextField(blank=True)
+    responsibilities = models.TextField(blank=True)
+    skills_required = models.JSONField(default=list, blank=True)
     external_description = models.TextField(blank=True)
     posted_at = models.DateTimeField(null=True, blank=True)
     expires_at = models.DateTimeField(null=True, blank=True)
@@ -196,7 +264,30 @@ class JobStage(models.Model):
         ],
         default='screening'
     )
+    stage_zone = models.CharField(
+        max_length=50,
+        choices=[
+            ('pre_submission', 'Pre-Submission'),
+            ('submitted', 'Submitted'),
+            ('hiring_flow', 'Hiring Flow'),
+            ('closed', 'Closed'),
+        ],
+        default='hiring_flow'
+    )
+    movement_restriction = models.CharField(
+        max_length=30,
+        choices=[
+            ('open', 'Open'),
+            ('job_owner_only', 'Job Owner Only'),
+            ('recruiter_only', 'Recruiter Only'),
+            ('automation_only', 'Automation Only'),
+        ],
+        default='open'
+    )
+    is_mandatory = models.BooleanField(default=False)
+    is_critical_path = models.BooleanField(default=True)
     action_deadline_hours = models.IntegerField(default=48)
+    sla_target_hours = models.IntegerField(default=24)
     auto_actions = models.JSONField(default=dict, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -210,6 +301,31 @@ class JobStage(models.Model):
     class Meta:
         db_table = 'jobs_stage'
         ordering = ['stage_order']
+
+
+class JobHiringTeamMember(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_id = models.UUIDField(db_index=True)
+    requisition = models.ForeignKey(JobRequisition, on_delete=models.CASCADE, related_name='hiring_team')
+    user_id = models.UUIDField(db_index=True)
+    role = models.CharField(
+        max_length=50,
+        choices=[
+            ('interviewer', 'Interviewer'),
+            ('approver', 'Approver'),
+            ('stakeholder', 'Stakeholder/Viewer'),
+            ('coordinator', 'Coordinator'),
+            ('recruiter', 'Recruiter'),
+            ('hiring_manager', 'Hiring Manager'),
+        ],
+        default='interviewer'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = 'jobs_hiring_team_member'
+        unique_together = ['requisition', 'user_id', 'role']
 
 
 class CustomFieldDefinition(models.Model):

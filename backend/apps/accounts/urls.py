@@ -21,4 +21,8 @@ urlpatterns = [
     path('change-password/', views.ChangePasswordView.as_view(), name='change-password'),
     path('mfa/enable/', views.MFAEnableView.as_view(), name='mfa-enable'),
     path('mfa/verify/', views.MFAVerifyView.as_view(), name='mfa-verify'),
+
+    # Recruiter Intelligence
+    path('recruiters/intelligence/', views.RecruiterIntelligenceListView.as_view(), name='recruiter-intelligence-list'),
+    path('jobs/<uuid:requisition_id>/recruiter-recommendations/', views.JobRecruiterIntelligenceView.as_view(), name='job-recruiter-intelligence'),
 ]

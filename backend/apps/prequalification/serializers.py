@@ -28,6 +28,10 @@ class PrequalQuestionSerializer(serializers.ModelSerializer):
             'rules', 'created_at', 'updated_at', 'metadata',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'question_text': {'allow_blank': True},
+            'help_text':     {'allow_blank': True},
+        }
 
 
 class PrequalSectionSerializer(serializers.ModelSerializer):

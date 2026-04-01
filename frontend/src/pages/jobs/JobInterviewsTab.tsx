@@ -4,8 +4,9 @@ import {
 } from 'antd'
 import {
   Settings, Zap, CheckCircle2, AlertCircle, Trash2, Link, Plus, 
-  ChevronRight, ArrowRight, ShieldCheck, Clock, FileText, UserCheck
+  ChevronRight, ArrowRight, ShieldCheck, Clock, FileText, UserCheck, Lock
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { useApiQuery } from '@/hooks/useApiQuery'
 import { interviewsApi } from '@/api/interviews'
 import { useQueryClient } from '@tanstack/react-query'
@@ -16,9 +17,11 @@ const { Title, Text, Paragraph } = Typography
 
 interface InterviewsTabProps {
   jobId: string
+  isOwner?: boolean
 }
 
-export default function JobInterviewsTab({ jobId }: InterviewsTabProps) {
+export default function JobInterviewsTab({ jobId, isOwner }: InterviewsTabProps) {
+  const { t } = useTranslation(['pipeline', 'common'])
   const queryClient = useQueryClient()
   const [attachModalOpen, setAttachModalOpen] = useState(false)
   const [unbinding, setUnbinding] = useState(false)
@@ -38,6 +41,7 @@ export default function JobInterviewsTab({ jobId }: InterviewsTabProps) {
   const packages = (packagesData as any)?.data?.packages || []
 
   const handleBind = async (packageId: string) => {
+    if (!isOwner) return
     try {
       await interviewsApi.bindToJob(jobId, packageId)
       message.success('Interview package attached to job')
@@ -49,6 +53,7 @@ export default function JobInterviewsTab({ jobId }: InterviewsTabProps) {
   }
 
   const handleUnbind = async () => {
+    if (!isOwner) return
     setUnbinding(true)
     try {
       await interviewsApi.unbindFromJob(jobId)
@@ -81,9 +86,15 @@ export default function JobInterviewsTab({ jobId }: InterviewsTabProps) {
             className="bg-indigo-600 border-none font-bold h-12 rounded-xl mt-4 px-8"
             icon={<Plus className="h-4 w-4 mr-2" />}
             onClick={() => setAttachModalOpen(true)}
+            disabled={!isOwner}
           >
             Attach Interview Package
           </Button>
+          {!isOwner && (
+            <p className="mt-4 text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center justify-center gap-1">
+              <Lock size={10} /> {t('pipeline:ownership.restricted')}
+            </p>
+          )}
         </Empty>
 
         <AttachPackageModal 
@@ -123,6 +134,7 @@ export default function JobInterviewsTab({ jobId }: InterviewsTabProps) {
               icon={<Trash2 size={14} />}
               loading={unbinding}
               onClick={handleUnbind}
+              disabled={!isOwner}
             >
               Unbind
             </Button>
@@ -130,6 +142,7 @@ export default function JobInterviewsTab({ jobId }: InterviewsTabProps) {
               type="primary" 
               className="bg-indigo-500 border-none font-bold"
               icon={<Settings size={14} />}
+              disabled={!isOwner}
             >
               Edit Settings
             </Button>

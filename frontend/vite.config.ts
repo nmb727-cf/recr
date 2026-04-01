@@ -14,11 +14,13 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
+      host: '0.0.0.0', // Listen on all network interfaces
       port: 5173,
       proxy: {
         '/api': {
           target: proxyTarget,
           changeOrigin: true,
+          secure: false,
         },
       },
     },

@@ -90,7 +90,7 @@
 
 /* Ant Design Customizations */
 .ant-btn-primary {
-  @apply bg-primary hover:bg-primary/90 border-none shadow-soft-sm !important;
+  @apply bg-primary hover:bg-primary/90 border-none shadow-sm !important;
 }
 
 .ant-input, .ant-select-selector, .ant-input-number {
@@ -114,9 +114,46 @@
 }
 
 .ant-card {
-  @apply rounded-xl border-border shadow-soft-sm !important;
+  @apply rounded-xl border-border shadow-sm !important;
 }
 
-.ant-drawer-content-wrapper {
-  @apply shadow-soft-lg !important;
+/* Sidebar Rail Customizations */
+.sidebar-rail-menu.ant-menu {
+  @apply border-none !important;
+}
+
+.sidebar-rail-menu.ant-menu .ant-menu-item {
+  @apply h-11 w-11 flex items-center justify-center rounded-xl mx-auto my-1 transition-all !important;
+}
+
+.sidebar-rail-menu.ant-menu .ant-menu-item-selected {
+  @apply bg-blue-50 text-blue-600 !important;
+}
+
+.sidebar-rail-menu.ant-menu .ant-menu-item:not(.ant-menu-item-selected):hover {
+  @apply bg-slate-100 !important;
+}
+
+.sidebar-rail-menu.ant-menu .ant-menu-item .ant-menu-item-icon {
+  @apply text-lg !important;
+}
+
+/* Animations */
+@keyframes pulse-subtle {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.8; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.action-badge-pulse .ant-scroll-number {
+  animation: pulse-subtle 2s infinite ease-in-out;
+}
+
+/* Hide scrollbars for side panels */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }

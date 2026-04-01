@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { message } from 'antd'
 
 const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
@@ -11,9 +12,14 @@ const PUBLIC_ENDPOINTS = [
   '/auth/register/company/',
   '/auth/register/agency/',
   '/auth/register/candidate/',
+  '/auth/send-otp/',
+  '/auth/verify-otp/',
+  '/auth/verify-email/',
   '/auth/forgot-password/',
   '/auth/reset-password/',
+  '/auth/refresh/',
   '/jobs/search/',
+  '/passport/public/',
 ]
 
 // Attach token from localStorage on every request
@@ -68,6 +74,15 @@ http.interceptors.response.use(
       localStorage.removeItem('refresh_token')
       localStorage.removeItem('auth-store')
       window.location.href = '/login'
+    } else {
+      // Show error toast for other errors, unless explicitly skipped
+      const errData = error.response?.data
+      const errorMsg = errData?.message || error.message || 'An unexpected error occurred'
+      
+      // Check if this request explicitly wants to skip the toast
+      if (!(error.config as any)?.hideErrorToast) {
+        message.error(errorMsg)
+      }
     }
     return Promise.reject(error)
   }

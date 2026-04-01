@@ -176,6 +176,8 @@ class PrequalQuestionListView(APIView):
             order=d.get('order', 0),
             help_text=d.get('help_text', ''),
             options_json=d.get('options_json', []),
+            score_weight=d.get('score_weight', 0),
+            is_knockout=d.get('is_knockout', False),
             metadata=d.get('metadata', {}),
         )
         return success_response(
@@ -220,6 +222,7 @@ class PrequalRuleListView(APIView):
             condition_type=d.get('condition_type', 'equals'),
             compare_value=d.get('compare_value', ''),
             action_type=d.get('action_type', 'next_question'),
+            outcome_code=d.get('outcome_code', ''),
             target_question_id=d.get('target_question_id'),
             target_section_id=d.get('target_section_id'),
             metadata=d.get('metadata', {}),

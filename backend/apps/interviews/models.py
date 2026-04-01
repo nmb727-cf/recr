@@ -130,9 +130,12 @@ INTEGRATION_PROVIDER_CODES = [
 INTERVIEW_TYPE_REGISTRY_DEFAULTS = [
     {'code': 'recruiter_screening', 'name': 'Recruiter Screening', 'description': 'Initial recruiter-driven qualification round.', 'execution_mode': 'manual'},
     {'code': 'ai_screening', 'name': 'AI Screening', 'description': 'Automated AI-based screening flow.', 'execution_mode': 'native'},
+    {'code': 'ai_technical', 'name': 'AI Technical', 'description': 'AI-led technical interview with structured scoring.', 'execution_mode': 'native'},
+    {'code': 'ai_behavioral', 'name': 'AI Behavioral', 'description': 'AI-led behavioral and competency interview.', 'execution_mode': 'native'},
     {'code': 'one_way_video', 'name': 'One Way Video', 'description': 'Candidate submits prerecorded responses.', 'execution_mode': 'native'},
     {'code': 'phone_interview', 'name': 'Phone Interview', 'description': 'Phone-based interview round.', 'execution_mode': 'manual'},
     {'code': 'async_text', 'name': 'Async Text', 'description': 'Asynchronous text-based Q&A interview.', 'execution_mode': 'async'},
+    {'code': 'async_audio', 'name': 'Async Audio', 'description': 'Asynchronous audio response interview flow.', 'execution_mode': 'async'},
     {'code': 'technical_interview', 'name': 'Technical Interview', 'description': 'General technical depth assessment.', 'execution_mode': 'manual'},
     {'code': 'coding_interview', 'name': 'Coding Interview', 'description': 'Hands-on coding evaluation.', 'execution_mode': 'native'},
     {'code': 'system_design', 'name': 'System Design', 'description': 'Architecture and design interview.', 'execution_mode': 'manual'},
@@ -539,6 +542,36 @@ class InterviewDecisionHistory(models.Model):
         ordering = ['-changed_at']
 
 
+class InterviewReviewTask(models.Model):
+    REVIEW_STATUS = [
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_id = models.UUIDField(db_index=True)
+    interview_id = models.UUIDField(db_index=True)
+    review_type = models.CharField(max_length=64, db_index=True)
+    status = models.CharField(max_length=20, choices=REVIEW_STATUS, default='pending', db_index=True)
+    assigned_role = models.CharField(max_length=64, blank=True)
+    assigned_reviewer_id = models.UUIDField(null=True, blank=True, db_index=True)
+    requested_by = models.UUIDField(null=True, blank=True, db_index=True)
+    due_at = models.DateTimeField(null=True, blank=True)
+    external_reference = models.CharField(max_length=255, blank=True, db_index=True)
+    notes = models.TextField(blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'interviews_review_task'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.review_type}:{self.interview_id}:{self.status}'
+
+
 # ─── InterviewFlow ─────────────────────────────────────────────────────────────
 
 class InterviewFlow(models.Model):
@@ -906,3 +939,79 @@ class InterviewSchedulingLink(models.Model):
 
     class Meta:
         db_table = 'interviews_scheduling_link'
+
+
+# ─── InterviewPackage ──────────────────────────────────────────────────────────
+
+class InterviewPackage(models.Model):
+    """
+    Template for a complete interview process, containing multiple rounds.
+    Rounds are stored in the 'rounds' JSONField.
+    """
+    id          = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_id   = models.UUIDField(db_index=True)
+    title       = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    is_active   = models.BooleanField(default=True, db_index=True)
+    # List of InterviewRoundConfig objects
+    rounds      = models.JSONField(default=list, blank=True)
+    created_at  = models.DateTimeField(auto_now_add=True)
+    updated_at  = models.DateTimeField(auto_now=True)
+    created_by  = models.UUIDField(null=True, blank=True)
+    is_deleted  = models.BooleanField(default=False, db_index=True)
+    deleted_at  = models.DateTimeField(null=True, blank=True)
+
+    def soft_delete(self):
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.save()
+
+    def __str__(self):
+        return self.title
+
+    class Meta:
+        db_table = 'interviews_package'
+        ordering = ['-created_at']
+
+
+# ─── InterviewPackageBinding ───────────────────────────────────────────────────
+
+class InterviewPackageBinding(models.Model):
+    """
+    Links a specific InterviewPackage to a JobRequisition.
+    Allows for job-specific automation overrides.
+    """
+    id                 = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_id          = models.UUIDField(db_index=True)
+    job_id             = models.UUIDField(db_index=True, unique=True)
+    package            = models.ForeignKey(InterviewPackage, on_delete=models.CASCADE, related_name='job_bindings')
+    automation_enabled = models.BooleanField(default=True)
+    metadata           = models.JSONField(default=dict, blank=True)
+    created_at         = models.DateTimeField(auto_now_add=True)
+    updated_at         = models.DateTimeField(auto_now=True)
+    is_deleted         = models.BooleanField(default=False, db_index=True)
+    deleted_at         = models.DateTimeField(null=True, blank=True)
+
+    def soft_delete(self):
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.save()
+
+    def get_round_config(self, round_number: int):
+        """Returns the configuration for a specific round (1-based)."""
+        if self.is_deleted or not self.package or self.package.is_deleted:
+            return None
+        rounds = self.package.rounds
+        if not isinstance(rounds, list) or round_number < 1 or round_number > len(rounds):
+            return None
+        return rounds[round_number - 1]
+
+    def get_next_round_config(self, current_round: int):
+        """Returns the next round configuration if available."""
+        return self.get_round_config(current_round + 1)
+
+    def __str__(self):
+        return f"Binding: {self.job_id} -> {self.package.title}"
+
+    class Meta:
+        db_table = 'interviews_package_binding'

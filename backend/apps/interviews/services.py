@@ -19,14 +19,28 @@ from apps.interviews.models import (
     InterviewFeedback,
     InterviewDecision,
     InterviewDecisionHistory,
+    InterviewReviewTask,
     InterviewQuestion,
+    INTERVIEW_TYPE_REGISTRY_DEFAULTS,
 )
+from shared.owner_contracts import OwnerActionContext, OwnerActionResult, OwnerContractError
 
 
 class InterviewTypeService:
 
     @staticmethod
     def list_registry(*, active_only: bool = False):
+        for row in INTERVIEW_TYPE_REGISTRY_DEFAULTS:
+            InterviewType.objects.update_or_create(
+                code=row['code'],
+                defaults={
+                    'name': row['name'],
+                    'description': row.get('description', ''),
+                    'execution_mode': row.get('execution_mode', 'native'),
+                    'configurable': True,
+                    'is_active': True,
+                },
+            )
         qs = InterviewType.objects.filter(is_deleted=False).order_by('name')
         if active_only:
             qs = qs.filter(is_active=True)
@@ -405,6 +419,322 @@ class InterviewDecisionService:
         cfg = thresholds or {}
         upper = float(cfg.get('next_round_min', 80))
         lower = float(cfg.get('reject_max', 50))
+
+
+class InterviewReviewTaskService:
+    AUTOMATION_REVIEW_TYPES = {
+        'ai_output_review',
+        'interview_review',
+        'interview_feedback_review',
+        'manual_check_review',
+    }
+
+    @staticmethod
+    def create_task(
+        *,
+        tenant_id,
+        interview_id,
+        review_type: str,
+        requested_by=None,
+        assigned_role: str = '',
+        assigned_reviewer_id=None,
+        due_at=None,
+        notes: str = '',
+        metadata: dict | None = None,
+        external_reference: str = '',
+    ):
+        if external_reference:
+            existing = InterviewReviewTask.objects.filter(
+                tenant_id=tenant_id,
+                interview_id=interview_id,
+                review_type=review_type,
+                status='pending',
+                external_reference=external_reference,
+            ).first()
+            if existing:
+                return existing, False
+        task = InterviewReviewTask.objects.create(
+            tenant_id=tenant_id,
+            interview_id=interview_id,
+            review_type=review_type,
+            requested_by=requested_by,
+            assigned_role=assigned_role,
+            assigned_reviewer_id=assigned_reviewer_id,
+            due_at=due_at,
+            external_reference=external_reference,
+            notes=notes,
+            metadata=metadata or {},
+        )
+        return task, True
+
+    @staticmethod
+    def create_automation_review_task(
+        *,
+        tenant_id,
+        owner_module: str,
+        entity_type: str,
+        entity_id,
+        review_type: str,
+        requested_by=None,
+        assigned_role: str = '',
+        assigned_reviewer_id=None,
+        due_at=None,
+        notes: str = '',
+        metadata: dict | None = None,
+        external_reference: str = '',
+        approval_required: bool = False,
+        approver_role: str = '',
+    ):
+        if review_type not in InterviewReviewTaskService.AUTOMATION_REVIEW_TYPES:
+            raise ValueError('Unsupported automation review task type.')
+        task_metadata = dict(metadata or {})
+        task_metadata.setdefault('owner_module', owner_module)
+        task_metadata.setdefault('entity_type', entity_type)
+        task_metadata.setdefault('entity_id', str(entity_id))
+        task_metadata.setdefault(
+            'governance',
+            {
+                'approval_required': bool(approval_required),
+                'approver_role': approver_role or 'tenant_admin',
+            },
+        )
+        return InterviewReviewTaskService.create_task(
+            tenant_id=tenant_id,
+            interview_id=entity_id,
+            review_type=review_type,
+            requested_by=requested_by,
+            assigned_role=assigned_role,
+            assigned_reviewer_id=assigned_reviewer_id,
+            due_at=due_at,
+            notes=notes,
+            metadata=task_metadata,
+            external_reference=external_reference,
+        )
+
+    @staticmethod
+    def create_from_orchestration(
+        *,
+        context: OwnerActionContext,
+        owner_module: str,
+        entity_type: str,
+        entity_id,
+        review_type: str,
+        assigned_role: str = '',
+        assigned_reviewer_id=None,
+        due_at=None,
+        notes: str = '',
+        approval_required: bool = False,
+        approver_role: str = '',
+    ):
+        try:
+            task, created = InterviewReviewTaskService.create_automation_review_task(
+                tenant_id=context.tenant_id,
+                owner_module=owner_module,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                review_type=review_type,
+                requested_by=context.actor_id,
+                assigned_role=assigned_role,
+                assigned_reviewer_id=assigned_reviewer_id,
+                due_at=due_at,
+                notes=notes,
+                metadata=context.audit_metadata,
+                external_reference=context.external_reference,
+                approval_required=approval_required,
+                approver_role=approver_role,
+            )
+        except ValueError as exc:
+            message = str(exc)
+            if 'Unsupported automation review task type' in message:
+                raise OwnerContractError.unsupported(message) from exc
+            raise OwnerContractError.validation(message) from exc
+        return OwnerActionResult(
+            owner_module='interviews',
+            action_family='create_review_task',
+            status='completed',
+            target_type='review_task',
+            target_id=str(task.id),
+            duplicate=not created,
+            audit_metadata=context.metadata_payload(
+                owner_module=owner_module,
+                entity_type=entity_type,
+                review_type=review_type,
+                approval_required=bool(approval_required),
+                approver_role=approver_role or 'tenant_admin',
+            ),
+            payload={
+                'review_task_id': str(task.id),
+                'review_type': task.review_type,
+                'assigned_role': task.assigned_role,
+                'assigned_reviewer_id': str(task.assigned_reviewer_id) if task.assigned_reviewer_id else '',
+                'owner_module': task.metadata.get('owner_module', owner_module),
+                'entity_type': task.metadata.get('entity_type', entity_type),
+                'entity_id': task.metadata.get('entity_id', str(entity_id)),
+            },
+        )
+
+    @staticmethod
+    def assign_task(
+        *,
+        tenant_id,
+        interview_id,
+        review_type: str,
+        assigned_reviewer_id=None,
+        assigned_role: str = '',
+        external_reference: str = '',
+    ):
+        task = InterviewReviewTaskService._resolve_task(
+            tenant_id=tenant_id,
+            interview_id=interview_id,
+            review_type=review_type,
+            external_reference=external_reference,
+        )
+        if assigned_reviewer_id and str(task.assigned_reviewer_id or '') == str(assigned_reviewer_id) and task.assigned_role == assigned_role:
+            return task, False
+        task.assigned_reviewer_id = assigned_reviewer_id
+        if assigned_role:
+            task.assigned_role = assigned_role
+        task.save(update_fields=['assigned_reviewer_id', 'assigned_role', 'updated_at'])
+        return task, True
+
+    @staticmethod
+    def assign_from_orchestration(
+        *,
+        context: OwnerActionContext,
+        interview_id,
+        review_type: str,
+        assigned_reviewer_id=None,
+        assigned_role: str = '',
+    ):
+        try:
+            task, created = InterviewReviewTaskService.assign_task(
+                tenant_id=context.tenant_id,
+                interview_id=interview_id,
+                review_type=review_type,
+                assigned_reviewer_id=assigned_reviewer_id,
+                assigned_role=assigned_role,
+                external_reference=context.external_reference,
+            )
+        except ValueError as exc:
+            message = str(exc)
+            if 'not found for assignment' in message:
+                raise OwnerContractError.not_found(message) from exc
+            raise OwnerContractError.validation(message) from exc
+        return OwnerActionResult(
+            owner_module='interviews',
+            action_family='assign',
+            status='completed',
+            target_type='review_task',
+            target_id=str(task.id),
+            duplicate=not created,
+            audit_metadata=context.metadata_payload(review_type=review_type),
+            payload={
+                'review_task_id': str(task.id),
+                'assigned_reviewer_id': str(task.assigned_reviewer_id) if task.assigned_reviewer_id else '',
+                'assigned_role': task.assigned_role,
+            },
+        )
+
+    @staticmethod
+    def mark_operational_flag(
+        *,
+        tenant_id,
+        entity_type: str,
+        entity_id,
+        flag_key: str,
+        flag_value=True,
+        metadata: dict | None = None,
+    ):
+        allowed_flags = {'attention_needed', 'review_required', 'overdue_risk', 'manual_check_required'}
+        if flag_key not in allowed_flags:
+            raise ValueError('Unsupported interview operational flag.')
+        payload = dict(metadata or {})
+        now_iso = timezone.now().isoformat()
+        if entity_type == 'interview':
+            interview = Interview.objects.filter(tenant_id=tenant_id, id=entity_id, is_deleted=False).first()
+            if not interview:
+                raise ValueError('Interview not found for flagging.')
+            metadata_json = dict(interview.metadata or {})
+            flags = dict(metadata_json.get('operational_flags') or {})
+            comparable = {'value': bool(flag_value), **payload}
+            if flags.get(flag_key) and {k: v for k, v in flags[flag_key].items() if k != 'updated_at'} == comparable:
+                return interview, False
+            desired = {**comparable, 'updated_at': now_iso}
+            flags[flag_key] = desired
+            metadata_json['operational_flags'] = flags
+            interview.metadata = metadata_json
+            interview.save(update_fields=['metadata', 'updated_at'])
+            return interview, True
+        if entity_type == 'review_task':
+            task = InterviewReviewTask.objects.filter(tenant_id=tenant_id, id=entity_id).first()
+            if not task:
+                raise ValueError('Interview review task not found for flagging.')
+            metadata_json = dict(task.metadata or {})
+            flags = dict(metadata_json.get('operational_flags') or {})
+            comparable = {'value': bool(flag_value), **payload}
+            if flags.get(flag_key) and {k: v for k, v in flags[flag_key].items() if k != 'updated_at'} == comparable:
+                return task, False
+            desired = {**comparable, 'updated_at': now_iso}
+            flags[flag_key] = desired
+            metadata_json['operational_flags'] = flags
+            task.metadata = metadata_json
+            task.save(update_fields=['metadata', 'updated_at'])
+            return task, True
+        raise ValueError('Unsupported interview entity_type for flagging.')
+
+    @staticmethod
+    def mark_flag_from_orchestration(
+        *,
+        context: OwnerActionContext,
+        entity_type: str,
+        entity_id,
+        flag_key: str,
+        flag_value=True,
+    ):
+        try:
+            obj, created = InterviewReviewTaskService.mark_operational_flag(
+                tenant_id=context.tenant_id,
+                entity_type=entity_type,
+                entity_id=entity_id,
+                flag_key=flag_key,
+                flag_value=flag_value,
+                metadata=context.audit_metadata,
+            )
+        except ValueError as exc:
+            message = str(exc)
+            if 'Unsupported interview entity_type' in message or 'Unsupported interview operational flag' in message:
+                raise OwnerContractError.unsupported(message) from exc
+            if 'not found for flagging' in message:
+                raise OwnerContractError.not_found(message) from exc
+            raise OwnerContractError.validation(message) from exc
+        return OwnerActionResult(
+            owner_module='interviews',
+            action_family='mark_flag',
+            status='completed',
+            target_type=entity_type,
+            target_id=str(obj.id),
+            duplicate=not created,
+            audit_metadata=context.metadata_payload(flag_key=flag_key, flag_value=bool(flag_value)),
+            payload={
+                'flag_key': flag_key,
+                'entity_id': str(obj.id),
+            },
+        )
+
+    @staticmethod
+    def _resolve_task(*, tenant_id, interview_id, review_type: str, external_reference: str = ''):
+        qs = InterviewReviewTask.objects.filter(
+            tenant_id=tenant_id,
+            interview_id=interview_id,
+            review_type=review_type,
+            status='pending',
+        )
+        if external_reference:
+            qs = qs.filter(external_reference=external_reference)
+        task = qs.order_by('-created_at').first()
+        if not task:
+            raise ValueError('Interview review task not found for assignment.')
+        return task
 
         score = payload.get('score')
         if score is None:

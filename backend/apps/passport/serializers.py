@@ -49,6 +49,7 @@ class TalentPassportSerializer(serializers.ModelSerializer):
             'heat_score', 'completeness_score', 'market_demand_score',
             'visibility_settings', 'view_count', 'last_viewed_at',
             'created_at', 'updated_at',
+            'metadata',
         ]
         read_only_fields = [
             'id', 'user_id', 'passport_number', 'share_link_token',
@@ -64,13 +65,18 @@ class TalentPassportPublicSerializer(serializers.ModelSerializer):
         model = TalentPassport
         fields = [
             'id', 'passport_number', 'headline', 'summary',
-            'profile_photo_url', 'video_intro_url',
+            'profile_photo_url', 'cover_image_url', 'video_intro_url',
             'current_title', 'current_company',
             'current_location_city', 'current_location_country',
-            'experience_years', 'skills', 'work_history', 'education',
+            'experience_years', 'current_cv_url',
+            'skills', 'work_history', 'education',
             'certifications', 'projects', 'languages',
             'linkedin_url', 'github_url', 'portfolio_url',
+            'twitter_url', 'behance_url', 'dribbble_url',
+            'notice_period_days', 'preferred_work_mode',
             'is_actively_looking', 'open_to_work',
             'identity_verified', 'background_verified',
             'heat_score', 'completeness_score',
+            'publications', 'awards', 'volunteer_work',
+            'metadata',
         ]

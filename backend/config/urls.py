@@ -43,6 +43,8 @@ urlpatterns = [
     path('api/v1/candidate/', include('apps.jobs.candidate_urls')),
     path('api/v1/talent-pools/', include('apps.talent_pools.urls')),
     path('api/v1/prequalification/', include('apps.prequalification.urls')),
+    path('api/v1/system/', include('apps.module_registry.urls')),
+    path('api/v1/intelligence/', include('apps.orchestration_center.urls')),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
 path("api/schema/swagger/", SpectacularSwaggerView.as_view(url_name="schema")),
      path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),

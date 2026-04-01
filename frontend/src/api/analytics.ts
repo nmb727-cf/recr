@@ -20,4 +20,13 @@ export const analyticsApi = {
 
   interviews: () =>
     http.get<ApiResponse<Record<string, unknown>>>('/analytics/interviews/'),
+
+  interviewIntelligence: (params?: { start_date?: string; end_date?: string; interview_type?: string; interviewer_id?: string }) =>
+    http.get<ApiResponse<Record<string, unknown>>>('/analytics/interviews/intelligence/', { params }),
+
+  hiringIntelligence: () =>
+    http.get<ApiResponse<any>>('/analytics/hiring-intelligence/'),
+
+  recruiterIntelligence: () =>
+    http.get<ApiResponse<any>>('/analytics/recruiter-intelligence/'),
 }

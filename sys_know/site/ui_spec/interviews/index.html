@@ -1,0 +1,1200 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>UI Spec — Interview Command Center - TalentOS System Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#ui-spec-interview-command-center" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="TalentOS System Documentation" class="md-header__button md-logo" aria-label="TalentOS System Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            TalentOS System Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              UI Spec — Interview Command Center
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="TalentOS System Documentation" class="md-nav__button md-logo" aria-label="TalentOS System Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    TalentOS System Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../testing_setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#base-url" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Base URL
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#screens-endpoint-mapping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Screens &amp; Endpoint Mapping
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Screens &amp; Endpoint Mapping">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-interview-types-management" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Interview Types Management
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. Interview Types Management">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        List types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Create type
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update-soft-delete-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Update / soft-delete type
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-interview-templates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Interview Templates
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Interview Templates">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#list-templates-tenant-scoped" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        List templates (tenant-scoped)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#create-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Create template
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#update-delete-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Update / delete template
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-schedule-an-interview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Schedule an Interview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-interview-list-view" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Interview List View
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-interview-detail-view" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Interview Detail View
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-interview-lifecycle-actions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Interview Lifecycle Actions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="6. Interview Lifecycle Actions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Start
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#complete" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Complete
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cancel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cancel
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reschedule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reschedule
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-structured-feedback-panelist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Structured Feedback (Panelist)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="7. Structured Feedback (Panelist)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#view-all-feedback-for-an-interview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        View all feedback for an interview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#submit-update-feedback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Submit / update feedback
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#8-final-decision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Final Decision
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="8. Final Decision">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#get-decision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Get decision
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#record-update-decision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Record / update decision
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#candidate-facing-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Candidate-Facing Endpoints
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="ui-spec-interview-command-center">UI Spec — Interview Command Center</h1>
+<p><strong>Module:</strong> <code>apps/interviews</code>
+<strong>Last updated:</strong> 2026-03-28
+<strong>Audience:</strong> Frontend engineers implementing against the Interview API.</p>
+<p>All requests require <code>Authorization: Bearer &lt;access_token&gt;</code>.
+All responses follow the envelope: <code>{ success, data, message, meta? }</code>.</p>
+<hr />
+<h2 id="base-url">Base URL</h2>
+<pre><code>/api/v1/interviews/
+</code></pre>
+<hr />
+<h2 id="screens-endpoint-mapping">Screens &amp; Endpoint Mapping</h2>
+<h3 id="1-interview-types-management">1. Interview Types Management</h3>
+<blockquote>
+<p>Admin / HR Manager screen for managing the interview format catalog.</p>
+</blockquote>
+<h4 id="list-types">List types</h4>
+<pre><code>GET /api/v1/interviews/types/
+</code></pre>
+<p><strong>Response:</strong></p>
+<pre><code class="language-json">{
+  &quot;success&quot;: true,
+  &quot;data&quot;: {
+    &quot;types&quot;: [
+      {
+        &quot;id&quot;: &quot;uuid&quot;,
+        &quot;name&quot;: &quot;Technical&quot;,
+        &quot;code&quot;: &quot;technical&quot;,
+        &quot;description&quot;: &quot;...&quot;,
+        &quot;is_active&quot;: true,
+        &quot;created_at&quot;: &quot;ISO8601&quot;,
+        &quot;updated_at&quot;: &quot;ISO8601&quot;
+      }
+    ]
+  },
+  &quot;message&quot;: &quot;Interview types retrieved.&quot;,
+  &quot;meta&quot;: { &quot;total&quot;: 9 }
+}
+</code></pre>
+<p><strong>UI notes:</strong>
+- Only show <code>is_active: true</code> types in dropdowns.
+- Admin screens may show all, with toggle to activate/deactivate.</p>
+<h4 id="create-type">Create type</h4>
+<pre><code>POST /api/v1/interviews/types/
+Content-Type: application/json
+
+{ &quot;name&quot;: &quot;Technical&quot;, &quot;code&quot;: &quot;technical&quot;, &quot;description&quot;: &quot;...&quot; }
+</code></pre>
+<p><strong>Required fields:</strong> <code>name</code>, <code>code</code>
+<strong>Errors:</strong> <code>400</code> if <code>code</code> already exists.</p>
+<h4 id="update-soft-delete-type">Update / soft-delete type</h4>
+<pre><code>PUT    /api/v1/interviews/types/&lt;id&gt;/
+DELETE /api/v1/interviews/types/&lt;id&gt;/
+</code></pre>
+<hr />
+<h3 id="2-interview-templates">2. Interview Templates</h3>
+<blockquote>
+<p>Recruiter screen to define reusable interview configurations.</p>
+</blockquote>
+<h4 id="list-templates-tenant-scoped">List templates (tenant-scoped)</h4>
+<pre><code>GET /api/v1/interviews/templates/
+</code></pre>
+<p><strong>Response data key:</strong> <code>templates</code> — array of template objects.
+<strong>Fields of interest:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>uuid</td>
+<td></td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>Display name</td>
+</tr>
+<tr>
+<td><code>interview_type</code></td>
+<td>string</td>
+<td>Legacy code string (<code>ai_screening</code>, <code>panel</code>, …)</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>uuid|null</td>
+<td>FK to <code>InterviewType</code> catalog</td>
+</tr>
+<tr>
+<td><code>type_name</code></td>
+<td>string|null</td>
+<td>Resolved display name from catalog</td>
+</tr>
+<tr>
+<td><code>duration_minutes</code></td>
+<td>int</td>
+<td></td>
+</tr>
+<tr>
+<td><code>scoring_type</code></td>
+<td><code>numeric</code>|<code>pass_fail</code>|<code>criteria</code></td>
+<td>Drives score input UI</td>
+</tr>
+<tr>
+<td><code>passing_threshold</code></td>
+<td>decimal</td>
+<td>Show as percentage</td>
+</tr>
+<tr>
+<td><code>questions</code></td>
+<td>array</td>
+<td>Array of <code>{ text, type, options?, duration? }</code></td>
+</tr>
+<tr>
+<td><code>is_active</code></td>
+<td>bool</td>
+<td>Only active templates shown in schedule form</td>
+</tr>
+</tbody>
+</table>
+<h4 id="create-template">Create template</h4>
+<pre><code>POST /api/v1/interviews/templates/
+</code></pre>
+<p><strong>Writable fields:</strong> <code>name</code>, <code>interview_type</code>, <code>type</code> (uuid), <code>duration_minutes</code>, <code>instructions</code>, <code>scoring_type</code>, <code>passing_threshold</code>, <code>auto_shortlist_above</code>, <code>auto_reject_below</code>, <code>anti_cheat_enabled</code>, <code>recording_enabled</code>, <code>questions</code> (JSON array), <code>scoring_criteria</code> (JSON dict).</p>
+<h4 id="update-delete-template">Update / delete template</h4>
+<pre><code>PUT    /api/v1/interviews/templates/&lt;id&gt;/
+DELETE /api/v1/interviews/templates/&lt;id&gt;/
+</code></pre>
+<p>DELETE is a soft delete — template disappears from lists but historical interviews are unaffected.</p>
+<hr />
+<h3 id="3-schedule-an-interview">3. Schedule an Interview</h3>
+<blockquote>
+<p>Triggered from pipeline board, candidate profile, or application drawer.</p>
+</blockquote>
+<pre><code>POST /api/v1/interviews/
+Content-Type: application/json
+</code></pre>
+<p><strong>Payload:</strong></p>
+<pre><code class="language-json">{
+  &quot;application_id&quot;: &quot;uuid&quot;,
+  &quot;candidate_id&quot;: &quot;uuid&quot;,
+  &quot;requisition_id&quot;: &quot;uuid&quot;,
+  &quot;interview_type&quot;: &quot;panel&quot;,
+  &quot;interview_round&quot;: 2,
+  &quot;title&quot;: &quot;Final Panel&quot;,
+  &quot;scheduled_at&quot;: &quot;2026-04-10T10:00:00Z&quot;,
+  &quot;template_id&quot;: &quot;uuid&quot;,
+  &quot;interview_link&quot;: &quot;https://meet.example.com/abc&quot;,
+  &quot;panelist_ids&quot;: [&quot;uuid-user-1&quot;, &quot;uuid-user-2&quot;]
+}
+</code></pre>
+<p><strong>Required:</strong> <code>application_id</code>, <code>candidate_id</code>, <code>requisition_id</code>, <code>interview_type</code>.
+<strong>Optional:</strong> <code>template_id</code> (auto-seeds questions), <code>panelist_ids</code> (assigns panelists).</p>
+<p><strong>Success response:</strong> <code>201</code>, <code>data.interview</code> — full interview object.</p>
+<p><strong>UI notes:</strong>
+- Populate <code>interview_type</code> from <code>GET /interviews/types/</code>.
+- Populate <code>template_id</code> from <code>GET /interviews/templates/</code>.
+- <code>panelist_ids</code> — user picker limited to tenant users with <code>interviewer</code> role.</p>
+<hr />
+<h3 id="4-interview-list-view">4. Interview List View</h3>
+<blockquote>
+<p>Table/board view showing all interviews for the tenant.</p>
+</blockquote>
+<pre><code>GET /api/v1/interviews/
+</code></pre>
+<p><strong>Query params:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Param</th>
+<th>Type</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>status</code></td>
+<td>string</td>
+<td>Filter by status</td>
+</tr>
+<tr>
+<td><code>candidate_id</code></td>
+<td>uuid</td>
+<td>Filter by candidate</td>
+</tr>
+<tr>
+<td><code>application_id</code></td>
+<td>uuid</td>
+<td>Filter by application</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>string</td>
+<td>Filter by <code>interview_type</code> code</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Response data key:</strong> <code>interviews</code> — array.
+<strong>Response meta:</strong> <code>{ total: N }</code> — use for pagination display.</p>
+<p><strong>Status values and badge colours:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Suggested colour</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>scheduled</code></td>
+<td>Blue</td>
+</tr>
+<tr>
+<td><code>in_progress</code></td>
+<td>Amber</td>
+</tr>
+<tr>
+<td><code>completed</code></td>
+<td>Green</td>
+</tr>
+<tr>
+<td><code>cancelled</code></td>
+<td>Red</td>
+</tr>
+<tr>
+<td><code>no_show</code></td>
+<td>Grey</td>
+</tr>
+<tr>
+<td><code>rescheduled</code></td>
+<td>Purple</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="5-interview-detail-view">5. Interview Detail View</h3>
+<pre><code>GET /api/v1/interviews/&lt;id&gt;/
+</code></pre>
+<p><strong>Response data keys:</strong> <code>interview</code>, <code>panelists</code>, <code>questions</code>.
+The <code>interview</code> object includes an inline <code>decision</code> field (null if not yet recorded).</p>
+<p><strong>Embedded <code>decision</code> shape:</strong></p>
+<pre><code class="language-json">{
+  &quot;id&quot;: &quot;uuid&quot;,
+  &quot;decision&quot;: &quot;hire&quot;,
+  &quot;notes&quot;: &quot;Strong candidate.&quot;,
+  &quot;decided_by&quot;: &quot;uuid&quot;,
+  &quot;decided_at&quot;: &quot;ISO8601&quot;
+}
+</code></pre>
+<hr />
+<h3 id="6-interview-lifecycle-actions">6. Interview Lifecycle Actions</h3>
+<p>All are <code>POST</code> — no request body required unless noted.</p>
+<h4 id="start">Start</h4>
+<pre><code>POST /api/v1/interviews/&lt;id&gt;/start/
+</code></pre>
+<p>Transitions <code>scheduled → in_progress</code>. Enable once <code>scheduled_at</code> is reached.
+<strong>Error if not <code>scheduled</code>:</strong> <code>400 { "message": "Cannot start interview in status '...'." }</code></p>
+<h4 id="complete">Complete</h4>
+<pre><code>POST /api/v1/interviews/&lt;id&gt;/complete/
+Body (optional):
+{
+  &quot;overall_score&quot;: 82.5,
+  &quot;recommendation&quot;: &quot;recommend&quot;,
+  &quot;feedback_summary&quot;: &quot;Solid communication skills.&quot;
+}
+</code></pre>
+<p>Transitions <code>in_progress → completed</code>.</p>
+<p><strong><code>recommendation</code> choices:</strong>
+<code>strongly_recommend</code> | <code>recommend</code> | <code>neutral</code> | <code>not_recommend</code> | <code>reject</code></p>
+<h4 id="cancel">Cancel</h4>
+<pre><code>POST /api/v1/interviews/&lt;id&gt;/cancel/
+Body (optional): { &quot;reason&quot;: &quot;Candidate withdrew&quot; }
+</code></pre>
+<h4 id="reschedule">Reschedule</h4>
+<pre><code>POST /api/v1/interviews/&lt;id&gt;/reschedule/
+Body: { &quot;scheduled_at&quot;: &quot;ISO8601&quot; }
+</code></pre>
+<hr />
+<h3 id="7-structured-feedback-panelist">7. Structured Feedback (Panelist)</h3>
+<blockquote>
+<p>Each panelist submits feedback post-interview. One record per panelist — submit is idempotent.</p>
+</blockquote>
+<h4 id="view-all-feedback-for-an-interview">View all feedback for an interview</h4>
+<pre><code>GET /api/v1/interviews/&lt;id&gt;/structured-feedback/
+</code></pre>
+<p><strong>Response data key:</strong> <code>feedback</code> — array of feedback objects.</p>
+<p><strong>Feedback object:</strong></p>
+<pre><code class="language-json">{
+  &quot;id&quot;: &quot;uuid&quot;,
+  &quot;panelist_id&quot;: &quot;uuid&quot;,
+  &quot;score&quot;: 75.0,
+  &quot;notes&quot;: &quot;Good problem-solving.&quot;,
+  &quot;recommendation&quot;: &quot;hire&quot;,
+  &quot;criteria_scores&quot;: {
+    &quot;communication&quot;: 80,
+    &quot;technical_depth&quot;: 70,
+    &quot;culture_fit&quot;: 75
+  },
+  &quot;submitted_at&quot;: &quot;ISO8601&quot;
+}
+</code></pre>
+<h4 id="submit-update-feedback">Submit / update feedback</h4>
+<pre><code>POST /api/v1/interviews/&lt;id&gt;/structured-feedback/
+Content-Type: application/json
+</code></pre>
+<p><strong>Payload:</strong></p>
+<pre><code class="language-json">{
+  &quot;score&quot;: 75.0,
+  &quot;notes&quot;: &quot;Good problem-solving.&quot;,
+  &quot;recommendation&quot;: &quot;hire&quot;,
+  &quot;criteria_scores&quot;: { &quot;communication&quot;: 80, &quot;technical_depth&quot;: 70 }
+}
+</code></pre>
+<p><strong><code>recommendation</code> choices:</strong> <code>hire</code> | <code>reject</code> | <code>hold</code> | <code>next_round</code></p>
+<p><strong>UI notes:</strong>
+- Score input type depends on <code>template.scoring_type</code>:
+  - <code>numeric</code> → number input (0–100)
+  - <code>pass_fail</code> → toggle (Pass / Fail → map to score 100 / 0)
+  - <code>criteria</code> → per-criterion sliders, populate keys from <code>template.scoring_criteria</code>
+- Submitting updates <code>interview.human_score</code> (server-calculated average).
+- Lock form once interview status is <code>cancelled</code>.</p>
+<hr />
+<h3 id="8-final-decision">8. Final Decision</h3>
+<blockquote>
+<p>HR Manager / Hiring Manager records the final call after all feedback is in.</p>
+</blockquote>
+<h4 id="get-decision">Get decision</h4>
+<pre><code>GET /api/v1/interviews/&lt;id&gt;/decision/
+</code></pre>
+<p>Returns <code>404</code> if not yet recorded.</p>
+<h4 id="record-update-decision">Record / update decision</h4>
+<pre><code>POST /api/v1/interviews/&lt;id&gt;/decision/
+Content-Type: application/json
+
+{ &quot;decision&quot;: &quot;hire&quot;, &quot;notes&quot;: &quot;Unanimous panel recommendation.&quot; }
+</code></pre>
+<p><strong><code>decision</code> choices:</strong> <code>hire</code> | <code>reject</code> | <code>hold</code> | <code>next_round</code></p>
+<p><strong>UI notes:</strong>
+- Only show decision form when <code>interview.status === 'completed'</code>.
+- Form is editable (POST is upsert) — allow correction before it propagates downstream.
+- After <code>hire</code> decision, surface "Create Offer" CTA.
+- After <code>next_round</code> decision, surface "Schedule Next Round" CTA (pre-fill <code>interview_round + 1</code>).</p>
+<hr />
+<h2 id="candidate-facing-endpoints">Candidate-Facing Endpoints</h2>
+<p>Mounted at <code>/api/v1/candidate/interviews/</code> (separate URL prefix).</p>
+<table>
+<thead>
+<tr>
+<th>Endpoint</th>
+<th>Method</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/</code></td>
+<td>GET</td>
+<td>Candidate's own interview list</td>
+</tr>
+<tr>
+<td><code>/&lt;id&gt;/start/</code></td>
+<td>POST</td>
+<td>Candidate starts their async interview</td>
+</tr>
+<tr>
+<td><code>/&lt;id&gt;/submit-answer/</code></td>
+<td>POST</td>
+<td>Submit answer for one question</td>
+</tr>
+<tr>
+<td><code>/&lt;id&gt;/complete/</code></td>
+<td>POST</td>
+<td>Mark interview done</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Submit answer payload:</strong></p>
+<pre><code class="language-json">{
+  &quot;question_id&quot;: &quot;uuid&quot;,
+  &quot;answer_text&quot;: &quot;...&quot;,
+  &quot;video_url&quot;: &quot;https://...&quot;
+}
+</code></pre>
+<hr />
+<h2 id="error-reference">Error Reference</h2>
+<table>
+<thead>
+<tr>
+<th>HTTP</th>
+<th>Meaning</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>400</code></td>
+<td>Validation error</td>
+<td>Missing/invalid fields; invalid status transition</td>
+</tr>
+<tr>
+<td><code>401</code></td>
+<td>Unauthenticated</td>
+<td>No or expired JWT</td>
+</tr>
+<tr>
+<td><code>403</code></td>
+<td>Forbidden</td>
+<td>Authenticated but missing RBAC permission</td>
+</tr>
+<tr>
+<td><code>404</code></td>
+<td>Not found</td>
+<td>Wrong ID or wrong tenant</td>
+</tr>
+</tbody>
+</table>
+<p>Error envelope:</p>
+<pre><code class="language-json">{
+  &quot;success&quot;: false,
+  &quot;data&quot;: null,
+  &quot;message&quot;: &quot;Human-readable error.&quot;,
+  &quot;errors&quot;: { &quot;field&quot;: [&quot;error detail&quot;] }
+}
+</code></pre>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

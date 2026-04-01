@@ -152,8 +152,13 @@ Response: {tenant}
 
 PUT /api/v1/organisation/profile/
 Update tenant profile.
-Body: {name, website, logo_url, industry, size_range, settings}
+Body: {name, website, logo_url, industry, size_range, settings, reference_prefix_custom}
 Response: {tenant}
+
+Organisation profile response includes:
+* reference_prefix_auto
+* reference_prefix_custom
+* effective_reference_prefix
 
 ### Users
 
@@ -410,19 +415,24 @@ GET /api/v1/applications/{id}/
 Response: {application, candidate, stage_history, interviews, notes}
 
 PUT /api/v1/applications/{id}/
+Manual stage/status changes in company-visible stages are allowed only for the job owner.
 Response: {application}
 
 POST /api/v1/applications/{id}/move-stage/
 Move candidate to different stage.
 Body: {stage_id, notes}
+Manual stage movement in company-visible stages is allowed only for the job owner.
+System/approved-threshold automation is exempt.
 Response: {application}
 
 POST /api/v1/applications/{id}/shortlist/
 Body: {notes}
+Allowed only for the job owner in company-visible stages (manual actions).
 Response: {application}
 
 POST /api/v1/applications/{id}/reject/
 Body: {reason, category, send_email}
+Allowed only for the job owner in company-visible stages (manual actions).
 Response: {application}
 
 POST /api/v1/applications/{id}/withdraw/
@@ -431,6 +441,7 @@ Response: {application}
 
 POST /api/v1/applications/{id}/make-offer/
 Body: {offer_amount, currency, joining_date, compensation_details}
+Allowed only for the job owner in company-visible stages (manual actions).
 Response: {application, offer_letter}
 
 ### Pipeline View
@@ -442,6 +453,7 @@ Response: {stages[], applications_by_stage{}}
 POST /api/v1/pipeline/bulk-action/
 Bulk move, reject, or shortlist candidates.
 Body: {application_ids[], action, data{}}
+Manual stage actions are owner-restricted per application in company-visible stages.
 Response: {updated_count, results[]}
 
 ### Action Deadlines
@@ -1073,3 +1085,17 @@ GET /api/v1/billing/usage/
 POST /api/v1/billing/upgrade/
 POST /api/v1/billing/cancel/
 ENDOFFILE
+
+---
+
+## MODULE: CANDIDATE/JOB REFERENCE IDs
+
+Candidate responses include:
+* `candidate_ref_id` (immutable human-facing reference)
+
+Job requisition responses include:
+* `job_ref_id` (immutable human-facing reference)
+
+Search support:
+* Candidate list/database `search` matches `candidate_ref_id`
+* Job requisition list `search` matches `job_ref_id` and title

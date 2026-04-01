@@ -160,6 +160,7 @@ export default function ClaimProfile() {
       const payload: RegisterCandidatePayload = {
         email: values.email,
         password: values.password,
+        password_confirm: values.confirm_password,
         first_name: values.first_name,
         last_name: values.last_name,
       }

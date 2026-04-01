@@ -16,13 +16,13 @@ export default function RemindersWidget() {
   const navigate = useNavigate()
 
   const { data, isLoading, refetch } = useApiQuery(['crm-reminders'], () => 
-    http.get('/crm/reminders/')
+    http.get('/candidates/crm/reminders/')
   )
   const reminders = (data as any)?.data?.reminders ?? []
 
   const handleDone = async (id: string) => {
     try {
-      await http.post(`/crm/reminders/${id}/complete/`)
+      await http.post(`/candidates/crm/reminders/${id}/complete/`)
       refetch()
     } catch {
       // error

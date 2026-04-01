@@ -168,6 +168,11 @@ export default function JobDetailPanel({ jobId, onActionSuccess }: { jobId: stri
           </div>
 
           <Descriptions column={1} size="small" labelStyle={{ color: '#8c8c8c', fontWeight: 500, width: 120 }}>
+            <Descriptions.Item label="ID">
+              <Tag color="blue" style={{ fontWeight: 700 }}>
+                {requisition.job_ref_id || 'Pending'}
+              </Tag>
+            </Descriptions.Item>
             <Descriptions.Item label="Job Type">
               {requisition.job_type.replace(/_/g, ' ')}
             </Descriptions.Item>

@@ -1,439 +1,1048 @@
-import { useState, useEffect } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
-  Tabs, Card, Form, Input, Button, Row, Col, Space, message,
-  Typography, Avatar, Divider, Spin, Progress, DatePicker, Select,
-  Switch, InputNumber, List, Modal, Empty,
+  Form, Input, Select, DatePicker, Switch, InputNumber,
+  Modal, message, Popconfirm, Spin,
 } from 'antd'
 import {
-  UserOutlined, LinkedinOutlined, GithubOutlined,
-  GlobalOutlined, PlusOutlined, EditOutlined, DeleteOutlined,
-  ShareAltOutlined, CopyOutlined, ReloadOutlined,
-} from '@ant-design/icons'
+  User, MapPin, Briefcase, GraduationCap, Star, Settings2, Shield,
+  Globe, Copy, RefreshCw, Eye, Plus, Pencil, Trash2, Award,
+  CheckCircle2, XCircle, Clock, FileText, Link2, BadgeCheck,
+  Linkedin, Github, Twitter, Palette, Hash, Building2,
+  Layers, Image, SlidersHorizontal, ChevronDown, ChevronUp,
+  ExternalLink, Minus,
+} from 'lucide-react'
 import dayjs from 'dayjs'
+import { useQueryClient } from '@tanstack/react-query'
 import { useApiQuery } from '@/hooks/useApiQuery'
 import { passportApi } from '@/api/passport'
-import type { Passport, PassportWorkExperience, PassportEducation } from '@/types'
+import { useAuthStore } from '@/store/authStore'
+import { cn } from '@/utils/cn'
+import type {
+  Passport, PassportWorkExperience, PassportEducation,
+  PassportCertification, PassportProject,
+} from '@/types'
 
-const { Title, Text, Paragraph } = Typography
-const { TextArea } = Input
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-// ─── Shared Components ────────────────────────────────────────────────────────
+const WORK_MODE_OPTIONS = [
+  { value: 'onsite', label: 'On-site' },
+  { value: 'remote', label: 'Remote' },
+  { value: 'hybrid', label: 'Hybrid' },
+  { value: 'any', label: 'Any' },
+]
 
-const ShareSection = () => {
-  const [shareUrl, setShareUrl] = useState('')
-  const [loading, setLoading] = useState(false)
+const CURRENCY_OPTIONS = [
+  { value: 'INR', label: 'INR ₹' },
+  { value: 'USD', label: 'USD $' },
+  { value: 'GBP', label: 'GBP £' },
+  { value: 'EUR', label: 'EUR €' },
+  { value: 'AED', label: 'AED' },
+  { value: 'SGD', label: 'SGD' },
+  { value: 'AUD', label: 'AUD' },
+]
 
-  const fetchLink = async () => {
-    try {
-      const res = await passportApi.getShareLink()
-      setShareUrl(res.data.data.share_url)
-    } catch (err) {
-      message.error('Failed to fetch share link')
-    }
-  }
+const JOB_TYPE_OPTIONS = [
+  { value: 'full_time', label: 'Full-time' },
+  { value: 'part_time', label: 'Part-time' },
+  { value: 'contract', label: 'Contract' },
+  { value: 'freelance', label: 'Freelance' },
+  { value: 'internship', label: 'Internship' },
+]
 
-  const regenerate = async () => {
-    setLoading(true)
-    try {
-      const res = await passportApi.regenerateShareLink()
-      setShareUrl(res.data.data.share_url)
-      message.success('Link regenerated')
-    } catch (err) {
-      message.error('Failed to regenerate link')
-    } finally {
-      setLoading(false)
-    }
-  }
+const TABS = [
+  { key: 'overview',     label: 'Overview',     Icon: User },
+  { key: 'experience',   label: 'Experience',   Icon: Briefcase },
+  { key: 'education',    label: 'Education',    Icon: GraduationCap },
+  { key: 'skills',       label: 'Skills',       Icon: Star },
+  { key: 'projects',     label: 'Projects',     Icon: Layers },
+  { key: 'preferences',  label: 'Preferences',  Icon: Settings2 },
+  { key: 'privacy',      label: 'Privacy',      Icon: Shield },
+]
 
-  useEffect(() => {
-    fetchLink()
-  }, [])
+// Default visibility settings — what's shown publicly by default
+const VISIBILITY_DEFAULTS: Record<string, boolean> = {
+  show_salary:        false,
+  show_contact:       false,
+  show_notice_period: true,
+  show_availability:  true,
+  show_work_mode:     true,
+  show_projects:      true,
+  show_certifications: true,
+  show_publications:  true,
+  show_awards:        true,
+  show_volunteer:     true,
+}
 
+const VISIBILITY_LABELS: Record<string, { label: string; description: string }> = {
+  show_salary:        { label: 'Salary Expectations',   description: 'Show expected salary range on public profile' },
+  show_contact:       { label: 'Contact Details',       description: 'Show email / phone number publicly' },
+  show_notice_period: { label: 'Notice Period',         description: 'Show notice period / availability date' },
+  show_availability:  { label: 'Availability Status',   description: 'Show "Actively Looking" / "Open to Work" badges' },
+  show_work_mode:     { label: 'Work Mode Preference',  description: 'Show remote / hybrid / on-site preference' },
+  show_projects:      { label: 'Projects & Portfolio',  description: 'Show projects section on public profile' },
+  show_certifications:{ label: 'Certifications',        description: 'Show certifications on public profile' },
+  show_publications:  { label: 'Publications',          description: 'Show publications and papers on public profile' },
+  show_awards:        { label: 'Awards & Recognition',  description: 'Show awards and honours on public profile' },
+  show_volunteer:     { label: 'Volunteer Work',        description: 'Show volunteer experience on public profile' },
+}
+
+// ─── Small helpers ────────────────────────────────────────────────────────────
+
+function Label({ children }: { children: React.ReactNode }) {
   return (
-    <Card bordered={false} style={{ marginTop: 24, background: '#f0f5ff', borderRadius: 12 }}>
-      <Space direction="vertical" style={{ width: '100%' }}>
-        <Space>
-          <ShareAltOutlined />
-          <Text strong>Share My Passport</Text>
-        </Space>
-        <Text type="secondary" style={{ fontSize: 13 }}>
-          Anyone with this link can view your professional profile.
-        </Text>
-        <Space.Compact style={{ width: '100%' }}>
-          <Input value={shareUrl} readOnly />
-          <Button
-            icon={<CopyOutlined />}
-            onClick={() => {
-              navigator.clipboard.writeText(shareUrl)
-              message.success('Link copied to clipboard')
-            }}
-          >
-            Copy
-          </Button>
-          <Button icon={<ReloadOutlined />} onClick={regenerate} loading={loading}>
-            Regenerate
-          </Button>
-        </Space.Compact>
-      </Space>
-    </Card>
+    <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">
+      {children}
+    </div>
   )
 }
 
-// ─── Tabs ───────────────────────────────────────────────────────────────────
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 pb-2 mb-4 border-b border-slate-100">
+      {children}
+    </div>
+  )
+}
 
-function ProfileTab({ passport, onUpdate }: { passport: Passport; onUpdate: () => void }) {
+// ─── Identity Sidebar ─────────────────────────────────────────────────────────
+
+function IdentitySidebar({ passport, userName }: { passport: Passport; userName: string }) {
+  const initials = userName
+    .split(' ')
+    .slice(0, 2)
+    .map(n => n[0]?.toUpperCase() ?? '')
+    .join('')
+
+  const verifications = [
+    { label: 'Identity',    verified: !!passport.identity_verified },
+    { label: 'Background',  verified: !!passport.background_verified },
+    { label: 'Employment',  verified: !!passport.employment_verified },
+    { label: 'Education',   verified: !!passport.education_verified },
+  ]
+
+  const score = Math.round(passport.completeness_score ?? 0)
+  const scoreColor =
+    score >= 80 ? 'text-emerald-600' :
+    score >= 50 ? 'text-amber-500' :
+    'text-rose-500'
+
+  return (
+    <div className="w-64 shrink-0 flex flex-col gap-0 overflow-y-auto border-r border-slate-200 bg-white">
+      {/* Avatar + name */}
+      <div className="p-5 border-b border-slate-100">
+        <div className="flex flex-col items-center gap-3 text-center">
+          {passport.profile_photo_url ? (
+            <img
+              src={passport.profile_photo_url}
+              alt="Profile"
+              className="h-16 w-16 rounded-2xl object-cover shadow-md border-2 border-white ring-2 ring-blue-100"
+              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+            />
+          ) : (
+            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xl font-black shadow-md shadow-blue-100">
+              {initials || <User size={24} />}
+            </div>
+          )}
+          <div>
+            <div className="text-sm font-black text-slate-900 leading-tight">{userName || '—'}</div>
+            {passport.current_title && (
+              <div className="text-[11px] text-slate-500 font-medium mt-0.5">{passport.current_title}</div>
+            )}
+            {passport.current_company && (
+              <div className="text-[10px] text-slate-400 mt-0.5">{passport.current_company}</div>
+            )}
+            {(passport.current_location_city || passport.current_location_country) && (
+              <div className="flex items-center justify-center gap-1 mt-1.5 text-[10px] text-slate-400 font-medium">
+                <MapPin size={10} />
+                {[passport.current_location_city, passport.current_location_country].filter(Boolean).join(', ')}
+              </div>
+            )}
+          </div>
+          {passport.passport_number && (
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-[9px] font-black text-slate-500 tracking-widest">
+              <Hash size={9} />
+              {passport.passport_number}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Completeness */}
+      <div className="p-4 border-b border-slate-100">
+        <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">
+          Profile Completeness
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
+            <div
+              className={cn(
+                'h-full rounded-full transition-all duration-500',
+                score >= 80 ? 'bg-emerald-500' :
+                score >= 50 ? 'bg-amber-400' :
+                'bg-rose-400'
+              )}
+              style={{ width: `${score}%` }}
+            />
+          </div>
+          <span className={cn('text-xs font-black', scoreColor)}>{score}%</span>
+        </div>
+        {score < 80 && (
+          <div className="text-[9px] text-slate-400 mt-1.5 font-medium">
+            {score < 40 ? 'Add more details to unlock full visibility' : 'Almost there — fill in missing sections'}
+          </div>
+        )}
+      </div>
+
+      {/* Open to work */}
+      <div className="p-4 border-b border-slate-100">
+        <div className="flex items-center justify-between">
+          <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">Status</div>
+        </div>
+        <div className="mt-2 flex flex-col gap-1.5">
+          {passport.is_actively_looking && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200">
+              <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700">
+                Actively Looking
+              </span>
+            </div>
+          )}
+          {passport.open_to_work && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200">
+              <div className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+              <span className="text-[9px] font-black uppercase tracking-widest text-blue-700">
+                Open to Opportunities
+              </span>
+            </div>
+          )}
+          {!passport.is_actively_looking && !passport.open_to_work && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-200">
+              <div className="h-1.5 w-1.5 rounded-full bg-slate-400" />
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">
+                Not Looking
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Verification */}
+      <div className="p-4 border-b border-slate-100">
+        <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">
+          Verifications
+        </div>
+        <div className="flex flex-col gap-1.5">
+          {verifications.map(v => (
+            <div key={v.label} className="flex items-center justify-between">
+              <span className="text-[10px] text-slate-500 font-medium">{v.label}</span>
+              {v.verified
+                ? <CheckCircle2 size={13} className="text-emerald-500" />
+                : <XCircle size={13} className="text-slate-300" />
+              }
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Stats */}
+      {(passport.view_count != null || passport.heat_score) && (
+        <div className="p-4">
+          <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">
+            Insights
+          </div>
+          <div className="flex flex-col gap-1.5">
+            {passport.view_count != null && (
+              <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium">
+                <Eye size={11} className="text-slate-400" />
+                {passport.view_count} profile views
+              </div>
+            )}
+            {(passport.heat_score ?? 0) > 0 && (
+              <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium">
+                <BadgeCheck size={11} className="text-blue-400" />
+                Heat score: {passport.heat_score}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Overview Tab ─────────────────────────────────────────────────────────────
+
+function OverviewTab({ passport, onRefresh }: { passport: Passport; onRefresh: () => void }) {
   const [form] = Form.useForm()
   const [saving, setSaving] = useState(false)
+
+  // Custom fields (metadata) — managed as a list of {key, value} pairs
+  const [customFields, setCustomFields] = useState<{ key: string; value: string }[]>(() => {
+    const meta = passport.metadata
+    if (!meta || typeof meta !== 'object') return []
+    return Object.entries(meta)
+      .filter(([, v]) => v !== null && v !== undefined)
+      .map(([k, v]) => ({ key: k, value: String(v) }))
+  })
+  const [savingCustom, setSavingCustom] = useState(false)
+  const [showCustomFields, setShowCustomFields] = useState(false)
 
   const onFinish = async (values: any) => {
     setSaving(true)
     try {
       await passportApi.update(values)
-      message.success('Profile updated')
-      onUpdate()
-    } catch (err) {
-      message.error('Update failed')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <Form form={form} layout="vertical" initialValues={passport} onFinish={onFinish}>
-      <Row gutter={24} align="middle" style={{ marginBottom: 24 }}>
-        <Col>
-          <Avatar size={100} icon={<UserOutlined />} style={{ background: '#1890ff' }} />
-        </Col>
-        <Col flex="auto">
-          <Text type="secondary">Profile Completeness</Text>
-          <Progress percent={passport.completeness_score} status="active" />
-        </Col>
-      </Row>
-
-      <Row gutter={16}>
-        <Col span={12}>
-          <Form.Item name="headline" label="Headline">
-            <Input placeholder="e.g. Senior Full Stack Engineer" />
-          </Form.Item>
-        </Col>
-        <Col span={12}>
-          <Form.Item name="current_title" label="Current Title">
-            <Input />
-          </Form.Item>
-        </Col>
-      </Row>
-
-      <Form.Item name="summary" label="Professional Summary">
-        <TextArea rows={4} />
-      </Form.Item>
-
-      <Form.Item name="video_intro_url" label="Video Introduction URL (Loom, YouTube)">
-        <Input prefix={<GlobalOutlined />} />
-      </Form.Item>
-
-      <Divider>Social Links</Divider>
-      <Row gutter={16}>
-        <Col span={8}>
-          <Form.Item name="linkedin_url" label="LinkedIn">
-            <Input prefix={<LinkedinOutlined />} />
-          </Form.Item>
-        </Col>
-        <Col span={8}>
-          <Form.Item name="github_url" label="GitHub">
-            <Input prefix={<GithubOutlined />} />
-          </Form.Item>
-        </Col>
-        <Col span={8}>
-          <Form.Item name="portfolio_url" label="Portfolio">
-            <Input prefix={<GlobalOutlined />} />
-          </Form.Item>
-        </Col>
-      </Row>
-
-      <Button type="primary" htmlType="submit" loading={saving}>Save Profile</Button>
-    </Form>
-  )
-}
-
-function ExperienceTab({ passport, onUpdate }: { passport: Passport; onUpdate: () => void }) {
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingItem, setEditingItem] = useState<PassportWorkExperience | null>(null)
-  const [form] = Form.useForm()
-  const [saving, setSaving] = useState(false)
-
-  const handleSave = async (values: any) => {
-    setSaving(true)
-    const newHistory = editingItem
-      ? passport.work_history.map(h => h.id === editingItem.id ? { ...h, ...values, id: h.id } : h)
-      : [...passport.work_history, { ...values, id: crypto.randomUUID() }]
-
-    try {
-      await passportApi.update({ work_history: newHistory })
-      message.success('Experience updated')
-      setIsModalOpen(false)
-      onUpdate()
-    } catch (err) {
-      message.error('Update failed')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleDelete = async (id: string) => {
-    const newHistory = passport.work_history.filter(h => h.id !== id)
-    try {
-      await passportApi.update({ work_history: newHistory })
-      message.success('Experience deleted')
-      onUpdate()
-    } catch (err) {
-      message.error('Delete failed')
-    }
-  }
-
-  return (
-    <div>
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => {
-            setEditingItem(null)
-            form.resetFields()
-            setIsModalOpen(true)
-          }}
-        >
-          Add Experience
-        </Button>
-      </div>
-
-      <List
-        dataSource={passport.work_history}
-        renderItem={(item) => (
-          <List.Item
-            actions={[
-              <Button
-                type="text"
-                icon={<EditOutlined />}
-                onClick={() => {
-                  setEditingItem(item)
-                  form.setFieldsValue({
-                    ...item,
-                    from_date: dayjs(item.from_date),
-                    to_date: item.to_date ? dayjs(item.to_date) : null,
-                  })
-                  setIsModalOpen(true)
-                }}
-              />,
-              <Popconfirm title="Delete?" onConfirm={() => handleDelete(item.id)}>
-                <Button type="text" danger icon={<DeleteOutlined />} />
-              </Popconfirm>,
-            ]}
-          >
-            <List.Item.Meta
-              title={<Text strong>{item.title} at {item.company}</Text>}
-              description={
-                <div>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    {dayjs(item.from_date).format('MMM YYYY')} - {item.is_current ? 'Present' : dayjs(item.to_date).format('MMM YYYY')}
-                  </Text>
-                  <Paragraph style={{ marginTop: 8 }}>{item.description}</Paragraph>
-                </div>
-              }
-            />
-          </List.Item>
-        )}
-      />
-
-      <Modal
-        title={editingItem ? 'Edit Experience' : 'Add Experience'}
-        open={isModalOpen}
-        onCancel={() => setIsModalOpen(false)}
-        onOk={() => form.submit()}
-        confirmLoading={saving}
-      >
-        <Form form={form} layout="vertical" onFinish={handleSave}>
-          <Form.Item name="company" label="Company" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="title" label="Job Title" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item name="from_date" label="From" rules={[{ required: true }]}>
-                <DatePicker picker="month" style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="to_date" label="To">
-                <DatePicker picker="month" style={{ width: '100%' }} />
-              </Form.Item>
-            </Col>
-          </Row>
-          <Form.Item name="is_current" valuePropName="checked">
-            <Switch checkedChildren="Current Position" unCheckedChildren="Previous" />
-          </Form.Item>
-          <Form.Item name="description" label="Description">
-            <TextArea rows={4} />
-          </Form.Item>
-        </Form>
-      </Modal>
-    </div>
-  )
-}
-
-function EducationTab({ passport, onUpdate }: { passport: Passport; onUpdate: () => void }) {
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingItem, setEditingItem] = useState<PassportEducation | null>(null)
-  const [form] = Form.useForm()
-  const [saving, setSaving] = useState(false)
-
-  const handleSave = async (values: any) => {
-    setSaving(true)
-    const newEdu = editingItem
-      ? passport.education.map(h => h.id === editingItem.id ? { ...h, ...values, id: h.id } : h)
-      : [...passport.education, { ...values, id: crypto.randomUUID() }]
-
-    try {
-      await passportApi.update({ education: newEdu })
-      message.success('Education updated')
-      setIsModalOpen(false)
-      onUpdate()
-    } catch (err) {
-      message.error('Update failed')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const handleDelete = async (id: string) => {
-    const newEdu = passport.education.filter(h => h.id !== id)
-    try {
-      await passportApi.update({ education: newEdu })
-      message.success('Education deleted')
-      onUpdate()
-    } catch (err) {
-      message.error('Delete failed')
-    }
-  }
-
-  return (
-    <div>
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={() => {
-            setEditingItem(null)
-            form.resetFields()
-            setIsModalOpen(true)
-          }}
-        >
-          Add Education
-        </Button>
-      </div>
-
-      <List
-        dataSource={passport.education}
-        renderItem={(item) => (
-          <List.Item
-            actions={[
-              <Button
-                type="text"
-                icon={<EditOutlined />}
-                onClick={() => {
-                  setEditingItem(item)
-                  form.setFieldsValue(item)
-                  setIsModalOpen(true)
-                }}
-              />,
-              <Popconfirm title="Delete?" onConfirm={() => handleDelete(item.id)}>
-                <Button type="text" danger icon={<DeleteOutlined />} />
-              </Popconfirm>,
-            ]}
-          >
-            <List.Item.Meta
-              title={<Text strong>{item.degree} in {item.field}</Text>}
-              description={<Text type="secondary">{item.institution}, {item.year}</Text>}
-            />
-          </List.Item>
-        )}
-      />
-
-      <Modal
-        title={editingItem ? 'Edit Education' : 'Add Education'}
-        open={isModalOpen}
-        onCancel={() => setIsModalOpen(false)}
-        onOk={() => form.submit()}
-        confirmLoading={saving}
-      >
-        <Form form={form} layout="vertical" onFinish={handleSave}>
-          <Form.Item name="institution" label="Institution" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="degree" label="Degree" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="field" label="Field of Study" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="year" label="Graduation Year" rules={[{ required: true }]}>
-            <InputNumber style={{ width: '100%' }} />
-          </Form.Item>
-        </Form>
-      </Modal>
-    </div>
-  )
-}
-
-function SkillsTab({ passport, onUpdate }: { passport: Passport; onUpdate: () => void }) {
-  const [skills, setSkills] = useState(passport.skills || [])
-  const [languages, setLanguages] = useState(passport.languages || [])
-  const [saving, setSaving] = useState(false)
-
-  const save = async () => {
-    setSaving(true)
-    try {
-      await passportApi.update({ skills, languages })
-      message.success('Skills & Languages updated')
-      onUpdate()
-    } catch (err) {
+      message.success('Profile saved')
+      onRefresh()
+    } catch {
       message.error('Save failed')
     } finally {
       setSaving(false)
     }
   }
 
+  const saveCustomFields = async () => {
+    setSavingCustom(true)
+    try {
+      const metadata: Record<string, string> = {}
+      customFields.filter(f => f.key.trim()).forEach(f => { metadata[f.key.trim()] = f.value })
+      await passportApi.update({ metadata } as any)
+      message.success('Additional info saved')
+      onRefresh()
+    } catch { message.error('Save failed') }
+    finally { setSavingCustom(false) }
+  }
+
+  const initialValues = {
+    headline: passport.headline,
+    summary: passport.summary,
+    profile_photo_url: passport.profile_photo_url,
+    cover_image_url: passport.cover_image_url,
+    current_title: passport.current_title,
+    current_company: passport.current_company,
+    current_location_city: passport.current_location_city,
+    current_location_country: passport.current_location_country,
+    experience_years: passport.experience_years,
+    video_intro_url: passport.video_intro_url,
+    current_cv_url: passport.current_cv_url,
+    linkedin_url: passport.linkedin_url,
+    github_url: passport.github_url,
+    portfolio_url: passport.portfolio_url,
+    twitter_url: passport.twitter_url,
+    behance_url: passport.behance_url,
+    dribbble_url: passport.dribbble_url,
+  }
+
+  return (
+    <>
+    <Form form={form} layout="vertical" initialValues={initialValues} onFinish={onFinish}
+      className="[&_.ant-form-item-label>label]:text-[9px] [&_.ant-form-item-label>label]:font-black [&_.ant-form-item-label>label]:uppercase [&_.ant-form-item-label>label]:tracking-widest [&_.ant-form-item-label>label]:text-slate-400">
+
+      <SectionHeading>Profile Media</SectionHeading>
+      <div className="grid grid-cols-2 gap-x-4 mb-2">
+        <Form.Item name="profile_photo_url" label="Profile Photo URL">
+          <Input
+            prefix={<Image size={12} className="text-slate-400" />}
+            placeholder="https://... (direct image link)"
+            className="rounded-lg"
+          />
+        </Form.Item>
+        <Form.Item name="cover_image_url" label="Cover / Banner Image URL">
+          <Input
+            prefix={<Image size={12} className="text-slate-400" />}
+            placeholder="https://... (shown as cover on public profile)"
+            className="rounded-lg"
+          />
+        </Form.Item>
+      </div>
+      <div className="mb-5 p-3 rounded-lg bg-blue-50 border border-blue-100">
+        <div className="text-[10px] text-blue-600 font-medium leading-relaxed">
+          Upload your photo to a service like Imgur or Cloudinary and paste the direct image URL above.
+          Cover image is shown as the background banner on your public profile.
+        </div>
+      </div>
+
+      <SectionHeading>Identity</SectionHeading>
+      <div className="grid grid-cols-2 gap-x-4">
+        <Form.Item name="headline" label="Headline" className="col-span-2">
+          <Input placeholder="e.g. Senior Full Stack Engineer · 8 years" className="rounded-lg" />
+        </Form.Item>
+        <Form.Item name="current_title" label="Current Title">
+          <Input placeholder="e.g. Engineering Manager" className="rounded-lg" />
+        </Form.Item>
+        <Form.Item name="current_company" label="Current Company">
+          <Input prefix={<Building2 size={12} className="text-slate-400" />} placeholder="Company name" className="rounded-lg" />
+        </Form.Item>
+        <Form.Item name="current_location_city" label="City">
+          <Input prefix={<MapPin size={12} className="text-slate-400" />} placeholder="Mumbai" className="rounded-lg" />
+        </Form.Item>
+        <Form.Item name="current_location_country" label="Country">
+          <Input placeholder="India" className="rounded-lg" />
+        </Form.Item>
+        <Form.Item name="experience_years" label="Total Experience (Years)">
+          <InputNumber min={0} max={60} step={0.5} className="w-full rounded-lg" placeholder="8" />
+        </Form.Item>
+      </div>
+
+      <Form.Item name="summary" label="About Me / Professional Summary" className="mt-2">
+        <Input.TextArea
+          rows={5}
+          placeholder="Write 2–4 sentences about your background, core strengths, and what you're looking for. This is the first thing recruiters read on your public passport — make it count."
+          className="rounded-lg"
+          showCount
+          maxLength={1200}
+        />
+      </Form.Item>
+      <div className="mb-4 p-3 rounded-lg bg-slate-50 border border-slate-100">
+        <div className="text-[10px] text-slate-500 font-medium leading-relaxed">
+          💡 <strong>Tip:</strong> A strong About Me mentions your years of experience, your specialisation, and what kind of role you're targeting. Keep it under 5 sentences.
+        </div>
+      </div>
+
+      <div className="border-t border-slate-100 my-5" />
+      <SectionHeading>Online Presence</SectionHeading>
+
+      <div className="grid grid-cols-2 gap-x-4">
+        <Form.Item name="linkedin_url" label="LinkedIn">
+          <Input prefix={<Linkedin size={12} className="text-slate-400" />} placeholder="linkedin.com/in/yourprofile" className="rounded-lg" />
+        </Form.Item>
+        <Form.Item name="github_url" label="GitHub">
+          <Input prefix={<Github size={12} className="text-slate-400" />} placeholder="github.com/username" className="rounded-lg" />
+        </Form.Item>
+        <Form.Item name="portfolio_url" label="Portfolio / Website">
+          <Input prefix={<Globe size={12} className="text-slate-400" />} placeholder="yoursite.com" className="rounded-lg" />
+        </Form.Item>
+        <Form.Item name="twitter_url" label="Twitter / X">
+          <Input prefix={<Twitter size={12} className="text-slate-400" />} placeholder="twitter.com/username" className="rounded-lg" />
+        </Form.Item>
+        <Form.Item name="behance_url" label="Behance">
+          <Input prefix={<Palette size={12} className="text-slate-400" />} placeholder="behance.net/username" className="rounded-lg" />
+        </Form.Item>
+        <Form.Item name="dribbble_url" label="Dribbble">
+          <Input prefix={<Palette size={12} className="text-slate-400" />} placeholder="dribbble.com/username" className="rounded-lg" />
+        </Form.Item>
+        <Form.Item name="video_intro_url" label="Video Introduction (Loom / YouTube)">
+          <Input prefix={<Link2 size={12} className="text-slate-400" />} placeholder="loom.com/share/..." className="rounded-lg" />
+        </Form.Item>
+        <Form.Item name="current_cv_url" label="Resume / CV URL">
+          <Input prefix={<FileText size={12} className="text-slate-400" />} placeholder="Link to your latest resume" className="rounded-lg" />
+        </Form.Item>
+      </div>
+
+      <div className="flex justify-end pt-2 border-t border-slate-100 mt-2">
+        <button
+          type="submit"
+          disabled={saving}
+          className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 disabled:opacity-50 transition-all"
+        >
+          {saving ? <RefreshCw size={11} className="animate-spin" /> : null}
+          Save Overview
+        </button>
+      </div>
+    </Form>
+
+    {/* ── Custom / Additional Fields ──────────────────────────────────────── */}
+    <div className="mt-8 border-t border-slate-100 pt-6">
+      <button
+        onClick={() => setShowCustomFields(v => !v)}
+        className="flex items-center gap-2 w-full text-left"
+      >
+        <SlidersHorizontal size={13} className="text-slate-400" />
+        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 flex-1">
+          Additional Information (Custom Fields)
+        </span>
+        {showCustomFields ? <ChevronUp size={13} className="text-slate-400" /> : <ChevronDown size={13} className="text-slate-400" />}
+      </button>
+
+      {showCustomFields && (
+        <div className="mt-4 flex flex-col gap-3">
+          <div className="text-[10px] text-slate-400 font-medium">
+            Add any extra details you want shown on your public profile — e.g. "Open Source Contributions", "Portfolio Link", "Visa Status", "Driving Licence".
+          </div>
+
+          {customFields.map((field, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                value={field.key}
+                onChange={e => setCustomFields(prev => prev.map((f, idx) => idx === i ? { ...f, key: e.target.value } : f))}
+                placeholder="Field name (e.g. Visa Status)"
+                className="flex-1 h-8 px-3 rounded-lg border border-slate-200 text-xs text-slate-700 focus:outline-none focus:border-blue-400 bg-white"
+              />
+              <input
+                value={field.value}
+                onChange={e => setCustomFields(prev => prev.map((f, idx) => idx === i ? { ...f, value: e.target.value } : f))}
+                placeholder="Value (e.g. UK Citizen, No Sponsorship)"
+                className="flex-[2] h-8 px-3 rounded-lg border border-slate-200 text-xs text-slate-700 focus:outline-none focus:border-blue-400 bg-white"
+              />
+              <button
+                onClick={() => setCustomFields(prev => prev.filter((_, idx) => idx !== i))}
+                className="p-1.5 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-all"
+              >
+                <Minus size={13} />
+              </button>
+            </div>
+          ))}
+
+          <div className="flex items-center justify-between pt-2">
+            <button
+              onClick={() => setCustomFields(prev => [...prev, { key: '', value: '' }])}
+              className="flex items-center gap-1 text-[10px] font-black text-blue-600 hover:text-blue-800 transition-colors"
+            >
+              <Plus size={11} /> Add Field
+            </button>
+            <button
+              onClick={saveCustomFields}
+              disabled={savingCustom}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-slate-800 text-white text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 disabled:opacity-50 transition-all"
+            >
+              {savingCustom ? <RefreshCw size={11} className="animate-spin" /> : null}
+              Save Fields
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+    </>
+  )
+}
+
+// ─── Experience Tab ───────────────────────────────────────────────────────────
+
+function ExperienceTab({ passport, onRefresh }: { passport: Passport; onRefresh: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<PassportWorkExperience | null>(null)
+  const [form] = Form.useForm()
+  const [saving, setSaving] = useState(false)
+
+  const openAdd = () => { setEditing(null); form.resetFields(); setOpen(true) }
+  const openEdit = (item: PassportWorkExperience) => {
+    setEditing(item)
+    form.setFieldsValue({
+      ...item,
+      from_date: item.from_date ? dayjs(item.from_date) : null,
+      to_date: item.to_date ? dayjs(item.to_date) : null,
+    })
+    setOpen(true)
+  }
+
+  const handleSave = async (values: any) => {
+    setSaving(true)
+    const payload = {
+      ...values,
+      from_date: values.from_date?.format('YYYY-MM-DD') ?? null,
+      to_date: values.is_current ? null : (values.to_date?.format('YYYY-MM-DD') ?? null),
+    }
+    const list = editing
+      ? (passport.work_history ?? []).map(h => h.id === editing.id ? { ...h, ...payload } : h)
+      : [...(passport.work_history ?? []), { ...payload, id: crypto.randomUUID() }]
+
+    try {
+      await passportApi.update({ work_history: list })
+      message.success(editing ? 'Experience updated' : 'Experience added')
+      setOpen(false)
+      onRefresh()
+    } catch { message.error('Save failed') }
+    finally { setSaving(false) }
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      await passportApi.update({ work_history: (passport.work_history ?? []).filter(h => h.id !== id) })
+      message.success('Removed')
+      onRefresh()
+    } catch { message.error('Delete failed') }
+  }
+
+  const items = passport.work_history ?? []
+
   return (
     <div>
-      <Title level={5}>Professional Skills</Title>
-      <Select
-        mode="tags"
-        style={{ width: '100%' }}
-        placeholder="Add skills (type and press Enter)"
-        value={skills}
-        onChange={setSkills}
-      />
-
-      <Divider />
-
-      <Title level={5}>Languages</Title>
-      <Select
-        mode="tags"
-        style={{ width: '100%' }}
-        placeholder="Add languages"
-        value={languages}
-        onChange={setLanguages}
-      />
-
-      <div style={{ marginTop: 24 }}>
-        <Button type="primary" onClick={save} loading={saving}>Save Changes</Button>
+      <div className="flex items-center justify-between mb-5">
+        <SectionHeading>Work Experience ({items.length})</SectionHeading>
+        <button onClick={openAdd}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[9px] font-black uppercase tracking-widest hover:bg-blue-700">
+          <Plus size={11} /> Add
+        </button>
       </div>
+
+      {items.length === 0 && (
+        <div className="flex flex-col items-center py-16 text-center">
+          <Briefcase size={32} className="text-slate-200 mb-3" />
+          <div className="text-sm font-black text-slate-400">No experience added yet</div>
+          <div className="text-xs text-slate-300 mt-1">Add your work history to strengthen your profile</div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-3">
+        {items.map(item => (
+          <div key={item.id}
+            className="flex items-start gap-4 p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-all group">
+            <div className="h-9 w-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0 text-slate-500">
+              <Briefcase size={15} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-black text-sm text-slate-900">{item.title}</div>
+              <div className="text-[11px] text-slate-500 font-medium">{item.company}</div>
+              <div className="flex items-center gap-1.5 mt-1 text-[10px] text-slate-400">
+                <Clock size={10} />
+                {item.from_date ? dayjs(item.from_date).format('MMM YYYY') : '—'}
+                &nbsp;–&nbsp;
+                {item.is_current ? 'Present' : (item.to_date ? dayjs(item.to_date).format('MMM YYYY') : '—')}
+                {item.is_current && (
+                  <span className="ml-1 px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-600 font-black text-[8px] uppercase tracking-widest border border-emerald-200">
+                    Current
+                  </span>
+                )}
+              </div>
+              {item.description && (
+                <div className="mt-2 text-xs text-slate-500 line-clamp-2">{item.description}</div>
+              )}
+            </div>
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+              <button onClick={() => openEdit(item)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
+                <Pencil size={13} />
+              </button>
+              <Popconfirm title="Remove this experience?" onConfirm={() => handleDelete(item.id)} okText="Remove" okButtonProps={{ danger: true }}>
+                <button className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all">
+                  <Trash2 size={13} />
+                </button>
+              </Popconfirm>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Modal title={<span className="font-black text-slate-900 uppercase tracking-tight text-sm">{editing ? 'Edit Experience' : 'Add Experience'}</span>}
+        open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()}
+        okText={editing ? 'Save Changes' : 'Add Experience'} confirmLoading={saving} destroyOnClose width={560}>
+        <Form form={form} layout="vertical" onFinish={handleSave} className="mt-4">
+          <div className="grid grid-cols-2 gap-x-4">
+            <Form.Item name="title" label="Job Title" rules={[{ required: true }]} className="col-span-2">
+              <Input className="rounded-lg" placeholder="e.g. Senior Software Engineer" />
+            </Form.Item>
+            <Form.Item name="company" label="Company" rules={[{ required: true }]}>
+              <Input className="rounded-lg" placeholder="Company name" />
+            </Form.Item>
+            <Form.Item name="location" label="Location">
+              <Input className="rounded-lg" placeholder="e.g. Bangalore, India" />
+            </Form.Item>
+            <Form.Item name="from_date" label="From" rules={[{ required: true }]}>
+              <DatePicker picker="month" style={{ width: '100%' }} className="rounded-lg" />
+            </Form.Item>
+            <Form.Item name="to_date" label="To">
+              <DatePicker picker="month" style={{ width: '100%' }} className="rounded-lg" />
+            </Form.Item>
+          </div>
+          <Form.Item name="is_current" valuePropName="checked" className="-mt-2">
+            <Switch size="small" /> <span className="ml-2 text-xs font-medium text-slate-600">Currently working here</span>
+          </Form.Item>
+          <Form.Item name="description" label="Description">
+            <Input.TextArea rows={4} className="rounded-lg" placeholder="Key responsibilities, achievements..." />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   )
 }
 
-function PreferencesTab({ passport, onUpdate }: { passport: Passport; onUpdate: () => void }) {
+// ─── Education Tab ────────────────────────────────────────────────────────────
+
+function EducationTab({ passport, onRefresh }: { passport: Passport; onRefresh: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<PassportEducation | null>(null)
+  const [form] = Form.useForm()
+  const [saving, setSaving] = useState(false)
+
+  const openAdd = () => { setEditing(null); form.resetFields(); setOpen(true) }
+  const openEdit = (item: PassportEducation) => { setEditing(item); form.setFieldsValue(item); setOpen(true) }
+
+  const handleSave = async (values: any) => {
+    setSaving(true)
+    const list = editing
+      ? (passport.education ?? []).map(h => h.id === editing.id ? { ...h, ...values } : h)
+      : [...(passport.education ?? []), { ...values, id: crypto.randomUUID() }]
+    try {
+      await passportApi.update({ education: list })
+      message.success(editing ? 'Education updated' : 'Education added')
+      setOpen(false)
+      onRefresh()
+    } catch { message.error('Save failed') }
+    finally { setSaving(false) }
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      await passportApi.update({ education: (passport.education ?? []).filter(h => h.id !== id) })
+      message.success('Removed')
+      onRefresh()
+    } catch { message.error('Delete failed') }
+  }
+
+  const items = passport.education ?? []
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-5">
+        <SectionHeading>Education ({items.length})</SectionHeading>
+        <button onClick={openAdd}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[9px] font-black uppercase tracking-widest hover:bg-blue-700">
+          <Plus size={11} /> Add
+        </button>
+      </div>
+
+      {items.length === 0 && (
+        <div className="flex flex-col items-center py-16 text-center">
+          <GraduationCap size={32} className="text-slate-200 mb-3" />
+          <div className="text-sm font-black text-slate-400">No education added yet</div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-3">
+        {items.map(item => (
+          <div key={item.id}
+            className="flex items-start gap-4 p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-all group">
+            <div className="h-9 w-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0 text-slate-500">
+              <GraduationCap size={15} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-black text-sm text-slate-900">{item.degree}{item.field ? ` in ${item.field}` : ''}</div>
+              <div className="text-[11px] text-slate-500 font-medium mt-0.5">{item.institution}</div>
+              <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-400">
+                {item.year && <span>{item.year}</span>}
+                {item.grade && <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 font-black">{item.grade}</span>}
+              </div>
+            </div>
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+              <button onClick={() => openEdit(item)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
+                <Pencil size={13} />
+              </button>
+              <Popconfirm title="Remove this education?" onConfirm={() => handleDelete(item.id)} okText="Remove" okButtonProps={{ danger: true }}>
+                <button className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all">
+                  <Trash2 size={13} />
+                </button>
+              </Popconfirm>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Modal title={<span className="font-black text-slate-900 uppercase tracking-tight text-sm">{editing ? 'Edit Education' : 'Add Education'}</span>}
+        open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()}
+        okText={editing ? 'Save Changes' : 'Add Education'} confirmLoading={saving} destroyOnClose>
+        <Form form={form} layout="vertical" onFinish={handleSave} className="mt-4">
+          <Form.Item name="institution" label="Institution" rules={[{ required: true }]}>
+            <Input className="rounded-lg" placeholder="University / School" />
+          </Form.Item>
+          <div className="grid grid-cols-2 gap-x-4">
+            <Form.Item name="degree" label="Degree" rules={[{ required: true }]}>
+              <Input className="rounded-lg" placeholder="B.Tech / M.Sc / MBA" />
+            </Form.Item>
+            <Form.Item name="field" label="Field of Study" rules={[{ required: true }]}>
+              <Input className="rounded-lg" placeholder="Computer Science" />
+            </Form.Item>
+            <Form.Item name="year" label="Graduation Year" rules={[{ required: true }]}>
+              <InputNumber style={{ width: '100%' }} className="rounded-lg" placeholder="2020" min={1950} max={2040} />
+            </Form.Item>
+            <Form.Item name="grade" label="Grade / GPA">
+              <Input className="rounded-lg" placeholder="8.5 / First Class" />
+            </Form.Item>
+          </div>
+        </Form>
+      </Modal>
+    </div>
+  )
+}
+
+// ─── Skills Tab ───────────────────────────────────────────────────────────────
+
+function SkillsTab({ passport, onRefresh }: { passport: Passport; onRefresh: () => void }) {
+  const [skills, setSkills] = useState<string[]>(passport.skills ?? [])
+  const [languages, setLanguages] = useState<string[]>(passport.languages ?? [])
+  const [certOpen, setCertOpen] = useState(false)
+  const [editingCert, setEditingCert] = useState<PassportCertification | null>(null)
+  const [certForm] = Form.useForm()
+  const [saving, setSaving] = useState(false)
+  const [certSaving, setCertSaving] = useState(false)
+
+  const saveSkills = async () => {
+    setSaving(true)
+    try {
+      await passportApi.update({ skills, languages })
+      message.success('Skills & languages saved')
+      onRefresh()
+    } catch { message.error('Save failed') }
+    finally { setSaving(false) }
+  }
+
+  const openAddCert = () => { setEditingCert(null); certForm.resetFields(); setCertOpen(true) }
+  const openEditCert = (c: PassportCertification) => { setEditingCert(c); certForm.setFieldsValue(c); setCertOpen(true) }
+
+  const saveCert = async (values: any) => {
+    setCertSaving(true)
+    const existing = passport.certifications ?? []
+    const list = editingCert
+      ? existing.map(c => c.id === editingCert.id ? { ...c, ...values } : c)
+      : [...existing, { ...values, id: crypto.randomUUID() }]
+    try {
+      await passportApi.update({ certifications: list })
+      message.success(editingCert ? 'Certification updated' : 'Certification added')
+      setCertOpen(false)
+      onRefresh()
+    } catch { message.error('Save failed') }
+    finally { setCertSaving(false) }
+  }
+
+  const deleteCert = async (id: string) => {
+    try {
+      await passportApi.update({ certifications: (passport.certifications ?? []).filter(c => c.id !== id) })
+      message.success('Removed')
+      onRefresh()
+    } catch { message.error('Delete failed') }
+  }
+
+  const certs = passport.certifications ?? []
+
+  return (
+    <div className="flex flex-col gap-8">
+      {/* Skills */}
+      <div>
+        <SectionHeading>Professional Skills</SectionHeading>
+        <Select mode="tags" style={{ width: '100%' }} placeholder="Type a skill and press Enter"
+          value={skills} onChange={setSkills} tokenSeparators={[',']}
+          className="[&_.ant-select-selector]:rounded-xl [&_.ant-select-selector]:min-h-[40px]" />
+        <div className="text-[9px] text-slate-400 mt-1 font-medium">e.g. React, Python, Product Management, SQL</div>
+      </div>
+
+      {/* Languages */}
+      <div>
+        <SectionHeading>Languages</SectionHeading>
+        <Select mode="tags" style={{ width: '100%' }} placeholder="Type a language and press Enter"
+          value={languages} onChange={setLanguages}
+          className="[&_.ant-select-selector]:rounded-xl [&_.ant-select-selector]:min-h-[40px]" />
+      </div>
+
+      <div className="flex justify-end">
+        <button onClick={saveSkills} disabled={saving}
+          className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 disabled:opacity-50 transition-all">
+          {saving ? <RefreshCw size={11} className="animate-spin" /> : null}
+          Save Skills
+        </button>
+      </div>
+
+      {/* Certifications */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <SectionHeading>Certifications ({certs.length})</SectionHeading>
+          <button onClick={openAddCert}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[9px] font-black uppercase tracking-widest hover:bg-blue-700">
+            <Plus size={11} /> Add
+          </button>
+        </div>
+
+        {certs.length === 0 && (
+          <div className="flex flex-col items-center py-10 text-center rounded-xl border border-dashed border-slate-200">
+            <Award size={24} className="text-slate-200 mb-2" />
+            <div className="text-xs font-black text-slate-400">No certifications added</div>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-2">
+          {certs.map(c => (
+            <div key={c.id}
+              className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-white hover:border-slate-300 group transition-all">
+              <div className="h-8 w-8 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
+                <Award size={14} className="text-amber-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[11px] font-black text-slate-800">{c.name}</div>
+                <div className="text-[10px] text-slate-400 font-medium">{c.issuer}{c.issued_date ? ` · ${dayjs(c.issued_date).format('MMM YYYY')}` : ''}</div>
+              </div>
+              <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                <button onClick={() => openEditCert(c)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
+                  <Pencil size={12} />
+                </button>
+                <Popconfirm title="Remove certification?" onConfirm={() => deleteCert(c.id)} okText="Remove" okButtonProps={{ danger: true }}>
+                  <button className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all">
+                    <Trash2 size={12} />
+                  </button>
+                </Popconfirm>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <Modal title={<span className="font-black text-slate-900 uppercase tracking-tight text-sm">{editingCert ? 'Edit Certification' : 'Add Certification'}</span>}
+        open={certOpen} onCancel={() => setCertOpen(false)} onOk={() => certForm.submit()}
+        okText={editingCert ? 'Save' : 'Add'} confirmLoading={certSaving} destroyOnClose>
+        <Form form={certForm} layout="vertical" onFinish={saveCert} className="mt-4">
+          <Form.Item name="name" label="Certification Name" rules={[{ required: true }]}>
+            <Input className="rounded-lg" placeholder="e.g. AWS Solutions Architect" />
+          </Form.Item>
+          <Form.Item name="issuer" label="Issuing Organisation" rules={[{ required: true }]}>
+            <Input className="rounded-lg" placeholder="e.g. Amazon Web Services" />
+          </Form.Item>
+          <div className="grid grid-cols-2 gap-x-4">
+            <Form.Item name="issued_date" label="Issue Date">
+              <Input type="month" className="rounded-lg" />
+            </Form.Item>
+            <Form.Item name="expiry_date" label="Expiry Date">
+              <Input type="month" className="rounded-lg" />
+            </Form.Item>
+            <Form.Item name="credential_id" label="Credential ID">
+              <Input className="rounded-lg" placeholder="Optional" />
+            </Form.Item>
+            <Form.Item name="credential_url" label="Credential URL">
+              <Input className="rounded-lg" placeholder="https://..." />
+            </Form.Item>
+          </div>
+        </Form>
+      </Modal>
+    </div>
+  )
+}
+
+// ─── Projects Tab ─────────────────────────────────────────────────────────────
+
+function ProjectsTab({ passport, onRefresh }: { passport: Passport; onRefresh: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<PassportProject | null>(null)
+  const [form] = Form.useForm()
+  const [saving, setSaving] = useState(false)
+
+  const openAdd = () => { setEditing(null); form.resetFields(); setOpen(true) }
+  const openEdit = (item: PassportProject) => {
+    setEditing(item)
+    form.setFieldsValue({ ...item, skills: item.skills ?? [] })
+    setOpen(true)
+  }
+
+  const handleSave = async (values: any) => {
+    setSaving(true)
+    const list = editing
+      ? (passport.projects ?? []).map((p: PassportProject) =>
+          p.id === editing.id ? { ...p, ...values } : p)
+      : [...(passport.projects ?? []), { ...values, id: crypto.randomUUID() }]
+    try {
+      await passportApi.update({ projects: list } as any)
+      message.success(editing ? 'Project updated' : 'Project added')
+      setOpen(false)
+      onRefresh()
+    } catch { message.error('Save failed') }
+    finally { setSaving(false) }
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      await passportApi.update({
+        projects: ((passport as any).projects ?? []).filter((p: PassportProject) => p.id !== id),
+      } as any)
+      message.success('Removed')
+      onRefresh()
+    } catch { message.error('Delete failed') }
+  }
+
+  const items: PassportProject[] = (passport as any).projects ?? []
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-5">
+        <SectionHeading>Projects & Portfolio ({items.length})</SectionHeading>
+        <button onClick={openAdd}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-blue-600 text-white text-[9px] font-black uppercase tracking-widest hover:bg-blue-700">
+          <Plus size={11} /> Add Project
+        </button>
+      </div>
+
+      <div className="mb-5 p-3 rounded-lg bg-slate-50 border border-slate-100">
+        <div className="text-[10px] text-slate-500 font-medium leading-relaxed">
+          💡 Showcase your side projects, open source work, freelance projects, or any portfolio piece. These appear on your public profile under Projects & Portfolio.
+        </div>
+      </div>
+
+      {items.length === 0 && (
+        <div className="flex flex-col items-center py-16 text-center">
+          <Layers size={32} className="text-slate-200 mb-3" />
+          <div className="text-sm font-black text-slate-400">No projects added yet</div>
+          <div className="text-xs text-slate-300 mt-1">Add projects, open source work, or portfolio pieces</div>
+        </div>
+      )}
+
+      <div className="flex flex-col gap-3">
+        {items.map(item => (
+          <div key={item.id}
+            className="flex items-start gap-4 p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-all group">
+            <div className="h-9 w-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0 text-slate-500">
+              <Layers size={15} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-black text-sm text-slate-900">{item.name}</div>
+              {item.description && (
+                <div className="mt-1 text-xs text-slate-500 line-clamp-2 leading-relaxed">{item.description}</div>
+              )}
+              {(item.skills?.length ?? 0) > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {item.skills!.map(s => (
+                    <span key={s} className="px-1.5 py-0.5 rounded bg-blue-50 border border-blue-100 text-[9px] font-black text-blue-700">
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {item.url && (
+                <a href={item.url} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-1 mt-1.5 text-[10px] font-semibold text-blue-600 hover:text-blue-800 transition-colors">
+                  <ExternalLink size={10} /> {item.url}
+                </a>
+              )}
+            </div>
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+              <button onClick={() => openEdit(item)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
+                <Pencil size={13} />
+              </button>
+              <Popconfirm title="Remove this project?" onConfirm={() => handleDelete(item.id!)} okText="Remove" okButtonProps={{ danger: true }}>
+                <button className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all">
+                  <Trash2 size={13} />
+                </button>
+              </Popconfirm>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Modal
+        title={<span className="font-black text-slate-900 uppercase tracking-tight text-sm">{editing ? 'Edit Project' : 'Add Project'}</span>}
+        open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()}
+        okText={editing ? 'Save Changes' : 'Add Project'} confirmLoading={saving} destroyOnClose width={560}
+      >
+        <Form form={form} layout="vertical" onFinish={handleSave} className="mt-4">
+          <Form.Item name="name" label="Project Name" rules={[{ required: true, message: 'Enter a project name' }]}>
+            <Input className="rounded-lg" placeholder="e.g. E-Commerce Platform, Open Source Library" />
+          </Form.Item>
+          <Form.Item name="description" label="Description">
+            <Input.TextArea rows={3} className="rounded-lg"
+              placeholder="What did you build? What problem does it solve? What was your role?" />
+          </Form.Item>
+          <Form.Item name="url" label="Project URL / Link">
+            <Input prefix={<ExternalLink size={12} className="text-slate-400" />} className="rounded-lg"
+              placeholder="https://github.com/... or https://yourproject.com" />
+          </Form.Item>
+          <Form.Item name="skills" label="Technologies / Skills Used">
+            <Select mode="tags" placeholder="e.g. React, Node.js, PostgreSQL" tokenSeparators={[',']}
+              className="[&_.ant-select-selector]:rounded-lg" />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
+  )
+}
+
+// ─── Preferences Tab ──────────────────────────────────────────────────────────
+
+function PreferencesTab({ passport, onRefresh }: { passport: Passport; onRefresh: () => void }) {
   const [form] = Form.useForm()
   const [saving, setSaving] = useState(false)
 
@@ -442,129 +1051,354 @@ function PreferencesTab({ passport, onUpdate }: { passport: Passport; onUpdate: 
     try {
       await passportApi.update({
         ...values,
-        availability_date: values.availability_date?.toISOString(),
+        availability_date: values.availability_date?.format('YYYY-MM-DD') ?? null,
       })
-      message.success('Preferences updated')
-      onUpdate()
-    } catch (err) {
-      message.error('Update failed')
-    } finally {
-      setSaving(false)
-    }
+      message.success('Preferences saved')
+      onRefresh()
+    } catch { message.error('Save failed') }
+    finally { setSaving(false) }
+  }
+
+  const initialValues = {
+    is_actively_looking: passport.is_actively_looking,
+    open_to_work: passport.open_to_work,
+    preferred_work_mode: passport.preferred_work_mode,
+    notice_period_days: passport.notice_period_days,
+    availability_date: passport.availability_date ? dayjs(passport.availability_date) : null,
+    expected_salary_min: passport.expected_salary_min,
+    expected_salary_max: passport.expected_salary_max,
+    salary_currency: passport.salary_currency ?? 'INR',
+    preferred_job_types: passport.preferred_job_types ?? [],
+    preferred_locations: passport.preferred_locations ?? [],
+    preferred_industries: passport.preferred_industries ?? [],
   }
 
   return (
-    <Form
-      form={form}
-      layout="vertical"
-      initialValues={{
-        ...passport,
-        availability_date: passport.availability_date ? dayjs(passport.availability_date) : null,
-      }}
-      onFinish={onFinish}
-    >
-      <Row gutter={24}>
-        <Col span={12}>
-          <Form.Item name="is_actively_looking" label="Actively Looking for Jobs" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-        </Col>
-        <Col span={12}>
-          <Form.Item name="open_to_work" label="Open to Work" valuePropName="checked">
-            <Switch />
-          </Form.Item>
-        </Col>
-      </Row>
+    <Form form={form} layout="vertical" initialValues={initialValues} onFinish={onFinish}
+      className="[&_.ant-form-item-label>label]:text-[9px] [&_.ant-form-item-label>label]:font-black [&_.ant-form-item-label>label]:uppercase [&_.ant-form-item-label>label]:tracking-widest [&_.ant-form-item-label>label]:text-slate-400">
 
-      <Row gutter={16}>
-        <Col span={12}>
-          <Form.Item name="preferred_work_mode" label="Preferred Work Mode">
-            <Select options={[
-              { value: 'onsite', label: 'On-site' },
-              { value: 'remote', label: 'Remote' },
-              { value: 'hybrid', label: 'Hybrid' },
-              { value: 'any', label: 'Any' },
-            ]} />
-          </Form.Item>
-        </Col>
-        <Col span={12}>
-          <Form.Item name="notice_period_days" label="Notice Period (Days)">
-            <InputNumber style={{ width: '100%' }} min={0} />
-          </Form.Item>
-        </Col>
-      </Row>
+      <SectionHeading>Job Search Status</SectionHeading>
+      <div className="grid grid-cols-2 gap-x-8 mb-4">
+        <Form.Item name="is_actively_looking" label="Actively Looking for Jobs" valuePropName="checked">
+          <Switch />
+        </Form.Item>
+        <Form.Item name="open_to_work" label="Open to Opportunities" valuePropName="checked">
+          <Switch />
+        </Form.Item>
+      </div>
 
-      <Row gutter={16}>
-        <Col span={8}>
-          <Form.Item name="expected_salary_min" label="Min Expected Salary">
-            <InputNumber style={{ width: '100%' }} min={0} />
-          </Form.Item>
-        </Col>
-        <Col span={8}>
-          <Form.Item name="expected_salary_max" label="Max Expected Salary">
-            <InputNumber style={{ width: '100%' }} min={0} />
-          </Form.Item>
-        </Col>
-        <Col span={8}>
-          <Form.Item name="availability_date" label="Available From">
-            <DatePicker style={{ width: '100%' }} />
-          </Form.Item>
-        </Col>
-      </Row>
+      <div className="border-t border-slate-100 my-5" />
+      <SectionHeading>Availability</SectionHeading>
+      <div className="grid grid-cols-3 gap-x-4">
+        <Form.Item name="preferred_work_mode" label="Preferred Work Mode">
+          <Select options={WORK_MODE_OPTIONS} className="rounded-lg" />
+        </Form.Item>
+        <Form.Item name="notice_period_days" label="Notice Period (Days)">
+          <InputNumber min={0} max={365} style={{ width: '100%' }} placeholder="30" className="rounded-lg" />
+        </Form.Item>
+        <Form.Item name="availability_date" label="Available From">
+          <DatePicker style={{ width: '100%' }} className="rounded-lg" />
+        </Form.Item>
+      </div>
 
-      <Button type="primary" htmlType="submit" loading={saving}>Save Preferences</Button>
+      <div className="border-t border-slate-100 my-5" />
+      <SectionHeading>Salary Expectations</SectionHeading>
+      <div className="grid grid-cols-3 gap-x-4">
+        <Form.Item name="expected_salary_min" label="Minimum">
+          <InputNumber min={0} style={{ width: '100%' }} className="rounded-lg" placeholder="500000" />
+        </Form.Item>
+        <Form.Item name="expected_salary_max" label="Maximum">
+          <InputNumber min={0} style={{ width: '100%' }} className="rounded-lg" placeholder="1200000" />
+        </Form.Item>
+        <Form.Item name="salary_currency" label="Currency">
+          <Select options={CURRENCY_OPTIONS} className="rounded-lg" />
+        </Form.Item>
+      </div>
+
+      <div className="border-t border-slate-100 my-5" />
+      <SectionHeading>Job Preferences</SectionHeading>
+      <div className="grid grid-cols-2 gap-x-4">
+        <Form.Item name="preferred_job_types" label="Preferred Job Types">
+          <Select mode="multiple" options={JOB_TYPE_OPTIONS} placeholder="Select types"
+            className="[&_.ant-select-selector]:rounded-lg" />
+        </Form.Item>
+        <Form.Item name="preferred_locations" label="Preferred Locations">
+          <Select mode="tags" placeholder="Add a city or region" tokenSeparators={[',']}
+            className="[&_.ant-select-selector]:rounded-lg" />
+        </Form.Item>
+        <Form.Item name="preferred_industries" label="Preferred Industries" className="col-span-2">
+          <Select mode="tags" placeholder="e.g. Fintech, SaaS, Healthcare" tokenSeparators={[',']}
+            className="[&_.ant-select-selector]:rounded-lg" />
+        </Form.Item>
+      </div>
+
+      <div className="flex justify-end pt-2 border-t border-slate-100 mt-2">
+        <button type="submit" disabled={saving}
+          className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 disabled:opacity-50 transition-all">
+          {saving ? <RefreshCw size={11} className="animate-spin" /> : null}
+          Save Preferences
+        </button>
+      </div>
     </Form>
+  )
+}
+
+// ─── Privacy Tab ──────────────────────────────────────────────────────────────
+
+function PrivacyTab({ passport, onRefresh }: { passport: Passport; onRefresh: () => void }) {
+  const [shareUrl, setShareUrl] = useState('')
+  const [loadingUrl, setLoadingUrl] = useState(true)
+  const [regenerating, setRegenerating] = useState(false)
+
+  // Visibility settings — merge stored values over defaults
+  const storedVisibility = passport.visibility_settings ?? {}
+  const [visibility, setVisibility] = useState<Record<string, boolean>>({
+    ...VISIBILITY_DEFAULTS,
+    ...storedVisibility,
+  })
+  const [savingVisibility, setSavingVisibility] = useState(false)
+
+  const saveVisibility = async () => {
+    setSavingVisibility(true)
+    try {
+      await passportApi.update({ visibility_settings: visibility } as any)
+      message.success('Visibility settings saved')
+      onRefresh()
+    } catch { message.error('Save failed') }
+    finally { setSavingVisibility(false) }
+  }
+
+  const fetchLink = useCallback(async () => {
+    setLoadingUrl(true)
+    try {
+      const res = await passportApi.getShareLink()
+      const path: string = (res as any)?.data?.data?.share_url ?? ''
+      // Build a full absolute URL so recipients can open it directly
+      setShareUrl(path ? `${window.location.origin}${path}` : '')
+    } catch { /* silent */ }
+    finally { setLoadingUrl(false) }
+  }, [])
+
+  const regenerate = async () => {
+    setRegenerating(true)
+    try {
+      const res = await passportApi.regenerateShareLink()
+      const path: string = (res as any)?.data?.data?.share_url ?? ''
+      setShareUrl(path ? `${window.location.origin}${path}` : '')
+      message.success('Share link regenerated')
+    } catch { message.error('Regenerate failed') }
+    finally { setRegenerating(false) }
+  }
+
+  useEffect(() => { fetchLink() }, [fetchLink])
+
+  return (
+    <div className="flex flex-col gap-8">
+      <div>
+        <SectionHeading>Public Share Link</SectionHeading>
+        <div className="p-4 rounded-xl bg-blue-50 border border-blue-200">
+          <div className="text-[10px] font-black uppercase tracking-widest text-blue-700 mb-1">Shareable Passport URL</div>
+          <div className="text-xs text-blue-600 mb-3">
+            Anyone with this link can view your public profile. Use it to share with recruiters or add to your resume.
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-blue-200 text-[11px] font-mono text-slate-600 truncate">
+              {loadingUrl ? <span className="text-slate-400 text-[10px]">Loading...</span> : (shareUrl || '—')}
+            </div>
+            <button
+              onClick={() => { navigator.clipboard.writeText(shareUrl); message.success('Copied') }}
+              disabled={!shareUrl}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-blue-200 bg-white text-blue-600 text-[9px] font-black uppercase tracking-widest hover:bg-blue-50 disabled:opacity-40 transition-all">
+              <Copy size={11} /> Copy
+            </button>
+            <button onClick={regenerate} disabled={regenerating}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-blue-300 bg-blue-600 text-white text-[9px] font-black uppercase tracking-widest hover:bg-blue-700 disabled:opacity-50 transition-all">
+              <RefreshCw size={11} className={cn(regenerating && 'animate-spin')} /> Regenerate
+            </button>
+          </div>
+          <div className="mt-2 text-[9px] text-blue-500 font-medium">
+            Regenerating creates a new link and invalidates the old one.
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <SectionHeading>Profile Visibility</SectionHeading>
+        <div className="p-4 rounded-xl border border-slate-200 bg-white flex items-center justify-between">
+          <div>
+            <div className="text-[11px] font-black text-slate-700">Public Passport</div>
+            <div className="text-[10px] text-slate-400 mt-0.5">Your passport is {passport.is_active ? 'visible' : 'hidden'} to anyone with the link</div>
+          </div>
+          <div className={cn(
+            'px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border',
+            passport.is_active
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : 'bg-slate-100 text-slate-500 border-slate-200'
+          )}>
+            {passport.is_active ? 'Active' : 'Inactive'}
+          </div>
+        </div>
+      </div>
+
+      {/* Section Visibility Controls */}
+      <div>
+        <SectionHeading>Section Visibility</SectionHeading>
+        <div className="text-[10px] text-slate-400 mb-3 font-medium">
+          Control which sections and fields are visible on your public profile. Changes apply immediately after saving.
+        </div>
+        <div className="flex flex-col gap-2">
+          {Object.entries(VISIBILITY_LABELS).map(([key, { label, description }]) => (
+            <div key={key}
+              className="flex items-center justify-between p-3.5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-colors">
+              <div className="flex-1 min-w-0 pr-4">
+                <div className="text-[11px] font-black text-slate-800">{label}</div>
+                <div className="text-[10px] text-slate-400 font-medium mt-0.5">{description}</div>
+              </div>
+              <Switch
+                size="small"
+                checked={visibility[key] ?? VISIBILITY_DEFAULTS[key]}
+                onChange={checked => setVisibility(prev => ({ ...prev, [key]: checked }))}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-end mt-4">
+          <button
+            onClick={saveVisibility}
+            disabled={savingVisibility}
+            className="flex items-center gap-1.5 px-5 py-2 rounded-lg bg-blue-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-blue-700 disabled:opacity-50 transition-all"
+          >
+            {savingVisibility ? <RefreshCw size={11} className="animate-spin" /> : null}
+            Save Visibility
+          </button>
+        </div>
+      </div>
+
+      {passport.view_count != null && (
+        <div>
+          <SectionHeading>Access Stats</SectionHeading>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="p-4 rounded-xl border border-slate-200 bg-white text-center">
+              <div className="flex justify-center mb-1"><Eye size={16} className="text-slate-400" /></div>
+              <div className="text-2xl font-black text-slate-900">{passport.view_count ?? 0}</div>
+              <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mt-0.5">Total Views</div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-import { Popconfirm } from 'antd'
-
 export default function PassportPage() {
-  const { data, isLoading, refetch } = useApiQuery(['passport'], () => passportApi.get())
-  const passport = (data as { passport: Passport } | undefined)?.passport
+  const queryClient = useQueryClient()
+  const user = useAuthStore(s => s.user)
+  const [activeTab, setActiveTab] = useState('overview')
 
-  if (isLoading) return <div style={{ textAlign: 'center', padding: 100 }}><Spin size="large" /></div>
-  if (!passport) return <Empty description="Passport not found" />
+  const { data, isLoading } = useApiQuery(
+    ['passport'],
+    () => passportApi.get(),
+    { staleTime: 0 }
+  )
+  const passport: Passport | undefined = (data as any)?.passport
+
+  const refresh = useCallback(() => {
+    queryClient.refetchQueries({ queryKey: ['passport'] })
+  }, [queryClient])
+
+  const userName = user ? `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim() : ''
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-96px)] bg-[#F8FAFC] -m-4">
+        <Spin size="large" />
+      </div>
+    )
+  }
+
+  if (!passport) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[calc(100vh-96px)] bg-[#F8FAFC] -m-4 gap-4">
+        <div className="h-14 w-14 rounded-2xl bg-blue-50 flex items-center justify-center">
+          <FileText size={24} className="text-blue-500" />
+        </div>
+        <div className="text-base font-black text-slate-700">Passport not found</div>
+        <div className="text-sm text-slate-400">Complete onboarding to create your Talent Passport.</div>
+      </div>
+    )
+  }
 
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-      <Title level={4} style={{ marginBottom: 24 }}>Candidate Passport</Title>
+    <div className="flex flex-col h-[calc(100vh-96px)] bg-[#F8FAFC] -m-4 overflow-hidden">
 
-      <Card bordered={false} style={{ borderRadius: 12 }}>
-        <Tabs
-          defaultActiveKey="profile"
-          items={[
-            {
-              key: 'profile',
-              label: 'Profile',
-              children: <ProfileTab passport={passport} onUpdate={refetch} />,
-            },
-            {
-              key: 'experience',
-              label: 'Experience',
-              children: <ExperienceTab passport={passport} onUpdate={refetch} />,
-            },
-            {
-              key: 'education',
-              label: 'Education',
-              children: <EducationTab passport={passport} onUpdate={refetch} />,
-            },
-            {
-              key: 'skills',
-              label: 'Skills',
-              children: <SkillsTab passport={passport} onUpdate={refetch} />,
-            },
-            {
-              key: 'preferences',
-              label: 'Preferences',
-              children: <PreferencesTab passport={passport} onUpdate={refetch} />,
-            },
-          ]}
-        />
-        <ShareSection />
-      </Card>
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-6">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm shadow-blue-100">
+            <FileText size={16} />
+          </div>
+          <div>
+            <h1 className="text-base font-black text-slate-900 tracking-tight leading-none uppercase">
+              Talent Passport
+            </h1>
+            {passport.passport_number && (
+              <div className="text-[9px] font-black text-slate-400 tracking-widest mt-0.5">
+                {passport.passport_number}
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-[9px] text-slate-400 font-medium">
+          {passport.updated_at && (
+            <span>Last updated {dayjs(passport.updated_at).format('DD MMM YYYY')}</span>
+          )}
+        </div>
+      </div>
+
+      {/* ── Body ───────────────────────────────────────────────────────────── */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* Left: Identity Card */}
+        <IdentitySidebar passport={passport} userName={userName} />
+
+        {/* Right: Tabbed Content */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+
+          {/* Tab bar */}
+          <div className="flex items-center border-b border-slate-200 bg-white shrink-0 overflow-x-auto">
+            {TABS.map(({ key, label, Icon }) => (
+              <button
+                key={key}
+                onClick={() => setActiveTab(key)}
+                className={cn(
+                  'flex items-center gap-1.5 px-5 py-3.5 text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap border-b-2',
+                  activeTab === key
+                    ? 'border-blue-600 text-blue-600 bg-blue-50/50'
+                    : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                )}
+              >
+                <Icon size={11} />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab content */}
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-3xl mx-auto">
+              {activeTab === 'overview'    && <OverviewTab     passport={passport} onRefresh={refresh} />}
+              {activeTab === 'experience'  && <ExperienceTab   passport={passport} onRefresh={refresh} />}
+              {activeTab === 'education'   && <EducationTab    passport={passport} onRefresh={refresh} />}
+              {activeTab === 'skills'      && <SkillsTab       passport={passport} onRefresh={refresh} />}
+              {activeTab === 'projects'    && <ProjectsTab     passport={passport} onRefresh={refresh} />}
+              {activeTab === 'preferences' && <PreferencesTab  passport={passport} onRefresh={refresh} />}
+              {activeTab === 'privacy'     && <PrivacyTab      passport={passport} onRefresh={refresh} />}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

@@ -105,6 +105,7 @@ export type SourcingMode = 'internal' | 'external' | 'hybrid'
 
 export interface JobRequisition {
   id: string
+  job_ref_id?: string
   tenant_id: string
   title: string
   department_id: string | null
@@ -174,6 +175,7 @@ export interface JobStage {
 
 export interface Candidate {
   id: string
+  candidate_ref_id?: string
   tenant_id: string
   first_name: string
   last_name: string
@@ -220,6 +222,8 @@ export type WorkflowMode = 'manual' | 'semi_automated' | 'fully_automated'
 
 export interface CandidateSmartRow {
   id: string
+  candidate_ref_id?: string
+  created_at?: string | null
   name: string
   current_title?: string
   company?: string
@@ -247,6 +251,12 @@ export interface CandidateSmartRow {
   notice_period_days?: number | null
   availability_status?: string | null
   open_engagements?: number
+  email?: string
+  phone?: string
+  tags?: string[]
+  expected_salary_min?: number | null
+  expected_salary_max?: number | null
+  salary_currency?: string
   // Protection fields
   is_agency_protected?: boolean
   protected_until?: string
@@ -289,6 +299,7 @@ export interface ActiveWorkEngagement {
   id: string
   candidate: string
   candidate_name: string
+  candidate_ref_id?: string
   job?: string | null
   job_title?: string | null
   stage: string
@@ -411,10 +422,15 @@ export interface TimelineEvent {
 
 export type ApplicationStatus =
   | 'applied'
+  | 'sourcing'
   | 'screening'
   | 'shortlisted'
   | 'in_review'
+  | 'interview'
   | 'interview_scheduled'
+  | 'assessment'
+  | 'on_hold'
+  | 'offer'
   | 'offer_extended'
   | 'offer_accepted'
   | 'joined'
@@ -543,10 +559,14 @@ export type InterviewStatus =
   | 'confirmed'
   | 'rescheduled'
   | 'in_progress'
+  | 'paused'
   | 'completed'
   | 'cancelled'
   | 'no_show'
   | 'pending_feedback'
+  | 'awaiting_feedback'
+  | 'awaiting_decision'
+  | 'rejected'
 
 export type ThresholdAction = 'pass' | 'reject' | 'manual_review'
 
@@ -597,7 +617,9 @@ export interface Interview {
   id: string
   tenant_id: string
   application_id: string
-  interview_type: InterviewType
+  candidate_id: string
+  requisition_id: string
+  interview_type: string
   title: string
   scheduled_at: string
   duration_minutes: number
@@ -605,14 +627,17 @@ export interface Interview {
   location_type: 'online' | 'office' | 'other'
   location_detail: string
   meeting_link: string
+  interview_link: string
   meeting_id: string
   status: InterviewStatus
   feedback_average_score: number | null
   feedback_count: number
+  recommendation?: string
   interviewers: string[] // User IDs
   candidate_notified: boolean
   interviewers_notified: boolean
   is_active: boolean
+  decision?: any
   created_at: string
   updated_at: string
   created_by: string
@@ -733,27 +758,78 @@ export interface CandidateApplication {
 
 export interface Passport {
   id: string
-  candidate_id: string
+  user_id?: string
+  candidate_id: string | null
+  passport_number?: string
+  is_active?: boolean
+
+  // Profile
   headline: string
   summary: string
-  current_title: string
-  current_company: string
+  profile_photo_url?: string
+  cover_image_url?: string
   video_intro_url: string
+
+  // Professional
+  current_title: string
+  current_company?: string
+  current_location_city?: string
+  current_location_country?: string
+  experience_years?: number
+
+  // CV
+  current_cv_url?: string
+  current_cv_filename?: string
+
+  // Sections
+  work_history: PassportWorkExperience[]
+  education: PassportEducation[]
+  skills: string[]
+  languages: string[]
+  certifications?: PassportCertification[]
+  projects?: PassportProject[]
+  publications?: PassportPublication[]
+  awards?: PassportAward[]
+  volunteer_work?: PassportVolunteer[]
+
+  // Social
   linkedin_url: string
   github_url: string
   portfolio_url: string
-  skills: string[]
-  languages: string[]
-  preferred_work_mode: WorkMode | 'any'
-  is_actively_looking: boolean
-  open_to_work: boolean
-  notice_period_days: number
+  twitter_url?: string
+  behance_url?: string
+  dribbble_url?: string
+
+  // Preferences
+  preferred_locations?: string[]
+  preferred_work_mode: WorkMode | 'any' | ''
+  preferred_job_types?: string[]
+  preferred_industries?: string[]
   expected_salary_min: number | null
   expected_salary_max: number | null
+  salary_currency?: string
+  notice_period_days: number | null
   availability_date: string | null
-  work_history: PassportWorkExperience[]
-  education: PassportEducation[]
+  is_actively_looking: boolean
+  open_to_work: boolean
+
+  // Verification (read-only — set by platform)
+  identity_verified?: boolean
+  background_verified?: boolean
+  employment_verified?: boolean
+  education_verified?: boolean
+
+  // Scores (read-only)
+  heat_score?: number
   completeness_score: number
+  market_demand_score?: number
+  view_count?: number
+
+  // Editable by candidate
+  visibility_settings?: Record<string, boolean>
+  metadata?: Record<string, unknown>
+
+  created_at?: string
   updated_at: string
 }
 
@@ -765,7 +841,7 @@ export interface PassportWorkExperience {
   to_date: string | null
   is_current: boolean
   description: string
-  location: string
+  location?: string
 }
 
 export interface PassportEducation {
@@ -775,6 +851,53 @@ export interface PassportEducation {
   field: string
   year: number
   grade?: string
+}
+
+export interface PassportCertification {
+  id: string
+  name: string
+  issuer: string
+  issued_date?: string | null
+  expiry_date?: string | null
+  credential_id?: string
+  credential_url?: string
+}
+
+export interface PassportProject {
+  id: string
+  name: string
+  description: string
+  url?: string
+  from_date?: string | null
+  to_date?: string | null
+  skills?: string[]
+}
+
+export interface PassportPublication {
+  id: string
+  title: string
+  publisher?: string
+  published_date?: string | null
+  url?: string
+  description?: string
+}
+
+export interface PassportAward {
+  id: string
+  title: string
+  issuer?: string
+  date?: string | null
+  description?: string
+}
+
+export interface PassportVolunteer {
+  id: string
+  role: string
+  organisation: string
+  from_date?: string | null
+  to_date?: string | null
+  is_current?: boolean
+  description?: string
 }
 
 // ─── Messaging ───────────────────────────────────────────────────────────────
@@ -819,11 +942,19 @@ export interface Organisation {
   id: string
   tenant_id: string
   name: string
+  org_type?: string
   industry: string
-  size: string
+  size?: string
+  size_range?: string
   website: string
   logo_url: string
   description: string
+  country_code?: string
+  timezone?: string
+  settings?: Record<string, unknown>
+  reference_prefix_auto?: string
+  reference_prefix_custom?: string
+  effective_reference_prefix?: string
   founded_year: number | null
   metadata: Record<string, unknown>
 }

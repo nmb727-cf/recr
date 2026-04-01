@@ -166,7 +166,11 @@ export default function JobCreate() {
               </Form.Item>
             </Col>
             <Col xs={12} md={4}>
-              <Form.Item name="salary_min" label="Min Salary">
+              <Form.Item
+                name="salary_min"
+                label="Min Salary"
+                rules={[{ required: true, message: 'Required' }]}
+              >
                 <InputNumber
                   style={{ width: '100%' }}
                   formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
@@ -176,7 +180,11 @@ export default function JobCreate() {
               </Form.Item>
             </Col>
             <Col xs={12} md={4}>
-              <Form.Item name="salary_max" label="Max Salary">
+              <Form.Item
+                name="salary_max"
+                label="Max Salary"
+                rules={[{ required: true, message: 'Required' }]}
+              >
                 <InputNumber
                   style={{ width: '100%' }}
                   formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}

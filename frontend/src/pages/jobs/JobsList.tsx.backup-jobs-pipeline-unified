@@ -1,0 +1,731 @@
+import { useState, useMemo, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import {
+  Button, Input, Select, Typography, Row, Col, Card,
+  Drawer, Tag, Tabs, Spin, Badge, message, Space, Modal,
+  Tooltip, Avatar, Divider, Segmented, Empty, Table, Timeline
+} from 'antd'
+import {
+  Plus,
+  Search,
+  Briefcase,
+  RefreshCw,
+  ChevronRight,
+  ArrowRight,
+  Send,
+  CheckCircle,
+  Globe,
+  LayoutGrid,
+  ChevronLeft,
+  Filter,
+  MapPin,
+  Clock3,
+  Users,
+  Target,
+  AlertCircle,
+  MoreHorizontal,
+  ExternalLink,
+  History,
+  Settings2,
+  Zap,
+  Building2,
+  Calendar,
+  DollarSign,
+  FileText,
+  Activity,
+  XCircle,
+  BrainCircuit,
+  Star,
+  X,
+  Maximize2,
+  Minimize2,
+  ShieldCheck,
+  TrendingUp,
+  LineChart,
+  BarChart3,
+  ArrowUpRight,
+  Edit,
+  Sparkles,
+  Info,
+  Layers,
+  MousePointerClick,
+  ChevronLast,
+  ChevronFirst,
+  PanelLeftClose,
+  PanelLeftOpen
+} from 'lucide-react'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import { useTranslation } from 'react-i18next'
+import { useApiQuery } from '@/hooks/useApiQuery'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { requisitionsApi } from '@/api/jobs'
+import { agenciesApi } from '@/api/agencies'
+import { pipelineApi } from '@/api/pipeline'
+import { organisationApi } from '@/api/organisation'
+import { candidatesApi } from '@/api/candidates'
+import { interviewsApi } from '@/api/interviews'
+import type { JobRequisition, User, Application, RequisitionStatus } from '@/types'
+import { cn } from '@/utils/cn'
+import JobCreateForm from '@/components/forms/JobCreateForm'
+import { formatStatusLabel, getStatusStyle } from '@/utils/status'
+import { useAuthStore } from '@/store/authStore'
+import PipelineBoard from '../pipeline/PipelineBoard'
+import JobMatchSuggestions from '@/components/JobMatchSuggestions'
+
+dayjs.extend(relativeTime)
+const { Title, Text, Paragraph } = Typography
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const JOB_STATUS_TABS = [
+  { label: 'All Jobs', value: 'all' },
+  { label: 'Active', value: 'active' },
+  { label: 'Draft', value: 'draft' },
+  { label: 'Pending', value: 'pending_approval' },
+  { label: 'Closed', value: 'closed' },
+]
+
+const PRIORITY_STYLE: Record<string, { color: string; bg: string; label: string }> = {
+  urgent: { color: '#ef4444', bg: '#fef2f2', label: 'Urgent' },
+  high:    { color: '#f97316', bg: '#fff7ed', label: 'High' },
+  medium:  { color: '#6366f1', bg: '#eef2ff', label: 'Medium' },
+  low:     { color: '#94a3b8', bg: '#f8fafc', label: 'Low' },
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+function avatarColor(name: string) {
+  const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#f97316', '#22c55e', '#14b8a6', '#3b82f6']
+  return colors[(name?.charCodeAt(0) || 0) % colors.length]
+}
+
+const formatSalary = (amount: number | string, currency: string = 'INR') => 
+  new Intl.NumberFormat('en-IN', { 
+    style: 'currency', 
+    currency: currency,
+    maximumFractionDigits: 0
+  }).format(Number(amount))
+
+// ─── Component: JobsList ──────────────────────────────────────────────────────
+
+export default function JobsList() {
+  const { t } = useTranslation(['jobs', 'common'])
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const queryClient = useQueryClient()
+  const user = useAuthStore((s) => s.user)
+
+  // State
+  const [surface, setSurface] = useState<'hiring_hub' | 'pipeline'>('hiring_hub')
+  const [activeStatusTab, setActiveStatusTab] = useState<string>(searchParams.get('status') || 'active')
+  const [search, setSearch] = useState('')
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(searchParams.get('id'))
+  const [createDrawerOpen, setCreateDrawerOpen] = useState(false)
+  const [editingJob, setEditingJob] = useState<JobRequisition | null>(null)
+  
+  // Layout State
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(() => {
+    return localStorage.getItem('jobs_left_panel_collapsed') === 'true'
+  })
+  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(() => {
+    return localStorage.getItem('jobs_right_panel_collapsed') === 'true'
+  })
+
+  // Tabs for Command Center
+  const [activeTab, setActiveTab] = useState('overview')
+
+  // Queries
+  const { data: usersData } = useApiQuery(['organisation-users'], () => organisationApi.listUsers())
+  const users = (usersData as any)?.users ?? []
+
+  const { data, isLoading, refetch } = useApiQuery(
+    ['jobs', activeStatusTab, search],
+    () => requisitionsApi.list({
+      status: activeStatusTab === 'all' ? undefined : activeStatusTab,
+      search: search || undefined,
+    })
+  )
+
+  const requisitions = useMemo(() => {
+    const list = ((data as any)?.requisitions as JobRequisition[] | undefined) ??
+                 ((data as any)?.data?.requisitions as JobRequisition[] | undefined) ??
+                 []
+    return list
+  }, [data])
+
+  // Default selection
+  useEffect(() => {
+    if (!selectedJobId && requisitions.length > 0 && !isLoading) {
+      setSelectedJobId(requisitions[0].id)
+    }
+  }, [requisitions, selectedJobId, isLoading])
+
+  const selectedJob = useMemo(() => 
+    requisitions.find(j => j.id === selectedJobId) || null
+  , [requisitions, selectedJobId])
+
+  // Sync URL
+  useEffect(() => {
+    const params: any = {}
+    if (selectedJobId) params.id = selectedJobId
+    if (activeStatusTab !== 'active') params.status = activeStatusTab
+    setSearchParams(params, { replace: true })
+  }, [selectedJobId, activeStatusTab, setSearchParams])
+
+  // Persistence
+  useEffect(() => {
+    localStorage.setItem('jobs_left_panel_collapsed', String(leftPanelCollapsed))
+  }, [leftPanelCollapsed])
+
+  useEffect(() => {
+    localStorage.setItem('jobs_right_panel_collapsed', String(rightPanelCollapsed))
+  }, [rightPanelCollapsed])
+
+  const selectJob = (id: string) => {
+    setSelectedJobId(id)
+    setActiveTab('overview')
+  }
+
+  return (
+    <div className="flex flex-col h-[calc(100vh-56px)] bg-[#F8FAFC] -mt-6 -mx-6 overflow-hidden">
+      
+      {/* ══ Level 1: Workspace Header ════════════════════════════════════════ */}
+      <div className="flex h-14 flex-none items-center justify-between border-b border-slate-200 bg-white px-6 z-20">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-soft-sm shadow-indigo-100">
+              <Briefcase size={18} />
+            </div>
+            <h1 className="text-sm font-black text-slate-900 tracking-tight leading-none uppercase tracking-widest">Jobs</h1>
+          </div>
+
+          {/* Workspace Switcher */}
+          <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 border border-slate-200/50 ml-2">
+            <button
+              onClick={() => setSurface('hiring_hub')}
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-4 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all",
+                surface === 'hiring_hub' ? "bg-white text-indigo-700 shadow-sm border border-indigo-100" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              Hub
+            </button>
+            <button
+              onClick={() => setSurface('pipeline')}
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-4 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all",
+                surface === 'pipeline' ? "bg-white text-indigo-700 shadow-sm border border-indigo-100" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              Analytics
+            </button>
+          </div>
+
+          <div className="h-4 w-[1px] bg-slate-200 mx-2" />
+
+          {/* Inline Status Tabs */}
+          <div className="flex items-center gap-1">
+            {JOB_STATUS_TABS.map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => setActiveStatusTab(tab.value)}
+                className={cn(
+                  "px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition rounded-lg",
+                  activeStatusTab === tab.value
+                    ? "text-indigo-600 bg-indigo-50 border border-indigo-100"
+                    : "text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={() => {
+              setEditingJob(null)
+              setCreateDrawerOpen(true)
+            }}
+            className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white hover:bg-indigo-700 transition shadow-soft-lg active:scale-95"
+          >
+            <Plus size={14} /> Add Job
+          </button>
+          <button
+            onClick={() => refetch()}
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 shadow-soft-sm transition-all"
+          >
+            <RefreshCw size={16} className={cn(isLoading && "animate-spin")} />
+          </button>
+        </div>
+      </div>
+
+      {/* ══ Level 2: Body (Compact operational layout) ═════════════════════════ */}
+      <div className="flex flex-1 overflow-hidden border-t border-slate-100 relative">
+        
+        {/* COLUMN 1: Job List Panel (Left) */}
+        <div 
+          className={cn(
+            "flex flex-none flex-col overflow-hidden border-r border-slate-200 bg-white transition-all duration-300 relative",
+            leftPanelCollapsed ? "w-16" : "w-[280px]"
+          )}
+        >
+          <div className="flex-none border-b border-slate-100 p-3 h-14 flex items-center justify-between">
+            {!leftPanelCollapsed && (
+              <div className="flex-1 flex items-center gap-2 rounded-lg border border-slate-100 bg-slate-50/50 px-2.5 py-1.5 focus-within:border-indigo-300 transition-all">
+                <Search size={12} className="text-slate-400 shrink-0" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Filter..."
+                  className="flex-1 bg-transparent text-[11px] text-slate-700 outline-none placeholder-slate-400 font-medium"
+                />
+              </div>
+            )}
+            <button 
+              onClick={() => setLeftPanelCollapsed(!leftPanelCollapsed)}
+              className={cn(
+                "flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-all",
+                leftPanelCollapsed ? "w-full" : "ml-2"
+              )}
+            >
+              {leftPanelCollapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1 bg-[#F8FAFC]/50">
+            {isLoading && requisitions.length === 0 ? (
+              <div className="py-12 flex justify-center"><Spin size="small" /></div>
+            ) : requisitions.length === 0 ? (
+              !leftPanelCollapsed && <Empty className="mt-12" image={Empty.PRESENTED_IMAGE_SIMPLE} description={<span className="text-[10px] font-bold text-slate-400 uppercase">Empty</span>} />
+            ) : (
+              requisitions.map((job) => (
+                <JobOperationalCard
+                  key={job.id}
+                  job={job}
+                  selected={selectedJobId === job.id}
+                  onSelect={() => selectJob(job.id)}
+                  users={users}
+                  collapsed={leftPanelCollapsed}
+                />
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* COLUMN 2: Command Center (Main Workspace) */}
+        <div className="flex flex-1 flex-col overflow-hidden bg-white">
+          {selectedJob ? (
+            <JobCommandCenter
+              job={selectedJob}
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              onEdit={() => {
+                setEditingJob(selectedJob)
+                setCreateDrawerOpen(true)
+              }}
+              onRefresh={refetch}
+              rightPanelCollapsed={rightPanelCollapsed}
+              toggleRightPanel={() => setRightPanelCollapsed(!rightPanelCollapsed)}
+            />
+          ) : (
+            <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center bg-[#f8fafc]">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50 shadow-soft-sm">
+                <Target size={28} className="text-indigo-300" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-600">Select a Requisition</p>
+                <p className="mt-1 text-xs text-slate-400">Choose a requisition from the left rail to view hiring details.</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* COLUMN 3: Intelligence/Action Panel (Right) */}
+        {selectedJob && !rightPanelCollapsed && (
+          <div className="flex w-[280px] flex-none flex-col overflow-hidden border-l border-slate-200 bg-white transition-all">
+            <JobIntelligencePanel job={selectedJob} onClose={() => setRightPanelCollapsed(true)} />
+          </div>
+        )}
+      </div>
+
+      {/* Create/Edit Modal */}
+      <Modal
+        open={createDrawerOpen}
+        onCancel={() => {
+          setCreateDrawerOpen(false)
+          setEditingJob(null)
+        }}
+        width={720}
+        title={<span className="text-xl font-black tracking-tight text-slate-900 uppercase tracking-widest">{editingJob ? 'Edit Requisition' : 'Create New Requisition'}</span>}
+        footer={null}
+        destroyOnClose
+        className="rounded-3xl overflow-hidden"
+      >
+        <div className="pt-4">
+          <JobCreateForm 
+            onSuccess={() => {
+              setCreateDrawerOpen(false)
+              setEditingJob(null)
+              refetch()
+            }} 
+            initialValues={editingJob} 
+          />
+        </div>
+      </Modal>
+    </div>
+  )
+}
+
+// ─── Sub-components for JobsList ───────────────────────────────────────────
+
+function JobOperationalCard({ job, selected, onSelect, users, collapsed }: { job: JobRequisition; selected: boolean; onSelect: () => void; users: any[]; collapsed: boolean }) {
+  const statusStyle = getStatusStyle(job.status, 'job')
+  const priority = PRIORITY_STYLE[job.priority || 'medium']
+  const metadata = (job.metadata || {}) as Record<string, any>
+  const owner = users?.find((u: any) => u.id === job.created_by)
+  const ownerName = owner ? `${owner.first_name} ${owner.last_name}` : 'Unknown'
+
+  const metadata_app_count = Number(metadata.applications_count) || 0
+  const totalApps = metadata_app_count
+
+  if (collapsed) {
+    return (
+      <Tooltip title={job.title} placement="right">
+        <button
+          onClick={onSelect}
+          className={cn(
+            "w-full aspect-square rounded-xl flex flex-col items-center justify-center transition-all relative group mb-1 border",
+            selected
+              ? "border-indigo-400 bg-white shadow-sm ring-2 ring-indigo-50"
+              : "border-transparent hover:bg-white hover:border-slate-200"
+          )}
+        >
+          <Avatar size={24} style={{ backgroundColor: avatarColor(ownerName), fontSize: '10px' }} className="font-black">
+            {ownerName.charAt(0)}
+          </Avatar>
+          <div className={cn("mt-1.5 h-1.5 w-1.5 rounded-full", statusStyle.dotClass)} />
+          {selected && <div className="absolute left-0 top-2 bottom-2 w-1 bg-indigo-600 rounded-r-full" />}
+        </button>
+      </Tooltip>
+    )
+  }
+
+  return (
+    <button
+      onClick={onSelect}
+      className={cn(
+        "w-full rounded-xl border p-3 text-left transition-all relative overflow-hidden group mb-1",
+        selected
+          ? "border-indigo-400 bg-white shadow-sm ring-2 ring-indigo-50"
+          : "border-slate-200 bg-white hover:border-slate-300"
+      )}
+    >
+      {selected && <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-600" />}
+      
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div className="min-w-0 flex-1">
+          <div className={cn(
+            "truncate text-[11px] font-black leading-tight uppercase tracking-tight mb-0.5",
+            selected ? "text-indigo-700" : "text-slate-900"
+          )}>
+            {job.title || 'Untitled Role'}
+          </div>
+          <div className="flex items-center gap-1.5 text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+            <span>{job.job_ref_id || 'NO-REF'}</span>
+            <span>•</span>
+            <span className="truncate">{job.work_mode.replace('_', ' ')}</span>
+          </div>
+        </div>
+        <div className={cn("h-1.5 w-1.5 rounded-full shrink-0 mt-1", statusStyle.dotClass)} />
+      </div>
+
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5">
+          <Text className="text-[10px] font-black text-slate-700">{totalApps}</Text>
+          <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Candidates</Text>
+        </div>
+        
+        <div className="flex items-center gap-1.5">
+          <Avatar size={14} style={{ backgroundColor: avatarColor(ownerName), fontSize: '7px' }} className="font-black">
+            {ownerName.charAt(0)}
+          </Avatar>
+          <span 
+            className="px-1 py-0.5 rounded-[4px] text-[7px] font-black uppercase tracking-widest border"
+            style={{ backgroundColor: priority.bg, color: priority.color, borderColor: priority.color + '20' }}
+          >
+            {priority.label}
+          </span>
+        </div>
+      </div>
+    </button>
+  )
+}
+
+function JobCommandCenter({ job, activeTab, setActiveTab, onEdit, onRefresh, rightPanelCollapsed, toggleRightPanel }: { job: JobRequisition; activeTab: string; setActiveTab: (t: string) => void; onEdit: () => void; onRefresh: () => void; rightPanelCollapsed: boolean; toggleRightPanel: () => void }) {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const statusStyle = getStatusStyle(job.status, 'job')
+
+  // Mutations
+  const submitMutation = useMutation({
+    mutationFn: () => requisitionsApi.submitForApproval(job.id),
+    onSuccess: () => {
+      message.success('Submitted for approval')
+      queryClient.invalidateQueries({ queryKey: ['jobs'] })
+      onRefresh()
+    }
+  })
+
+  const approveMutation = () => {
+    Modal.confirm({
+      title: 'Approve Requisition',
+      content: 'Are you sure you want to approve this job requisition?',
+      onOk: async () => {
+        await requisitionsApi.approve(job.id)
+        message.success('Requisition approved')
+        queryClient.invalidateQueries({ queryKey: ['jobs'] })
+        onRefresh()
+      }
+    })
+  }
+
+  const publishMutation = () => {
+    Modal.confirm({
+      title: 'Publish Job',
+      content: 'Make this job live and visible to recruiters/agencies?',
+      onOk: async () => {
+        await requisitionsApi.publish(job.id)
+        message.success('Published live')
+        queryClient.invalidateQueries({ queryKey: ['jobs'] })
+        onRefresh()
+      }
+    })
+  }
+
+  return (
+    <div className="flex flex-1 flex-col overflow-hidden">
+      {/* ══ Command Center Header ══════════════════════════════════════════ */}
+      <div className="border-b border-slate-100 bg-white px-6 py-3.5">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white shadow-soft-sm">
+              <Briefcase size={20} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <span className={cn("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[8px] font-black uppercase tracking-widest border", statusStyle.softClass)}>
+                  {formatStatusLabel(job.status)}
+                </span>
+                <span className={cn(
+                  "px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest border",
+                  job.priority === 'urgent' ? "bg-rose-50 text-rose-600 border-rose-100" : "bg-slate-50 text-slate-500 border-slate-100"
+                )}>
+                  {job.priority}
+                </span>
+              </div>
+              <h1 className="text-base font-black text-slate-900 tracking-tight leading-none uppercase">
+                {job.title}
+              </h1>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <div className="hidden xl:flex items-center gap-3 text-[9px] font-black text-slate-400 uppercase tracking-[0.1em] mr-4">
+              <span className="flex items-center gap-1"><MapPin size={10} /> {job.location_id || 'Remote'}</span>
+              <span className="opacity-30">•</span>
+              <span className="flex items-center gap-1"><Users size={10} /> {job.headcount} slots</span>
+            </div>
+            
+            <button
+              onClick={onEdit}
+              className="flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-[9px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition-all shadow-soft-sm"
+            >
+              <Edit size={12} /> Edit
+            </button>
+            
+            {job.status === 'draft' && (
+              <Button type="primary" onClick={() => submitMutation.mutate()} loading={submitMutation.isPending} className="!h-8 !text-[9px] font-black uppercase tracking-widest bg-blue-600 border-none">
+                Submit
+              </Button>
+            )}
+            
+            {job.status === 'pending_approval' && (
+              <Button type="primary" onClick={approveMutation} className="!h-8 !text-[9px] font-black uppercase tracking-widest bg-emerald-600 border-none">
+                Approve
+              </Button>
+            )}
+
+            {job.status === 'approved' && (
+              <Button type="primary" onClick={publishMutation} className="!h-8 !text-[9px] font-black uppercase tracking-widest bg-indigo-600 border-none">
+                Publish
+              </Button>
+            )}
+
+            <button
+              onClick={toggleRightPanel}
+              className={cn(
+                "flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 transition-all",
+                rightPanelCollapsed ? "bg-white text-slate-400" : "bg-indigo-50 text-indigo-600 border-indigo-100"
+              )}
+            >
+              <Info size={16} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ══ Level 2 Header (Tabs) ══════════════════════════════════════════ */}
+      <div className="flex h-10 flex-none items-center justify-between border-b border-slate-100 bg-white px-6">
+        <div className="flex items-center gap-1">
+          {([
+            { key: 'overview', label: 'Overview' },
+            { key: 'pipeline', label: 'Pipeline' },
+            { key: 'interviews', label: 'Interviews' },
+            { key: 'candidates', label: 'Sourcing' },
+            { key: 'activity', label: 'Activity' },
+          ] as const).map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={cn(
+                "px-4 py-1 text-[9px] font-black uppercase tracking-widest transition h-10 relative",
+                activeTab === tab.key ? "text-indigo-600" : "text-slate-400 hover:text-slate-600"
+              )}
+            >
+              {tab.label}
+              {activeTab === tab.key && (
+                <div className="absolute bottom-0 left-0 h-0.5 w-full bg-indigo-600 rounded-full" />
+              )}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-hidden relative">
+        <div className="absolute inset-0 overflow-y-auto custom-scrollbar p-6 bg-[#F8FAFC]/30">
+          {activeTab === 'overview' && <OverviewTabContent job={job} />}
+          {activeTab === 'pipeline' && <PipelineBoard jobId={job.id} />}
+          {activeTab === 'candidates' && <JobMatchSuggestions jobId={job.id} onMatched={() => onRefresh()} />}
+          {activeTab === 'activity' && <div className="p-10 text-center"><History size={40} className="mx-auto text-slate-200 mb-4"/><Text className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Activity Log Coming Soon</Text></div>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function OverviewTabContent({ job }: { job: JobRequisition }) {
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Total Pipeline', val: (job.metadata as any)?.applications_count || 0, color: 'slate' },
+          { label: 'Interviewing', val: (job.metadata as any)?.interview || 0, color: 'orange' },
+          { label: 'Time to Fill', val: '14d', color: 'indigo' },
+          { label: 'Match Index', val: '8.4', color: 'emerald' },
+        ].map(s => (
+          <Card key={s.label} className="rounded-2xl border-slate-100 shadow-soft-sm overflow-hidden">
+             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{s.label}</p>
+             <p className={cn("text-2xl font-black", `text-${s.color}-600`)}>{s.val}</p>
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <Card title={<span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Description</span>} className="rounded-2xl border-slate-100 shadow-soft-sm">
+            <Paragraph className="text-[13px] text-slate-600 leading-relaxed whitespace-pre-wrap">{job.description || 'No description provided.'}</Paragraph>
+          </Card>
+        </div>
+        <div className="space-y-6">
+           <Card title={<span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Context</span>} className="rounded-2xl border-slate-100 shadow-soft-sm">
+              <div className="space-y-4">
+                 <div className="flex justify-between items-center"><span className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Experience</span><span className="text-xs font-black text-slate-800">{job.experience_min}-{job.experience_max}y</span></div>
+                 <div className="flex justify-between items-center"><span className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Budget</span><span className="text-xs font-black text-indigo-600">{formatSalary(job.salary_min)} - {formatSalary(job.salary_max)}</span></div>
+                 <div className="flex justify-between items-center"><span className="text-[9px] text-slate-400 font-black uppercase tracking-widest">Work Mode</span><span className="text-xs font-black text-slate-800 uppercase">{job.work_mode.replace('_', ' ')}</span></div>
+              </div>
+           </Card>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function JobIntelligencePanel({ job, onClose }: { job: JobRequisition; onClose: () => void }) {
+  return (
+    <div className="flex flex-col h-full bg-white">
+      <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between h-14">
+        <div className="flex items-center gap-2">
+          <BrainCircuit size={16} className="text-indigo-600" />
+          <span className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Intelligence</span>
+        </div>
+        <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={16}/></button>
+      </div>
+      
+      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Market Fit</span>
+            <Tag color="green" className="m-0 border-none text-[8px] font-black uppercase px-1.5 rounded">High</Tag>
+          </div>
+          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100">
+            <p className="text-[10px] text-emerald-800 font-bold leading-relaxed">
+              Engagement is 24% higher than benchmarks for this role in the current market.
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-3">Scorecard Weights</span>
+          <div className="space-y-2">
+            {[
+              { label: 'Technical Accuracy', val: '40%', color: 'blue' },
+              { label: 'Architecture Depth', val: '30%', color: 'indigo' },
+              { label: 'Cultural Alignment', val: '30%', color: 'emerald' },
+            ].map(s => (
+              <div key={s.label} className="flex items-center justify-between p-2.5 rounded-xl border border-slate-100 bg-white group hover:border-indigo-200 transition-all">
+                <span className="text-[9px] font-bold text-slate-600 uppercase tracking-tight">{s.label}</span>
+                <span className={`text-[10px] font-black text-${s.color}-600`}>{s.val}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="pt-4 border-t border-slate-100">
+          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-3">Health Monitoring</span>
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-1 flex-1 bg-slate-100 rounded-full overflow-hidden flex">
+                <div className="h-full bg-indigo-500" style={{ width: '60%' }} />
+                <div className="h-full bg-orange-500" style={{ width: '25%' }} />
+                <div className="h-full bg-emerald-500" style={{ width: '15%' }} />
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <div className="text-center">
+                <p className="text-[8px] font-black text-slate-400 uppercase">Sourced</p>
+                <p className="text-xs font-black text-slate-800">42</p>
+              </div>
+              <div className="text-center border-x border-slate-100">
+                <p className="text-[8px] font-black text-slate-400 uppercase">Vetted</p>
+                <p className="text-xs font-black text-orange-600">8</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[8px] font-black text-slate-400 uppercase">Offers</p>
+                <p className="text-xs font-black text-emerald-600">2</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="p-4 border-t border-slate-100 bg-slate-50/30">
+        <Button block icon={<Globe size={12} />} className="!h-9 !text-[9px] font-black uppercase tracking-widest border-slate-200 text-slate-600">
+          Sync Global Intel
+        </Button>
+      </div>
+    </div>
+  )
+}

@@ -262,6 +262,10 @@ class Candidate(models.Model):
         default='not_flagged',
         db_index=True
     )
+    # user_id links this Candidate record to a CustomUser account.
+    # Null = candidate was added by recruiter/agency, has no portal account yet.
+    # Non-null = candidate has signed up or claimed this record.
+    user_id = models.UUIDField(null=True, blank=True, db_index=True)
     passport_id = models.UUIDField(null=True, blank=True)
     duplicate_of = models.UUIDField(null=True, blank=True)
     is_duplicate = models.BooleanField(default=False)

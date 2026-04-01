@@ -48,6 +48,14 @@ export interface LinkedCandidateData {
 }
 
 export const passportApi = {
+  /**
+   * Fetch a publicly-shared passport by its share token.
+   * Requires no authentication — uses AllowAny on the backend.
+   * Called by the PublicPassportPage to render the share view.
+   */
+  getPublic: (token: string) =>
+    http.get<ApiResponse<{ passport: any }>>(`/passport/public/${token}/`),
+
   get: () =>
     http.get<ApiResponse<{ passport: Passport }>>('/passport/my-passport/'),
 
@@ -58,10 +66,10 @@ export const passportApi = {
     http.get<ApiResponse<{ share_url: string }>>('/passport/my-passport/share-link/'),
 
   regenerateShareLink: () =>
-    http.post<ApiResponse<{ share_url: string }>>('/passport/my-passport/share-link/regenerate/'),
+    http.post<ApiResponse<{ share_url: string; token: string }>>('/passport/my-passport/regenerate-link/'),
 
   importPassport: (token: string) =>
-    http.post<ApiResponse<{ candidate: any }>>('/passport/import/', { token }),
+    http.post<ApiResponse<{ candidate: any }>>('/passport/import/', { passport_token: token }),
 
   /**
    * Fetch the Candidate record linked to the current user.

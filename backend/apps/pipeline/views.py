@@ -27,29 +27,30 @@ from apps.candidates.protection import (
     start_rejection_based_protection_if_needed,
 )
 
+from apps.jobs.permissions import can_perform_job_action, is_automation_actor
+
 OWNER_ONLY_STAGE_MOVE_MESSAGE = "Only the job owner can manually change stages for submitted candidates."
+# JobStage.stage_type values that are in the company-visible hiring flow.
+# Matches the choices defined on jobs.models.JobStage.stage_type.
 COMPANY_VISIBLE_STAGE_TYPES = {
-    'submitted',
-    'under_review',
-    'review',
-    'client_review',
-    'shortlisted',
-    'interview',
-    'offer',
-    'placement',
-    'joined',
-}
-COMPANY_VISIBLE_APP_STATUSES = {
-    'submitted',
-    'under_review',
-    'review',
-    'client_review',
-    'applied',
+    'sourcing',
     'screening',
     'shortlisted',
     'interview',
+    'assessment',
     'offer',
-    'placement',
+    'joined',
+}
+# Application.status values that put the application in the company-visible
+# hiring flow.  Matches the choices on pipeline.models.Application.status.
+COMPANY_VISIBLE_APP_STATUSES = {
+    'applied',
+    'sourcing',
+    'screening',
+    'shortlisted',
+    'interview',
+    'assessment',
+    'offer',
     'joined',
 }
 
@@ -65,22 +66,7 @@ def _extract_stage_note(payload):
 
 
 def _is_automation_actor(user):
-    if not user:
-        return True
-
-    role = str(getattr(user, 'role', '') or '').lower()
-    if role in {'system', 'automation'}:
-        return True
-
-    metadata = getattr(user, 'metadata', {}) or {}
-    actor_mode = str(metadata.get('actor_mode', '') or '').lower()
-    trigger = str(metadata.get('workflow_trigger', '') or '').lower()
-    if actor_mode in {'system_automation', 'threshold_automation'}:
-        return True
-    if trigger in {'approved_threshold', 'approved_threshold_automation'}:
-        return True
-
-    return False
+    return is_automation_actor(user)
 
 
 def _is_company_visible_stage_context(application, target_stage=None, target_status=None):
@@ -110,7 +96,7 @@ def enforce_post_submission_stage_owner_lock(application, user, target_stage=Non
     For manual movement in company-visible stages, only the job owner can move stages.
     System automation / approved-threshold automation bypasses this lock.
     """
-    if _is_automation_actor(user):
+    if is_automation_actor(user):
         return True, None
 
     if not _is_company_visible_stage_context(
@@ -125,7 +111,8 @@ def enforce_post_submission_stage_owner_lock(application, user, target_stage=Non
     except JobRequisition.DoesNotExist:
         return False, "Requisition not found."
 
-    if job.created_by != user.id:
+    # Use centralized helper for ownership resolution and fallback logic
+    if not can_perform_job_action('move_stage', job, user):
         return False, OWNER_ONLY_STAGE_MOVE_MESSAGE
 
     return True, None

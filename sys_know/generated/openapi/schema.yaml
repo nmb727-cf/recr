@@ -538,6 +538,37 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/auth/recruiters/intelligence/:
+    get:
+      operationId: v1_auth_recruiters_intelligence_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/auth/jobs/{requisition_id}/recruiter-recommendations/:
+    get:
+      operationId: v1_auth_jobs_recruiter_recommendations_retrieve
+      parameters:
+      - in: path
+        name: requisition_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
   /api/v1/accounts/register/company/:
     post:
       operationId: v1_accounts_register_company_create
@@ -889,6 +920,37 @@ paths:
   /api/v1/accounts/mfa/verify/:
     post:
       operationId: v1_accounts_mfa_verify_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/accounts/recruiters/intelligence/:
+    get:
+      operationId: v1_accounts_recruiters_intelligence_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/accounts/jobs/{requisition_id}/recruiter-recommendations/:
+    get:
+      operationId: v1_accounts_jobs_recruiter_recommendations_retrieve
+      parameters:
+      - in: path
+        name: requisition_id
+        schema:
+          type: string
+          format: uuid
+        required: true
       tags:
       - v1
       responses:
@@ -1715,6 +1777,18 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/jobs/requisitions/global-intelligence/:
+    get:
+      operationId: v1_jobs_requisitions_global_intelligence_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
   /api/v1/jobs/requisitions/{id}/:
     get:
       operationId: v1_jobs_requisitions_retrieve_2
@@ -1846,6 +1920,25 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/jobs/requisitions/{id}/review/:
+    get:
+      operationId: v1_jobs_requisitions_review_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
   /api/v1/jobs/requisitions/{id}/clone/:
     post:
       operationId: v1_jobs_requisitions_clone_create
@@ -1860,6 +1953,117 @@ paths:
       - v1
       responses:
         '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/jobs/requisitions/{id}/candidates/:
+    get:
+      operationId: v1_jobs_requisitions_candidates_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/jobs/requisitions/{id}/hiring-brain/:
+    get:
+      operationId: v1_jobs_requisitions_hiring_brain_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/jobs/requisitions/{requisition_id}/interview-binding/:
+    get:
+      operationId: v1_jobs_requisitions_interview_binding_retrieve
+      parameters:
+      - in: path
+        name: requisition_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_jobs_requisitions_interview_binding_create
+      parameters:
+      - in: path
+        name: requisition_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    put:
+      operationId: v1_jobs_requisitions_interview_binding_update
+      parameters:
+      - in: path
+        name: requisition_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    delete:
+      operationId: v1_jobs_requisitions_interview_binding_destroy
+      parameters:
+      - in: path
+        name: requisition_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
           description: No response body
         '401':
           description: Authentication credentials were not provided or are invalid.
@@ -2102,11 +2306,11 @@ paths:
       - v1
       responses:
         '200':
-          description: Success
-        '404':
-          description: Job not found.
+          description: No response body
         '401':
           description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
   /api/v1/jobs/{id}/save/:
     post:
       operationId: v1_jobs_save_create
@@ -2624,11 +2828,11 @@ paths:
       operationId: v1_candidates_skills_search_retrieve
       tags:
       - v1
+      security:
+      - {}
       responses:
         '200':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
   /api/v1/candidates/locations/search/:
@@ -3024,6 +3228,25 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/pipeline/pipeline/{requisition_id}/activity/:
+    get:
+      operationId: v1_pipeline_pipeline_activity_retrieve
+      parameters:
+      - in: path
+        name: requisition_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
   /api/v1/pipeline/pipeline/bulk-action/:
     post:
       operationId: v1_pipeline_pipeline_bulk_action_create
@@ -3320,6 +3543,25 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/agencies/jobs/{requisition_id}/intelligence/:
+    get:
+      operationId: v1_agencies_jobs_intelligence_retrieve
+      parameters:
+      - in: path
+        name: requisition_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
   /api/v1/agencies/performance/:
     get:
       operationId: v1_agencies_performance_retrieve
@@ -3445,6 +3687,154 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/interviews/types/:
+    get:
+      operationId: v1_interviews_types_retrieve
+      description: GET /interviews/types/ — list active types (all authenticated users).
+      tags:
+      - v1
+      responses:
+        '200':
+          description: Interview types retrieved.
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_interviews_types_create
+      description: GET /interviews/types/ — list active types (all authenticated users).
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InterviewTypeRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InterviewTypeRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InterviewTypeRequest'
+        required: true
+      responses:
+        '201':
+          description: Interview type created.
+        '400':
+          description: Validation failed.
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/types/{id}/:
+    get:
+      operationId: v1_interviews_types_retrieve_2
+      description: GET/PUT /interviews/types/<uuid:pk>/
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: Interview type retrieved.
+        '404':
+          description: Not found.
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    put:
+      operationId: v1_interviews_types_update
+      description: GET/PUT /interviews/types/<uuid:pk>/
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InterviewTypeRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InterviewTypeRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InterviewTypeRequest'
+        required: true
+      responses:
+        '200':
+          description: Interview type updated.
+        '400':
+          description: Validation failed.
+        '404':
+          description: Not found.
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    delete:
+      operationId: v1_interviews_types_destroy
+      description: GET/PUT /interviews/types/<uuid:pk>/
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: Interview type deleted.
+        '404':
+          description: Not found.
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+  /api/v1/interviews/types/{id}/config/:
+    get:
+      operationId: v1_interviews_types_config_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    put:
+      operationId: v1_interviews_types_config_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
   /api/v1/interviews/templates/:
     get:
       operationId: v1_interviews_templates_retrieve
@@ -3507,6 +3897,84 @@ paths:
           description: Resource not found.
     delete:
       operationId: v1_interviews_templates_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/scorecards/templates/:
+    get:
+      operationId: v1_interviews_scorecards_templates_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_interviews_scorecards_templates_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/scorecards/templates/{id}/:
+    get:
+      operationId: v1_interviews_scorecards_templates_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    put:
+      operationId: v1_interviews_scorecards_templates_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    delete:
+      operationId: v1_interviews_scorecards_templates_destroy
       parameters:
       - in: path
         name: id
@@ -3659,6 +4127,63 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/interviews/{id}/kit/:
+    get:
+      operationId: v1_interviews_kit_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/{id}/schedule-flex/:
+    post:
+      operationId: v1_interviews_schedule_flex_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/{id}/cancel-flex/:
+    post:
+      operationId: v1_interviews_cancel_flex_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
   /api/v1/interviews/{id}/feedback/:
     get:
       operationId: v1_interviews_feedback_retrieve
@@ -3696,9 +4221,885 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/interviews/{id}/structured-feedback/:
+    get:
+      operationId: v1_interviews_structured_feedback_retrieve
+      description: |-
+        GET  /interviews/<uuid:pk>/structured-feedback/  — list all feedback for an interview
+        POST /interviews/<uuid:pk>/structured-feedback/  — submit / update feedback (current user)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: Feedback list retrieved.
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Interview not found.
+    post:
+      operationId: v1_interviews_structured_feedback_create
+      description: |-
+        GET  /interviews/<uuid:pk>/structured-feedback/  — list all feedback for an interview
+        POST /interviews/<uuid:pk>/structured-feedback/  — submit / update feedback (current user)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InterviewFeedbackRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InterviewFeedbackRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InterviewFeedbackRequest'
+      responses:
+        '200':
+          description: Feedback submitted.
+        '400':
+          description: Validation failed.
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Interview not found.
+  /api/v1/interviews/{id}/decision/:
+    get:
+      operationId: v1_interviews_decision_retrieve
+      description: |-
+        GET  /interviews/<uuid:pk>/decision/  — retrieve the final decision
+        POST /interviews/<uuid:pk>/decision/  — record / update the final decision
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: Decision retrieved.
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Interview or decision not found.
+    post:
+      operationId: v1_interviews_decision_create
+      description: |-
+        GET  /interviews/<uuid:pk>/decision/  — retrieve the final decision
+        POST /interviews/<uuid:pk>/decision/  — record / update the final decision
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InterviewDecisionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InterviewDecisionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InterviewDecisionRequest'
+        required: true
+      responses:
+        '200':
+          description: Decision recorded.
+        '400':
+          description: Validation failed.
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Interview not found.
+  /api/v1/interviews/{id}/decision/history/:
+    get:
+      operationId: v1_interviews_decision_history_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/{id}/decision/evaluate/:
+    post:
+      operationId: v1_interviews_decision_evaluate_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/{id}/panel-decision/:
+    get:
+      operationId: v1_interviews_panel_decision_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/{id}/scheduling-link/:
+    post:
+      operationId: v1_interviews_scheduling_link_create_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/scheduling-link/{token}/:
+    get:
+      operationId: v1_interviews_scheduling_link_retrieve
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_interviews_scheduling_link_create
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/flows/:
+    get:
+      operationId: v1_interviews_flows_retrieve
+      description: |-
+        GET  /interviews/flows/  — list all active flows for the tenant
+        POST /interviews/flows/  — create a new flow
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_interviews_flows_create
+      description: |-
+        GET  /interviews/flows/  — list all active flows for the tenant
+        POST /interviews/flows/  — create a new flow
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/flows/{id}/:
+    get:
+      operationId: v1_interviews_flows_retrieve_2
+      description: |-
+        GET    /interviews/flows/<uuid:pk>/  — retrieve flow
+        PUT    /interviews/flows/<uuid:pk>/  — update flow
+        DELETE /interviews/flows/<uuid:pk>/  — soft-delete flow
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    put:
+      operationId: v1_interviews_flows_update
+      description: |-
+        GET    /interviews/flows/<uuid:pk>/  — retrieve flow
+        PUT    /interviews/flows/<uuid:pk>/  — update flow
+        DELETE /interviews/flows/<uuid:pk>/  — soft-delete flow
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    delete:
+      operationId: v1_interviews_flows_destroy
+      description: |-
+        GET    /interviews/flows/<uuid:pk>/  — retrieve flow
+        PUT    /interviews/flows/<uuid:pk>/  — update flow
+        DELETE /interviews/flows/<uuid:pk>/  — soft-delete flow
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/availability/profile/:
+    get:
+      operationId: v1_interviews_availability_profile_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    put:
+      operationId: v1_interviews_availability_profile_update
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/availability/blocks/:
+    get:
+      operationId: v1_interviews_availability_blocks_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_interviews_availability_blocks_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/availability/panel-slots/:
+    post:
+      operationId: v1_interviews_availability_panel_slots_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/scheduling/manual/:
+    post:
+      operationId: v1_interviews_scheduling_manual_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/calendar/connections/:
+    get:
+      operationId: v1_interviews_calendar_connections_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_interviews_calendar_connections_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/integrations/providers/:
+    get:
+      operationId: v1_interviews_integrations_providers_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/integrations/providers/{id}/:
+    put:
+      operationId: v1_interviews_integrations_providers_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/integrations/connections/:
+    get:
+      operationId: v1_interviews_integrations_connections_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_interviews_integrations_connections_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/integrations/connections/{id}/:
+    put:
+      operationId: v1_interviews_integrations_connections_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/integrations/mappings/:
+    get:
+      operationId: v1_interviews_integrations_mappings_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_interviews_integrations_mappings_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/integrations/mappings/{id}/:
+    put:
+      operationId: v1_interviews_integrations_mappings_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/questions/bank/:
+    get:
+      operationId: v1_interviews_questions_bank_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_interviews_questions_bank_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/questions/bank/{id}/:
+    get:
+      operationId: v1_interviews_questions_bank_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    put:
+      operationId: v1_interviews_questions_bank_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    delete:
+      operationId: v1_interviews_questions_bank_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/questions/attachments/:
+    get:
+      operationId: v1_interviews_questions_attachments_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_interviews_questions_attachments_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/questions/attachments/{id}/:
+    put:
+      operationId: v1_interviews_questions_attachments_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    delete:
+      operationId: v1_interviews_questions_attachments_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/questions/groups/:
+    get:
+      operationId: v1_interviews_questions_groups_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_interviews_questions_groups_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/questions/groups/{id}/:
+    put:
+      operationId: v1_interviews_questions_groups_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    delete:
+      operationId: v1_interviews_questions_groups_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/packages/:
+    get:
+      operationId: v1_interviews_packages_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_interviews_packages_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/interviews/packages/{id}/:
+    get:
+      operationId: v1_interviews_packages_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    put:
+      operationId: v1_interviews_packages_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    delete:
+      operationId: v1_interviews_packages_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
   /api/v1/candidate/interviews/:
     get:
       operationId: v1_candidate_interviews_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/candidate/interviews/{id}/instructions/:
+    get:
+      operationId: v1_candidate_interviews_instructions_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/candidate/interviews/{id}/runtime/:
+    get:
+      operationId: v1_candidate_interviews_runtime_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/candidate/interviews/{id}/status/:
+    get:
+      operationId: v1_candidate_interviews_status_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/candidate/interviews/{id}/security-event/:
+    post:
+      operationId: v1_candidate_interviews_security_event_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
       tags:
       - v1
       responses:
@@ -4144,28 +5545,6 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/communications/communication/email-accounts/:
-    get:
-      operationId: v1_communications_communication_email_accounts_list
-      parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
-        schema:
-          type: string
-      tags:
-      - v1
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedEmailAccountList'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
     post:
       operationId: v1_communications_communication_email_accounts_create
       tags:
@@ -4193,9 +5572,31 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/communications/communication/email-accounts/{id}/:
     get:
-      operationId: v1_communications_communication_email_accounts_retrieve
+      operationId: v1_communications_communication_email_accounts_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedEmailAccountList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/communications/communication/email-accounts/{id}/:
+    put:
+      operationId: v1_communications_communication_email_accounts_update
       parameters:
       - in: path
         name: id
@@ -4205,17 +5606,25 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailAccountRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/EmailAccountRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/EmailAccountRequest'
+        required: true
       responses:
         '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EmailAccount'
-          description: ''
+          description: Email account updated successfully
+        '404':
+          description: Email account not found
         '401':
           description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
     delete:
       operationId: v1_communications_communication_email_accounts_destroy
       parameters:
@@ -4263,8 +5672,8 @@ paths:
           description: Email account not found
         '401':
           description: Authentication credentials were not provided or are invalid.
-    put:
-      operationId: v1_communications_communication_email_accounts_update
+    get:
+      operationId: v1_communications_communication_email_accounts_retrieve
       parameters:
       - in: path
         name: id
@@ -4274,25 +5683,17 @@ paths:
         required: true
       tags:
       - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/EmailAccountRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/EmailAccountRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/EmailAccountRequest'
-        required: true
       responses:
         '200':
-          description: Email account updated successfully
-        '404':
-          description: Email account not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailAccount'
+          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
   /api/v1/communications/communications/email/feature-status:
     get:
       operationId: v1_communications_communications_email_feature_status_retrieve
@@ -5047,6 +6448,120 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/analytics/interviews/intelligence/:
+    get:
+      operationId: v1_analytics_interviews_intelligence_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/automation/rules/:
+    get:
+      operationId: v1_automation_rules_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_automation_rules_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/automation/rules/{id}/:
+    get:
+      operationId: v1_automation_rules_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    put:
+      operationId: v1_automation_rules_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    delete:
+      operationId: v1_automation_rules_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/automation/trigger/:
+    post:
+      operationId: v1_automation_trigger_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/automation/logs/:
+    get:
+      operationId: v1_automation_logs_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
   /api/v1/rbac/debug/:
     get:
       operationId: v1_rbac_debug_retrieve
@@ -5176,6 +6691,37 @@ paths:
           description: No response body
         '404':
           description: Resource not found.
+  /api/v1/candidate/profile/:
+    get:
+      operationId: v1_candidate_profile_retrieve
+      description: |-
+        Candidate reads/updates their own profile from the Candidate Portal.
+        Filtered strictly by user_id — not by tenant.
+        Uses CandidateSelfSerializer to strip recruiter-internal fields.
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    put:
+      operationId: v1_candidate_profile_update
+      description: |-
+        Candidate reads/updates their own profile from the Candidate Portal.
+        Filtered strictly by user_id — not by tenant.
+        Uses CandidateSelfSerializer to strip recruiter-internal fields.
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
   /api/v1/candidate/applications/:
     get:
       operationId: v1_candidate_applications_retrieve
@@ -5220,6 +6766,33 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/talent-pools/pools/:
+    post:
+      operationId: v1_talent_pools_pools_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TalentPool'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     get:
       operationId: v1_talent_pools_pools_list
       parameters:
@@ -5254,8 +6827,17 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-    post:
-      operationId: v1_talent_pools_pools_create
+  /api/v1/talent-pools/pools/{id}/:
+    put:
+      operationId: v1_talent_pools_pools_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Talent Pool.
+        required: true
       tags:
       - v1
       requestBody:
@@ -5270,30 +6852,6 @@ paths:
             schema:
               $ref: '#/components/schemas/TalentPoolRequest'
         required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TalentPool'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-  /api/v1/talent-pools/pools/{id}/:
-    get:
-      operationId: v1_talent_pools_pools_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this Talent Pool.
-        required: true
-      tags:
-      - v1
       responses:
         '200':
           content:
@@ -5358,8 +6916,8 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-    put:
-      operationId: v1_talent_pools_pools_update
+    get:
+      operationId: v1_talent_pools_pools_retrieve
       parameters:
       - in: path
         name: id
@@ -5370,18 +6928,6 @@ paths:
         required: true
       tags:
       - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TalentPoolRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/TalentPoolRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/TalentPoolRequest'
-        required: true
       responses:
         '200':
           content:
@@ -5490,28 +7036,6 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/talent-pools/memberships/:
-    get:
-      operationId: v1_talent_pools_memberships_list
-      parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
-        schema:
-          type: string
-      tags:
-      - v1
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedCandidateTalentPoolMembershipList'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
     post:
       operationId: v1_talent_pools_memberships_create
       tags:
@@ -5539,9 +7063,31 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/talent-pools/memberships/{id}/:
     get:
-      operationId: v1_talent_pools_memberships_retrieve
+      operationId: v1_talent_pools_memberships_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCandidateTalentPoolMembershipList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/talent-pools/memberships/{id}/:
+    put:
+      operationId: v1_talent_pools_memberships_update
       parameters:
       - in: path
         name: id
@@ -5552,6 +7098,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CandidateTalentPoolMembershipRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CandidateTalentPoolMembershipRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CandidateTalentPoolMembershipRequest'
+        required: true
       responses:
         '200':
           content:
@@ -5616,8 +7174,8 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-    put:
-      operationId: v1_talent_pools_memberships_update
+    get:
+      operationId: v1_talent_pools_memberships_retrieve
       parameters:
       - in: path
         name: id
@@ -5628,18 +7186,6 @@ paths:
         required: true
       tags:
       - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CandidateTalentPoolMembershipRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/CandidateTalentPoolMembershipRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/CandidateTalentPoolMembershipRequest'
-        required: true
       responses:
         '200':
           content:
@@ -5651,8 +7197,1533 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/prequalification/forms/:
+    get:
+      operationId: v1_prequalification_forms_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_prequalification_forms_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/prequalification/forms/{id}/:
+    get:
+      operationId: v1_prequalification_forms_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    put:
+      operationId: v1_prequalification_forms_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    delete:
+      operationId: v1_prequalification_forms_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/prequalification/sections/:
+    get:
+      operationId: v1_prequalification_sections_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_prequalification_sections_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/prequalification/sections/{id}/:
+    patch:
+      operationId: v1_prequalification_sections_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    delete:
+      operationId: v1_prequalification_sections_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/prequalification/questions/:
+    get:
+      operationId: v1_prequalification_questions_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_prequalification_questions_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/prequalification/questions/{id}/:
+    patch:
+      operationId: v1_prequalification_questions_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    delete:
+      operationId: v1_prequalification_questions_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/prequalification/rules/:
+    get:
+      operationId: v1_prequalification_rules_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_prequalification_rules_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/prequalification/rules/{id}/:
+    delete:
+      operationId: v1_prequalification_rules_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/prequalification/responses/:
+    get:
+      operationId: v1_prequalification_responses_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_prequalification_responses_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/modules/:
+    get:
+      operationId: v1_system_modules_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_system_modules_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/modules/{module_id}/:
+    patch:
+      operationId: v1_system_modules_partial_update
+      parameters:
+      - in: path
+        name: module_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/modules/{module_id}/status/:
+    patch:
+      operationId: v1_system_modules_status_partial_update
+      parameters:
+      - in: path
+        name: module_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/modules/{module_id}/dependencies/:
+    post:
+      operationId: v1_system_modules_dependencies_create
+      parameters:
+      - in: path
+        name: module_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/modules/{module_id}/blockers/:
+    post:
+      operationId: v1_system_modules_blockers_create
+      parameters:
+      - in: path
+        name: module_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/modules/{module_id}/owners/:
+    post:
+      operationId: v1_system_modules_owners_create
+      parameters:
+      - in: path
+        name: module_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/planning/scan/:
+    post:
+      operationId: v1_system_planning_scan_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/planning/map/:
+    get:
+      operationId: v1_system_planning_map_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/planning/gaps/:
+    get:
+      operationId: v1_system_planning_gaps_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/planning/partial/:
+    get:
+      operationId: v1_system_planning_partial_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/planning/blocked/:
+    get:
+      operationId: v1_system_planning_blocked_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/planning/architecture-only/:
+    get:
+      operationId: v1_system_planning_architecture_only_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/planning/priority/:
+    get:
+      operationId: v1_system_planning_priority_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/planning/recommended-next/:
+    get:
+      operationId: v1_system_planning_recommended_next_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/planning/mvp/:
+    get:
+      operationId: v1_system_planning_mvp_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/planning/enterprise-later/:
+    get:
+      operationId: v1_system_planning_enterprise_later_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/planning/sequence/:
+    get:
+      operationId: v1_system_planning_sequence_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_system_planning_sequence_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/planning/dependency-chain/:
+    get:
+      operationId: v1_system_planning_dependency_chain_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/planning/parallel-safe/:
+    get:
+      operationId: v1_system_planning_parallel_safe_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/planning/modules/{module_id}/continuation/:
+    post:
+      operationId: v1_system_planning_modules_continuation_create
+      parameters:
+      - in: path
+        name: module_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/selection/candidates/:
+    get:
+      operationId: v1_system_selection_candidates_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/selection/score/:
+    post:
+      operationId: v1_system_selection_score_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/selection/scoring-summary/:
+    get:
+      operationId: v1_system_selection_scoring_summary_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/selection/rejected/:
+    get:
+      operationId: v1_system_selection_rejected_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/selection/dependency-pressure/:
+    get:
+      operationId: v1_system_selection_dependency_pressure_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/selection/readiness/:
+    get:
+      operationId: v1_system_selection_readiness_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/selection/select/:
+    post:
+      operationId: v1_system_selection_select_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/selection/selected/:
+    get:
+      operationId: v1_system_selection_selected_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/selection/why-selected/:
+    get:
+      operationId: v1_system_selection_why_selected_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/selection/why-not-others/:
+    get:
+      operationId: v1_system_selection_why_not_others_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/selection/lock/:
+    post:
+      operationId: v1_system_selection_lock_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/selection/update/:
+    patch:
+      operationId: v1_system_selection_update_partial_update
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/selection/immediate-order/:
+    get:
+      operationId: v1_system_selection_immediate_order_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/selection/backend-first/:
+    get:
+      operationId: v1_system_selection_backend_first_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/selection/frontend-first/:
+    get:
+      operationId: v1_system_selection_frontend_first_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/selection/blocker-prerequisites/:
+    get:
+      operationId: v1_system_selection_blocker_prerequisites_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/selection/follow-up-sequence/:
+    get:
+      operationId: v1_system_selection_follow_up_sequence_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/prompts/generate/:
+    post:
+      operationId: v1_system_prompts_generate_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/prompts/current/:
+    get:
+      operationId: v1_system_prompts_current_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/prompts/regenerate/:
+    post:
+      operationId: v1_system_prompts_regenerate_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/prompts/history/:
+    get:
+      operationId: v1_system_prompts_history_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/prompts/approve/:
+    post:
+      operationId: v1_system_prompts_approve_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/prompts/lock/:
+    post:
+      operationId: v1_system_prompts_lock_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/prompts/context/selected-module/:
+    get:
+      operationId: v1_system_prompts_context_selected_module_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/prompts/context/dependencies/:
+    get:
+      operationId: v1_system_prompts_context_dependencies_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/prompts/context/module/:
+    get:
+      operationId: v1_system_prompts_context_module_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/system/prompts/context/integration-mapping/:
+    get:
+      operationId: v1_system_prompts_context_integration_mapping_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/overview/:
+    get:
+      operationId: v1_intelligence_overview_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/providers/:
+    get:
+      operationId: v1_intelligence_providers_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/providers/{id}/:
+    put:
+      operationId: v1_intelligence_providers_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/models/:
+    get:
+      operationId: v1_intelligence_models_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/models/{id}/:
+    put:
+      operationId: v1_intelligence_models_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/prompts/:
+    get:
+      operationId: v1_intelligence_prompts_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_intelligence_prompts_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/prompts/{id}/:
+    get:
+      operationId: v1_intelligence_prompts_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    put:
+      operationId: v1_intelligence_prompts_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/prompts/{id}/versions/:
+    post:
+      operationId: v1_intelligence_prompts_versions_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/prompts/{id}/approve/:
+    post:
+      operationId: v1_intelligence_prompts_approve_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/prompts/{id}/archive/:
+    post:
+      operationId: v1_intelligence_prompts_archive_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/prompts/{id}/test/:
+    post:
+      operationId: v1_intelligence_prompts_test_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/automations/:
+    get:
+      operationId: v1_intelligence_automations_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_intelligence_automations_create
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/automations/{id}/:
+    get:
+      operationId: v1_intelligence_automations_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    put:
+      operationId: v1_intelligence_automations_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/automations/{id}/toggle/:
+    post:
+      operationId: v1_intelligence_automations_toggle_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/automations/{id}/simulate/:
+    post:
+      operationId: v1_intelligence_automations_simulate_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/automations/{id}/runs/:
+    get:
+      operationId: v1_intelligence_automations_runs_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/executions/ai/:
+    get:
+      operationId: v1_intelligence_executions_ai_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/executions/automation/:
+    get:
+      operationId: v1_intelligence_executions_automation_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/executions/{execution_id}/:
+    get:
+      operationId: v1_intelligence_executions_retrieve
+      parameters:
+      - in: path
+        name: execution_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/executions/{execution_id}/retry/:
+    post:
+      operationId: v1_intelligence_executions_retry_create
+      parameters:
+      - in: path
+        name: execution_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/executions/{execution_id}/cancel/:
+    post:
+      operationId: v1_intelligence_executions_cancel_create
+      parameters:
+      - in: path
+        name: execution_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/executions/{execution_id}/approve/:
+    post:
+      operationId: v1_intelligence_executions_approve_create
+      parameters:
+      - in: path
+        name: execution_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/executions/{execution_id}/reject/:
+    post:
+      operationId: v1_intelligence_executions_reject_create
+      parameters:
+      - in: path
+        name: execution_id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/failures/:
+    get:
+      operationId: v1_intelligence_failures_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/failures/{id}/retry/:
+    post:
+      operationId: v1_intelligence_failures_retry_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/failures/{id}/resolve/:
+    post:
+      operationId: v1_intelligence_failures_resolve_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/dead-letter/:
+    get:
+      operationId: v1_intelligence_dead_letter_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/dead-letter/{id}/requeue/:
+    post:
+      operationId: v1_intelligence_dead_letter_requeue_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/connectors/:
+    get:
+      operationId: v1_intelligence_connectors_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/settings/:
+    get:
+      operationId: v1_intelligence_settings_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    put:
+      operationId: v1_intelligence_settings_update
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/approvals/:
+    get:
+      operationId: v1_intelligence_approvals_retrieve
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/approvals/{id}/:
+    get:
+      operationId: v1_intelligence_approvals_retrieve_2
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/approvals/{id}/approve/:
+    post:
+      operationId: v1_intelligence_approvals_approve_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/intelligence/approvals/{id}/reject/:
+    post:
+      operationId: v1_intelligence_approvals_reject_create
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
 components:
   schemas:
+    BlankEnum:
+      enum:
+      - ''
     CandidateBrief:
       type: object
       properties:
@@ -5790,6 +8861,32 @@ components:
       - candidate
       - talent_pool
       - tenant_id
+    DecisionModeEnum:
+      enum:
+      - manual
+      - auto
+      - conditional
+      type: string
+      description: |-
+        * `manual` - Manual
+        * `auto` - Auto
+        * `conditional` - Conditional
+    DecisionSourceEnum:
+      enum:
+      - manual
+      - scorecard
+      - interviewer_feedback
+      - prequalification
+      - skill_matching
+      - automation_rules
+      type: string
+      description: |-
+        * `manual` - Manual
+        * `scorecard` - Scorecard
+        * `interviewer_feedback` - Interviewer Feedback
+        * `prequalification` - Prequalification
+        * `skill_matching` - Skill Matching
+        * `automation_rules` - Automation Rules
     EmailAccount:
       type: object
       properties:
@@ -5890,6 +8987,20 @@ components:
       required:
       - email_address
       - provider
+    ExecutionModeEnum:
+      enum:
+      - native
+      - third_party
+      - external
+      - manual
+      - async
+      type: string
+      description: |-
+        * `native` - Native
+        * `third_party` - Third Party
+        * `external` - External
+        * `manual` - Manual
+        * `async` - Async
     ForgotPasswordRequest:
       type: object
       properties:
@@ -5899,6 +9010,77 @@ components:
           minLength: 1
       required:
       - email
+    InterviewDecisionRequest:
+      type: object
+      properties:
+        decision:
+          $ref: '#/components/schemas/RecommendationEnum'
+        decision_source:
+          $ref: '#/components/schemas/DecisionSourceEnum'
+        decision_mode:
+          $ref: '#/components/schemas/DecisionModeEnum'
+        notes:
+          type: string
+        previous_decision:
+          oneOf:
+          - $ref: '#/components/schemas/RecommendationEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        is_override:
+          type: boolean
+        overridden_by:
+          type: string
+          format: uuid
+          nullable: true
+        override_reason:
+          type: string
+        metadata: {}
+      required:
+      - decision
+    InterviewFeedbackRequest:
+      type: object
+      properties:
+        score:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          nullable: true
+        notes:
+          type: string
+        recommendation:
+          oneOf:
+          - $ref: '#/components/schemas/RecommendationEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        criteria_scores: {}
+        scorecard_ratings: {}
+        metadata: {}
+    InterviewTypeRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        code:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+        execution_mode:
+          $ref: '#/components/schemas/ExecutionModeEnum'
+        configurable:
+          type: boolean
+        type_configuration: {}
+        is_active:
+          type: boolean
+        created_by:
+          type: string
+          format: uuid
+          nullable: true
+        metadata: {}
+      required:
+      - code
+      - name
     LoginRequest:
       type: object
       properties:
@@ -6068,6 +9250,26 @@ components:
         * `gmail` - Gmail
         * `outlook` - Outlook
         * `smtp` - Custom SMTP
+    RecommendationEnum:
+      enum:
+      - hire
+      - reject
+      - hold
+      - next_round
+      - manual_review
+      - assignment
+      - panel_required
+      - escalate
+      type: string
+      description: |-
+        * `hire` - Hire
+        * `reject` - Reject
+        * `hold` - Hold
+        * `next_round` - Next Round
+        * `manual_review` - Manual Review
+        * `assignment` - Assignment
+        * `panel_required` - Panel Required
+        * `escalate` - Escalate
     RefreshTokenRequest:
       type: object
       properties:

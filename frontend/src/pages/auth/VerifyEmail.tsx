@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/authStore'
 const { Title, Text } = Typography
 const OTP_LENGTH = 6
 const RESEND_COOLDOWN = 60
+const IS_DEV = import.meta.env.DEV
 
 export default function VerifyEmail() {
   const navigate = useNavigate()
@@ -20,7 +21,11 @@ export default function VerifyEmail() {
 
   const email = pendingEmail || user?.email || ''
 
-  const [digits, setDigits] = useState<string[]>(Array(OTP_LENGTH).fill(''))
+  // In dev mode, pre-fill 123456 — the auto-submit effect will fire immediately
+  // once the email is available in state, giving zero-friction verification.
+  const [digits, setDigits] = useState<string[]>(
+    IS_DEV ? ['1', '2', '3', '4', '5', '6'] : Array(OTP_LENGTH).fill('')
+  )
   const [error, setError] = useState<string | null>(null)
   const [isVerifying, setIsVerifying] = useState(false)
   const [isResending, setIsResending] = useState(false)
@@ -170,6 +175,17 @@ export default function VerifyEmail() {
         <br />
         <Text strong style={{ color: '#0f172a' }}>{email}</Text>
       </div>
+
+      {IS_DEV && (
+        <div style={{
+          background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: 8,
+          padding: '8px 14px', marginBottom: 16, textAlign: 'center',
+        }}>
+          <Text style={{ fontSize: 12, color: '#92400e' }}>
+            Dev mode — verification code is always <strong>1 2 3 4 5 6</strong>
+          </Text>
+        </div>
+      )}
 
       {error && (
         <Alert

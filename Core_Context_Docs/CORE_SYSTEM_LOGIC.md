@@ -128,6 +128,26 @@ Same candidate:
 * Can belong to multiple companies
 * Can belong to multiple agencies
 
+## 3.4 Candidate Reference ID Logic
+
+Candidate internal UUID remains unchanged.
+
+Human-facing immutable reference is generated as:
+
+`<PREFIX>-<TYPE>-<BASE36SEQ>/<YY>`
+
+Type rules:
+
+* `CC` = company candidate
+* `AC` = agency candidate
+* `DC` = direct/self candidate
+
+Sequence scope:
+
+* per tenant + type + year
+
+Reference is immutable once generated.
+
 ---
 
 # 4. CANDIDATE LIFECYCLE
@@ -188,6 +208,36 @@ Jobs may:
 * Stay internal
 * Share with agencies
 
+## 5.4 Job Reference ID Logic
+
+Job internal UUID remains unchanged.
+
+Human-facing immutable reference is generated as:
+
+`<PREFIX>-<TYPE>-<BASE36SEQ>/<YY>`
+
+Type rules:
+
+* `CJ` = company job
+* `AJ` = agency job
+
+Sequence scope:
+
+* per tenant + type + year
+
+Reference is immutable once generated.
+
+## 5.5 Tenant Prefix Logic
+
+Each tenant has:
+
+* system-generated unique prefix fallback
+* optional admin-defined custom prefix
+* effective prefix = custom if present, otherwise fallback
+
+Changing prefix affects only newly generated references.
+Old references are never rewritten.
+
 ---
 
 # 6. APPLICATION CORE LOGIC
@@ -213,6 +263,24 @@ Interview
 Offer
 ↓
 Placed
+
+## 6.2 Post-Submission Stage Ownership (Phase 5C)
+
+Once an application is in company-visible stages, manual stage movement is restricted to the job owner.
+
+Company-visible stages include:
+
+* Submitted / Applied
+* Under Review / Screening
+* Shortlisted
+* Interview
+* Offer
+* Placement / Joined
+
+Exceptions:
+
+* System automation
+* Approved threshold automation
 
 ---
 

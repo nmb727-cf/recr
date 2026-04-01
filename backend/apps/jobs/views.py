@@ -15,6 +15,41 @@ from apps.candidates.protection import mark_direct_apply_during_protection
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 
+from apps.jobs.services import HiringAIBrainService, GlobalHiringCommandCenterService
+
+class GlobalHiringCommandCenterView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            intel = GlobalHiringCommandCenterService.get_global_intelligence(
+                tenant_id=request.user.tenant_id
+            )
+            return success_response(
+                data={'intelligence': intel},
+                message="Global intelligence retrieved."
+            )
+        except Exception as e:
+            return error_response(str(e))
+
+
+class HiringAIBrainView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            intel = HiringAIBrainService.get_job_intelligence(
+                tenant_id=request.user.tenant_id,
+                requisition_id=pk
+            )
+            return success_response(
+                data={'intelligence': intel},
+                message="Job intelligence retrieved."
+            )
+        except Exception as e:
+            return error_response(str(e))
+
+
 class JobRequisitionListView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -221,6 +256,86 @@ class JobRequisitionDetailView(APIView):
         )
 
 
+class JobRequisitionReviewView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            req = JobRequisition.objects.get(
+                id=pk, tenant_id=request.user.tenant_id, is_deleted=False
+            )
+        except JobRequisition.DoesNotExist:
+            return error_response("Requisition not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        from apps.interviews.models import InterviewPackageBinding
+        binding = InterviewPackageBinding.objects.filter(job_id=pk, is_deleted=False).first()
+        stages = JobStage.objects.filter(requisition_id=pk).order_by('stage_order')
+
+        # 1. Summarize configuration
+        summary = JobRequisitionSerializer(req, context={'request': request}).data
+        
+        # 2. Completeness Check & Warnings
+        errors = []
+        warnings = []
+        
+        # Critical Checks
+        if not req.hiring_manager_id:
+            errors.append("Hiring Manager is not assigned.")
+        if not req.recruiter_id:
+            errors.append("Primary Recruiter is not assigned.")
+        if not req.description:
+            errors.append("Job description is missing.")
+        if req.headcount < 1:
+            errors.append("Headcount must be at least 1.")
+        
+        # Operational Warnings (Non-blocking)
+        if not stages.exists():
+            warnings.append("No custom pipeline stages configured. Default stages will be used.")
+        if not binding:
+            warnings.append("No interview package bound to this job.")
+        if req.sourcing_mode == 'external_only' and not req.is_published_to_agencies:
+            warnings.append("Sourcing is set to external but job is not yet published to agencies.")
+        if not req.auto_assign_recruiter and not req.recruiter_id:
+            warnings.append("Automation routing is disabled and no manual recruiter is assigned.")
+        if req.salary_min == 0 and req.salary_max == 0:
+            warnings.append("Salary range is set to zero.")
+
+        # 3. Readiness Score
+        if errors:
+            readiness = "Incomplete"
+            readiness_color = "red"
+        elif warnings:
+            readiness = "Needs Attention"
+            readiness_color = "amber"
+        else:
+            readiness = "Ready"
+            readiness_color = "green"
+
+        return success_response(
+            data={
+                'summary': summary,
+                'validation': {
+                    'readiness': readiness,
+                    'readiness_color': readiness_color,
+                    'errors': errors,
+                    'warnings': warnings,
+                    'can_publish': len(errors) == 0,
+                    'is_draft': req.status == 'draft'
+                },
+                'steps_status': {
+                    'information': "complete" if req.title and req.department_id and req.location_id else "incomplete",
+                    'ownership': "complete" if req.hiring_manager_id and req.recruiter_id else "incomplete",
+                    'sourcing': "complete" if req.sourcing_mode else "incomplete",
+                    'pipeline': "complete" if stages.exists() else "warning",
+                    'interview': "complete" if binding else "warning",
+                    'automation': "complete" if req.override_workflow_mode else "warning",
+                    'offer_closure': "complete" if req.offer_salary_default else "warning"
+                }
+            },
+            message="Requisition review data retrieved."
+        )
+
+
 class JobRequisitionSubmitView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -308,8 +423,17 @@ class JobRequisitionPublishView(APIView):
         except JobRequisition.DoesNotExist:
             return error_response("Requisition not found.", status_code=status.HTTP_404_NOT_FOUND)
 
-        if req.status != 'approved':
-            return error_response("Only approved requisitions can be published.")
+        # Critical validation
+        if not req.hiring_manager_id or not req.recruiter_id or not req.description:
+            return error_response("Requisition is incomplete. Ensure Hiring Manager, Recruiter, and Description are set.")
+
+        if req.status == 'active':
+            return error_response("Requisition is already active.")
+
+        # If it's already approved or we're skipping approval (e.g., admin)
+        # For now, allow publishing if approved or if it's a draft and user is admin
+        if req.status not in ['approved', 'draft']:
+            return error_response(f"Cannot publish from status: {req.status}")
 
         req.status = 'active'
         req.save(update_fields=['status', 'updated_at'])
@@ -328,6 +452,9 @@ class JobRequisitionPublishView(APIView):
             title=req.title,
             slug=slug,
             description_html=req.description,
+            requirements=req.requirements,
+            responsibilities=req.responsibilities,
+            skills_required=req.skills_required,
             posted_at=timezone.now(),
             is_active=True,
             created_by=request.user.id,
@@ -348,6 +475,35 @@ class JobRequisitionPublishView(APIView):
                 'posting': JobPostingSerializer(posting).data,
             },
             message="Requisition published successfully."
+        )
+
+
+class JobRequisitionCandidatesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            job = JobRequisition.objects.get(
+                id=pk,
+                tenant_id=request.user.tenant_id,
+                is_deleted=False
+            )
+        except JobRequisition.DoesNotExist:
+            return error_response("Requisition not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        from apps.pipeline.models import Application
+        from apps.pipeline.serializers import ApplicationSerializer
+
+        applications = Application.objects.filter(
+            requisition_id=pk,
+            tenant_id=request.user.tenant_id,
+            is_deleted=False
+        ).order_by('-created_at')
+
+        return success_response(
+            data={'candidates': ApplicationSerializer(applications, many=True).data},
+            message="Job candidates retrieved.",
+            meta={'total': applications.count()}
         )
 
 
@@ -699,6 +855,52 @@ class JobPublicDetailView(APIView):
         404: OpenApiResponse(description="Job not found."),
     }
 )
+def _get_or_create_candidate_for_user(user):
+    """
+    Return the Candidate record linked to this user account.
+
+    Look-up order:
+      1. Candidate.user_id == user.id  (fast path — already linked)
+      2. Email / phone match via identity_service  (claim flow)
+      3. Auto-create a minimal Candidate record  (fresh self-registered user)
+
+    Always sets Candidate.user_id and marks account_status='active' if not
+    already set, so subsequent calls hit the fast path.
+    """
+    from apps.candidates.models import Candidate, CandidateProfile
+    from apps.candidates.identity_service import match_candidate
+
+    # Fast path
+    candidate = Candidate.objects.filter(user_id=user.id, is_deleted=False).first()
+    if candidate:
+        return candidate
+
+    # Match by email/phone (recruiter pre-added this person)
+    candidate = match_candidate(email=user.email, phone=user.phone)
+    if candidate:
+        if not candidate.user_id:
+            candidate.user_id = user.id
+            candidate.account_status = 'active'
+            candidate.save(update_fields=['user_id', 'account_status', 'updated_at'])
+        return candidate
+
+    # Auto-create for fresh direct signups that were never pre-added
+    candidate = Candidate.objects.create(
+        user_id=user.id,
+        first_name=user.first_name or '',
+        last_name=user.last_name or '',
+        email=user.email,
+        phone=getattr(user, 'phone', '') or '',
+        source='self',
+        source_type='direct',
+        account_status='active',
+        profile_status='partial',
+        initial_entry_type='self',
+    )
+    CandidateProfile.objects.create(candidate_id=candidate.id)
+    return candidate
+
+
 class JobApplyView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -715,18 +917,21 @@ class JobApplyView(APIView):
         except JobPosting.DoesNotExist:
             return error_response("Job not found.", status_code=status.HTTP_404_NOT_FOUND)
 
+        # Resolve the Candidate record for this user.
+        # Application.candidate_id must always be Candidate.id (not User.id) so
+        # the company-side pipeline sees the correct candidate record.
+        candidate = _get_or_create_candidate_for_user(request.user)
+
         # Check duplicate application
         existing_app = Application.objects.filter(
-            candidate_id=request.user.id,
+            candidate_id=candidate.id,
             requisition_id=posting.requisition_id,
             is_deleted=False
         ).first()
 
         if existing_app:
-            # Mark as duplicate attempt in metadata
             if 'duplicate_attempts' not in existing_app.metadata:
                 existing_app.metadata['duplicate_attempts'] = []
-            
             existing_app.metadata['duplicate_attempts'].append({
                 'attempted_at': timezone.now().isoformat(),
                 'attempted_by': str(request.user.id),
@@ -747,7 +952,7 @@ class JobApplyView(APIView):
 
         application = Application.objects.create(
             tenant_id=posting.tenant_id,
-            candidate_id=request.user.id,
+            candidate_id=candidate.id,
             requisition_id=posting.requisition_id,
             current_stage_id=first_stage.id if first_stage else None,
             status='applied',
@@ -758,7 +963,7 @@ class JobApplyView(APIView):
             created_by=request.user.id,
         )
         mark_direct_apply_during_protection(
-            candidate_id=request.user.id,
+            candidate_id=candidate.id,
             tenant_id=posting.tenant_id,
             actor_user_id=request.user.id,
         )
@@ -775,9 +980,9 @@ class JobApplyView(APIView):
         posting.applications_count += 1
         posting.save(update_fields=['applications_count'])
 
-        from apps.pipeline.serializers import ApplicationSerializer
+        from apps.pipeline.serializers import CandidateApplicationSerializer
         return success_response(
-            data={'application': ApplicationSerializer(application).data},
+            data={'application': CandidateApplicationSerializer(application).data},
             message="Application submitted successfully.",
             status_code=status.HTTP_201_CREATED
         )
@@ -796,15 +1001,17 @@ class CandidateApplicationListView(APIView):
 
     def get(self, request):
         from apps.pipeline.models import Application
-        from apps.pipeline.serializers import ApplicationSerializer
+        from apps.pipeline.serializers import CandidateApplicationSerializer
+
+        candidate = _get_or_create_candidate_for_user(request.user)
 
         applications = Application.objects.filter(
-            candidate_id=request.user.id,
+            candidate_id=candidate.id,
             is_deleted=False
         ).order_by('-created_at')
 
         return success_response(
-            data={'applications': ApplicationSerializer(applications, many=True).data},
+            data={'applications': CandidateApplicationSerializer(applications, many=True).data},
             message="Your applications retrieved.",
             meta={'total': applications.count()}
         )
@@ -815,12 +1022,17 @@ class CandidateApplicationDetailView(APIView):
 
     def get(self, request, pk):
         from apps.pipeline.models import Application, ApplicationStageHistory
-        from apps.pipeline.serializers import ApplicationSerializer, ApplicationStageHistorySerializer
+        from apps.pipeline.serializers import (
+            CandidateApplicationSerializer,
+            CandidateApplicationStageHistorySerializer,
+        )
+
+        candidate = _get_or_create_candidate_for_user(request.user)
 
         try:
             application = Application.objects.get(
                 id=pk,
-                candidate_id=request.user.id,
+                candidate_id=candidate.id,
                 is_deleted=False
             )
         except Application.DoesNotExist:
@@ -832,8 +1044,8 @@ class CandidateApplicationDetailView(APIView):
 
         return success_response(
             data={
-                'application': ApplicationSerializer(application).data,
-                'stage_history': ApplicationStageHistorySerializer(history, many=True).data,
+                'application': CandidateApplicationSerializer(application).data,
+                'stage_history': CandidateApplicationStageHistorySerializer(history, many=True).data,
             },
             message="Application retrieved."
         )

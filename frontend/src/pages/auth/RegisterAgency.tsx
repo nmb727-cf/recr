@@ -154,6 +154,10 @@ export default function RegisterAgency() {
           rules={[
             { required: true, message: 'Password is required' },
             { min: 8, message: 'At least 8 characters' },
+            {
+              pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/,
+              message: 'Must include uppercase, lowercase and a number',
+            },
           ]}
         >
           <Input.Password

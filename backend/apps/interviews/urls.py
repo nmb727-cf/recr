@@ -55,11 +55,16 @@ urlpatterns = [
     path('integrations/mappings/', views.InterviewExecutionMappingListView.as_view(), name='interview-execution-mapping-list'),
     path('integrations/mappings/<uuid:pk>/', views.InterviewExecutionMappingDetailView.as_view(), name='interview-execution-mapping-detail'),
 
-    # ── Question Engine ──────────────────────────────────────────────────────
+    # ── Interview Question Engine ──────────────────────────────────────
     path('questions/bank/', views.InterviewQuestionBankListView.as_view(), name='interview-question-bank-list'),
     path('questions/bank/<uuid:pk>/', views.InterviewQuestionBankDetailView.as_view(), name='interview-question-bank-detail'),
     path('questions/attachments/', views.InterviewQuestionAttachmentListView.as_view(), name='interview-question-attachment-list'),
     path('questions/attachments/<uuid:pk>/', views.InterviewQuestionAttachmentDetailView.as_view(), name='interview-question-attachment-detail'),
     path('questions/groups/', views.InterviewQuestionGroupListView.as_view(), name='interview-question-group-list'),
     path('questions/groups/<uuid:pk>/', views.InterviewQuestionGroupDetailView.as_view(), name='interview-question-group-detail'),
-]
+
+    # ── Interview Packages ────────────────────────────────────────────────────
+    path('packages/', views.InterviewPackageListView.as_view(), name='interview-package-list'),
+    path('packages/<uuid:pk>/', views.InterviewPackageDetailView.as_view(), name='interview-package-detail'),
+    ]
+

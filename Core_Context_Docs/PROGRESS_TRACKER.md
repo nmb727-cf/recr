@@ -79,6 +79,7 @@ Completed:
 
 * Candidate model
 * Candidate add
+* Human-facing candidate reference IDs (`candidate_ref_id`) with immutable generation and per-tenant/per-type/per-year sequencing
 
 Pending:
 
@@ -99,6 +100,8 @@ Status: In Progress
 Completed:
 
 * Job creation
+* Phase 5C: post-submission stage ownership lock (manual movement limited to job owner)
+* Human-facing job reference IDs (`job_ref_id`) with immutable generation and per-tenant/per-type/per-year sequencing
 
 Pending:
 
@@ -118,6 +121,7 @@ Status: Partially Complete
 Completed:
 
 * Stage logic
+* Owner-only manual stage movement for company-visible stages (submitted/review/shortlist/interview/offer/placement)
 
 Pending:
 
@@ -214,6 +218,9 @@ Dependencies:
 ## Multi-Tenant
 
 Status: Completed
+
+Additional complete item:
+* Tenant effective reference prefix support (system fallback + optional custom prefix)
 
 ---
 

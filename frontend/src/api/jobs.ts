@@ -28,6 +28,9 @@ export const requisitionsApi = {
   list: (params?: { status?: string; hiring_status?: string; department_id?: string; search?: string }) =>
     http.get<ApiResponse<{ requisitions: JobRequisition[] }>>('/jobs/requisitions/', { params }),
 
+  getGlobalHiringBrain: () =>
+    http.get<ApiResponse<{ intelligence: any }>>('/jobs/requisitions/global-intelligence/'),
+
   get: (id: string) =>
     http.get<ApiResponse<{ requisition: JobRequisition; stages: JobStage[] }>>(`/jobs/requisitions/${id}/`),
 
@@ -54,6 +57,12 @@ export const requisitionsApi = {
 
   clone: (id: string) =>
     http.post<ApiResponse<{ requisition: JobRequisition }>>(`/jobs/requisitions/${id}/clone/`),
+
+  getHiringBrain: (id: string) =>
+    http.get<ApiResponse<{ intelligence: any }>>(`/jobs/requisitions/${id}/hiring-brain/`),
+
+  listStages: (requisitionId: string) =>
+    stagesApi.list(requisitionId),
 }
 
 export const postingsApi = {

@@ -30,13 +30,26 @@
   },
   "labels": {
     "execution": "Execution",
-    "candidates": "Candidates"
+    "candidates": "Candidates",
+    "back_to_jobs": "Back to Jobs",
+    "activity": "Activity"
+  },
+  "table": {
+    "columns": {
+      "candidate_name": "Candidate Name",
+      "source": "Source",
+      "tracking_stage": "Tracking Stage",
+      "joining": "Joining",
+      "owner": "Owner",
+      "last_activity": "Last Activity"
+    }
   },
   "messages": {
     "interview_scheduled": "Interview scheduled",
     "interview_schedule_failed": "Failed to schedule interview",
     "offer_created": "Offer created and sent",
     "offer_failed": "Failed to make offer",
+    "owner_only_stage_change": "Only the job owner can manually change candidate stages.",
     "application_moved": "Application moved",
     "application_move_failed": "Failed to move application",
     "candidate_shortlisted": "Candidate shortlisted",
@@ -52,9 +65,48 @@
     "move_to_stage": "Move to stage...",
     "select_job": "Select Job Role..."
   },
+  "navigator": {
+    "title": "Job Navigator",
+    "search_placeholder": "Search live jobs...",
+    "categories": {
+      "my_live_jobs": "My Live Jobs",
+      "team_live_jobs": "Team Live Jobs",
+      "needing_attention": "Needing Attention",
+      "overdue_actions": "Overdue Actions",
+      "recent_movement": "Recent Movement"
+    },
+    "labels": {
+      "active_candidates": "Active Candidates",
+      "owner": "Owner",
+      "pending_actions": "Pending Actions",
+      "overdue": "Overdue",
+      "bottleneck": "Bottleneck"
+    },
+    "empty": {
+      "no_live_jobs": "No live jobs found",
+      "try_adjusting_search": "Try adjusting your search or filters."
+    }
+  },
   "empty": {
     "application_not_found": "Application not found",
     "select_job_title": "Select a job to view pipeline",
     "select_job_subtitle": "Choose a role from the dropdown above to start managing candidates."
+  },
+  "tracking": {
+    "zones": {
+      "pre_submission": "Pre-Submission / Nurturing",
+      "submitted": "Submitted / Company Review",
+      "hiring_flow": "Hiring Flow / Post-Shortlist"
+    },
+    "empty": {
+      "no_candidates": "No candidates tracked for this job",
+      "start_sourcing": "Start by sourcing candidates or adding leads to this requisition.",
+      "no_candidates_in_zone": "No candidates in this stage zone"
+    }
+  },
+  "ownership": {
+    "restricted": "Restricted Action",
+    "owner_only": "Only the job owner can manually change candidate stages.",
+    "read_only_view": "You are viewing this job in read-only mode."
   }
 }

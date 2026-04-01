@@ -22,6 +22,8 @@ from apps.interviews.models import (
     InterviewQuestionAttachment,
     InterviewQuestionGroup,
     InterviewQuestionGroupItem,
+    InterviewPackage,
+    InterviewPackageBinding,
 )
 
 
@@ -285,6 +287,30 @@ class InterviewSchedulingLinkSerializer(serializers.ModelSerializer):
             'metadata', 'created_by', 'created_at', 'updated_at',
         ]
         read_only_fields = ['id', 'tenant_id', 'token', 'booking_count', 'last_selected_slot', 'created_by', 'created_at', 'updated_at']
+
+
+class InterviewPackageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InterviewPackage
+        fields = [
+            'id', 'tenant_id', 'title', 'description', 'is_active',
+            'rounds', 'created_at', 'updated_at', 'created_by'
+        ]
+        read_only_fields = ['id', 'tenant_id', 'created_at', 'updated_at', 'created_by']
+
+
+class InterviewPackageBindingSerializer(serializers.ModelSerializer):
+    package_title = serializers.CharField(source='package.title', read_only=True)
+    rounds_summary = serializers.JSONField(source='package.rounds', read_only=True)
+
+    class Meta:
+        model = InterviewPackageBinding
+        fields = [
+            'id', 'tenant_id', 'job_id', 'package', 'package_title',
+            'rounds_summary', 'automation_enabled', 'metadata',
+            'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'tenant_id', 'created_at', 'updated_at']
 
 
 class InterviewCalendarConnectionSerializer(serializers.ModelSerializer):

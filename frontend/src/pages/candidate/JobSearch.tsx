@@ -26,7 +26,7 @@ export default function JobSearch() {
 
   const { data: jobsData, isLoading: jobsLoading } = useApiQuery(
     ['jobs_search', search, workMode, jobType],
-    () => jobsPublicApi.search({ q: search, work_mode: workMode })
+    () => jobsPublicApi.search({ q: search, work_mode: workMode, job_type: jobType })
   )
 
   const { data: appsData } = useApiQuery(
@@ -98,37 +98,35 @@ export default function JobSearch() {
           <Col span={24} style={{ textAlign: 'center', padding: 80 }}><Spin size="large" /></Col>
         ) : jobs.length > 0 ? (
           jobs.map(job => {
+            const j = job as any
             const isApplied = appliedIds.has(job.requisition_id)
+            const company   = j.company_name ?? j.tenant_name ?? j.metadata?.company ?? null
+            const workMode  = j.work_mode ?? j.metadata?.work_mode ?? null
+            const jobType   = j.job_type ?? j.metadata?.job_type ?? null
+            const salaryMin = j.salary_min ?? j.metadata?.salary_min ?? null
+            const salaryMax = j.salary_max ?? j.metadata?.salary_max ?? null
+            const currency  = j.salary_currency ?? j.metadata?.salary_currency ?? ''
+
             return (
               <Col xs={24} sm={12} lg={8} key={job.id}>
                 <div style={{ position: 'relative' }}>
-                  {/* Applied badge — top right corner */}
+                  {/* Applied badge */}
                   {isApplied && (
                     <div style={{
-                      position: 'absolute',
-                      top: 12,
-                      right: 12,
-                      zIndex: 10,
-                      background: '#52c41a',
-                      color: '#fff',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      borderRadius: 20,
-                      padding: '3px 10px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
+                      position: 'absolute', top: 12, right: 12, zIndex: 10,
+                      background: '#52c41a', color: '#fff', fontSize: 11, fontWeight: 700,
+                      borderRadius: 20, padding: '3px 10px',
+                      display: 'flex', alignItems: 'center', gap: 4,
                       boxShadow: '0 2px 8px rgba(82,196,26,0.3)',
                     }}>
                       <CheckCircleOutlined style={{ fontSize: 11 }} /> Applied
                     </div>
                   )}
-                  <Tooltip title={isApplied ? 'You applied for this position' : undefined}>
+                  <Tooltip title={isApplied ? 'You have already applied for this role' : 'Click to view details and apply'}>
                     <Card
                       hoverable
                       style={{
-                        borderRadius: 12,
-                        height: '100%',
+                        borderRadius: 12, height: '100%',
                         border: isApplied ? '1.5px solid #b7eb8f' : '1px solid #f0f0f0',
                         background: isApplied ? '#f6ffed' : '#fff',
                       }}
@@ -136,22 +134,45 @@ export default function JobSearch() {
                       onClick={() => openQuickView('candidate_job', job)}
                     >
                       <div style={{ marginBottom: 12 }}>
-                        <div style={{ width: 48, height: 48, borderRadius: 8, background: isApplied ? '#d9f7be' : '#f5f5f5', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
-                          <RocketOutlined style={{ fontSize: 24, color: isApplied ? '#52c41a' : '#1890ff' }} />
+                        <div style={{
+                          width: 44, height: 44, borderRadius: 8,
+                          background: isApplied ? '#d9f7be' : '#f0f5ff',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 10,
+                        }}>
+                          <RocketOutlined style={{ fontSize: 22, color: isApplied ? '#52c41a' : '#1890ff' }} />
                         </div>
                         <Title level={5} style={{ margin: 0, lineHeight: 1.4 }}>{job.title}</Title>
-                        <Text type="secondary" style={{ fontSize: 13 }}><BankOutlined /> Recruitment Corp</Text>
+                        {company && (
+                          <Text type="secondary" style={{ fontSize: 13 }}>
+                            <BankOutlined /> {company}
+                          </Text>
+                        )}
                       </div>
 
                       <div style={{ marginTop: 'auto' }}>
-                        <Space wrap style={{ marginBottom: 12 }}>
-                          <Tag icon={<EnvironmentOutlined />} style={{ borderRadius: 4 }}>Remote</Tag>
-                          <Tag color={isApplied ? 'success' : 'blue'} style={{ borderRadius: 4 }}>
-                            {isApplied ? '✓ Applied' : 'Full Time'}
-                          </Tag>
+                        <Space wrap style={{ marginBottom: 10 }}>
+                          {workMode && (
+                            <Tag icon={<EnvironmentOutlined />} style={{ borderRadius: 4 }}>
+                              {workMode.replace(/_/g, ' ')}
+                            </Tag>
+                          )}
+                          {isApplied ? (
+                            <Tag color="success" style={{ borderRadius: 4 }}>✓ Applied</Tag>
+                          ) : jobType ? (
+                            <Tag color="blue" style={{ borderRadius: 4 }}>
+                              {jobType.replace(/_/g, ' ')}
+                            </Tag>
+                          ) : null}
                         </Space>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <Text strong style={{ color: '#52c41a' }}><DollarOutlined /> View Salary</Text>
+                          {salaryMin ? (
+                            <Text strong style={{ color: '#52c41a', fontSize: 12 }}>
+                              <DollarOutlined /> {currency} {Number(salaryMin).toLocaleString()}
+                              {salaryMax ? ` – ${Number(salaryMax).toLocaleString()}` : '+'}
+                            </Text>
+                          ) : (
+                            <Text type="secondary" style={{ fontSize: 12 }}>View Details →</Text>
+                          )}
                           <Text type="secondary" style={{ fontSize: 11 }}>
                             {job.posted_at ? dayjs(job.posted_at).fromNow() : 'Recently'}
                           </Text>

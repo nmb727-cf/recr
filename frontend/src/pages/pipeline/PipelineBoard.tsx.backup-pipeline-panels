@@ -1,0 +1,1112 @@
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
+import {
+  Card, Tag, Typography, Spin, Empty, Button,
+  Avatar, message, Modal,
+  Tabs, Table, Timeline, Badge, Row, Col, Divider, Form, Input as AntInput, DatePicker, InputNumber, Tooltip, Select, Drawer, Space, Radio
+} from 'antd'
+import {
+  Clock,
+  Star,
+  X,
+  ArrowRight,
+  Search,
+  ChevronRight,
+  Mail,
+  Phone,
+  FileText,
+  CheckCircle,
+  User,
+  Users,
+  ExternalLink,
+  Plus,
+  Calendar,
+  DollarSign,
+  AlertCircle,
+  TrendingUp,
+  Layout as LayoutIcon,
+  Filter,
+  ChevronLeft,
+  MoreHorizontal,
+  ArrowUpDown,
+  Maximize2,
+  Minimize2,
+  AlertTriangle,
+  Zap,
+  Briefcase,
+  Pin,
+  LayoutGrid,
+  ChevronDown,
+  Layers
+} from 'lucide-react'
+import dayjs from 'dayjs'
+import isToday from 'dayjs/plugin/isToday'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '@/store/authStore'
+
+dayjs.extend(relativeTime)
+dayjs.extend(isToday)
+
+import {
+  DragDropContext,
+  Droppable,
+  Draggable,
+  type DropResult,
+} from 'react-beautiful-dnd'
+import { useApiQuery } from '@/hooks/useApiQuery'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { pipelineApi } from '@/api/pipeline'
+import { requisitionsApi } from '@/api/jobs'
+import { candidatesApi } from '@/api/candidates'
+import { interviewsApi } from '@/api/interviews'
+import { isJobOwner } from '@/utils/permissions'
+import type {
+  PipelineData, PipelineStageData, Application,
+  JobRequisition, Candidate, CandidateDetail
+} from '@/types'
+import { cn } from '@/utils/cn'
+import http from '@/utils/http'
+import { formatStatusLabel, getStatusStyle } from '@/utils/status'
+
+const { Text, Title } = Typography
+const { TextArea } = AntInput
+
+type PipelineContext = 'single' | 'my_live' | 'team_live' | 'all_live'
+
+// ─── Sub-components ─────────────────────────────────────────────────────────
+
+const InterviewScheduleModal = ({ 
+  visible, 
+  onCancel, 
+  applicationId, 
+  onSuccess 
+}: { 
+  visible: boolean, 
+  onCancel: () => void, 
+  applicationId: string,
+  onSuccess: () => void
+}) => {
+  const { t } = useTranslation(['pipeline', 'common'])
+  const [form] = Form.useForm()
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: (values: any) => interviewsApi.create({
+      application_id: applicationId,
+      title: values.title,
+      interview_type: values.interview_type,
+      scheduled_at: values.scheduled_at.toISOString(),
+      duration_minutes: values.duration_minutes,
+      interview_round: values.interview_round,
+    }),
+    onSuccess: () => {
+      message.success(t('pipeline:messages.interview_scheduled', 'Interview scheduled'))
+      queryClient.invalidateQueries({ queryKey: ['app-interviews', applicationId] })
+      onSuccess()
+      onCancel()
+      form.resetFields()
+    },
+    onError: (err: any) => {
+      message.error(err.response?.data?.message || t('pipeline:messages.interview_schedule_failed', 'Failed to schedule interview'))
+    }
+  })
+
+  return (
+    <Modal
+      title={t('pipeline:actions.schedule_interview', 'Schedule Interview')}
+      open={visible}
+      onCancel={onCancel}
+      onOk={() => form.submit()}
+      confirmLoading={mutation.isPending}
+      destroyOnClose
+    >
+      <Form form={form} layout="vertical" onFinish={(v) => mutation.mutate(v)} initialValues={{ duration_minutes: 45, interview_round: 1 }}>
+        <Form.Item name="title" label={t('pipeline:fields.interview_title', 'Interview Title')} rules={[{ required: true }]}>
+          <AntInput placeholder={t('pipeline:placeholders.interview_title', 'e.g. Technical Round 1')} />
+        </Form.Item>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Item name="interview_type" label={t('pipeline:fields.type', 'Type')} rules={[{ required: true }]}>
+              <Select options={[
+                { value: 'technical', label: 'Technical' },
+                { value: 'culture', label: 'Culture' },
+                { value: 'management', label: 'Management' },
+                { value: 'screening', label: 'Screening' }
+              ]} />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item name="interview_round" label={t('pipeline:fields.round', 'Round')} rules={[{ required: true }]}>
+              <InputNumber className="w-full" min={1} />
+            </Form.Item>
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Item name="scheduled_at" label={t('pipeline:fields.date_time', 'Date & Time')} rules={[{ required: true }]}>
+              <DatePicker showTime className="w-full" />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item name="duration_minutes" label={t('pipeline:fields.duration_mins', 'Duration (mins)')} rules={[{ required: true }]}>
+              <InputNumber className="w-full" min={15} step={15} />
+            </Form.Item>
+          </Col>
+        </Row>
+      </Form>
+    </Modal>
+  )
+}
+
+const MakeOfferModal = ({ 
+  visible, 
+  onCancel, 
+  applicationId, 
+  onSuccess 
+}: { 
+  visible: boolean, 
+  onCancel: () => void, 
+  applicationId: string,
+  onSuccess: () => void
+}) => {
+  const { t } = useTranslation(['pipeline', 'common'])
+  const [form] = Form.useForm()
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: (values: any) => http.post(`/pipeline/applications/${applicationId}/make-offer/`, values),
+    onSuccess: () => {
+      message.success(t('pipeline:messages.offer_created', 'Offer created and sent'))
+      queryClient.invalidateQueries({ queryKey: ['application', 'full', applicationId] })
+      onSuccess()
+      onCancel()
+      form.resetFields()
+    },
+    onError: (err: any) => {
+      message.error(err.response?.data?.message || t('pipeline:messages.offer_failed', 'Failed to make offer'))
+    }
+  })
+
+  return (
+    <Modal
+      title={t('pipeline:actions.create_offer', 'Create Offer')}
+      open={visible}
+      onCancel={onCancel}
+      onOk={() => form.submit()}
+      confirmLoading={mutation.isPending}
+      destroyOnClose
+    >
+      <Form form={form} layout="vertical" onFinish={(v) => mutation.mutate(v)} initialValues={{ currency: 'INR' }}>
+        <Row gutter={16}>
+          <Col span={16}>
+            <Form.Item name="offer_amount" label={t('pipeline:fields.annual_ctc', 'Annual CTC')} rules={[{ required: true }]}>
+              <InputNumber className="w-full" formatter={value => `₹ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} />
+            </Form.Item>
+          </Col>
+          <Col span={8}>
+            <Form.Item name="currency" label={t('pipeline:fields.currency', 'Currency')}>
+              <Select options={[{ value: 'INR', label: 'INR' }, { value: 'USD', label: 'USD' }]} />
+            </Form.Item>
+          </Col>
+        </Row>
+        <Form.Item name="joining_date" label={t('pipeline:fields.joining_date', 'Expected Joining Date')} rules={[{ required: true }]}>
+          <DatePicker className="w-full" />
+        </Form.Item>
+        <Form.Item
+          name="notes"
+          label={t('pipeline:fields.offer_notes', 'Offer Notes')}
+          rules={[{ required: true, message: 'A note is required for stage change' }]}
+        >
+          <TextArea rows={3} placeholder={t('pipeline:placeholders.offer_notes', 'Add any special conditions...')} />
+        </Form.Item>
+      </Form>
+    </Modal>
+  )
+}
+
+const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisitionStages, isOwner }: { applicationId: string, onClose: () => void, onRefresh: () => void, requisitionStages: any[], isOwner: boolean }) => {
+  const { t } = useTranslation(['pipeline', 'common'])
+  const [interviewModalVisible, setInterviewModalVisible] = useState(false)
+  const [offerModalVisible, setOfferModalVisible] = useState(false)
+  const [stageModalOpen, setStageModalOpen] = useState(false)
+  const [stageAction, setStageAction] = useState<'move' | 'shortlist' | 'reject' | null>(null)
+  const [targetStageId, setTargetStageId] = useState<string | null>(null)
+  const [targetStageLabel, setTargetStageLabel] = useState<string>('')
+  const [stageNote, setStageNote] = useState('')
+  const [stageSubmitting, setStageSubmitting] = useState(false)
+
+  const { data, isLoading } = useApiQuery(
+    ['application', 'full', applicationId],
+    () => pipelineApi.getApplication(applicationId),
+    { enabled: !!applicationId }
+  )
+
+  const application = (data as any)?.application as Application
+  const stageHistory = (data as any)?.stage_history || []
+  
+  const { data: candidateData } = useApiQuery(
+    ['candidate', 'full', application?.candidate_id],
+    () => candidatesApi.get(application?.candidate_id),
+    { enabled: !!application?.candidate_id }
+  )
+
+  const candidate = (candidateData as any)?.candidate as CandidateDetail
+
+  const { data: interviewsData, isLoading: interviewsLoading } = useApiQuery(
+    ['app-interviews', applicationId],
+    () => interviewsApi.list({ application_id: applicationId }),
+    { enabled: !!applicationId }
+  )
+
+  const handleMoveStage = async (stageId: string) => {
+    const stage = requisitionStages.find((s: any) => s.stage.id === stageId)?.stage
+    setTargetStageId(stageId)
+    setTargetStageLabel(stage?.name || 'Target Stage')
+    setStageAction('move')
+    setStageNote('')
+    setStageModalOpen(true)
+  }
+
+  const handleShortlist = async () => {
+    setTargetStageId(null)
+    setTargetStageLabel('Shortlisted')
+    setStageAction('shortlist')
+    setStageNote('')
+    setStageModalOpen(true)
+  }
+
+  const handleReject = async () => {
+    setTargetStageId(null)
+    setTargetStageLabel('Rejected')
+    setStageAction('reject')
+    setStageNote('')
+    setStageModalOpen(true)
+  }
+
+  const confirmStageAction = async () => {
+    if (!stageAction || !stageNote.trim()) return
+    setStageSubmitting(true)
+    try {
+      if (stageAction === 'move' && targetStageId) {
+        await pipelineApi.moveStage(applicationId, targetStageId, stageNote.trim())
+        message.success(t('pipeline:messages.application_moved', 'Application moved'))
+      } else if (stageAction === 'shortlist') {
+        await pipelineApi.shortlist(applicationId, stageNote.trim())
+        message.success(t('pipeline:messages.candidate_shortlisted', 'Candidate shortlisted'))
+      } else if (stageAction === 'reject') {
+        await pipelineApi.reject(applicationId, stageNote.trim())
+        message.success(t('pipeline:messages.candidate_rejected', 'Candidate rejected'))
+      }
+      setStageModalOpen(false)
+      setStageAction(null)
+      setTargetStageId(null)
+      setTargetStageLabel('')
+      setStageNote('')
+      onRefresh()
+    } catch (err: any) {
+      message.error(err?.response?.data?.message || t('pipeline:messages.application_move_failed', 'Failed to change stage'))
+    } finally {
+      setStageSubmitting(false)
+    }
+  }
+
+  if (isLoading) return <div className="p-20 text-center"><Spin size="large" /></div>
+  if (!application) return <Empty description={t('pipeline:empty.application_not_found', 'Application not found')} />
+
+  const timeInStage = application.updated_at ? dayjs(application.updated_at).fromNow(true) : 'N/A'
+  const interviewList = Array.isArray((interviewsData as any)?.interviews) ? (interviewsData as any).interviews : []
+
+  const tabItems = [
+    {
+      key: 'overview',
+      label: t('pipeline:tabs.overview', 'Overview'),
+      children: (
+        <div className="p-6">
+          <Row gutter={24}>
+            <Col span={16}>
+              <div className="mb-8">
+                <Title level={5} className="!text-[10px] !font-bold !uppercase !tracking-widest !text-slate-400 !mb-4">Candidate Summary</Title>
+                <Text className="text-slate-600 leading-relaxed block bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
+                  {candidate?.profile?.summary || 'No professional summary available for this candidate.'}
+                </Text>
+              </div>
+
+              <Card title={<span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Match Analysis</span>} bordered={false} className="shadow-soft-sm mb-8">
+                <div className="flex items-center gap-8">
+                  <div className="text-center">
+                    <div className="text-4xl font-black text-emerald-600 tracking-tight">{application.match_score || 0}%</div>
+                    <div className="text-[9px] font-bold text-slate-400 uppercase mt-1 tracking-widest">AI Score</div>
+                  </div>
+                  <div className="h-14 w-[1px] bg-slate-100" />
+                  <div className="flex-1">
+                    <p className="text-sm text-slate-600 leading-relaxed font-medium">
+                      High proficiency in React and distributed systems architecture noted. Strong alignment with core technical requirements.
+                    </p>
+                  </div>
+                </div>
+              </Card>
+
+              <Title level={5} className="!text-[10px] !font-bold !uppercase !tracking-widest !text-slate-400 !mb-6">Hiring Journey</Title>
+              <Timeline 
+                className="ml-2"
+                items={[
+                  ...stageHistory.map((h: any) => ({
+                    dot: <div className="h-6 w-6 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100"><CheckCircle className="h-3 w-3" /></div>,
+                    children: (
+                      <div className="pb-6">
+                        <Text className="block font-bold text-slate-900 text-sm">Moved to {h.to_status?.replace('_', ' ')}</Text>
+                        {h.notes && <p className="text-xs text-slate-500 mt-1">"{h.notes}"</p>}
+                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1">{dayjs(h.moved_at).format('MMM D, YYYY · HH:mm')}</p>
+                      </div>
+                    )
+                  })).reverse(),
+                  {
+                    dot: <div className="h-6 w-6 rounded-full bg-slate-50 text-slate-400 flex items-center justify-center border border-blue-100"><FileText className="h-3 w-3" /></div>,
+                    children: (
+                      <div>
+                        <Text className="block font-bold text-slate-900 text-sm">Application Submitted</Text>
+                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1">{dayjs(application.created_at).format('MMM D, YYYY · HH:mm')}</p>
+                      </div>
+                    )
+                  }
+                ]}
+              />
+            </Col>
+            
+            <Col span={8}>
+              <div className="space-y-6 sticky top-4">
+                <div className="bg-slate-50/50 rounded-2xl p-5 border border-slate-100 space-y-4">
+                  <Title level={5} className="!text-[10px] !font-bold !uppercase !tracking-widest !text-slate-400 !m-0">Details</Title>
+                  <div className="space-y-3">
+                    <div className="flex flex-col gap-1">
+                       <Text className="text-[9px] font-bold text-slate-400 uppercase">Source</Text>
+                       <Tag className="m-0 w-fit border-none bg-blue-50 text-blue-600 font-bold text-[10px] uppercase rounded-md px-2">
+                          {application.source || 'Direct'}
+                       </Tag>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                       <Text className="text-[9px] font-bold text-slate-400 uppercase">Time in stage</Text>
+                       <Text className="text-xs font-bold text-slate-700">{timeInStage}</Text>
+                    </div>
+                    <div className="flex flex-col gap-1 pt-2">
+                       <Text className="text-[9px] font-bold text-slate-400 uppercase mb-1">Contact</Text>
+                       <div className="flex items-center gap-2 text-slate-600">
+                          <Mail className="h-3.5 w-3.5 text-slate-400" />
+                          <Text className="text-xs font-bold truncate">{candidate?.email || 'N/A'}</Text>
+                       </div>
+                       {candidate?.phone && (
+                         <div className="flex items-center gap-2 text-slate-600 mt-1">
+                            <Phone className="h-3.5 w-3.5 text-slate-400" />
+                            <Text className="text-xs font-bold">{candidate.phone}</Text>
+                         </div>
+                       )}
+                    </div>
+                  </div>
+                  <Divider className="my-2" />
+                  <Button block className="h-10 rounded-xl font-bold flex items-center justify-center gap-2 border-slate-200" icon={<ExternalLink className="h-3.5 w-3.5" />}>
+                     View Resume
+                  </Button>
+                </div>
+
+                <div className="bg-white rounded-2xl p-5 border border-slate-100">
+                   <Title level={5} className="!text-[10px] !font-bold !uppercase !tracking-widest !text-slate-400 !mb-4">Skills</Title>
+                   <div className="flex flex-wrap gap-1.5">
+                      {(candidate?.skills || []).map(s => (
+                        <Tag key={s} className="m-0 border-none bg-slate-50 text-slate-600 font-bold text-[9px] uppercase px-2 rounded-md">{s}</Tag>
+                      ))}
+                   </div>
+                </div>
+              </div>
+            </Col>
+          </Row>
+        </div>
+      )
+    },
+    {
+      key: 'interviews',
+      label: t('pipeline:tabs.interviews', 'Interviews'),
+      children: (
+        <div className="p-0">
+          <Table 
+            dataSource={interviewList}
+            rowKey="id" 
+            loading={interviewsLoading}
+            pagination={false}
+            className="modern-table"
+            columns={[
+              { title: 'Type', dataIndex: 'interview_type', key: 'type', render: (t) => <Text className="font-bold text-slate-800 text-xs capitalize">{t?.replace(/_/g, ' ')}</Text> },
+              { title: 'Round', dataIndex: 'interview_round', key: 'round', align: 'center', render: (r) => <Badge count={`R${r}`} style={{ backgroundColor: '#f8fafc', color: '#64748b', border: '1px solid #e2e8f0', boxShadow: 'none' }} /> },
+              {
+                title: 'Status',
+                dataIndex: 'status',
+                key: 'status',
+                render: (s) => (
+                  <Tag
+                    color={getStatusStyle(s, 'application').antColor}
+                    className="rounded-full font-bold text-[9px] uppercase border-none px-2"
+                  >
+                    {formatStatusLabel(s)}
+                  </Tag>
+                ),
+              },
+              { title: '', key: 'actions', align: 'right', render: () => <Button size="small" type="text" icon={<ChevronRight className="h-4 w-4" />} /> }
+            ]}
+          />
+          <div className="p-6 border-t border-slate-50">
+             <Button 
+                onClick={() => setInterviewModalVisible(true)}
+                icon={<Plus className="h-4 w-4" />} 
+                className="h-10 rounded-xl font-bold border-slate-200"
+             >
+                {t('pipeline:actions.schedule_new_interview', 'Schedule New Interview')}
+             </Button>
+          </div>
+        </div>
+      )
+    }
+  ]
+
+  const hasCompletedInterview = interviewList.some((i: any) => i.status === 'completed')
+
+  return (
+    <div className="flex flex-col h-full bg-white">
+      {/* Header */}
+      <div className="p-6 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white/80 backdrop-blur-md z-20">
+        <div className="flex items-center gap-4">
+          <Avatar size={56} className="bg-blue-600 text-white font-bold border-4 border-white shadow-soft-lg">
+            {candidate?.first_name?.charAt(0)}{candidate?.last_name?.charAt(0)}
+          </Avatar>
+          <div>
+            <div className="flex items-center gap-3 mb-0.5">
+               <Title level={4} className="!m-0 text-slate-900">{candidate?.first_name} {candidate?.last_name}</Title>
+               <Tag className="m-0 border-none bg-emerald-50 text-emerald-600 font-bold text-[9px] uppercase rounded-full px-2 py-0.5">
+                  {application.match_score || 0}% Match
+               </Tag>
+            </div>
+            <div className="flex items-center gap-2">
+               <Text className="text-slate-400 font-medium text-xs uppercase tracking-wider">
+                  {candidate?.current_title || 'No Title'} • {formatStatusLabel(application?.status || 'applied')}
+               </Text>
+               <div className="h-1 w-1 rounded-full bg-slate-200" />
+               <Select 
+                  size="small"
+                  className="w-32"
+                  placeholder={t('pipeline:placeholders.move_to_stage', 'Move to stage...')}
+                  value={application.current_stage_id}
+                  onChange={handleMoveStage}
+                  options={requisitionStages.map((s: any) => ({ value: s.stage.id, label: s.stage.name }))}
+                  disabled={!isOwner}
+               />
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {application.status !== 'shortlisted' && (
+            <Button 
+              onClick={handleShortlist}
+              className="h-10 rounded-xl font-bold border-slate-200 text-emerald-600 flex items-center gap-2" 
+              icon={<Star className="h-4 w-4" />}
+              disabled={!isOwner}
+            >
+              {t('pipeline:actions.shortlist', 'Shortlist')}
+            </Button>
+          )}
+          <Button 
+            danger 
+            onClick={handleReject}
+            className="h-10 rounded-xl font-bold bg-rose-50 border-none text-rose-600 flex items-center gap-2" 
+            icon={<X className="h-4 w-4" />}
+            disabled={!isOwner}
+          >
+            {t('pipeline:actions.reject', 'Reject')}
+          </Button>
+          <Button icon={<X className="h-4 w-4" />} onClick={onClose} className="h-10 w-10 flex items-center justify-center rounded-xl border-slate-200" />
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        {/* Quick Actions Bar */}
+        <div className="px-6 py-3 bg-slate-50/50 border-b border-slate-100 flex items-center justify-between">
+           <Text className="text-[10px] font-bold uppercase text-slate-400 tracking-widest">{t('pipeline:labels.execution', 'Execution')}</Text>
+           <div className="flex gap-2">
+              <Button 
+                size="small" 
+                icon={<Calendar className="h-3 w-3" />} 
+                className="text-[10px] font-bold uppercase h-7 rounded-lg"
+                onClick={() => setInterviewModalVisible(true)}
+                disabled={!isOwner}
+              >
+                {t('pipeline:actions.schedule', 'Schedule')}
+              </Button>
+              {(application.status === 'offer_extended' || application.status === 'interview_scheduled') && (
+                <Button 
+                  size="small" 
+                  type="primary"
+                  icon={<DollarSign className="h-3 w-3" />} 
+                  className={cn(
+                    "text-[10px] font-bold uppercase h-7 rounded-lg bg-emerald-600 border-none",
+                    (!hasCompletedInterview || !isOwner) && "opacity-50 grayscale cursor-not-allowed"
+                  )}
+                  onClick={() => hasCompletedInterview ? setOfferModalVisible(true) : message.warning(t('pipeline:messages.complete_interview_before_offer', 'Interview must be completed before offer'))}
+                  disabled={!isOwner}
+                >
+                  {t('pipeline:actions.make_offer', 'Make Offer')}
+                </Button>
+              )}
+           </div>
+        </div>
+
+        <Tabs 
+          defaultActiveKey="overview" 
+          items={tabItems} 
+          className="detail-tabs"
+          tabBarStyle={{ padding: '0 24px', marginBottom: 0, borderBottom: '1px solid #f1f5f9' }}
+        />
+      </div>
+
+      <InterviewScheduleModal 
+        visible={interviewModalVisible} 
+        onCancel={() => setInterviewModalVisible(false)} 
+        applicationId={applicationId}
+        onSuccess={onRefresh}
+      />
+
+      <MakeOfferModal 
+        visible={offerModalVisible} 
+        onCancel={() => setOfferModalVisible(false)} 
+        applicationId={applicationId}
+        onSuccess={onRefresh}
+      />
+
+      <Modal
+        title={t('pipeline:actions.confirm_stage_change', 'Confirm Stage Change')}
+        open={stageModalOpen}
+        onCancel={() => {
+          setStageModalOpen(false)
+          setStageAction(null)
+          setTargetStageId(null)
+          setTargetStageLabel('')
+          setStageNote('')
+        }}
+        onOk={confirmStageAction}
+        okText={t('common:actions.confirm', 'Confirm')}
+        confirmLoading={stageSubmitting}
+        okButtonProps={{ disabled: !stageNote.trim() }}
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Current Stage</p>
+              <p className="text-sm font-semibold text-slate-800">{formatStatusLabel(application.status || 'applied')}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Target Stage</p>
+              <p className="text-sm font-semibold text-slate-800">{targetStageLabel}</p>
+            </div>
+          </div>
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">Mandatory Note</p>
+            <TextArea
+              rows={3}
+              value={stageNote}
+              onChange={(e) => setStageNote(e.target.value)}
+              placeholder="Enter reason for stage change"
+            />
+          </div>
+        </div>
+      </Modal>
+    </div>
+  )
+}
+
+// ─── Main PipelineBoard ──────────────────────────────────────────────────────
+
+export default function PipelineBoard({ jobId: externalJobId }: { jobId?: string }) {
+  const { t } = useTranslation(['pipeline', 'common'])
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  
+  // Workspace Context State
+  const [pipelineContext, setPipelineContext] = useState<PipelineContext>('single')
+  const [selectedJobId, setSelectedJobId] = useState<string>(externalJobId || searchParams.get('job') || '')
+  
+  const [boardState, setBoardState] = useState<Record<string, PipelineStageData>>({})
+  const [selectedAppId, setSelectedAppId] = useState<string | null>(null)
+  
+  // Operational State
+  const [candidateSearch, setCandidateSearch] = useState('')
+  const [viewDensity, setViewDensity] = useState<'comfortable' | 'compact'>('compact')
+  const [sortBy, setSortBy] = useState<'match' | 'recent' | 'aging'>('match')
+
+  const [boardStageModalOpen, setBoardStageModalOpen] = useState(false)
+  const [boardStageNote, setBoardStageNote] = useState('')
+  const [boardStageSubmitting, setBoardStageSubmitting] = useState(false)
+  const [pendingBoardMove, setPendingBoardMove] = useState<{
+    applicationId: string
+    currentStageLabel: string
+    targetStageId: string
+    targetStageLabel: string
+  } | null>(null)
+
+  const user = useAuthStore((s) => s.user)
+
+  // Fetch all live requisitions for the switcher
+  const { data: jobsData, isLoading: jobsLoading } = useApiQuery(
+    ['jobs-live'],
+    () => requisitionsApi.list({ status: 'active' })
+  )
+  const liveJobs: JobRequisition[] =
+    (jobsData as { requisitions: JobRequisition[] } | undefined)?.requisitions ?? []
+
+  // Fetch specific requisition (only for single job context)
+  const { data: requisitionData } = useApiQuery(
+    ['requisition', 'minimal', selectedJobId],
+    () => requisitionsApi.get(selectedJobId),
+    { enabled: pipelineContext === 'single' && !!selectedJobId }
+  )
+  const requisition = (requisitionData as any)?.requisition as JobRequisition
+  const isOwner = isJobOwner(user, requisition)
+
+  // Multi-context application fetching
+  const { data: appsData, isLoading: appsLoading, refetch: refetchApps } = useApiQuery(
+    ['pipeline-apps', pipelineContext, selectedJobId],
+    () => {
+      if (pipelineContext === 'single' && selectedJobId) {
+        return pipelineApi.getPipeline(selectedJobId)
+      }
+      // For multi-job context, we fetch list of applications and build grouping
+      return pipelineApi.listApplications({ status: 'active' })
+    },
+    { enabled: pipelineContext !== 'single' || !!selectedJobId }
+  )
+
+  // Fetch all candidates for name lookup
+  const { data: candidatesData } = useApiQuery(
+    ['candidates', 'all'],
+    () => candidatesApi.list()
+  )
+  const candidateMap = new Map<string, Candidate>(
+    ((candidatesData as { candidates: Candidate[] } | undefined)?.candidates ?? []).map((c) => [c.id, c])
+  )
+
+  const jobMap = useMemo(() => new Map<string, JobRequisition>(liveJobs.map(j => [j.id, j])), [liveJobs])
+
+  // Process data based on context
+  const processedStages = useMemo(() => {
+    if (pipelineContext === 'single' && (appsData as any)?.pipeline) {
+      const board = (appsData as any).pipeline as Record<string, PipelineStageData>
+      return Object.values(board).sort((a, b) => a.stage.stage_order - b.stage.stage_order).map(s => {
+        let apps = s.applications || []
+        if (candidateSearch) {
+          apps = apps.filter(app => {
+            const cand = candidateMap.get(app.candidate_id)
+            return cand?.full_name?.toLowerCase().includes(candidateSearch.toLowerCase()) || 
+                   cand?.current_title?.toLowerCase().includes(candidateSearch.toLowerCase())
+          })
+        }
+        return { ...s, applications: apps, stats: { count: apps.length, overdue: 0, newToday: 0 } }
+      })
+    }
+
+    // Multi-job context processing
+    const allApps = (appsData as any)?.applications || []
+    const filteredApps = allApps.filter((app: Application) => {
+      const job = jobMap.get(app.requisition_id)
+      if (!job) return false
+      if (pipelineContext === 'my_live') return job.created_by === user?.id
+      if (pipelineContext === 'all_live') return true
+      return true
+    }).filter((app: Application) => {
+      if (!candidateSearch) return true
+      const cand = candidateMap.get(app.candidate_id)
+      return cand?.full_name?.toLowerCase().includes(candidateSearch.toLowerCase()) || 
+             cand?.current_title?.toLowerCase().includes(candidateSearch.toLowerCase())
+    })
+
+    // Standard columns for multi-view
+    const standardStages = [
+      { id: 'applied', name: 'Applied', type: 'applied' },
+      { id: 'screening', name: 'Screening', type: 'screening' },
+      { id: 'interview', name: 'Interview', type: 'interview' },
+      { id: 'offer', name: 'Offer', type: 'offer' },
+      { id: 'hired', name: 'Hired', type: 'joined' }
+    ]
+
+    return standardStages.map(st => {
+      const apps = filteredApps.filter((app: any) => (app.status || 'applied').includes(st.type) || app.status === st.id)
+      return {
+        stage: st,
+        applications: apps,
+        stats: { count: apps.length, overdue: 0, newToday: 0 }
+      }
+    })
+  }, [appsData, pipelineContext, candidateSearch, candidateMap, jobMap, user])
+
+  const workspaceStats = useMemo(() => {
+    let total = 0
+    let bottleneck: any = null
+    let maxCount = -1
+    processedStages.forEach((s: any) => {
+      total += s.stats.count
+      if (s.stats.count > maxCount) {
+        maxCount = s.stats.count
+        bottleneck = s.stage.name
+      }
+    })
+    return { total, bottleneck }
+  }, [processedStages])
+
+  useEffect(() => {
+    if (selectedJobId && pipelineContext === 'single') {
+      setSearchParams({ job: selectedJobId }, { replace: true })
+    }
+  }, [selectedJobId, setSearchParams, pipelineContext])
+
+  const handleDragEnd = async (result: DropResult) => {
+    if (pipelineContext !== 'single' || !isOwner) {
+      message.warning(t('pipeline:ownership.owner_only'))
+      return
+    }
+    const { source, destination, draggableId } = result
+    if (!destination || source.droppableId === destination.droppableId) return
+
+    setPendingBoardMove({
+      applicationId: draggableId,
+      currentStageLabel: 'Current Stage',
+      targetStageId: destination.droppableId,
+      targetStageLabel: 'Target Stage',
+    })
+    setBoardStageNote('')
+    setBoardStageModalOpen(true)
+  }
+
+  const confirmBoardMove = async () => {
+    if (!pendingBoardMove || !boardStageNote.trim()) return
+    setBoardStageSubmitting(true)
+    try {
+      await pipelineApi.moveStage(
+        pendingBoardMove.applicationId,
+        pendingBoardMove.targetStageId,
+        boardStageNote.trim(),
+      )
+      message.success(t('pipeline:messages.application_moved', 'Application moved'))
+      setBoardStageModalOpen(false)
+      setPendingBoardMove(null)
+      setBoardStageNote('')
+      refetchApps()
+    } catch (err: any) {
+      message.error(err?.response?.data?.message || t('pipeline:messages.application_move_failed', 'Failed to move application'))
+    } finally {
+      setBoardStageSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-1 flex-col overflow-hidden -m-6 h-[calc(100vh-56px)] bg-slate-50/50">
+      {/* ── Top Strip: Context Switcher ────────────────────────────────────────── */}
+      <div className="p-4 px-6 bg-white border-b border-slate-100 flex items-center justify-between shrink-0 h-16 shadow-sm z-20">
+        <div className="flex items-center gap-6 min-w-0 flex-1">
+          <Button 
+            icon={<ChevronLeft size={16} />} 
+            onClick={() => selectedJobId ? navigate(`/jobs/${selectedJobId}`) : navigate('/jobs')}
+            className="flex items-center justify-center rounded-xl border-slate-200 shrink-0 font-bold text-xs h-9"
+          >
+            {t('pipeline:labels.back_to_jobs')}
+          </Button>
+          
+          <div className="h-8 w-[1px] bg-slate-100" />
+
+          <div className="flex items-center gap-3">
+            <Text className="text-[11px] font-black uppercase text-slate-400 tracking-widest whitespace-nowrap">Pipeline for:</Text>
+            <Radio.Group 
+              value={pipelineContext} 
+              onChange={e => {
+                setPipelineContext(e.target.value)
+                if (e.target.value !== 'single') setSelectedJobId('')
+              }} 
+              size="small" 
+              className="context-switcher"
+            >
+              <Radio.Button value="single">Single Job</Radio.Button>
+              <Radio.Button value="my_live">My Jobs</Radio.Button>
+              <Radio.Button value="all_live">All Live</Radio.Button>
+            </Radio.Group>
+          </div>
+
+          {pipelineContext === 'single' && (
+            <Select
+              showSearch
+              className="max-w-sm w-full ml-4"
+              placeholder="Search specific job..."
+              value={selectedJobId || undefined}
+              onChange={(val) => { setSelectedJobId(val); setSelectedAppId(null); }}
+              optionFilterProp="label"
+              suffixIcon={<Search size={14} className="text-slate-400" />}
+              options={liveJobs.map(j => ({ value: j.id, label: j.title }))}
+            />
+          )}
+        </div>
+
+        <div className="flex items-center gap-3 shrink-0 ml-4">
+          <Tooltip title="Bulk Actions">
+            <Button icon={<MoreHorizontal size={16} />} className="rounded-xl border-slate-200 h-9" />
+          </Tooltip>
+          <Button type="primary" className="h-9 rounded-xl font-black uppercase tracking-widest bg-blue-600 border-none shadow-soft-md px-6 text-[10px]">
+            Execution Settings
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Insight Bar ──────────────────────────────────────────────────────── */}
+      {(selectedJobId || pipelineContext !== 'single') && !appsLoading && (
+        <div className="px-6 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-8 shrink-0">
+          <div className="flex items-center gap-2">
+            <Users size={14} className="text-blue-500" />
+            <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Load: <span className="text-slate-900 ml-1">{workspaceStats.total}</span></Text>
+          </div>
+          <div className="flex items-center gap-2">
+            <AlertCircle size={14} className="text-rose-500" />
+            <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Bottleneck: <span className="text-slate-900 ml-1">{workspaceStats.bottleneck || 'N/A'}</span></Text>
+          </div>
+          <div className="flex items-center gap-2">
+            <Clock size={14} className="text-amber-500" />
+            <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Avg Time: <span className="text-slate-900 ml-1">4.2 Days</span></Text>
+          </div>
+        </div>
+      )}
+
+      {/* ── Command Bar ──────────────────────────────────────────────────────── */}
+      <div className="px-6 py-3 bg-white border-b border-slate-100 flex items-center justify-between shrink-0 shadow-sm relative z-10">
+        <div className="flex items-center gap-3 flex-1">
+          <AntInput 
+            prefix={<Search size={14} className="text-slate-400" />}
+            placeholder="Search candidates..."
+            className="max-w-xs rounded-xl border-slate-200 h-9 bg-slate-50/50"
+            value={candidateSearch}
+            onChange={e => setCandidateSearch(e.target.value)}
+            allowClear
+          />
+          <Button icon={<Filter size={14} />} className="rounded-xl border-slate-200 h-9 font-bold text-xs">Filters</Button>
+          <Select 
+            value={sortBy}
+            onChange={setSortBy}
+            prefixIcon={<ArrowUpDown size={14} />}
+            className="w-40 sort-select h-9"
+            options={[
+              { value: 'match', label: 'Top Match' },
+              { value: 'recent', label: 'Last Activity' },
+              { value: 'aging', label: 'Oldest First' }
+            ]}
+          />
+        </div>
+        
+        <div className="flex items-center gap-2 ml-4">
+          <Radio.Group value={viewDensity} onChange={e => setViewDensity(e.target.value)} size="small" className="density-toggle">
+            <Radio.Button value="comfortable"><Maximize2 size={12} /></Radio.Button>
+            <Radio.Button value="compact"><Minimize2 size={12} /></Radio.Button>
+          </Radio.Group>
+          <Divider type="vertical" className="h-6" />
+          <Button type="primary" ghost className="rounded-xl h-9 font-bold text-xs flex items-center gap-2 border-blue-200">
+            <Zap size={14} /> Bulk Progression
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Main Content Area ────────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-hidden relative">
+        {pipelineContext === 'single' && !selectedJobId ? (
+          <div className="h-full flex flex-col items-center justify-center p-20">
+            <LayoutGrid className="h-20 w-20 text-slate-200 mb-6" />
+            <Title level={3} className="!m-0 text-slate-400 !font-black uppercase tracking-tight">Select Workspace</Title>
+            <p className="text-slate-400 mt-2 font-medium text-base">Select an operational role from the switcher above to start managing your candidate flow.</p>
+          </div>
+        ) : appsLoading ? (
+          <div className="h-full flex items-center justify-center"><Spin size="large" /></div>
+        ) : (
+          <div className="h-full overflow-x-auto p-6 scrollbar-thin">
+            <DragDropContext onDragEnd={handleDragEnd}>
+              <div className="flex gap-6 h-full items-start min-w-max pb-8">
+                {processedStages.map((stageData: any) => (
+                  <div key={stageData.stage.id} className="flex flex-col w-[300px] shrink-0 h-full max-h-full bg-slate-100/40 rounded-3xl border border-slate-200/50 overflow-hidden shadow-none hover:border-slate-300/50 transition-colors">
+                    <div className="px-5 py-4 bg-white border-b border-slate-200/60 shrink-0">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="h-2.5 w-2.5 rounded-full bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.4)]" />
+                          <Text className="font-black text-slate-900 text-[11px] uppercase tracking-widest">{stageData.stage.name}</Text>
+                        </div>
+                        <Badge count={stageData.stats.count} showZero size="small" style={{ backgroundColor: '#f1f5f9', color: '#1e293b', boxShadow: 'none', fontWeight: 'black', fontSize: '10px' }} />
+                      </div>
+                    </div>
+
+                    <Droppable droppableId={stageData.stage.id}>
+                      {(provided, snapshot) => (
+                        <div
+                          ref={provided.innerRef}
+                          {...provided.droppableProps}
+                          className={cn("flex-1 overflow-y-auto p-2.5 space-y-4 transition-colors", snapshot.isDraggingOver ? "bg-blue-50/30" : "")}
+                        >
+                          {/* Multi-job grouping logic if not single job */}
+                          {pipelineContext !== 'single' ? (
+                            Array.from(new Set(stageData.applications.map((a: any) => a.requisition_id))).map((jobId: any) => {
+                              const job = jobMap.get(jobId)
+                              const jobApps = stageData.applications.filter((a: any) => a.requisition_id === jobId)
+                              return (
+                                <div key={jobId} className="space-y-2">
+                                  <div className="flex items-center gap-2 px-2">
+                                    <Layers size={10} className="text-blue-500" />
+                                    <Text className="text-[9px] font-black uppercase text-slate-400 truncate tracking-tight">{job?.title || 'Unknown Job'}</Text>
+                                    <div className="h-[1px] flex-1 bg-slate-100" />
+                                    <Badge count={jobApps.length} size="small" className="opacity-60" style={{ fontSize: '8px', minWidth: '14px', height: '14px', lineHeight: '14px' }} />
+                                  </div>
+                                  {jobApps.map((app: any, i: number) => (
+                                    <CandidateCard key={app.id} app={app} index={i} candidateMap={candidateMap} viewDensity={viewDensity} isDragDisabled={true} onSelect={() => setSelectedAppId(app.id)} />
+                                  ))}
+                                </div>
+                              )
+                            })
+                          ) : (
+                            stageData.applications.map((app: any, i: number) => (
+                              <Draggable key={app.id} draggableId={app.id} index={i} isDragDisabled={!isOwner}>
+                                {(p, s) => (
+                                  <CandidateCard p={p} s={s} app={app} candidateMap={candidateMap} viewDensity={viewDensity} onSelect={() => setSelectedAppId(app.id)} />
+                                )}
+                              </Draggable>
+                            ))
+                          )}
+                          {provided.placeholder}
+                        </div>
+                      )}
+                    </Droppable>
+                  </div>
+                ))}
+              </div>
+            </DragDropContext>
+          </div>
+        )}
+      </div>
+
+      {/* ── Candidate Intel Drawer ───────────────────────────────────────────── */}
+      <Drawer
+        open={!!selectedAppId}
+        onClose={() => setSelectedAppId(null)}
+        width={840}
+        styles={{ body: { padding: 0 } }}
+        closable={false}
+        className="pipeline-detail-drawer"
+      >
+        {selectedAppId && (
+          <ApplicationDetailPanel
+            applicationId={selectedAppId}
+            onClose={() => setSelectedAppId(null)}
+            onRefresh={() => {
+              refetchApps()
+              setSelectedAppId(selectedAppId)
+            }}
+            requisitionStages={processedStages}
+            isOwner={isOwner}
+          />
+        )}
+      </Drawer>
+
+      <Modal
+        title={t('pipeline:actions.confirm_stage_change', 'Confirm Stage Change')}
+        open={boardStageModalOpen}
+        onCancel={() => {
+          setBoardStageModalOpen(false)
+          setPendingBoardMove(null)
+          setBoardStageNote('')
+        }}
+        onOk={confirmBoardMove}
+        okText={t('common:actions.confirm', 'Confirm')}
+        confirmLoading={boardStageSubmitting}
+        okButtonProps={{ disabled: !boardStageNote.trim() }}
+        className="rounded-3xl overflow-hidden"
+      >
+        <div className="space-y-4 pt-4">
+          <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Target Stage</p>
+              <p className="text-sm font-bold text-blue-600">{pendingBoardMove?.targetStageLabel || '—'}</p>
+            </div>
+          </div>
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2 ml-1">Mandatory Note</p>
+            <TextArea
+              rows={4}
+              value={boardStageNote}
+              onChange={(e) => setBoardStageNote(e.target.value)}
+              placeholder="Provide context for this movement..."
+              className="rounded-2xl"
+            />
+          </div>
+        </div>
+      </Modal>
+    </div>
+  )
+}
+
+function CandidateCard({ p, s, app, candidateMap, viewDensity, isDragDisabled, onSelect }: any) {
+  const candidate = candidateMap.get(app.candidate_id)
+  const isOverdue = dayjs().diff(dayjs(app.updated_at), 'hour') > 48
+  
+  const content = (
+    <div
+      ref={p?.innerRef}
+      {...p?.draggableProps}
+      {...p?.dragHandleProps}
+      onClick={onSelect}
+      className={cn(
+        "bg-white rounded-2xl border transition-all cursor-pointer relative",
+        viewDensity === 'comfortable' ? "p-4" : "p-2.5",
+        s?.isDragging ? "rotate-2 scale-105 shadow-xl z-50 ring-2 ring-blue-500/30" : "border-slate-200/60 hover:border-blue-300 hover:shadow-md",
+        isDragDisabled && "cursor-default",
+        isOverdue && "border-l-4 border-l-rose-400"
+      )}
+    >
+      <div className="flex items-start gap-2.5">
+        <Avatar 
+          size={viewDensity === 'comfortable' ? 32 : 28} 
+          className="bg-slate-50 text-blue-600 font-black border-none shrink-0 text-[10px]"
+        >
+          {candidate?.first_name?.charAt(0)}{candidate?.last_name?.charAt(0)}
+        </Avatar>
+        
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between">
+            <Text className="block font-black text-slate-900 text-[11px] leading-tight truncate uppercase tracking-tight">
+              {candidate?.first_name} {candidate?.last_name}
+            </Text>
+            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0 mt-0.5 ml-1" />
+          </div>
+          <Text className="text-[10px] text-slate-400 font-bold truncate block leading-tight mt-0.5">
+            {candidate?.current_title || 'No Title'}
+          </Text>
+        </div>
+      </div>
+
+      <div className={cn("flex items-center justify-between border-t border-slate-50 pt-2", viewDensity === 'comfortable' ? "mt-3" : "mt-2")}>
+        <div className="flex items-center gap-1.5">
+          <Tag className="m-0 border-none bg-blue-50 text-blue-600 font-black text-[8px] uppercase px-1.5 rounded">
+            {app.match_score || 0}%
+          </Tag>
+          <div className="flex items-center gap-1 opacity-60">
+            <User size={10} className="text-slate-400" />
+            <span className="text-[8px] font-black text-slate-400 uppercase">
+              Recruiter
+            </span>
+          </div>
+        </div>
+        
+        <div className="flex items-center gap-1">
+          <Clock className={cn("h-2.5 w-2.5", isOverdue ? "text-rose-400" : "text-slate-300")} />
+          <span className={cn("text-[9px] font-black uppercase", isOverdue ? "text-rose-500" : "text-slate-400")}>
+            {dayjs(app.updated_at).fromNow(true)}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+
+  return content
+}

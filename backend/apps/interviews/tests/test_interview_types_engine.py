@@ -33,6 +33,8 @@ class InterviewTypesEngineTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertGreaterEqual(response.data['meta']['total'], 40)
         self.assertGreaterEqual(InterviewType.objects.filter(is_deleted=False).count(), 40)
+        returned_codes = {row['code'] for row in response.data['data']['types']}
+        self.assertTrue({'ai_screening', 'ai_technical', 'ai_behavioral', 'one_way_video', 'async_text', 'async_audio'}.issubset(returned_codes))
 
     def test_enable_disable_works(self):
         itype = InterviewType.objects.filter(is_deleted=False).first()
@@ -59,6 +61,7 @@ class InterviewTypesEngineTests(TestCase):
         get_response = InterviewTypeConfigView.as_view()(get_request, pk=itype.id)
         self.assertEqual(get_response.status_code, 200)
         self.assertIn('configuration', get_response.data['data'])
+        self.assertIn('ai_interview', get_response.data['data']['configuration'])
 
         update_request = self.factory.put(
             f'/api/v1/interviews/types/{itype.id}/config/',
@@ -71,6 +74,24 @@ class InterviewTypesEngineTests(TestCase):
                 'scheduling': True,
                 'automation': False,
                 'prequalification': True,
+                'ai_interview': {
+                    'enabled': True,
+                    'builder': {
+                        'response_type': 'audio',
+                        'time_limit_minutes': 22,
+                        'retries': 2,
+                    },
+                    'candidate_experience': {
+                        'practice_mode_enabled': False,
+                        'microphone_required': True,
+                    },
+                    'evaluation': {
+                        'scoring_enabled': True,
+                        'manual_override_allowed': True,
+                        'ai_scoring_weight': 65,
+                        'skill_mapping': ['communication', 'technical_depth'],
+                    },
+                },
             },
             format='json',
         )
@@ -82,3 +103,5 @@ class InterviewTypesEngineTests(TestCase):
         self.assertEqual(itype.execution_mode, 'manual')
         self.assertTrue(itype.type_configuration.get('prequalification'))
         self.assertFalse(itype.type_configuration.get('automation'))
+        self.assertEqual(itype.type_configuration['ai_interview']['builder']['response_type'], 'audio')
+        self.assertEqual(itype.type_configuration['ai_interview']['evaluation']['ai_scoring_weight'], 65)

@@ -9,6 +9,8 @@ import CandidateQuickView from '../../pages/candidates/CandidateQuickView'
 import ApplicationQuickView from '../../pages/pipeline/ApplicationQuickView'
 import AgencySubmissionQuickView from '../../pages/agency/AgencySubmissionQuickView'
 import AgencyJobQuickView from '../../pages/agency/AgencyJobQuickView'
+import CandidateJobQVPanel from './quickviews/CandidateJobQVPanel'
+import CandidateApplicationQVPanel from './quickviews/CandidateApplicationQVPanel'
 
 const JobFullView = ({ data }: { data: any }) => {
   if (!data) return <Spin />
@@ -409,14 +411,24 @@ export const GlobalDrawer = () => {
     closeQuickView, closeFullView, openFullView
   } = useDrawerStore()
 
+  const drawerTitle: Record<string, string> = {
+    job: 'Job Details',
+    candidate: 'Candidate Profile',
+    application: 'Application Details',
+    agency_submission: 'Submission Details',
+    agency_job: 'Agency Job',
+    candidate_job: 'Job Details',
+    candidate_application: 'Application Status',
+  }
+
   return (
     <Drawer
       open={quickViewOpen}
       onClose={closeQuickView}
-      width={480}
-      title="Quick View"
+      width={quickViewType === 'candidate_job' ? 560 : 480}
+      title={drawerTitle[quickViewType ?? ''] ?? 'Quick View'}
       destroyOnClose
-      styles={{ body: { padding: 0 } }}
+      styles={{ body: { padding: '24px' } }}
     >
       {quickViewType === 'job' && quickViewData && (
         <JobQuickView
@@ -455,6 +467,14 @@ export const GlobalDrawer = () => {
           data={quickViewData}
           onClose={closeQuickView}
         />
+      )}
+
+      {quickViewType === 'candidate_job' && quickViewData && (
+        <CandidateJobQVPanel job={quickViewData} />
+      )}
+
+      {quickViewType === 'candidate_application' && quickViewData && (
+        <CandidateApplicationQVPanel data={quickViewData} />
       )}
 
       <Drawer

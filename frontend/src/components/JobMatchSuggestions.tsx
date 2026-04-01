@@ -10,17 +10,18 @@ import http from '@/utils/http'
 
 const { Text, Title } = Typography
 
-export default function JobMatchSuggestions({ jobId }: { jobId: string }) {
+export default function JobMatchSuggestions({ jobId, onMatched }: { jobId: string; onMatched?: () => void }) {
   const { data, isLoading, refetch } = useApiQuery(['job-suggestions', jobId], () => 
-    http.get(`/crm/suggestions/${jobId}/`)
+    http.get(`/candidates/crm/suggestions/${jobId}/`)
   )
   const suggestions = (data as any)?.data?.suggestions ?? []
 
   const handleAddToPipeline = async (candidateId: string) => {
     try {
-      await http.post('/crm/pipeline/add/', { candidate_id: candidateId, requisition_id: jobId })
+      await http.post('/candidates/crm/pipeline/add/', { candidate_id: candidateId, requisition_id: jobId })
       message.success('Candidate added to CRM pipeline')
       refetch()
+      onMatched?.()
     } catch {
       message.error('Failed to add to pipeline')
     }
@@ -31,6 +32,7 @@ export default function JobMatchSuggestions({ jobId }: { jobId: string }) {
       await http.post('/applications/', { candidate_id: candidateId, requisition_id: jobId })
       message.success('Candidate submitted for job')
       refetch()
+      onMatched?.()
     } catch {
       message.error('Failed to submit application')
     }

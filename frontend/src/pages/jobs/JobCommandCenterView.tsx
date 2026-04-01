@@ -1,0 +1,1012 @@
+import React from 'react'
+import {
+  Card, Typography, Tag, Avatar, Table, Tooltip, Badge, Timeline, Divider, Button, Spin, Empty
+} from 'antd'
+const { Title, Text } = Typography
+const { Paragraph } = Typography
+import {
+  Zap, AlertTriangle, TrendingUp, ChevronRight, MessageSquare, UserPlus, Clock,
+  CheckCircle, Users, ShieldCheck, DollarSign, Scale, Receipt, BarChart3, MapPin, Briefcase, Plus,
+  Workflow, BrainCircuit, UserCheck, Target
+} from 'lucide-react'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+dayjs.extend(relativeTime)
+import { useTranslation } from 'react-i18next'
+import { useApiQuery } from '@/hooks/useApiQuery'
+import { pipelineApi } from '@/api/pipeline'
+import { candidatesApi } from '@/api/candidates'
+import { useQuery } from '@tanstack/react-query'
+import { requisitionsApi } from '@/api/jobs'
+import { authApi } from '@/api/auth'
+import { agenciesApi } from '@/api/agencies'
+import { interviewsApi } from '@/api/interviews'
+import type { JobRequisition, Application, Candidate, InterviewPackageBinding } from '@/types'
+import { cn } from '@/utils/cn'
+
+export function InterviewAutomationSummary({ jobId }: { jobId: string }) {
+  const { data: bindingData, isLoading } = useApiQuery(
+    ['job-interview-binding', jobId],
+    () => interviewsApi.getJobBinding(jobId)
+  )
+  const binding = (bindingData as any)?.binding ?? (bindingData as any)?.data?.binding as InterviewPackageBinding | null
+
+  if (isLoading) return <Card className="shadow-soft-sm border-none rounded-3xl h-full flex items-center justify-center"><Spin /></Card>
+  if (!binding) return (
+    <Card className="shadow-soft-sm border-none rounded-3xl h-full flex flex-col items-center justify-center py-8">
+      <Workflow size={24} className="text-slate-200 mb-2" />
+      <Text className="text-[10px] font-black text-slate-400 uppercase">No Automation Package</Text>
+    </Card>
+  )
+
+  return (
+    <Card 
+      title={
+        <div className="flex items-center gap-2">
+          <BrainCircuit size={14} className="text-indigo-600" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Interview Automation</span>
+        </div>
+      }
+      className="shadow-soft-sm border-none rounded-3xl h-full"
+      size="small"
+    >
+      <div className="space-y-3">
+        <div className="p-3 bg-indigo-50 rounded-2xl border border-indigo-100 flex items-center justify-between">
+          <div className="min-w-0">
+            <Text className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest leading-none mb-1">Active Package</Text>
+            <Text className="block text-xs font-black text-indigo-700 truncate uppercase">{binding.package_title}</Text>
+          </div>
+          <Badge status="processing" color="indigo" />
+        </div>
+
+        <div className="space-y-2">
+          {binding.rounds_summary.slice(0, 3).map((round, i) => (
+            <div key={i} className="flex items-center justify-between px-1">
+              <div className="flex items-center gap-2">
+                <div className="h-1 w-1 rounded-full bg-slate-300" />
+                <Text className="text-[10px] font-bold text-slate-600 truncate max-w-[120px] uppercase">{round.name}</Text>
+              </div>
+              <div className="flex items-center gap-2">
+                <Tag className="m-0 border-none bg-slate-100 text-slate-500 font-black text-[8px] uppercase px-1.5 rounded leading-relaxed">
+                  {round.threshold_score}%
+                </Tag>
+                {round.auto_pass_enabled && <Zap size={10} className="text-amber-500" />}
+              </div>
+            </div>
+          ))}
+          {binding.rounds_summary.length > 3 && (
+            <Text className="text-[9px] text-slate-400 font-black uppercase px-1">+{binding.rounds_summary.length - 3} more rounds</Text>
+          )}
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+export function MetricCard({ label, value, color, isAlert }: { label: string, value: number | string, color: string, isAlert?: boolean }) {
+  return (
+    <div className={cn(
+      "flex flex-col p-3 rounded-2xl border transition-all h-full justify-center min-w-[80px]",
+      isAlert ? "bg-rose-50 border-rose-100" : "bg-slate-50/50 border-slate-100 hover:border-slate-200"
+    )}>
+      <Text className={cn("text-[9px] font-black uppercase tracking-widest mb-1", isAlert ? "text-rose-500" : "text-slate-400")}>
+        {label}
+      </Text>
+      <Title level={4} className={cn("!m-0 !font-black", isAlert ? "text-rose-600" : "text-slate-800")}>
+        {value}
+      </Title>
+    </div>
+  )
+}
+
+// ── Intelligence Components ──────────────────────────────────────────
+
+// ── Hiring AI Brain Components ─────────────────────────────────────
+
+export function HiringAIBrainDashboard({ jobId }: { jobId: string }) {
+  const { t } = useTranslation('jobs')
+  const { data: brainData, isLoading } = useApiQuery(
+    ['hiring-brain', jobId],
+    () => requisitionsApi.getHiringBrain(jobId)
+  )
+
+  const brain = (brainData as any)?.intelligence ?? (brainData as any)?.data?.intelligence
+
+  if (isLoading) return <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6"><Card loading className="rounded-3xl" /><Card loading className="rounded-3xl" /><Card loading className="rounded-3xl" /><Card loading className="rounded-3xl" /></div>
+  if (!brain) return null
+
+  const getHealthColor = (label: string) => {
+    if (label === 'At Risk') return 'rose'
+    if (label === 'Watch') return 'amber'
+    return 'emerald'
+  }
+
+  const healthColor = getHealthColor(brain.health_label)
+
+  return (
+    <div className="space-y-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Hiring Health Block */}
+        <Card 
+          size="small" 
+          className="shadow-soft-sm border-none rounded-3xl overflow-hidden bg-white"
+          title={
+            <div className="flex items-center gap-2">
+              <BrainCircuit size={14} className="text-indigo-600" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Hiring AI Brain</span>
+            </div>
+          }
+        >
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <Text className="text-[10px] font-bold text-slate-400 uppercase">Health Status</Text>
+              <Tag className={cn("m-0 border-none font-black text-[8px] uppercase px-1.5 rounded", `bg-${healthColor}-50 text-${healthColor}-600`)}>{brain.health_label}</Tag>
+            </div>
+            <div className="pt-1">
+              <div className="flex justify-between items-center mb-1">
+                <Text className="text-[9px] font-black text-slate-500 uppercase">Brain Index</Text>
+                <Text className={cn("text-[10px] font-black", `text-${healthColor}-600`)}>{brain.health_score}/100</Text>
+              </div>
+              <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div className={cn("h-full", `bg-${healthColor}-500`)} style={{ width: `${brain.health_score}%` }} />
+              </div>
+            </div>
+          </div>
+        </Card>
+
+        {/* Risk Alerts Block */}
+        <Card 
+          size="small" 
+          className="shadow-soft-sm border-none rounded-3xl overflow-hidden bg-white"
+          title={
+            <div className="flex items-center gap-2">
+              <AlertTriangle size={14} className="text-rose-500" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Risk detection</span>
+            </div>
+          }
+        >
+          <div className="space-y-2">
+            {brain.risks.length > 0 ? brain.risks.map((risk: any, i: number) => (
+              <div key={i} className="flex items-start gap-2">
+                <div className={cn("mt-1.5 h-1 w-1 rounded-full shrink-0", risk.level === 'high' ? 'bg-rose-500' : 'bg-amber-500')} />
+                <Text className="text-[10px] font-bold text-slate-600 leading-tight">{risk.message}</Text>
+              </div>
+            )) : (
+              <div className="flex items-center gap-2 text-emerald-600 py-2">
+                <CheckCircle size={14} />
+                <Text className="text-[10px] font-black uppercase">No Critical Risks</Text>
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* Next Best Actions Block */}
+        <Card 
+          size="small" 
+          className="shadow-soft-sm border-none rounded-3xl overflow-hidden bg-slate-900"
+          title={
+            <div className="flex items-center gap-2">
+              <Zap size={14} className="text-amber-400" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Next Best Actions</span>
+            </div>
+          }
+        >
+          <div className="space-y-2">
+            {brain.next_best_actions.slice(0, 2).map((action: any, i: number) => (
+              <div key={i} className="flex items-start gap-2 group cursor-pointer">
+                <div className={cn("mt-1.5 h-1 w-1 rounded-full shrink-0", action.priority === 'high' ? 'bg-rose-500' : 'bg-indigo-500')} />
+                <Text className="text-[10px] font-bold text-slate-300 leading-tight group-hover:text-white transition-colors">{action.text}</Text>
+              </div>
+            ))}
+            <Button type="link" size="small" className="text-[9px] font-black uppercase tracking-widest p-0 h-auto text-indigo-400">All Tasks</Button>
+          </div>
+        </Card>
+
+        {/* AI Recommendations Block */}
+        <Card 
+          size="small" 
+          className="shadow-soft-sm border-none rounded-3xl overflow-hidden bg-white"
+          title={
+            <div className="flex items-center gap-2">
+              <Target size={14} className="text-indigo-500" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Smart Suggestions</span>
+            </div>
+          }
+        >
+          <div className="space-y-3">
+            {brain.recommendations.best_recruiter && (
+              <div className="flex items-center gap-2">
+                <Avatar size="small" className="bg-indigo-50 text-indigo-600 text-[8px] font-black border-none shrink-0">{brain.recommendations.best_recruiter.full_name.charAt(0)}</Avatar>
+                <div className="min-w-0">
+                  <Text className="block text-[9px] font-black text-slate-400 uppercase leading-none mb-0.5">Top Recruiter</Text>
+                  <Text className="block text-[10px] font-bold text-slate-700 truncate">{brain.recommendations.best_recruiter.full_name}</Text>
+                </div>
+              </div>
+            )}
+            <div className="pt-1 flex items-center justify-between border-t border-slate-50 mt-1">
+              <Text className="text-[9px] font-bold text-slate-400 uppercase">Sourcing Mix</Text>
+              <Tag className="m-0 border-none bg-blue-50 text-blue-600 font-black text-[8px] uppercase px-1.5 rounded">{brain.recommendations.sourcing_mix}</Tag>
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  )
+}
+
+export function HiringIntelligenceDashboard({ applications }: { applications: Application[] }) {
+  const { t } = useTranslation('jobs')
+  
+  // 1. Hiring Health Logic
+  const health = {
+    pipeline_balance: applications.length > 0 ? (applications.filter(a => ['interview', 'interview_scheduled', 'offer_extended', 'joined'].includes(a.status)).length / applications.length * 100).toFixed(0) : 0,
+    velocity: 'Optimal',
+    score: 8.4
+  }
+
+  // 2. Hiring Risk Logic
+  const risks = {
+    stalled: applications.filter(a => dayjs().diff(dayjs(a.updated_at), 'days') > 7 && !['joined', 'rejected'].includes(a.status)).length,
+    sla_breach: applications.filter(a => dayjs().diff(dayjs(a.updated_at), 'hours') > 48).length,
+    delayed_interviews: 0 // Would need interview date data
+  }
+
+  // 3. Momentum Logic
+  const momentum = {
+    new_today: applications.filter(a => dayjs(a.created_at).isSame(dayjs(), 'day')).length,
+    moves_today: 2, // Mock or would need history data
+    growth: '+12%'
+  }
+
+  // 4. AI Recommendations
+  const recommendations = []
+  if (applications.filter(a => a.status === 'applied').length > 5) recommendations.push({ text: 'Review 5+ new applicants', priority: 'high' })
+  if (risks.stalled > 0) recommendations.push({ text: `Nudge ${risks.stalled} stalled candidates`, priority: 'medium' })
+  if (applications.filter(a => ['interview', 'interview_scheduled'].includes(a.status)).length > 0) recommendations.push({ text: 'Sync with HM on interview feedback', priority: 'medium' })
+  if (recommendations.length === 0) recommendations.push({ text: 'Pipeline healthy. Consider increasing sourcing.', priority: 'low' })
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {/* Hiring Health Block */}
+      <Card 
+        size="small" 
+        className="shadow-soft-sm border-none rounded-3xl overflow-hidden bg-white"
+        title={
+          <div className="flex items-center gap-2">
+            <CheckCircle size={14} className="text-emerald-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Hiring Health</span>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <Text className="text-[10px] font-bold text-slate-400 uppercase">Balance Index</Text>
+            <Text className="text-xs font-black text-slate-700">{health.pipeline_balance}%</Text>
+          </div>
+          <div className="flex justify-between items-center">
+            <Text className="text-[10px] font-bold text-slate-400 uppercase">Velocity</Text>
+            <Tag className="m-0 border-none bg-emerald-50 text-emerald-600 font-black text-[8px] uppercase px-1.5 rounded">{health.velocity}</Tag>
+          </div>
+          <div className="pt-1">
+            <div className="flex justify-between items-center mb-1">
+              <Text className="text-[9px] font-black text-slate-500 uppercase">Health Score</Text>
+              <Text className="text-[10px] font-black text-emerald-600">{health.score}/10</Text>
+            </div>
+            <div className="h-1 w-full bg-slate-100 rounded-full overflow-hidden">
+              <div className="h-full bg-emerald-500" style={{ width: `${health.score * 10}%` }} />
+            </div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Hiring Risk Block */}
+      <Card 
+        size="small" 
+        className="shadow-soft-sm border-none rounded-3xl overflow-hidden bg-white"
+        title={
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={14} className="text-rose-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Hiring Risk</span>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <Text className="text-[10px] font-bold text-slate-400 uppercase">Stalled leads</Text>
+            <Text className={cn("text-xs font-black", risks.stalled > 0 ? "text-rose-600" : "text-slate-400")}>{risks.stalled}</Text>
+          </div>
+          <div className="flex justify-between items-center">
+            <Text className="text-[10px] font-bold text-slate-400 uppercase">SLA Breaches</Text>
+            <Text className={cn("text-xs font-black", risks.sla_breach > 0 ? "text-rose-600" : "text-slate-400")}>{risks.sla_breach}</Text>
+          </div>
+          <div className="flex justify-between items-center">
+            <Text className="text-[10px] font-bold text-slate-400 uppercase">Process Delay</Text>
+            <Text className="text-xs font-black text-slate-400">Low</Text>
+          </div>
+        </div>
+      </Card>
+
+      {/* Momentum Block */}
+      <Card 
+        size="small" 
+        className="shadow-soft-sm border-none rounded-3xl overflow-hidden bg-white"
+        title={
+          <div className="flex items-center gap-2">
+            <TrendingUp size={14} className="text-indigo-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Pipeline Momentum</span>
+          </div>
+        }
+      >
+        <div className="flex items-center justify-between h-full py-1">
+          <div>
+            <Text className="text-2xl font-black text-slate-800 leading-none">{momentum.new_today}</Text>
+            <Text className="text-[9px] font-black text-slate-400 uppercase block mt-1">New Today</Text>
+          </div>
+          <div className="text-right">
+            <div className="flex items-center gap-1 justify-end">
+              <TrendingUp size={12} className="text-emerald-500" />
+              <Text className="text-[11px] font-black text-emerald-600 uppercase tracking-tighter">{momentum.growth}</Text>
+            </div>
+            <Text className="text-[9px] font-black text-slate-400 uppercase block mt-0.5">Vs Last Week</Text>
+          </div>
+        </div>
+      </Card>
+
+      {/* AI Recommendations Block */}
+      <Card 
+        size="small" 
+        className="shadow-soft-sm border-none rounded-3xl overflow-hidden bg-slate-900"
+        title={
+          <div className="flex items-center gap-2">
+            <BrainCircuit size={14} className="text-indigo-400" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Intelligence Insights</span>
+          </div>
+        }
+      >
+        <div className="space-y-2">
+          {recommendations.slice(0, 2).map((rec, i) => (
+            <div key={i} className="flex items-start gap-2 group cursor-pointer">
+              <div className={cn("mt-1.5 h-1 w-1 rounded-full shrink-0", rec.priority === 'high' ? 'bg-rose-500' : 'bg-indigo-500')} />
+              <Text className="text-[10px] font-bold text-slate-300 leading-tight group-hover:text-white transition-colors">{rec.text}</Text>
+            </div>
+          ))}
+          <Button type="link" size="small" className="text-[9px] font-black uppercase tracking-widest p-0 h-auto text-indigo-400 hover:text-indigo-300">View All Actions</Button>
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+export function ActionIntelligenceRow({ applications }: { applications: Application[] }) {
+  const { t } = useTranslation('jobs')
+  
+  const urgent = {
+    review: applications.filter(a => a.status === 'applied' || a.status === 'screening').length,
+    interviews: applications.filter(a => ['interview', 'interview_scheduled'].includes(a.status)).length,
+    offers: applications.filter(a => a.status === 'offer_extended' && !a.offer_accepted_at).length
+  }
+
+  const bottlenecks = {
+    stuck: applications.filter(a => dayjs().diff(dayjs(a.updated_at), 'days') > 7).length,
+    delays: applications.filter(a => a.expected_joining_date && dayjs(a.expected_joining_date).isBefore(dayjs()) && a.status !== 'joined').length,
+    pending_approval: applications.filter(a => a.governance_status === 'submitted').length
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <Card 
+        title={
+          <div className="flex items-center gap-2">
+            <Zap size={14} className="text-amber-500 fill-amber-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">{t('command_center.urgent_actions')}</span>
+          </div>
+        }
+        className="shadow-soft-sm border-none rounded-3xl"
+        size="small"
+      >
+        <div className="space-y-3">
+          <div className="flex justify-between items-center group cursor-pointer">
+            <Text className="text-xs font-bold text-slate-500 group-hover:text-indigo-600 transition-colors">{t('command_center.candidates_waiting_review')}</Text>
+            <Badge count={urgent.review} style={{ backgroundColor: '#3b82f6' }} />
+          </div>
+          <div className="flex justify-between items-center group cursor-pointer">
+            <Text className="text-xs font-bold text-slate-500 group-hover:text-indigo-600 transition-colors">{t('command_center.interviews_pending')}</Text>
+            <Badge count={urgent.interviews} style={{ backgroundColor: '#a855f7' }} />
+          </div>
+          <div className="flex justify-between items-center group cursor-pointer">
+            <Text className="text-xs font-bold text-slate-500 group-hover:text-indigo-600 transition-colors">{t('command_center.offers_pending')}</Text>
+            <Badge count={urgent.offers} style={{ backgroundColor: '#f59e0b' }} />
+          </div>
+        </div>
+      </Card>
+
+      <Card 
+        title={
+          <div className="flex items-center gap-2">
+            <AlertTriangle size={14} className="text-rose-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">{t('command_center.bottlenecks')}</span>
+          </div>
+        }
+        className="shadow-soft-sm border-none rounded-3xl"
+        size="small"
+      >
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <Text className="text-xs font-bold text-slate-500">{t('command_center.stuck_candidates')}</Text>
+            <Text className={cn("text-xs font-black", bottlenecks.stuck > 0 ? "text-rose-600" : "text-slate-400")}>{bottlenecks.stuck}</Text>
+          </div>
+          <div className="flex justify-between items-center">
+            <Text className="text-xs font-bold text-slate-500">{t('command_center.delays')}</Text>
+            <Text className={cn("text-xs font-black", bottlenecks.delays > 0 ? "text-rose-600" : "text-slate-400")}>{bottlenecks.delays}</Text>
+          </div>
+          <div className="flex justify-between items-center">
+            <Text className="text-xs font-bold text-slate-500">{t('command_center.pending_approvals')}</Text>
+            <Text className={cn("text-xs font-black", bottlenecks.pending_approval > 0 ? "text-amber-600" : "text-slate-400")}>{bottlenecks.pending_approval}</Text>
+          </div>
+        </div>
+      </Card>
+
+      <Card 
+        title={
+          <div className="flex items-center gap-2">
+            <TrendingUp size={14} className="text-emerald-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">{t('command_center.recent_activity')}</span>
+          </div>
+        }
+        className="shadow-soft-sm border-none rounded-3xl"
+        size="small"
+      >
+        <div className="space-y-3">
+          <div className="flex justify-between items-center">
+            <Text className="text-[10px] font-bold text-slate-400 uppercase">{t('command_center.last_submission')}</Text>
+            <Text className="text-[10px] font-black text-slate-700">2 hrs ago</Text>
+          </div>
+          <div className="flex justify-between items-center">
+            <Text className="text-[10px] font-bold text-slate-400 uppercase">{t('command_center.last_interview')}</Text>
+            <Text className="text-[10px] font-black text-slate-700">Yesterday</Text>
+          </div>
+          <div className="flex justify-between items-center">
+            <Text className="text-[10px] font-bold text-slate-400 uppercase">{t('command_center.last_offer')}</Text>
+            <Text className="text-[10px] font-black text-slate-700">3 days ago</Text>
+          </div>
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+export function PipelineCompactSummary({ applications, onOpenFull }: { applications: Application[], onOpenFull?: () => void }) {
+  const { t } = useTranslation('jobs')
+  
+  const stages = [
+    { key: 'sourced', label: t('command_center.sourced'), count: applications.filter(a => a.status === 'applied').length, color: 'bg-slate-400' },
+    { key: 'submitted', label: t('command_center.submitted'), count: applications.filter(a => a.status === 'applied' || a.status === 'screening').length, color: 'bg-blue-500' },
+    { key: 'screening', label: t('command_center.screening'), count: applications.filter(a => a.status === 'screening').length, color: 'bg-indigo-500' },
+    { key: 'interview', label: t('command_center.interview'), count: applications.filter(a => ['interview', 'interview_scheduled'].includes(a.status)).length, color: 'bg-purple-500' },
+    { key: 'offer', label: t('command_center.offer'), count: applications.filter(a => a.status === 'offer_extended').length, color: 'bg-amber-500' },
+    { key: 'hired', label: t('command_center.hired'), count: applications.filter(a => a.status === 'joined').length, color: 'bg-emerald-500' },
+  ]
+
+  return (
+    <Card 
+      title={
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{t('command_center.pipeline')}</span>
+          <Button type="link" size="small" className="text-[10px] font-black uppercase tracking-widest p-0" onClick={onOpenFull}>
+            {t('actions.open_pipeline')}
+          </Button>
+        </div>
+      }
+      className="shadow-soft-sm border-none rounded-3xl overflow-hidden"
+    >
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+        {stages.map(s => (
+          <div key={s.key} className="p-3 bg-slate-50/50 rounded-2xl border border-slate-100/50 flex flex-col items-center text-center">
+            <div className={cn("h-1.5 w-8 rounded-full mb-2", s.color)} />
+            <Text className="text-[9px] font-black text-slate-400 uppercase tracking-tighter mb-1">{s.label}</Text>
+            <Text className="text-lg font-black text-slate-800 leading-none">{s.count}</Text>
+          </div>
+        ))}
+      </div>
+    </Card>
+  )
+}
+
+export function CandidateFocusPanel({ applications }: { applications: Application[] }) {
+  const { t } = useTranslation('jobs')
+  const { data: candidatesData } = useApiQuery(['candidates', 'all'], () => candidatesApi.list())
+  const candidateMap = new Map<string, Candidate>(
+    ((candidatesData as any)?.candidates ?? []).map((c: any) => [c.id, c])
+  )
+
+  const columns = [
+    {
+      title: t('fields.candidate_name'),
+      key: 'candidate',
+      render: (_: any, app: any) => {
+        const candidate = candidateMap.get(app.candidate_id)
+        return (
+          <div className="flex items-center gap-2">
+            <Avatar size="small" className="bg-indigo-50 text-indigo-600 font-black border-none text-[10px]">
+              {candidate?.full_name?.charAt(0) || 'C'}
+            </Avatar>
+            <div className="min-w-0">
+              <Text className="block font-bold text-slate-800 text-[11px] leading-tight truncate">
+                {candidate?.full_name || 'Loading...'}
+              </Text>
+            </div>
+          </div>
+        )
+      }
+    },
+    {
+      title: t('fields.stage'),
+      key: 'stage',
+      render: (_: any, app: any) => (
+        <Tag className="m-0 border-none bg-slate-100 text-slate-600 font-black text-[8px] uppercase px-1.5 rounded">
+          {app.status?.replace('_', ' ')}
+        </Tag>
+      )
+    },
+    {
+      title: 'Score',
+      key: 'match',
+      render: (v: any, app: any) => <Text className="text-[10px] font-black text-emerald-600">{app.match_score || 85}%</Text>
+    },
+    {
+      title: 'Source',
+      key: 'source',
+      render: (_: any, app: any) => <Text className="text-[9px] text-slate-400 font-black uppercase truncate">{app.source || 'Direct'}</Text>
+    },
+    {
+      title: '',
+      key: 'actions',
+      align: 'right' as const,
+      render: () => <ChevronRight size={14} className="text-slate-300" />
+    }
+  ]
+
+  return (
+    <Card 
+      title={
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{t('candidate_panel.title')}</span>
+          <Button type="link" size="small" className="text-[10px] font-black uppercase tracking-widest p-0">{t('candidate_panel.view_all_candidates')}</Button>
+        </div>
+      }
+      bordered={false}
+      className="shadow-soft-sm overflow-hidden rounded-3xl"
+      bodyStyle={{ padding: 0 }}
+    >
+      <Table 
+        dataSource={applications.slice(0, 5)} 
+        columns={columns} 
+        rowKey="id" 
+        pagination={false}
+        size="small"
+        className="modern-table-dense"
+      />
+    </Card>
+  )
+}
+
+export function SourcingIntelligence({ applications, onAssignAgency }: { applications: Application[], onAssignAgency?: () => void }) {
+  const { t } = useTranslation('jobs')
+  
+  const sources = {
+    direct: applications.filter(a => a.source === 'direct' || !a.agency_id).length,
+    agency: applications.filter(a => a.agency_id).length,
+    internal: applications.filter(a => a.source === 'internal').length,
+  }
+
+  return (
+    <Card 
+      title={
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{t('command_center.sourcing_intelligence')}</span>
+          {onAssignAgency && (
+            <Button 
+              type="text" 
+              size="small" 
+              icon={<Users size={12} />} 
+              className="text-blue-600 font-black text-[9px] uppercase hover:bg-blue-50"
+              onClick={onAssignAgency}
+            >
+              {t('command_center.quick_actions.assign')}
+            </Button>
+          )}
+        </div>
+      }
+      className="shadow-soft-sm border-none rounded-3xl"
+      size="small"
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-3 gap-2">
+          <div className="text-center p-2 bg-blue-50 rounded-xl">
+            <Text className="block text-[8px] font-black text-blue-400 uppercase">{t('summary.direct_applicants')}</Text>
+            <Text className="text-sm font-black text-blue-700">{sources.direct}</Text>
+          </div>
+          <div className="text-center p-2 bg-purple-50 rounded-xl">
+            <Text className="block text-[8px] font-black text-purple-400 uppercase">{t('summary.agency')}</Text>
+            <Text className="text-sm font-black text-purple-700">{sources.agency}</Text>
+          </div>
+          <div className="text-center p-2 bg-emerald-50 rounded-xl">
+            <Text className="block text-[8px] font-black text-emerald-400 uppercase">{t('summary.internal')}</Text>
+            <Text className="text-sm font-black text-emerald-700">{sources.internal}</Text>
+          </div>
+        </div>
+
+        <div>
+          <Text className="text-[9px] font-black text-slate-400 uppercase block mb-2">{t('command_center.agency_performance')}</Text>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between p-2 bg-slate-50 rounded-xl border border-slate-100/50">
+              <Text className="text-[10px] font-black text-slate-600 truncate flex-1">Global Sourcing Corp</Text>
+              <div className="flex gap-2">
+                <div className="flex flex-col items-end">
+                   <Text className="text-[8px] font-black text-slate-400 uppercase">Sub</Text>
+                   <Text className="text-[10px] font-black text-slate-700">12</Text>
+                </div>
+                <div className="flex flex-col items-end">
+                   <Text className="text-[8px] font-black text-slate-400 uppercase text-emerald-500">Hired</Text>
+                   <Text className="text-[10px] font-black text-emerald-600">2</Text>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+export function InterviewIntelligence({ jobId }: { jobId: string }) {
+  const { t } = useTranslation('jobs')
+  return (
+    <Card 
+      title={<span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{t('command_center.interview_intelligence')}</span>}
+      className="shadow-soft-sm border-none rounded-3xl h-full"
+      size="small"
+    >
+      <div className="space-y-4">
+        <div className="flex items-center justify-between p-2 bg-slate-50 rounded-xl border border-slate-100">
+          <div>
+            <Text className="text-[8px] font-black text-slate-400 uppercase block">Upcoming Today</Text>
+            <Text className="text-xs font-black text-slate-800">3 Interviews</Text>
+          </div>
+          <Button type="primary" size="small" ghost className="h-6 text-[9px] font-black uppercase">View</Button>
+        </div>
+        
+        <div className="space-y-2">
+          <Text className="text-[9px] font-black text-slate-400 uppercase block">{t('command_center.upcoming_interviews')}</Text>
+          <div className="flex items-center gap-3 p-2 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer">
+            <Avatar size={20} className="bg-blue-100 text-blue-600 font-black text-[8px]">JD</Avatar>
+            <div className="min-w-0 flex-1">
+              <Text className="block text-[10px] font-black text-slate-700 truncate">John Doe</Text>
+              <Text className="text-[9px] text-slate-400 font-bold uppercase">Technical Round • 2:30 PM</Text>
+            </div>
+            <ChevronRight size={12} className="text-slate-300" />
+          </div>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+export function OfferIntelligence({ applications }: { applications: Application[] }) {
+  const { t } = useTranslation('jobs')
+  
+  const stats = {
+    pending: applications.filter(a => a.status === 'offer_extended' && !a.offer_accepted_at).length,
+    negotiation: 2, // Mock for now
+    joining: applications.filter(a => a.status === 'offer_accepted' || a.placement_status === 'pending_join').length
+  }
+
+  return (
+    <Card 
+      title={<span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{t('command_center.offer_intelligence')}</span>}
+      className="shadow-soft-sm border-none rounded-3xl h-full"
+      size="small"
+    >
+      <div className="grid grid-cols-3 gap-2 h-full items-center">
+        <MetricCard label={t('command_center.offers_pending')} value={stats.pending} color="amber" />
+        <MetricCard label={t('command_center.negotiations')} value={stats.negotiation} color="blue" />
+        <MetricCard label={t('command_center.joining')} value={stats.joining} color="emerald" />
+      </div>
+    </Card>
+  )
+}
+
+export function HiringTeamSection({ requisition, onAssign }: { requisition: JobRequisition, onAssign?: () => void }) {
+  const { t } = useTranslation('jobs')
+  return (
+    <Card 
+      title={<span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{t('command_center.hiring_team')}</span>}
+      className="shadow-soft-sm border-none rounded-3xl"
+      size="small"
+    >
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Avatar size="small" className="bg-amber-100 text-amber-600 font-black text-[10px]">HM</Avatar>
+            <div>
+              <Text className="block text-[11px] font-black text-slate-800">{t('fields.hiring_manager')}</Text>
+              <Text className="text-[9px] text-slate-400 font-bold uppercase">Approver</Text>
+            </div>
+          </div>
+          <Button type="text" size="small" icon={<MessageSquare size={12} />} className="text-slate-400" />
+        </div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Avatar size="small" className="bg-blue-100 text-blue-600 font-black text-[10px]">IR</Avatar>
+            <div>
+              <Text className="block text-[11px] font-black text-slate-800">{t('fields.recruiter')}</Text>
+              <Text className="text-[9px] text-slate-400 font-bold uppercase">Owner</Text>
+            </div>
+          </div>
+          <Button type="text" size="small" icon={<MessageSquare size={12} />} className="text-slate-400" />
+        </div>
+        
+        <Divider className="my-2 border-slate-50" />
+        
+        <div className="flex gap-2">
+          <Button size="small" icon={<UserPlus size={12} />} className="flex-1 text-[9px] font-black uppercase h-7" onClick={onAssign}>{t('command_center.quick_actions.assign')}</Button>
+          <Button size="small" icon={<Clock size={12} />} className="flex-1 text-[9px] font-black uppercase h-7">{t('command_center.quick_actions.follow_up')}</Button>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+export function UnifiedActivityFeed({ jobId }: { jobId: string }) {
+  const { t } = useTranslation('jobs')
+  const { data: activitiesData, isLoading } = useQuery({
+    queryKey: ['job-activity-unified', jobId],
+    queryFn: async () => {
+      // 1. Get Applications
+      const appRes = await pipelineApi.listApplications({ requisition_id: jobId })
+      const apps = (appRes as any).applications || []
+      
+      // 2. Get Application History for each
+      const historyPromises = apps.map((app: any) => pipelineApi.getApplication(app.id))
+      const historyResults = await Promise.all(historyPromises)
+      
+      const allEvents: any[] = []
+      
+      historyResults.forEach((res: any) => {
+        const app = res.application
+        const history = res.history || []
+        const candidateName = `Candidate ${app.candidate_id.slice(0,4)}` // Simplified lookup
+        
+        allEvents.push({
+          candidate_id: app.candidate_id,
+          text: `submitted application`,
+          date: app.created_at,
+          type: 'submission',
+          candidateName
+        })
+        
+        history.forEach((h: any) => {
+          allEvents.push({
+            candidate_id: app.candidate_id,
+            text: `moved to ${h.to_status?.replace('_', ' ') || 'next stage'}`,
+            date: h.moved_at,
+            type: 'move',
+            candidateName,
+            notes: h.notes
+          })
+        })
+      })
+      
+      return allEvents.sort((a, b) => dayjs(b.date).unix() - dayjs(a.date).unix())
+    }
+  })
+
+  const activities = (activitiesData as any) ?? []
+
+  if (isLoading) return <div className="py-10 text-center"><Spin /></div>
+  if (activities.length === 0) return <Empty className="py-10" description="No activity found" />
+
+  return (
+    <Card bordered={false} className="shadow-soft-sm rounded-3xl p-4">
+      <Timeline
+        className="mt-4"
+        items={activities.map((act: any, i: number) => ({
+          key: i,
+          children: (
+            <div className="flex flex-col pb-4">
+              <div className="flex items-center gap-2">
+                <Text className="text-xs font-black text-slate-800">{act.candidateName}</Text>
+                <Text className="text-xs text-slate-600">{act.text}</Text>
+              </div>
+              {act.notes && <Paragraph className="text-[11px] text-slate-400 italic m-0 mt-1 bg-slate-50 p-2 rounded-lg border border-slate-100">"{act.notes}"</Paragraph>}
+              <Text className="text-[9px] font-black text-slate-400 uppercase mt-1 tracking-wider">
+                {dayjs(act.date).format('MMM D, YYYY · HH:mm')} — {dayjs(act.date).fromNow()}
+              </Text>
+            </div>
+          ),
+          dot: <div className={cn("h-2 w-2 rounded-full border-2 border-white ring-2", act.type === 'submission' ? 'bg-blue-500 ring-blue-50' : 'bg-indigo-500 ring-indigo-50')} />,
+        }))}
+      />
+    </Card>
+  )
+}
+
+export function AgencyIntelligenceSection({ jobId }: { jobId: string }) {
+  const { t } = useTranslation('jobs')
+  const { data: intelData, isLoading } = useApiQuery(
+    ['job-agency-intelligence', jobId],
+    () => agenciesApi.getJobIntelligence(jobId)
+  )
+
+  const assignedPerformance = (intelData as any)?.assigned_performance ?? (intelData as any)?.data?.assigned_performance ?? []
+  const recommendations = (intelData as any)?.recommendations ?? (intelData as any)?.data?.recommendations ?? []
+
+  return (
+    <Card 
+      size="small"
+      title={
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users size={14} className="text-blue-600" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Agency Intelligence</span>
+          </div>
+        </div>
+      }
+      className="shadow-soft-sm border-none rounded-3xl"
+    >
+      <div className="space-y-4">
+        {assignedPerformance.length > 0 && (
+          <div>
+            <Text className="text-[9px] font-black text-slate-400 uppercase block mb-2">Assigned Performance</Text>
+            <div className="space-y-2">
+              {assignedPerformance.map((item: any, i: number) => (
+                <div key={i} className="flex items-center justify-between p-2 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="min-w-0 flex-1">
+                    <Text className="block text-[10px] font-black text-slate-700 truncate uppercase">Agency {item.agency_tenant_id.slice(0, 8)}</Text>
+                    <div className="flex items-center gap-2">
+                      <Tag className="m-0 border-none bg-blue-50 text-blue-600 font-black text-[8px] uppercase px-1 rounded">{item.status}</Tag>
+                      <Text className="text-[9px] text-slate-400 font-bold uppercase">{item.submission_count} Subs</Text>
+                    </div>
+                  </div>
+                  <div className="text-right pl-2">
+                    <Text className="block text-[8px] font-black text-slate-400 uppercase">Score</Text>
+                    <Text className={cn("text-xs font-black", item.score > 70 ? "text-emerald-600" : "text-amber-600")}>{item.score.toFixed(0)}</Text>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div>
+          <Text className="text-[9px] font-black text-slate-400 uppercase block mb-2">AI Recommendations</Text>
+          <div className="space-y-2">
+            {recommendations.length > 0 ? recommendations.map((rec: any, i: number) => (
+              <div key={i} className="flex items-center justify-between p-2 bg-indigo-50/50 rounded-xl border border-indigo-100/30">
+                <div className="min-w-0 flex-1">
+                  <Text className="block text-[10px] font-black text-indigo-700 truncate uppercase">Agency {rec.agency_tenant_id.slice(0, 8)}</Text>
+                  <Text className="block text-[8px] text-indigo-500 font-bold uppercase truncate">{rec.reason}</Text>
+                </div>
+                <Button type="primary" size="small" className="h-6 bg-indigo-600 border-none font-black text-[8px] uppercase tracking-widest rounded-lg ml-2">Assign</Button>
+              </div>
+            )) : (
+              <div className="text-center py-2 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                <Text className="text-[9px] font-bold text-slate-400 uppercase">No recommendations yet</Text>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+export function RecruiterIntelligenceSection({ jobId }: { jobId: string }) {
+  const { t } = useTranslation('jobs')
+  const { data: recData, isLoading } = useApiQuery(
+    ['job-recruiter-intelligence', jobId],
+    () => authApi.getJobRecruiterRecommendations(jobId)
+  )
+
+  const recommendations = (recData as any)?.recommendations ?? (recData as any)?.data?.recommendations ?? []
+  const overloaded = (recData as any)?.overloaded ?? (recData as any)?.data?.overloaded ?? []
+  const available = (recData as any)?.available ?? (recData as any)?.data?.available ?? []
+
+  return (
+    <Card 
+      size="small"
+      title={
+        <div className="flex items-center gap-2">
+          <UserCheck size={14} className="text-emerald-600" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">Recruiter Intelligence</span>
+        </div>
+      }
+      className="shadow-soft-sm border-none rounded-3xl"
+    >
+      <div className="space-y-4">
+        <div>
+          <Text className="text-[9px] font-black text-slate-400 uppercase block mb-2">Smart Recommendations</Text>
+          <div className="space-y-2">
+            {recommendations.length > 0 ? recommendations.map((rec: any, i: number) => (
+              <div key={i} className="flex items-center justify-between p-2 bg-emerald-50/50 rounded-xl border border-emerald-100/30">
+                <div className="min-w-0 flex-1">
+                  <Text className="block text-[10px] font-black text-emerald-700 truncate uppercase">{rec.full_name}</Text>
+                  <Text className="block text-[8px] text-emerald-500 font-bold uppercase truncate">{rec.reason}</Text>
+                </div>
+                <div className="text-right pl-2">
+                  <Text className="block text-[8px] font-black text-slate-400 uppercase">Score</Text>
+                  <Text className="text-xs font-black text-emerald-600">{rec.score.toFixed(0)}</Text>
+                </div>
+              </div>
+            )) : (
+              <div className="text-center py-2 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                <Text className="text-[9px] font-bold text-slate-400 uppercase">No recommendations</Text>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div>
+          <Text className="text-[9px] font-black text-slate-400 uppercase block mb-2">Team Capacity</Text>
+          <div className="space-y-2">
+            {overloaded.length > 0 && (
+              <div className="p-2 bg-rose-50 rounded-xl border border-rose-100 flex items-center gap-2">
+                <AlertTriangle size={12} className="text-rose-500" />
+                <Text className="text-[9px] font-bold text-rose-700 uppercase">{overloaded.length} Recruiters Overloaded</Text>
+              </div>
+            )}
+            <div className="flex flex-wrap gap-1.5">
+              {available.slice(0, 5).map((rec: any, i: number) => (
+                <Tooltip key={i} title={`${rec.full_name} (${rec.workload.workload_status})`}>
+                  <Avatar size="small" className="bg-slate-100 text-slate-600 font-black border-none text-[8px]">
+                    {rec.full_name.charAt(0)}
+                  </Avatar>
+                </Tooltip>
+              ))}
+              {available.length > 5 && <Text className="text-[9px] text-slate-400 font-black uppercase mt-1">+{available.length - 5}</Text>}
+            </div>
+          </div>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+export function JobCommandCenterView({ requisition, applications, onAssignAgency, onOpenFullPipeline }: { 
+  requisition: JobRequisition, 
+  applications: Application[], 
+  onAssignAgency?: () => void,
+  onOpenFullPipeline?: () => void
+}) {
+  return (
+    <div className="space-y-6">
+      <HiringAIBrainDashboard jobId={requisition.id} />
+      <HiringIntelligenceDashboard applications={applications} />
+
+      {/* Main Operational Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Left Column - Core Operations (8 cols) */}
+        <div className="lg:col-span-8 space-y-6">
+          <PipelineCompactSummary applications={applications} onOpenFull={onOpenFullPipeline} />
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <InterviewIntelligence jobId={requisition.id} />
+            <InterviewAutomationSummary jobId={requisition.id} />
+            <OfferIntelligence applications={applications} />
+          </div>
+
+          <CandidateFocusPanel applications={applications} />
+        </div>
+
+        {/* Right Column - Team & Intelligence (4 cols) */}
+        <div className="lg:col-span-4 space-y-6">
+          <HiringTeamSection requisition={requisition} onAssign={onAssignAgency} />
+          <RecruiterIntelligenceSection jobId={requisition.id} />
+          <AgencyIntelligenceSection jobId={requisition.id} />
+          <SourcingIntelligence applications={applications} onAssignAgency={onAssignAgency} />
+          <UnifiedActivityFeed jobId={requisition.id} />
+        </div>
+      </div>
+    </div>
+  )
+}

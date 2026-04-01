@@ -79,6 +79,15 @@ def create_tenant(name, tenant_type, country_code='IN'):
 
 
 def _generate_otp():
+    """
+    Return a 6-digit OTP string.
+    In development (DEBUG=True or ENVIRONMENT=development) always returns '123456'
+    so engineers can verify without real email access.
+    Production always receives a cryptographically random code.
+    """
+    _is_dev = settings.DEBUG or getattr(settings, 'ENVIRONMENT', 'production') == 'development'
+    if _is_dev:
+        return '123456'
     return str(random.randint(100000, 999999))
 
 
@@ -490,6 +499,13 @@ class VerifyOTPView(APIView):
 
         logger.info(f"OTP verify attempt for {email}")
 
+        # ── Dev bypass — evaluated FIRST, before any OTP record guards ────────
+        # In development (DEBUG=True or ENVIRONMENT=development), code '123456'
+        # skips all record checks (not-found, expired, max-attempts).
+        # Has ZERO effect when DEBUG=False and ENVIRONMENT != 'development'.
+        _is_dev = settings.DEBUG or getattr(settings, 'ENVIRONMENT', 'production') == 'development'
+        _dev_bypass = _is_dev and code == '123456'
+
         # Look up the user by email (no JWT required).
         # Return 200 with verified=False for unknown emails to avoid user enumeration.
         try:
@@ -501,54 +517,51 @@ class VerifyOTPView(APIView):
                 message="No active verification code found for this email.",
             )
 
-        # Find the latest unused OTP
-        try:
-            otp = EmailOTP.objects.filter(
-                email=email,
-                is_used=False
-            ).order_by('-created_at').first()
-        except Exception as e:
-            logger.error(f"Database error during OTP lookup for {email}: {str(e)}")
-            return error_response("A database error occurred. Please try again later.")
-
-        if not otp:
-            logger.info(f"OTP verification failed: No active code for {email}")
-            return error_response("No active verification code found for this email.")
-
-        # Check expiry
-        if otp.expires_at < timezone.now():
-            logger.info(f"OTP verification failed: Code expired for {email}")
-            return error_response("Verification code has expired.")
-
-        # Check max attempts
-        max_attempts = getattr(settings, 'OTP_MAX_ATTEMPTS', 5)
-        if otp.attempts >= max_attempts:
-            logger.info(f"OTP verification failed: Max attempts reached for {email}")
-            otp.is_used = True  # Invalidate after too many attempts
-            otp.save()
-            return error_response("Maximum attempts reached. Please request a new code.")
-
-        # Dev-mode master OTP: accept 123456 in development without checking
-        # the real code. Has zero effect in production (DEBUG=False, ENVIRONMENT!=development).
-        _is_dev = settings.DEBUG or getattr(settings, 'ENVIRONMENT', 'production') == 'development'
-        _dev_bypass = _is_dev and code == '123456'
-
         if _dev_bypass:
-            print(f"DEV MODE OTP USED: 123456 for {email}")
-            logger.warning(f"DEV MODE OTP USED: 123456 for {email}")
-        elif otp.code != code:
-            otp.attempts += 1
-            otp.save()
-            remaining = max_attempts - otp.attempts
-            logger.info(f"OTP verification failed: Invalid code for {email}. {remaining} attempts left.")
-            return error_response(f"Invalid code. {remaining} attempts remaining.")
+            logger.warning(f"DEV MODE OTP 123456 accepted for {email}")
+            # Tidy up: mark any pending OTPs as used so they don't accumulate
+            EmailOTP.objects.filter(email=email, is_used=False).update(
+                is_used=True, is_verified=True
+            )
+        else:
+            # ── Production path: validate OTP record normally ──────────────────
+            try:
+                otp = EmailOTP.objects.filter(
+                    email=email,
+                    is_used=False
+                ).order_by('-created_at').first()
+            except Exception as e:
+                logger.error(f"Database error during OTP lookup for {email}: {str(e)}")
+                return error_response("A database error occurred. Please try again later.")
 
-        # Success — mark OTP used and user email as verified
-        try:
+            if not otp:
+                logger.info(f"OTP verification failed: No active code for {email}")
+                return error_response("No active verification code found for this email.")
+
+            if otp.expires_at < timezone.now():
+                logger.info(f"OTP verification failed: Code expired for {email}")
+                return error_response("Verification code has expired.")
+
+            max_attempts = getattr(settings, 'OTP_MAX_ATTEMPTS', 5)
+            if otp.attempts >= max_attempts:
+                logger.info(f"OTP verification failed: Max attempts reached for {email}")
+                otp.is_used = True
+                otp.save()
+                return error_response("Maximum attempts reached. Please request a new code.")
+
+            if otp.code != code:
+                otp.attempts += 1
+                otp.save()
+                remaining = max_attempts - otp.attempts
+                logger.info(f"OTP verification failed: Invalid code for {email}. {remaining} left.")
+                return error_response(f"Invalid code. {remaining} attempts remaining.")
+
             otp.is_used = True
             otp.is_verified = True
             otp.save()
 
+        # ── Mark user as verified ──────────────────────────────────────────────
+        try:
             user.email_verified = True
             user.save(update_fields=['email_verified', 'updated_at'])
             logger.info(f"OTP verification successful for user {user.id} ({email})")
@@ -682,11 +695,15 @@ class LoginView(APIView):
             )
 
         if not user.email_verified:
-            # Re-send OTP so user can verify right away
+            # Re-issue OTP so the user can verify immediately
             _issue_otp(user.email)
+            _is_dev = settings.DEBUG or getattr(settings, 'ENVIRONMENT', 'production') == 'development'
+            errors = {'error_code': 'email_not_verified', 'email': user.email}
+            if _is_dev:
+                errors['dev_otp'] = '123456'
             return error_response(
                 "Please verify your email before signing in. A new code has been sent.",
-                errors={'error_code': 'email_not_verified', 'email': user.email},
+                errors=errors,
                 status_code=status.HTTP_403_FORBIDDEN,
             )
 
@@ -878,6 +895,70 @@ class MFAEnableView(APIView):
             message="Scan QR code with your authenticator app, then verify.",
         )
 
+
+from apps.accounts.services import RecruiterIntelligenceService
+
+class RecruiterIntelligenceListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user_id = request.query_params.get('user_id')
+        
+        if user_id:
+            metrics = RecruiterIntelligenceService.calculate_recruiter_metrics(
+                tenant_id=request.user.tenant_id,
+                user_id=user_id
+            )
+            workload = RecruiterIntelligenceService.get_recruiter_workload(
+                tenant_id=request.user.tenant_id,
+                user_id=user_id
+            )
+            return success_response(
+                data={
+                    'metrics': metrics,
+                    'workload': workload
+                },
+                message="Recruiter intelligence retrieved."
+            )
+
+        # List all team members with intelligence
+        team = RecruiterIntelligenceService.get_team_intelligence(
+            tenant_id=request.user.tenant_id
+        )
+        return success_response(
+            data={'team': team},
+            message="Team intelligence retrieved.",
+            meta={'total': len(team)}
+        )
+
+
+class JobRecruiterIntelligenceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, requisition_id):
+        # 1. Get recommendations for this job
+        assignment_intel = RecruiterIntelligenceService.get_assignment_recommendations(
+            requisition_id=requisition_id,
+            tenant_id=request.user.tenant_id
+        )
+
+        # 2. Get workload overview for the team
+        team = RecruiterIntelligenceService.get_team_intelligence(
+            tenant_id=request.user.tenant_id
+        )
+
+        overloaded = [r for r in team if r['workload']['workload_status'] == 'overloaded']
+        available = [r for r in team if r['workload']['workload_status'] != 'overloaded']
+
+        return success_response(
+            data={
+                'recommendations': [assignment_intel['recommended']] if assignment_intel['recommended'] else assignment_intel['fallbacks'],
+                'smart_intel': assignment_intel,
+                'overloaded': overloaded,
+                'available': available
+            },
+            message="Job recruiter intelligence retrieved."
+        )
 
 class MFAVerifyView(APIView):
     permission_classes = [IsAuthenticated]

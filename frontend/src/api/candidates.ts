@@ -13,7 +13,7 @@ import type {
 } from '@/types'
 
 export const candidatesApi = {
-  list: (params?: { search?: string; source?: string; skills?: string }) =>
+  list: (params?: { search?: string; source?: string; skills?: string; ids?: string }) =>
     http.get<ApiResponse<{ candidates: Candidate[]; total: number }>>('/candidates/', { params }),
 
   get: (id: string) =>
@@ -96,10 +96,12 @@ export const candidatesApi = {
     http.delete(`/candidates/${candidateId}/notes/${noteId}/`),
 
   crmPipeline: () =>
-    http.get<ApiResponse<Record<string, unknown[]>>>('/crm/pipeline/'),
+    http.get<ApiResponse<Record<string, unknown[]>>>('/candidates/crm/pipeline/'),
 
   searchSkills: (q: string) =>
-    http.get(`/candidates/skills/search/?q=${encodeURIComponent(q)}`),
+    http.get(`/candidates/skills/search/?q=${encodeURIComponent(q)}`, {
+      headers: { 'X-Skip-Auth': '1' },
+    }),
 
   searchLocations: (q: string) =>
     http.get(`/candidates/locations/search/?q=${encodeURIComponent(q)}`),

@@ -2,69 +2,72 @@
 
 ## pytest
 ```
-============================= test session starts ==============================
-platform linux -- Python 3.12.3, pytest-9.0.2, pluggy-1.6.0
-django: version: 6.0.3, settings: config.settings.base (from ini)
-rootdir: /home/nirav/projects/SaaS_Project
-configfile: pytest.ini
-testpaths: backend
-plugins: schemathesis-4.14.0, django-4.12.0, base-url-2.1.0, hypothesis-6.151.9, playwright-0.7.2, anyio-4.13.0, cov-7.1.0
-collected 3 items
+E       RuntimeError: Database access not allowed, use the "django_db" mark, or the "db" or "transactional_db" fixtures to enable it.
 
-backend/apps/accounts/tests/test_onboarding.py ...                       [100%]
-
+venv/lib/python3.12/site-packages/django/db/backends/base/base.py:296: RuntimeError
+----------------------------- Captured stdout call -----------------------------
+Testing Duplicate Notification Status Codes (Expected 409)...
 ================================ tests coverage ================================
 _______________ coverage: platform linux, python 3.12.3-final-0 ________________
 
 Coverage HTML written to dir /home/nirav/projects/SaaS_Project/sys_know/generated/coverage/htmlcov
 Coverage XML written to file /home/nirav/projects/SaaS_Project/sys_know/generated/coverage/coverage.xml
-============================== 3 passed in 4.72s ===============================
+=========================== short test summary info ============================
+FAILED backend/apps/interviews/tests/test_candidate_runtime_engine.py::CandidateRuntimeEngineTests::test_interview_opens
+FAILED backend/apps/interviews/tests/test_candidate_runtime_engine.py::CandidateRuntimeEngineTests::test_join_works_and_status_updates
+FAILED backend/apps/interviews/tests/test_decision_engine.py::InterviewDecisionEngineTests::test_multi_interviewer_evaluation_works
+FAILED backend/apps/interviews/tests/test_security_engine.py::InterviewSecurityEngineTests::test_attempt_tracking_works
+FAILED backend/apps/interviews/tests/test_security_engine.py::InterviewSecurityEngineTests::test_expiry_works
+FAILED backend/apps/interviews/tests/test_security_engine.py::InterviewSecurityEngineTests::test_session_lock_works
+FAILED backend/apps/interviews/tests/test_security_engine.py::InterviewSecurityEngineTests::test_token_validation_works
+FAILED backend/test_duplicates.py::test_duplicate_notifications - RuntimeErro...
+=================== 8 failed, 121 passed in 91.60s (0:01:31) ===================
 ```
 ## schema
 ```
-Warning: operationId "v1_jobs_requisitions_retrieve" has collisions [('/api/v1/jobs/requisitions/', 'get'), ('/api/v1/jobs/requisitions/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_jobs_postings_retrieve" has collisions [('/api/v1/jobs/postings/', 'get'), ('/api/v1/jobs/postings/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_candidates_retrieve" has collisions [('/api/v1/candidates/', 'get'), ('/api/v1/candidates/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_candidates_engagements_retrieve" has collisions [('/api/v1/candidates/{candidate_id}/engagements/', 'get'), ('/api/v1/candidates/{candidate_id}/engagements/{engagement_id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_applications_retrieve" has collisions [('/api/v1/applications/', 'get'), ('/api/v1/applications/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_agencies_relationships_retrieve" has collisions [('/api/v1/agencies/relationships/', 'get'), ('/api/v1/agencies/relationships/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_agencies_assignments_retrieve" has collisions [('/api/v1/agencies/assignments/', 'get'), ('/api/v1/agencies/assignments/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_interviews_templates_retrieve" has collisions [('/api/v1/interviews/templates/', 'get'), ('/api/v1/interviews/templates/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_interviews_retrieve" has collisions [('/api/v1/interviews/', 'get'), ('/api/v1/interviews/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_messages_threads_retrieve" has collisions [('/api/v1/messages/threads/', 'get'), ('/api/v1/messages/threads/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_communication_templates_retrieve" has collisions [('/api/v1/communication/templates/', 'get'), ('/api/v1/communication/templates/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_communications_email_messages_retrieve" has collisions [('/api/v1/communications/email-messages/', 'get'), ('/api/v1/communications/email-messages/{id}', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_documents_retrieve" has collisions [('/api/v1/documents/', 'get'), ('/api/v1/documents/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_offers_retrieve" has collisions [('/api/v1/offers/', 'get'), ('/api/v1/offers/{id}/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_interviews_scheduling_link_create" has collisions [('/api/v1/interviews/{id}/scheduling-link/', 'post'), ('/api/v1/interviews/scheduling-link/{token}/', 'post')]. resolving with numeral suffixes.
+Warning: operationId "v1_interviews_flows_retrieve" has collisions [('/api/v1/interviews/flows/', 'get'), ('/api/v1/interviews/flows/{id}/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_interviews_questions_bank_retrieve" has collisions [('/api/v1/interviews/questions/bank/', 'get'), ('/api/v1/interviews/questions/bank/{id}/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_interviews_packages_retrieve" has collisions [('/api/v1/interviews/packages/', 'get'), ('/api/v1/interviews/packages/{id}/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_communications_messages_threads_retrieve" has collisions [('/api/v1/communications/messages/threads/', 'get'), ('/api/v1/communications/messages/threads/{id}/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_communications_communication_templates_retrieve" has collisions [('/api/v1/communications/communication/templates/', 'get'), ('/api/v1/communications/communication/templates/{id}/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_communications_communications_email_messages_retrieve" has collisions [('/api/v1/communications/communications/email-messages/', 'get'), ('/api/v1/communications/communications/email-messages/{id}', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_documents_documents_retrieve" has collisions [('/api/v1/documents/documents/', 'get'), ('/api/v1/documents/documents/{id}/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_documents_offers_retrieve" has collisions [('/api/v1/documents/offers/', 'get'), ('/api/v1/documents/offers/{id}/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_automation_rules_retrieve" has collisions [('/api/v1/automation/rules/', 'get'), ('/api/v1/automation/rules/{id}/', 'get')]. resolving with numeral suffixes.
 Warning: operationId "v1_candidate_applications_retrieve" has collisions [('/api/v1/candidate/applications/', 'get'), ('/api/v1/candidate/applications/{id}/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_prequalification_forms_retrieve" has collisions [('/api/v1/prequalification/forms/', 'get'), ('/api/v1/prequalification/forms/{id}/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_intelligence_prompts_retrieve" has collisions [('/api/v1/intelligence/prompts/', 'get'), ('/api/v1/intelligence/prompts/{id}/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_intelligence_automations_retrieve" has collisions [('/api/v1/intelligence/automations/', 'get'), ('/api/v1/intelligence/automations/{id}/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_intelligence_approvals_retrieve" has collisions [('/api/v1/intelligence/approvals/', 'get'), ('/api/v1/intelligence/approvals/{id}/', 'get')]. resolving with numeral suffixes.
 
 Schema generation summary:
-Warnings: 19 (19 unique)
-Errors:   942 (188 unique)
+Warnings: 549 (368 unique)
+Errors:   1798 (318 unique)
 
 ```
 ## schemathesis
 ```
-  ❌ API accepts requests without authentication: 2
-  ❌ API accepted schema-violating request: 2
-  ❌ API rejected schema-compliant request: 11
-  ❌ Missing header not rejected: 2
-  ❌ Undocumented HTTP status code: 124
-  ❌ Unsupported methods: 277
+Failures:
+  ❌ Server error: 8
+  ❌ API accepted schema-violating request: 1
+  ❌ API rejected schema-compliant request: 10
+  ❌ Undocumented HTTP status code: 8
 
 Errors:
-  🚫 Network Error: 8
+  🚫 Network Error: 113
 
 Warnings:
-  ⚠️ Missing authentication: 279 operations returned only 401/403 responses
-  ⚠️ Missing valid test data: 11 operations repeatedly returned 404 responses
+  ⚠️ Missing authentication: 236 operations returned only 401/403 responses
+  ⚠️ Missing valid test data: 180 operations repeatedly returned 404 responses
+  ⚠️ Schema validation mismatch: 453 operations mostly rejected generated data
 
 Test cases:
-  15789 generated, 414 found 418 unique failures, 175 skipped
+  30800 generated, 19 found 27 unique failures, 1778 skipped
 
-Seed: 320429938304571368857130907205107386654
+Seed: 88076271192833566827489686104300716352
 
-================ 418 failures, 8 errors, 2 warnings in 1135.98s ================
+=============== 27 failures, 113 errors, 3 warnings in 2962.96s ================
 ```
 ## vitest
 ```
@@ -92,12 +95,10 @@ SyntaxError: The requested module 'node:util' does not provide an export named '
 Running 1 test using 1 worker
 
 [1A[2K[1/1] tests/smoke.spec.ts:3:1 › app loads
-[1A[2K  1 passed (1.6s)
+[1A[2K  1 passed (2.4s)
 ```
 ## mkdocs
 ```
-[31m │[0m
-[31m │  × [0mAll plugins will stop working – the plugin system has been removed
 [31m │  × [0mAll theme overrides will break – the theming system has been rewritten
 [31m │  × [0mNo migration path exists – existing projects cannot be upgraded
 [31m │  × [0mClosed contribution model – community members can't report bugs
@@ -113,7 +114,9 @@ INFO    -  The following pages exist in the docs directory, but are not included
   - Testing_And_Documentation_Guide.md
   - reports/backend_frontend_gap.md
   - reports/nightly_summary.md
+  - test_case/interviews.md
+  - ui_spec/interviews.md
 WARNING -  Doc file 'dashboard/index.md' contains a link '../generated/coverage/htmlcov/index.html', but the target 'generated/coverage/htmlcov/index.html' is not found among documentation files.
 WARNING -  Doc file 'dashboard/index.md' contains a link '../generated/openapi/schema.yaml', but the target 'generated/openapi/schema.yaml' is not found among documentation files.
-INFO    -  Documentation built in 0.14 seconds
+INFO    -  Documentation built in 0.17 seconds
 ```

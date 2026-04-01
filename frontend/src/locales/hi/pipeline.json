@@ -37,6 +37,7 @@
     "interview_schedule_failed": "इंटरव्यू शेड्यूल नहीं हो सका",
     "offer_created": "ऑफ़र बनाया गया और भेजा गया",
     "offer_failed": "ऑफ़र नहीं बन सका",
+    "owner_only_stage_change": "केवल जॉब ओनर ही उम्मीदवार की स्टेज मैन्युअली बदल सकता है।",
     "application_moved": "एप्लिकेशन आगे बढ़ाई गई",
     "application_move_failed": "एप्लिकेशन नहीं बढ़ाई जा सकी",
     "candidate_shortlisted": "उम्मीदवार शॉर्टलिस्ट हुआ",

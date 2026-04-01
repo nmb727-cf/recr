@@ -8,6 +8,9 @@ export const pipelineApi = {
   getApplication: (id: string) =>
     http.get<ApiResponse<{ application: Application }>>(`/pipeline/pipeline/applications/${id}/`),
 
+  updateApplication: (id: string, data: Partial<Application>) =>
+    http.patch<ApiResponse<{ application: Application }>>(`/pipeline/pipeline/applications/${id}/`, data),
+
   createApplication: (data: { candidate_id: string; requisition_id: string; source?: string; source_detail?: string }) =>
     http.post<ApiResponse<Application>>('/pipeline/pipeline/applications/', data),
 
@@ -25,6 +28,9 @@ export const pipelineApi = {
 
   getPipeline: (requisitionId: string) =>
     http.get<ApiResponse<PipelineData>>(`/pipeline/pipeline/${requisitionId}/`),
+
+  getRequisitionActivity: (requisitionId: string) =>
+    http.get<ApiResponse<{ events: any[] }>>(`/pipeline/pipeline/${requisitionId}/activity/`),
 
   bulkAction: (application_ids: string[], action: string, data?: Record<string, unknown>) =>
     http.post('/pipeline/pipeline/bulk-action/', { application_ids, action, data: data || {} }),

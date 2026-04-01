@@ -60,7 +60,8 @@ class PrequalQuestionService:
 
     @staticmethod
     def create(tenant_id, created_by, section_id, question_text, question_type='yes_no',
-               required=True, order=0, help_text='', options_json=None, metadata=None):
+               required=True, order=0, help_text='', options_json=None,
+               score_weight=0, is_knockout=False, metadata=None):
         return PrequalQuestion.objects.create(
             tenant_id=tenant_id,
             created_by=created_by,
@@ -71,6 +72,8 @@ class PrequalQuestionService:
             order=order,
             help_text=help_text,
             options_json=options_json or [],
+            score_weight=score_weight,
+            is_knockout=is_knockout,
             metadata=metadata or {},
         )
 
@@ -83,7 +86,8 @@ class PrequalRuleService:
 
     @staticmethod
     def create(tenant_id, created_by, question_id, condition_type, compare_value,
-               action_type, target_question_id=None, target_section_id=None, metadata=None):
+               action_type, outcome_code='', target_question_id=None,
+               target_section_id=None, metadata=None):
         return PrequalRule.objects.create(
             tenant_id=tenant_id,
             created_by=created_by,
@@ -91,6 +95,7 @@ class PrequalRuleService:
             condition_type=condition_type,
             compare_value=compare_value,
             action_type=action_type,
+            outcome_code=outcome_code,
             target_question_id=target_question_id,
             target_section_id=target_section_id,
             metadata=metadata or {},
@@ -121,6 +126,12 @@ class PrequalRuleService:
                 return float(val) < float(compare)
             except ValueError:
                 return False
+        elif rule.condition_type == 'in':
+            allowed = [v.strip().lower() for v in compare.split(',')]
+            return val in allowed
+        elif rule.condition_type == 'not_in':
+            excluded = [v.strip().lower() for v in compare.split(',')]
+            return val not in excluded
         elif rule.condition_type == 'is_empty':
             return not val
         elif rule.condition_type == 'is_not_empty':

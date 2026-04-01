@@ -7,8 +7,9 @@ const { Text } = Typography
 
 const STATUS_COLOR: Record<InterviewStatus, string> = {
   scheduled: 'processing', confirmed: 'cyan', rescheduled: 'warning',
-  in_progress: 'green', completed: 'success', cancelled: 'error',
-  no_show: 'default', pending_feedback: 'magenta',
+  in_progress: 'green', paused: 'warning', completed: 'success', cancelled: 'error',
+  no_show: 'default', pending_feedback: 'magenta', awaiting_feedback: 'magenta',
+  awaiting_decision: 'gold', rejected: 'error',
 }
 
 export default function InterviewFVPanel({ interview }: { interview: Interview }) {

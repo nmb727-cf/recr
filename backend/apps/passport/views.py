@@ -58,7 +58,13 @@ class MyPassportView(APIView):
 
         # Calculate completeness score
         passport.completeness_score = _calculate_completeness(passport)
-        passport.save(update_fields=['completeness_score'])
+
+        # Link passport ↔ Candidate if not already linked.
+        # A Candidate record may exist (pre-added by recruiter) or may be created
+        # lazily here for direct-signup candidates who have never been in the pipeline.
+        _link_passport_to_candidate(passport, request.user)
+
+        passport.save(update_fields=['completeness_score', 'candidate_id'])
 
         return success_response(
             data={'passport': TalentPassportSerializer(passport).data},
@@ -66,12 +72,17 @@ class MyPassportView(APIView):
         )
 
 
-# List fields that use union-merge semantics (new items are appended, not replaced)
-_LIST_FIELDS = frozenset([
-    'skills', 'languages', 'certifications', 'projects', 'publications',
-    'awards', 'volunteer_work', 'preferred_locations', 'preferred_job_types',
-    'preferred_industries', 'test_scores', 'references', 'work_history',
-    'education',
+# Simple string arrays — use union-merge (new items appended, no duplicates)
+_UNION_LIST_FIELDS = frozenset([
+    'skills', 'languages', 'preferred_locations', 'preferred_job_types',
+    'preferred_industries',
+])
+
+# Complex object arrays (items have IDs) — always replace wholesale so edit/delete work
+_REPLACE_LIST_FIELDS = frozenset([
+    'work_history', 'education', 'certifications', 'projects',
+    'publications', 'awards', 'volunteer_work', 'test_scores',
+    'references', 'featured_media',
 ])
 
 # Text fields where an empty string means "not provided" — never overwrite with blank
@@ -108,12 +119,12 @@ def _merge_passport_data(passport, incoming: dict) -> dict:
         if (incoming_val == '' or incoming_val is None) and existing_val:
             del result[field]
 
-    for field in _LIST_FIELDS:
+    # Union-merge: simple string arrays — append new items, keep existing order
+    for field in _UNION_LIST_FIELDS:
         if field not in incoming:
             continue
         incoming_list = incoming[field] if isinstance(incoming[field], list) else []
         existing_list = getattr(passport, field, None) or []
-        # Union: existing first to preserve order, then any new items appended
         merged_list = list(existing_list)
         seen = set(str(x).lower() for x in existing_list)
         for item in incoming_list:
@@ -122,6 +133,12 @@ def _merge_passport_data(passport, incoming: dict) -> dict:
                 merged_list.append(item)
                 seen.add(key)
         result[field] = merged_list
+
+    # Replace: complex object arrays — pass through as-is (edit/delete must work)
+    for field in _REPLACE_LIST_FIELDS:
+        if field not in incoming:
+            continue
+        result[field] = incoming[field] if isinstance(incoming[field], list) else []
 
     return result
 
@@ -139,6 +156,63 @@ def _calculate_completeness(passport):
     if passport.linkedin_url: score += 5
     if passport.certifications: score += 5
     return min(score, 100)
+
+
+def _link_passport_to_candidate(passport, user):
+    """
+    Ensure TalentPassport.candidate_id is set and the matching Candidate record
+    has passport_id + passport_linked set back.
+
+    Lookup order:
+      1. Candidate.user_id == user.id  (fast path)
+      2. Email match (recruiter pre-added)
+
+    If no Candidate record exists at all (fresh direct-signup), create a minimal
+    one so the passport has something to link to.
+    """
+    from apps.candidates.models import Candidate, CandidateProfile
+    from apps.candidates.identity_service import match_candidate
+
+    # Fast path
+    candidate = Candidate.objects.filter(user_id=user.id, is_deleted=False).first()
+
+    if not candidate:
+        candidate = match_candidate(email=user.email)
+        if candidate and not candidate.user_id:
+            candidate.user_id = user.id
+            candidate.account_status = 'active'
+            candidate.save(update_fields=['user_id', 'account_status', 'updated_at'])
+
+    if not candidate:
+        candidate = Candidate.objects.create(
+            user_id=user.id,
+            first_name=user.first_name or '',
+            last_name=user.last_name or '',
+            email=user.email,
+            phone=getattr(user, 'phone', '') or '',
+            source='self',
+            source_type='direct',
+            account_status='active',
+            profile_status='partial',
+            initial_entry_type='self',
+        )
+        CandidateProfile.objects.create(candidate_id=candidate.id)
+
+    # Sync passport → candidate
+    if not passport.candidate_id:
+        passport.candidate_id = candidate.id
+
+    # Sync candidate → passport
+    update_fields = []
+    if not candidate.passport_id or str(candidate.passport_id) != str(passport.id):
+        candidate.passport_id = passport.id
+        update_fields.append('passport_id')
+    if not candidate.passport_linked:
+        candidate.passport_linked = True
+        update_fields.append('passport_linked')
+    if update_fields:
+        update_fields.append('updated_at')
+        candidate.save(update_fields=update_fields)
 
 
 class MyPassportAccessLogView(APIView):
@@ -235,7 +309,7 @@ class MyPassportShareLinkView(APIView):
         except TalentPassport.DoesNotExist:
             return error_response("Passport not found.", status_code=status.HTTP_404_NOT_FOUND)
 
-        share_url = f"/api/v1/passport/public/{passport.share_link_token}/"
+        share_url = f"/passport/public/{passport.share_link_token}"
         return success_response(
             data={
                 'share_url': share_url,
@@ -260,7 +334,7 @@ class MyPassportRegenerateLinkView(APIView):
         passport.share_link_token = secrets.token_urlsafe(32)
         passport.save(update_fields=['share_link_token'])
 
-        share_url = f"/api/v1/passport/public/{passport.share_link_token}/"
+        share_url = f"/passport/public/{passport.share_link_token}"
         return success_response(
             data={
                 'share_url': share_url,
@@ -268,6 +342,35 @@ class MyPassportRegenerateLinkView(APIView):
             },
             message="Share link regenerated."
         )
+
+# Maps each visibility_settings key → public serializer fields to strip when False.
+# Defaults (when key absent) are all True (show everything).
+_VISIBILITY_FIELD_MAP = {
+    'show_availability':    ['is_actively_looking', 'open_to_work'],
+    'show_notice_period':   ['notice_period_days'],
+    'show_work_mode':       ['preferred_work_mode'],
+    'show_certifications':  ['certifications'],
+    'show_projects':        ['projects'],
+    'show_publications':    ['publications'],
+    'show_awards':          ['awards'],
+    'show_volunteer':       ['volunteer_work'],
+    # show_salary / show_contact: those fields are not in the public serializer,
+    # kept here as no-ops for forward compatibility.
+}
+
+
+def _apply_visibility(data: dict, visibility: dict) -> dict:
+    """
+    Strip fields from serialized public passport data based on the candidate's
+    visibility_settings. Unknown keys default to visible (True).
+    """
+    result = dict(data)
+    for setting_key, fields in _VISIBILITY_FIELD_MAP.items():
+        if not visibility.get(setting_key, True):
+            for field in fields:
+                result.pop(field, None)
+    return result
+
 
 @extend_schema(
     responses={
@@ -306,8 +409,12 @@ class PublicPassportView(APIView):
         passport.last_viewed_at = timezone.now()
         passport.save(update_fields=['view_count', 'last_viewed_at'])
 
+        # Apply candidate's visibility preferences before returning
+        serialized = dict(TalentPassportPublicSerializer(passport).data)
+        serialized = _apply_visibility(serialized, passport.visibility_settings or {})
+
         return success_response(
-            data={'passport': TalentPassportPublicSerializer(passport).data},
+            data={'passport': serialized},
             message="Passport retrieved."
         )
 
@@ -342,31 +449,64 @@ class PassportImportView(APIView):
             imported_to_system=True,
         )
 
-        # Create candidate record from passport
+        # Resolve passport owner details (name, email) from their user account
+        from apps.accounts.models import CustomUser
         from apps.candidates.models import Candidate, CandidateProfile
-        candidate, created = Candidate.objects.get_or_create(
+        from apps.candidates.identity_service import match_candidate
+
+        passport_owner = None
+        owner_first_name = ''
+        owner_last_name = ''
+        owner_email = ''
+        if passport.user_id:
+            passport_owner = CustomUser.objects.filter(id=passport.user_id).first()
+            if passport_owner:
+                owner_first_name = passport_owner.first_name or ''
+                owner_last_name = passport_owner.last_name or ''
+                owner_email = passport_owner.email or ''
+
+        # Dedup: try to find existing candidate record for this tenant+passport or
+        # by email so we never create a duplicate under the importing tenant.
+        candidate = None
+        created = False
+
+        # 1. Already imported same passport under this tenant
+        candidate = Candidate.objects.filter(
             tenant_id=request.user.tenant_id,
             passport_id=passport.id,
-            defaults={
-                'first_name': '',
-                'last_name': '',
-                'email': '',
-                'current_title': passport.current_title,
-                'current_company': passport.current_company,
-                'current_location_city': passport.current_location_city,
-                'experience_years': passport.experience_years,
-                'skills': passport.skills,
-                'source': 'passport',
-                'owner_user_id': request.user.id,
-                'owner_tenant_id': request.user.tenant_id,
-                'created_by': request.user.id,
-                'candidate_state': 'NEW_LEAD',
-                'candidate_pool': 'GENERAL',
-                'is_general_pool_used': False,
-            }
-        )
+            is_deleted=False,
+        ).first()
 
-        if created:
+        # 2. Email match under this tenant
+        if not candidate and owner_email:
+            candidate = match_candidate(email=owner_email)
+            if candidate and str(candidate.tenant_id) != str(request.user.tenant_id):
+                candidate = None  # belongs to a different tenant — create new record
+
+        if not candidate:
+            candidate = Candidate.objects.create(
+                tenant_id=request.user.tenant_id,
+                first_name=owner_first_name,
+                last_name=owner_last_name,
+                email=owner_email,
+                current_title=passport.current_title,
+                current_company=passport.current_company,
+                current_location_city=passport.current_location_city,
+                experience_years=passport.experience_years,
+                skills=passport.skills,
+                languages=passport.languages,
+                source='passport',
+                source_type='passport',
+                initial_entry_type='import_passport',
+                passport_id=passport.id,
+                passport_linked=True,
+                owner_user_id=request.user.id,
+                owner_tenant_id=request.user.tenant_id,
+                created_by=request.user.id,
+                candidate_state='NEW_LEAD',
+                candidate_pool='GENERAL',
+                is_general_pool_used=False,
+            )
             CandidateProfile.objects.create(
                 tenant_id=request.user.tenant_id,
                 candidate_id=candidate.id,
@@ -376,6 +516,19 @@ class PassportImportView(APIView):
                 certifications=passport.certifications,
                 created_by=request.user.id,
             )
+            created = True
+        else:
+            # Update passport link on the existing record if not set
+            update_fields = []
+            if not candidate.passport_id:
+                candidate.passport_id = passport.id
+                update_fields.append('passport_id')
+            if not candidate.passport_linked:
+                candidate.passport_linked = True
+                update_fields.append('passport_linked')
+            if update_fields:
+                update_fields.append('updated_at')
+                candidate.save(update_fields=update_fields)
 
         return success_response(
             data={

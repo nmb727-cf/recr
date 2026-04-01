@@ -14,6 +14,34 @@ from apps.agencies.models import AgencyJobAssignment
 from apps.core.responses import success_response, error_response
 
 
+from apps.jobs.services import GlobalHiringCommandCenterService
+
+
+class HiringIntelligenceDashboardView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # RBAC: Leadership, Admins, Hiring Managers, and Recruiters can see this.
+        # Hide from Candidate and Guest roles.
+        allowed_roles = ['super_admin', 'tenant_admin', 'hr_manager', 'hiring_manager', 'recruiter']
+        if request.user.role not in allowed_roles and not request.user.is_staff:
+            return error_response(
+                "You do not have permission to access the Hiring Intelligence Dashboard.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            intelligence = GlobalHiringCommandCenterService.get_global_intelligence(
+                tenant_id=request.user.tenant_id
+            )
+            return success_response(
+                data={'intelligence': intelligence},
+                message="Hiring Intelligence Dashboard data retrieved."
+            )
+        except Exception as e:
+            return error_response(str(e))
+
+
 class DashboardView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -418,3 +446,68 @@ class InterviewIntelligenceAnalyticsView(APIView):
             },
             message="Interview intelligence analytics retrieved.",
         )
+
+from apps.accounts.services import RecruiterIntelligenceService
+
+class RecruiterIntelligenceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        allowed_roles = ['super_admin', 'tenant_admin', 'hr_manager', 'hiring_manager']
+        if request.user.role not in allowed_roles and not request.user.is_staff:
+            return error_response(
+                "You do not have permission to access Recruiter Intelligence.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            tenant_id = request.user.tenant_id
+            
+            # Overview/Performance (the team list)
+            team_intelligence = RecruiterIntelligenceService.get_team_intelligence(tenant_id)
+            
+            # We can calculate global workload balance here
+            total_active = sum(r['workload']['active_candidates'] for r in team_intelligence)
+            overloaded = sum(1 for r in team_intelligence if r['workload']['workload_status'] == 'overloaded')
+            balanced = sum(1 for r in team_intelligence if r['workload']['workload_status'] == 'balanced')
+            underutilized = sum(1 for r in team_intelligence if r['workload']['workload_status'] == 'underutilized')
+            
+            # Assignments/Recommendations (For jobs that are currently active and unassigned or assigned to overloaded)
+            jobs = JobRequisition.objects.filter(tenant_id=tenant_id, status='active', is_deleted=False)
+            job_recommendations = []
+            for job in jobs[:10]: # Limit for performance
+                is_unassigned = not job.recruiter_id
+                is_overloaded = False
+                if not is_unassigned:
+                    for r in team_intelligence:
+                        if r['user_id'] == str(job.recruiter_id) and r['workload']['workload_status'] == 'overloaded':
+                            is_overloaded = True
+                            break
+                
+                if is_unassigned or is_overloaded:
+                    recs = RecruiterIntelligenceService.get_assignment_recommendations(job.id, tenant_id)
+                    job_recommendations.append({
+                        'job_id': str(job.id),
+                        'job_title': job.title,
+                        'current_recruiter_id': str(job.recruiter_id) if job.recruiter_id else None,
+                        'reason': 'Unassigned' if is_unassigned else 'Current recruiter overloaded',
+                        'recommendations': recs
+                    })
+
+            data = {
+                'team_performance': team_intelligence,
+                'workload_overview': {
+                    'total_active_candidates': total_active,
+                    'overloaded_count': overloaded,
+                    'balanced_count': balanced,
+                    'underutilized_count': underutilized,
+                },
+                'job_recommendations': job_recommendations
+            }
+
+            return success_response(data=data, message="Recruiter Intelligence retrieved.")
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc()) # Log to console for debugging
+            return error_response(str(e), status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+

@@ -110,7 +110,7 @@ class PrequalQuestion(models.Model):
         related_name='questions',
         db_column='section_id',
     )
-    question_text = models.TextField()
+    question_text = models.TextField(blank=True)
     question_type = models.CharField(max_length=50, choices=QUESTION_TYPES, default='yes_no')
     required      = models.BooleanField(default=True)
     order         = models.IntegerField(default=0, db_index=True)

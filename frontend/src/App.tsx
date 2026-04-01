@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { ConfigProvider, App as AntApp } from 'antd'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import enUS from 'antd/locale/en_US'
@@ -24,17 +24,60 @@ import OnboardingWizard from '@/pages/onboarding/OnboardingWizard'
 import CompanyOnboarding from '@/pages/onboarding/CompanyOnboarding'
 import AgencyOnboarding from '@/pages/onboarding/AgencyOnboarding'
 import ApplyForm from '@/pages/public/ApplyForm'
+import PublicPassportPage from '@/pages/public/PublicPassportPage'
 import ClaimProfile from '@/pages/candidate/ClaimProfile'
 
 // App pages
 import Dashboard from '@/pages/dashboard/Dashboard'
+import HiringCommandCenter from '@/pages/dashboard/HiringCommandCenter'
 import JobsList from '@/pages/jobs/JobsList'
+import JobSetupStudio from '@/pages/jobs/JobSetupStudio'
 import CandidatesList from '@/pages/candidates/CandidatesList'
 import ActiveCandidatesPage from '@/pages/candidates/ActiveCandidatesPage'
 import AllApplications from '@/pages/candidates/AllApplications'
+import CandidateDatabase from '@/pages/candidates/CandidateDatabase'
+import Leads from '@/pages/leads/Leads'
 import PipelineBoard from '@/pages/pipeline/PipelineBoard'
 import InterviewsList from '@/pages/interviews/InterviewsList'
+import InterviewCommandCenter from '@/pages/interviews/InterviewCommandCenter'
+import InterviewLiveCenter from '@/pages/interviews/InterviewLiveCenter'
+import InterviewTypes from '@/pages/interviews/InterviewTypes'
+import InterviewTypeConfig from '@/pages/interviews/InterviewTypeConfig'
+import InterviewTemplates from '@/pages/interviews/InterviewTemplates'
+import InterviewScorecards from '@/pages/interviews/InterviewScorecards'
+import InterviewKit from '@/pages/interviews/InterviewKit'
+import InterviewFeedbackSubmit from '@/pages/interviews/InterviewFeedbackSubmit'
+import InterviewDecisionPanel from '@/pages/interviews/InterviewDecisionPanel'
+import RecruiterInterviewDashboard from '@/pages/interviews/RecruiterInterviewDashboard'
+import InterviewSchedulingEngine from '@/pages/interviews/InterviewSchedulingEngine'
+import RecruiterBulkScheduling from '@/pages/interviews/RecruiterBulkScheduling'
+import RecruiterInterviewQueue from '@/pages/interviews/RecruiterInterviewQueue'
+import RecruiterProductivityTools from '@/pages/interviews/RecruiterProductivityTools'
+import CandidateSelfSchedule from '@/pages/interviews/CandidateSelfSchedule'
+import InterviewAutomation from '@/pages/interviews/InterviewAutomation'
+import InterviewIntegrations from '@/pages/interviews/InterviewIntegrations'
+import InterviewQuestionBank from '@/pages/interviews/InterviewQuestionBank'
+import InterviewAIEngine from '@/pages/interviews/InterviewAIEngine'
+import InterviewTechnicalEngine from '@/pages/interviews/InterviewTechnicalEngine'
+import InterviewHumanEngine from '@/pages/interviews/InterviewHumanEngine'
+import InterviewVideoEngine from '@/pages/interviews/InterviewVideoEngine'
+import InterviewGroupDiscussionEngine from '@/pages/interviews/InterviewGroupDiscussionEngine'
+import InterviewPresentationEngine from '@/pages/interviews/InterviewPresentationEngine'
+import InterviewPortfolioReviewEngine from '@/pages/interviews/InterviewPortfolioReviewEngine'
+import InterviewAssessmentEngine from '@/pages/interviews/InterviewAssessmentEngine'
+import InterviewSequentialRoundEngine from '@/pages/interviews/InterviewSequentialRoundEngine'
+import InterviewBarRaiserEngine from '@/pages/interviews/InterviewBarRaiserEngine'
+import InterviewPrequalificationEngine from '@/pages/interviews/InterviewPrequalificationEngine'
+import InterviewRolePlayEngine from '@/pages/interviews/InterviewRolePlayEngine'
+import InterviewAssessmentCenterEngine from '@/pages/interviews/InterviewAssessmentCenterEngine'
+import InterviewCampusHiringEngine from '@/pages/interviews/InterviewCampusHiringEngine'
+import InterviewMockEngine from '@/pages/interviews/InterviewMockEngine'
+import InterviewWalkinDriveEngine from '@/pages/interviews/InterviewWalkinDriveEngine'
+import InterviewWhiteboardEngine from '@/pages/interviews/InterviewWhiteboardEngine'
+import InterviewScreeningEngine from '@/pages/interviews/InterviewScreeningEngine'
 import Analytics from '@/pages/Analytics'
+import HiringIntelligenceDashboard from '@/pages/analytics/HiringIntelligenceDashboard'
+import RecruiterIntelligenceDashboard from '@/pages/analytics/RecruiterIntelligenceDashboard'
 import CompanyAgencies from '@/pages/agencies/CompanyAgencies'
 import AgencyClients from '@/pages/agencies/AgencyClients'
 import MyJobs from '@/pages/agency/MyJobs'
@@ -42,12 +85,38 @@ import MySubmissions from '@/pages/agency/MySubmissions'
 import SubmitCandidate from '@/pages/agency/SubmitCandidate'
 import JobSearch from '@/pages/candidate/JobSearch'
 import MyApplications from '@/pages/candidate/MyApplications'
+import CandidateCommandCenter from '@/pages/candidate/CandidateCommandCenter'
+import CandidateInterviewDashboard from '@/pages/candidate/CandidateInterviewDashboard'
+import CandidateInterviewInstructions from '@/pages/candidate/CandidateInterviewInstructions'
+import CandidateInterviewHelp from '@/pages/candidate/CandidateInterviewHelp'
+import CandidateInterviewNotifications from '@/pages/candidate/CandidateInterviewNotifications'
+import CandidateInterviewPreparation from '@/pages/candidate/CandidateInterviewPreparation'
+import CandidateInterviewExperience from '@/pages/candidate/CandidateInterviewExperience'
+import CandidateInterviewFeedback from '@/pages/candidate/CandidateInterviewFeedback'
+import CandidateInterviewResults from '@/pages/candidate/CandidateInterviewResults'
+import CandidateInterviewRuntime from '@/pages/candidate/CandidateInterviewRuntime'
+import CandidateInterviewTimeline from '@/pages/candidate/CandidateInterviewTimeline'
+import CandidateInterviewStatus from '@/pages/candidate/CandidateInterviewStatus'
+import CandidateInterviewBlocked from '@/pages/candidate/CandidateInterviewBlocked'
+import CandidateInterviewExpired from '@/pages/candidate/CandidateInterviewExpired'
 import Settings from '@/pages/Settings'
 import PassportPage from '@/pages/candidate/Passport'
 import Messages from '@/pages/Messages'
-import RBACDebugPage from '@/pages/RBACDebugPage'
 import TalentPoolsList from '@/pages/talent-pools/TalentPoolsList'
 import TalentPoolDetail from '@/pages/talent-pools/TalentPoolDetail'
+import PrequalificationList from '@/pages/prequalification/PrequalificationList'
+import PrequalificationBuilder from '@/pages/prequalification/PrequalificationBuilder'
+import HiringDecisionWorkspace from '@/pages/hdc/HiringDecisionWorkspace'
+import IntelligenceHubWorkspace from '@/pages/intelligence/IntelligenceHubWorkspace'
+import WorkflowTemplatesPage from '@/pages/system/WorkflowTemplatesPage'
+import NotificationsCenterPage from '@/pages/system/NotificationsCenterPage'
+import ActivityLogPage from '@/pages/system/ActivityLogPage'
+
+// Redirect /prequalification/forms/:id/builder → /interviews/prequalification/forms/:id/builder
+function PrequalBuilderRedirect() {
+  const { id } = useParams<{ id: string }>()
+  return <Navigate to={`/interviews/prequalification/forms/${id}/builder`} replace />
+}
 
 
 // ─── React Query client ───────────────────────────────────────────────────────
@@ -212,6 +281,8 @@ export default function App() {
               <Route path="/register/candidate" element={<RegisterCandidate />} />
               <Route path="/verify-email" element={<VerifyEmail />} />
               <Route path="/apply/:token" element={<ApplyForm />} />
+              {/* Public passport share link — no auth required */}
+              <Route path="/passport/public/:token" element={<PublicPassportPage />} />
               {/* Claim flow: recruiter-added candidates follow this link to claim/link their profile */}
               <Route path="/candidate/claim/:token" element={<ClaimProfile />} />
 
@@ -277,6 +348,31 @@ export default function App() {
               />
 
               <Route
+                path="/hiring-command-center"
+                element={
+                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager']}>
+                    <HiringCommandCenter />
+                  </Protected>
+                }
+              />
+              <Route 
+                path="/hiring-intelligence" 
+                element={ 
+                  <Protected roles={["tenant_admin", "super_admin", "recruiter", "hiring_manager"]}> 
+                    <HiringIntelligenceDashboard /> 
+                  </Protected> 
+                } 
+              />
+              <Route 
+                path="/recruiter-intelligence" 
+                element={ 
+                  <Protected roles={["tenant_admin", "super_admin", "recruiter", "hiring_manager", "hr_manager"]}> 
+                    <RecruiterIntelligenceDashboard /> 
+                  </Protected> 
+                } 
+              />
+
+              <Route
                 path="/jobs"
                 element={
                   <Protected>
@@ -286,10 +382,37 @@ export default function App() {
               />
 
               <Route
+                path="/jobs/create"
+                element={
+                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager']}>
+                    <JobSetupStudio />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/jobs/:id/setup"
+                element={
+                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager']}>
+                    <JobSetupStudio />
+                  </Protected>
+                }
+              />
+
+              <Route
                 path="/candidates"
                 element={
                   <Protected>
-                    <CandidatesList />
+                    <CandidateDatabase />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/candidates/database"
+                element={
+                  <Protected>
+                    <CandidateDatabase />
                   </Protected>
                 }
               />
@@ -298,7 +421,16 @@ export default function App() {
                 path="/candidates/active"
                 element={
                   <Protected>
-                    <ActiveCandidatesPage />
+                    <CandidateDatabase />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/candidates/leads"
+                element={
+                  <Protected>
+                    <Leads />
                   </Protected>
                 }
               />
@@ -307,7 +439,7 @@ export default function App() {
                 path="/candidates/pools"
                 element={
                   <Protected>
-                    <TalentPoolsList />
+                    <CandidateDatabase />
                   </Protected>
                 }
               />
@@ -343,16 +475,489 @@ export default function App() {
                 path="/interviews"
                 element={
                   <Protected>
+                    <InterviewCommandCenter />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/dashboard"
+                element={
+                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
+                    <RecruiterInterviewDashboard />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/queue"
+                element={
+                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
+                    <RecruiterInterviewQueue />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/bulk-scheduling"
+                element={
+                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
+                    <RecruiterBulkScheduling />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/productivity"
+                element={
+                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
+                    <RecruiterProductivityTools />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/interviews/registry"
+                element={
+                  <Protected>
                     <InterviewsList />
                   </Protected>
                 }
+              />
+              <Route
+                path="/interviews/types"
+                element={
+                  <Protected>
+                    <InterviewTypes />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/types/:id/config"
+                element={
+                  <Protected>
+                    <InterviewTypeConfig />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/types/ai-interviews"
+                element={
+                  <Protected>
+                    <InterviewTypes />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/types/technical-interviews"
+                element={
+                  <Protected>
+                    <InterviewTypes />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/types/human-interviews"
+                element={
+                  <Protected>
+                    <InterviewTypes />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/types/screening-interviews"
+                element={
+                  <Protected>
+                    <InterviewTypes />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/types/sequential-round"
+                element={
+                  <Protected>
+                    <InterviewTypes />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/types/group-discussion"
+                element={
+                  <Protected>
+                    <InterviewTypes />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/types/bar-raiser"
+                element={
+                  <Protected>
+                    <InterviewTypes />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/types/role-play"
+                element={
+                  <Protected>
+                    <InterviewTypes />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/types/presentation-interview"
+                element={
+                  <Protected>
+                    <InterviewTypes />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/types/portfolio-review"
+                element={
+                  <Protected>
+                    <InterviewTypes />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/types/assessment-center"
+                element={
+                  <Protected>
+                    <InterviewTypes />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/types/campus-hiring"
+                element={
+                  <Protected>
+                    <InterviewTypes />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/types/mock-interview"
+                element={
+                  <Protected>
+                    <InterviewTypes />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/types/walkin-drive"
+                element={
+                  <Protected>
+                    <InterviewTypes />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/types/video-interviews"
+                element={
+                  <Protected>
+                    <InterviewTypes />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/types/whiteboard-interview"
+                element={
+                  <Protected>
+                    <InterviewTypes />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/types/assessments"
+                element={
+                  <Protected>
+                    <InterviewTypes />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/types/prequalification"
+                element={
+                  <Protected>
+                    <InterviewTypes />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/ai"
+                element={
+                  <Protected>
+                    <InterviewAIEngine />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/technical"
+                element={
+                  <Protected>
+                    <InterviewTechnicalEngine />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/human"
+                element={
+                  <Protected>
+                    <InterviewHumanEngine />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/screening"
+                element={
+                  <Protected>
+                    <InterviewScreeningEngine />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/sequential-round"
+                element={
+                  <Protected>
+                    <InterviewSequentialRoundEngine />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/group-discussion"
+                element={
+                  <Protected>
+                    <InterviewGroupDiscussionEngine />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/bar-raiser"
+                element={
+                  <Protected>
+                    <InterviewBarRaiserEngine />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/role-play"
+                element={
+                  <Protected>
+                    <InterviewRolePlayEngine />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/presentation-interview"
+                element={
+                  <Protected>
+                    <InterviewPresentationEngine />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/portfolio-review"
+                element={
+                  <Protected>
+                    <InterviewPortfolioReviewEngine />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/assessment-center"
+                element={
+                  <Protected>
+                    <InterviewAssessmentCenterEngine />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/campus-hiring"
+                element={
+                  <Protected>
+                    <InterviewCampusHiringEngine />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/mock-interview"
+                element={
+                  <Protected>
+                    <InterviewMockEngine />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/walkin-drive"
+                element={
+                  <Protected>
+                    <InterviewWalkinDriveEngine />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/video"
+                element={
+                  <Protected>
+                    <InterviewVideoEngine />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/whiteboard"
+                element={
+                  <Protected>
+                    <InterviewWhiteboardEngine />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/assessments"
+                element={
+                  <Protected>
+                    <InterviewAssessmentEngine />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/prequalification"
+                element={
+                  <Protected>
+                    <InterviewPrequalificationEngine />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/types/scorecards"
+                element={
+                  <Protected>
+                    <Navigate to="/interviews/scorecards" replace />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/interviews/templates"
+                element={
+                  <Protected>
+                    <InterviewTemplates />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/interviews/scorecards"
+                element={
+                  <Protected>
+                    <InterviewScorecards />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/interviews/:id/kit"
+                element={
+                  <Protected>
+                    <InterviewKit />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/interviews/:id/feedback"
+                element={
+                  <Protected>
+                    <InterviewFeedbackSubmit />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/interviews/:id/decision"
+                element={
+                  <Protected>
+                    <InterviewDecisionPanel />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/interviews/scheduling"
+                element={
+                  <Protected>
+                    <InterviewSchedulingEngine />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/interviews/live"
+                element={
+                  <Protected>
+                    <InterviewLiveCenter />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/interviews/analytics"
+                element={
+                  <Protected>
+                    <InterviewCommandCenter />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/interviews/automation"
+                element={
+                  <Protected>
+                    <InterviewAutomation />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/interviews/integrations"
+                element={
+                  <Protected>
+                    <InterviewIntegrations />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/interviews/questions"
+                element={
+                  <Protected>
+                    <InterviewQuestionBank />
+                  </Protected>
+                }
+              />
+
+              <Route path="/interviews/scheduling/self/:token" element={<CandidateSelfSchedule />} />
+
+              {/* Pre-Qualification lives inside the Interviews namespace */}
+              <Route
+                path="/interviews/prequalification/forms/:id/builder"
+                element={
+                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager']}>
+                    <PrequalificationBuilder />
+                  </Protected>
+                }
+              />
+
+              {/* Legacy redirects — keep old URLs working */}
+              <Route
+                path="/prequalification"
+                element={<Navigate to="/interviews?s=prequalification" replace />}
+              />
+              <Route
+                path="/prequalification/forms/:id/builder"
+                element={<PrequalBuilderRedirect />}
               />
 
               <Route
                 path="/approvals"
                 element={
                   <Protected>
-                    <ComingSoon label="Approvals" />
+                    <Navigate to="/hiring-decisions/approvals" replace />
                   </Protected>
                 }
               />
@@ -361,7 +966,43 @@ export default function App() {
                 path="/offers"
                 element={
                   <Protected>
-                    <Navigate to="/interviews?tab=offers" replace />
+                    <Navigate to="/hiring-decisions/offer-release" replace />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/hiring-decisions"
+                element={
+                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
+                    <HiringDecisionWorkspace />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/hiring-decisions/:section"
+                element={
+                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
+                    <HiringDecisionWorkspace />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/intelligence"
+                element={
+                  <Protected roles={['tenant_admin', 'super_admin', 'hr_manager', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter', 'viewer']}>
+                    <IntelligenceHubWorkspace />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/intelligence/:section"
+                element={
+                  <Protected roles={['tenant_admin', 'super_admin', 'hr_manager', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter', 'viewer']}>
+                    <IntelligenceHubWorkspace />
                   </Protected>
                 }
               />
@@ -421,7 +1062,7 @@ export default function App() {
                 path="/activity-log"
                 element={
                   <Protected>
-                    <ComingSoon label="Activity Log" />
+                    <ActivityLogPage />
                   </Protected>
                 }
               />
@@ -430,7 +1071,16 @@ export default function App() {
                 path="/workflow-templates"
                 element={
                   <Protected roles={['tenant_admin', 'super_admin', 'agency_owner', 'agency_admin']}>
-                    <ComingSoon label="Workflow Templates" />
+                    <WorkflowTemplatesPage />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/candidate/dashboard"
+                element={
+                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                    <CandidateCommandCenter />
                   </Protected>
                 }
               />
@@ -454,19 +1104,127 @@ export default function App() {
               />
 
               <Route
-                path="/settings"
+                path="/candidate/interviews"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
-                    <Settings />
+                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                    <CandidateInterviewDashboard />
                   </Protected>
                 }
               />
 
               <Route
-                path="/rbac-debug"
+                path="/candidate/interviews/:id/instructions"
                 element={
-                  <Protected>
-                    <RBACDebugPage />
+                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                    <CandidateInterviewInstructions />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/candidate/interviews/results"
+                element={
+                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                    <CandidateInterviewResults />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/candidate/interviews/notifications"
+                element={
+                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                    <CandidateInterviewNotifications />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/candidate/interviews/help"
+                element={
+                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                    <CandidateInterviewHelp />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/candidate/interviews/feedback"
+                element={
+                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                    <CandidateInterviewFeedback />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/candidate/interviews/experience"
+                element={
+                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                    <CandidateInterviewExperience />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/candidate/interviews/preparation"
+                element={
+                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                    <CandidateInterviewPreparation />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/candidate/interviews/timeline"
+                element={
+                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                    <CandidateInterviewTimeline />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/candidate/interviews/:id/runtime"
+                element={
+                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                    <CandidateInterviewRuntime />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/candidate/interviews/:id/status"
+                element={
+                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                    <CandidateInterviewStatus />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/candidate/interviews/blocked"
+                element={
+                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                    <CandidateInterviewBlocked />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/candidate/interviews/expired"
+                element={
+                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                    <CandidateInterviewExpired />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/settings"
+                element={
+                  <Protected roles={['tenant_admin', 'super_admin', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
+                    <Settings />
                   </Protected>
                 }
               />
@@ -493,7 +1251,7 @@ export default function App() {
                 path="/notifications"
                 element={
                   <Protected>
-                    <ComingSoon label="Notifications" />
+                    <NotificationsCenterPage />
                   </Protected>
                 }
               />

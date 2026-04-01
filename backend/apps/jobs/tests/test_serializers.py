@@ -82,3 +82,40 @@ class JobRequisitionSerializerTests(TestCase):
         self.assertIsNone(data.get('salary_min'))
         self.assertEqual(data['description'], "Details for this confidential role will be shared during the interview process.")
         self.assertNotIn('budget_code', data)
+
+    def test_hiring_team_and_org_resolution(self):
+        from apps.organisations.models import Department, Location
+        
+        dept = Department.objects.create(tenant_id=self.tenant_id, name="Engineering")
+        loc = Location.objects.create(tenant_id=self.tenant_id, name="Mumbai Office", city="Mumbai")
+        hm = CustomUser.objects.create_user(
+            email='hm@example.com', first_name="John", last_name="Doe", role='hiring_manager', tenant_id=self.tenant_id
+        )
+        rec = CustomUser.objects.create_user(
+            email='rec@example.com', first_name="Jane", last_name="Smith", role='recruiter', tenant_id=self.tenant_id
+        )
+        
+        req = JobRequisition.objects.create(
+            tenant_id=self.tenant_id,
+            title="Senior Engineer",
+            department_id=dept.id,
+            location_id=loc.id,
+            hiring_manager_id=hm.id,
+            recruiter_id=rec.id,
+            created_by=hm.id
+        )
+        
+        user = CustomUser.objects.create_user(
+            email='admin@example.com', role='tenant_admin', tenant_id=self.tenant_id
+        )
+        request = self.factory.get('/')
+        request.user = user
+        
+        serializer = JobRequisitionSerializer(req, context={'request': request})
+        data = serializer.data
+        
+        self.assertEqual(data['department_name'], "Engineering")
+        self.assertEqual(data['location_name'], "Mumbai Office")
+        self.assertEqual(data['hiring_manager_name'], "John Doe")
+        self.assertEqual(data['recruiter_name'], "Jane Smith")
+        self.assertEqual(data['created_by_name'], "John Doe")

@@ -52,6 +52,9 @@ export const agenciesApi = {
   listAssignments: (params?: any) => 
     http.get('/agencies/assignments/', { params }),
 
+  getJobIntelligence: (jobId: string) =>
+    http.get(`/agencies/jobs/${jobId}/intelligence/`),
+
   createAssignment: (data: any) => 
     http.post('/agencies/assignments/', data),
 

@@ -12,6 +12,7 @@ urlpatterns = [
     path('relationships/<uuid:pk>/suspend/', views.AgencyRelationshipSuspendView.as_view(), name='agency-relationship-suspend'),
     path('assignments/', views.AgencyJobAssignmentListView.as_view(), name='agency-assignment-list'),
     path('assignments/<uuid:pk>/', views.AgencyJobAssignmentDetailView.as_view(), name='agency-assignment-detail'),
+    path('jobs/<uuid:requisition_id>/intelligence/', views.JobAgencyIntelligenceView.as_view(), name='job-agency-intelligence'),
     path('performance/', views.AgencyPerformanceListView.as_view(), name='agency-performance'),
 
     # New connection system

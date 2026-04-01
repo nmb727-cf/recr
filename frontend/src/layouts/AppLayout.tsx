@@ -3,12 +3,21 @@ import { useTranslation } from 'react-i18next'
 import { SUPPORTED_LANGUAGES } from '@/i18n'
 import i18n from '@/i18n'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Layout, Avatar, Dropdown, Button, Tooltip, Menu, Badge, Input, Tabs } from 'antd'
+import { Layout, Avatar, Dropdown, Button, Tooltip, Menu, Badge, Input, Tabs, Drawer } from 'antd'
 import {
   LogoutOutlined,
   UserOutlined,
   GlobalOutlined,
   SettingOutlined,
+  PlusOutlined,
+  ProjectOutlined,
+  TeamOutlined,
+  CalendarOutlined,
+  DashboardOutlined,
+  RocketOutlined,
+  CheckCircleOutlined,
+  DownOutlined,
+  MenuOutlined,
 } from '@ant-design/icons'
 import {
   Bell,
@@ -19,9 +28,11 @@ import {
   Check,
   Search,
   Zap,
+  Calendar as CalendarIcon,
+  Clock3,
 } from 'lucide-react'
 import { Popover, message as antdMessage } from 'antd'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/store/authStore'
 import { notificationsApi } from '@/api/notifications'
@@ -36,10 +47,13 @@ import {
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import type { Notification } from '@/types'
+import { cn } from '@/utils/cn'
+import JobCreateForm from '@/components/forms/JobCreateForm'
+import AddCandidateWorkflowModal from '@/components/candidates/AddCandidateWorkflowModal'
 
 dayjs.extend(relativeTime)
 
-const { Header, Sider, Content } = Layout
+const { Header, Content } = Layout
 
 // ─── Notification Dropdown ──────────────────────────────────────────────────
 
@@ -151,10 +165,9 @@ function NotificationDropdown({ badgeOverrideCount }: { badgeOverrideCount?: num
 
 // ─── Menu Items Logic ───────────────────────────────────────────────────────
 
-const getMenuItems = (
+const getSystemMenuItems = (
   role: string,
-  permissions: string[] = [],
-  badgeCounts: Record<string, number> = {}
+  permissions: string[] = []
 ) => {
   const can = (code: string) => permissions.includes(code)
   
@@ -167,24 +180,27 @@ const getMenuItems = (
     config = companySidebarConfig
   }
 
+  // Filter out Jobs, Candidates, Active Work, and Talent Pools from the dropdown
+  const EXCLUDED_KEYS = ['/jobs', '/candidates', '/candidates/active', '/candidates/pools', '/agencies/my-jobs', '/candidate/jobs', 'work', 'records']
+
   const filterItems = (items: NavItem[]): any[] => {
     return items
       .filter(item => !item.permission || can(item.permission))
-      .map(item => ({
-        key: item.key,
-        label: (
-          <div className="flex w-full items-center justify-between gap-2">
-            <span className="truncate">{item.label as string}</span>
-            {badgeCounts[item.key] ? (
-              <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
-                {badgeCounts[item.key]}
-              </span>
-            ) : null}
-          </div>
-        ),
-        icon: item.icon,
-        children: item.children ? filterItems(item.children) : undefined
-      }))
+      .reduce((acc: any[], item) => {
+        if (EXCLUDED_KEYS.includes(item.key)) {
+          if (item.children) {
+            acc.push(...filterItems(item.children))
+          }
+        } else {
+          acc.push({
+            key: item.key,
+            label: item.label,
+            icon: item.icon,
+            children: item.children ? filterItems(item.children) : undefined
+          })
+        }
+        return acc
+      }, [])
   }
 
   return filterItems(config)
@@ -199,24 +215,18 @@ const ACTION_CENTER_ITEMS: Record<string, string[]> = {
 // ─── AppLayout Component ─────────────────────────────────────────────────────
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const [collapsed, setCollapsed] = useState(false)
-  const [actionCenterOpen, setActionCenterOpen] = useState(false)
+  const [rightPanelOpen, setRightPanelOpen] = useState(false)
   const [actionCenterTab, setActionCenterTab] = useState('urgent')
+  const [jobCreateOpen, setJobCreateOpen] = useState(false)
+  const [candidateCreateOpen, setCandidateCreateOpen] = useState(false)
+  
   const location = useLocation()
   const navigate = useNavigate()
   const { logout } = useAuth()
   const user = useAuthStore(state => state.user)
   const { t } = useTranslation('common')
-  const isAgencyTenant =
-    user?.role === 'agency_owner' || user?.role === 'agency_admin' || user?.role === 'agency_recruiter'
 
-  const sidebarAttentionCounts = useMemo(() => ({
-    '/candidates/active': 3,
-    '/pipeline': 2,
-    ...(isAgencyTenant ? { '/agencies/my-submissions': 1 } : { '/applications': 1 }),
-  }), [isAgencyTenant])
-
-  const menuItems = getMenuItems(user?.role || '', user?.permissions ?? [], sidebarAttentionCounts)
+  const systemMenuItems = useMemo(() => getSystemMenuItems(user?.role || '', user?.permissions ?? []), [user])
 
   const handleLogout = async () => {
     await logout()
@@ -225,7 +235,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const handleLanguageChange = (langCode: string) => {
     i18n.changeLanguage(langCode)
-    // Persist to user profile in background (best-effort)
     import('@/api/auth').then(({ authApi }) => {
       authApi.updateMe({ language: langCode } as any).catch(() => {})
     })
@@ -238,29 +247,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }))
 
   const userMenuItems = [
+    { key: 'create_job', label: 'Create Job', icon: <PlusOutlined />, onClick: () => navigate('/jobs/create') },
+    { type: 'divider' as const },
     { key: 'profile', label: t('user_menu.my_profile'), icon: <UserOutlined />, onClick: () => navigate('/settings/profile') },
     { key: 'settings', label: t('user_menu.settings'), icon: <SettingOutlined />, onClick: () => navigate('/settings') },
     { type: 'divider' as const },
     { key: 'logout', label: t('auth:logout'), icon: <LogoutOutlined />, danger: true, onClick: handleLogout },
   ]
 
-  // Determine selected keys based on pathname and query params
-  const currentKey = location.pathname + (location.search ? location.search : '')
-  
-  // Logic to find which item/sub-item is active
-  const findActiveKey = (items: any[]): string | undefined => {
-    for (const item of items) {
-      if (item.key === currentKey) return item.key
-      if (item.key === location.pathname) return item.key
-      if (item.children) {
-        const childKey = findActiveKey(item.children)
-        if (childKey) return childKey
-      }
-    }
-    return undefined
-  }
-
-  const selectedKey = findActiveKey(menuItems) || location.pathname
   const actionCenterCount = 5
   const inboxCount = 4
   const notificationCount = 6
@@ -274,175 +268,310 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   )
 
   return (
-    <Layout className="min-h-screen">
-      {/* ── Sidebar ──────────────────────────────────────────────────────────── */}
-      <Sider
-        trigger={null}
-        collapsible
-        collapsed={collapsed}
-        width={260}
-        collapsedWidth={80}
-        className="fixed inset-y-0 left-0 z-50 !bg-white border-r border-slate-200 shadow-sm"
-      >
-        <div className="flex h-16 items-center px-6 border-b border-slate-100">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-lg">T</div>
-          {!collapsed && (
-            <motion.span 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }}
-              className="ml-3 font-bold text-slate-900 tracking-tight text-lg"
+    <Layout className="min-h-screen bg-slate-50">
+      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      <Header className="sticky top-0 z-50 flex h-14 w-full items-center justify-between border-b border-slate-200 bg-white px-4 shadow-sm">
+        {/* Left: Brand & Dropdown Menu */}
+        <div className="flex items-center gap-4">
+          <Link to="/dashboard" className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-lg">T</div>
+            <span className="font-bold text-slate-900 tracking-tight text-lg hidden sm:block">TalentOS</span>
+          </Link>
+          
+          <Dropdown 
+            menu={{ 
+              items: systemMenuItems, 
+              onClick: ({ key }) => navigate(key) 
+            }} 
+            trigger={['click']}
+            placement="bottomLeft"
+          >
+            <Button 
+              type="text" 
+              className="flex items-center gap-1 px-2 py-1 h-8 rounded-lg hover:bg-slate-100 transition-all"
             >
-              TalentOS
-            </motion.span>
-          )}
+              <MenuOutlined className="text-slate-500" />
+              <DownOutlined className="text-[10px] text-slate-400" />
+            </Button>
+          </Dropdown>
         </div>
 
-        <div className="flex flex-col gap-1 p-2 overflow-y-auto max-h-[calc(100vh-140px)]">
-          <Menu
-            mode="inline"
-            selectedKeys={[selectedKey]}
-            items={menuItems}
-            onClick={({ key }) => navigate(key)}
-            className="border-none"
+        {/* Center: Search */}
+        <div className="flex-1 max-w-xl mx-8 hidden lg:block">
+          <Input
+            allowClear
+            placeholder={t('search.placeholder', 'Global Search')}
+            prefix={<Search className="h-4 w-4 text-slate-400" />}
+            className="w-full rounded-xl bg-slate-100 border-none hover:bg-slate-200/70 focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all"
           />
         </div>
 
-        {/* User profile at bottom */}
-        {!collapsed && user && (
-          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-slate-100 bg-slate-50/50">
-            <div className="flex items-center gap-3">
-              <Avatar src={user.avatar_url} icon={<UserOutlined />} className="bg-blue-100 text-blue-600 shrink-0" />
-              <div className="flex-1 overflow-hidden">
-                <p className="text-xs font-semibold text-slate-900 truncate">{user.full_name}</p>
-                <p className="text-[10px] text-slate-500 capitalize">{user.role.replace(/_/g, ' ')}</p>
-              </div>
-            </div>
+        {/* Right: Quick Access & Profile */}
+        <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1 mr-2 border-r pr-2 border-slate-200">
+            <Dropdown
+              menu={{
+                items: [
+                  { key: 'all', label: 'All Jobs', icon: <ProjectOutlined />, onClick: () => navigate('/jobs') },
+                  { key: 'create', label: 'Create Job', icon: <PlusOutlined />, onClick: () => navigate('/jobs/create') },
+                ]
+              }}
+              placement="bottomLeft"
+              trigger={['hover']}
+            >
+              <Button 
+                type="text" 
+                className={cn(
+                  "flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold transition-all h-9",
+                  location.pathname.startsWith('/jobs') ? "text-blue-600 bg-blue-50" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                )}
+              >
+                <ProjectOutlined className="h-4 w-4" />
+                {t('sidebar.jobs', 'Jobs')}
+                <DownOutlined className="text-[8px] opacity-60" />
+              </Button>
+            </Dropdown>
+            <Button 
+              type="text" 
+              icon={<TeamOutlined className="h-4 w-4" />} 
+              onClick={() => navigate('/candidates/active')}
+              className={cn(
+                "flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold transition-all h-9",
+                location.pathname.startsWith('/candidates') ? "text-blue-600 bg-blue-50" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+              )}
+            >
+              {t('sidebar.candidates', 'Candidates')}
+            </Button>
           </div>
-        )}
-      </Sider>
 
-      {/* ── Main Layout ──────────────────────────────────────────────────────── */}
-      <Layout 
-        className="transition-all duration-200"
-        style={{ marginLeft: collapsed ? 80 : 260 }}
-      >
-        <Header className="sticky top-0 z-40 flex h-16 w-full items-center justify-between border-b border-slate-200/60 bg-white/80 px-6 backdrop-blur-md">
-          <div className="flex items-center gap-3">
+          <Tooltip title={t('calendar.title', 'Calendar')}>
             <Button
               type="text"
-              icon={collapsed ? <ChevronRight className="h-5 w-5 text-slate-600" /> : <ChevronLeft className="h-5 w-5 text-slate-600" />}
-              onClick={() => setCollapsed(!collapsed)}
+              icon={<CalendarIcon className="h-5 w-5 text-slate-600" />}
+              onClick={() => navigate('/interviews')}
               className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-slate-100"
             />
-            <Input
-              allowClear
-              placeholder={t('search.placeholder', 'Search')}
-              prefix={<Search className="h-4 w-4 text-slate-400" />}
-              className="w-[360px] rounded-xl"
+          </Tooltip>
+
+          <Badge count={inboxCount} size="small" offset={[-2, 6]}>
+            <Button
+              type="text"
+              icon={<Inbox className="h-5 w-5 text-slate-600" />}
+              onClick={() => navigate('/messages')}
+              className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-slate-100"
             />
-          </div>
+          </Badge>
 
-          <div className="flex items-center gap-2">
-            <Dropdown menu={{ items: languageMenuItems }} trigger={['click']} placement="bottomRight">
-              <Tooltip title={t('language_switcher.label')}>
-                <Button
-                  type="text"
-                  icon={<GlobalOutlined className="h-5 w-5 text-slate-600" />}
-                  className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-slate-100"
-                />
-              </Tooltip>
-            </Dropdown>
+          <NotificationDropdown badgeOverrideCount={notificationCount} />
 
-            <Badge count={actionCenterCount} size="small">
-              <Button
-                type="text"
-                icon={<Zap className="h-5 w-5 text-amber-600" />}
-                onClick={() => setActionCenterOpen((v) => !v)}
-                className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-amber-50"
-              />
-            </Badge>
+          <Button
+            type="text"
+            icon={<Zap className={cn("h-5 w-5", rightPanelOpen ? "text-amber-600" : "text-slate-600")} />}
+            onClick={() => setRightPanelOpen(!rightPanelOpen)}
+            className={cn("flex h-10 w-10 items-center justify-center rounded-xl transition-colors", rightPanelOpen ? "bg-amber-50" : "hover:bg-slate-100")}
+          />
 
-            <Badge count={inboxCount} size="small">
-              <Button
-                type="text"
-                icon={<Inbox className="h-5 w-5 text-slate-600" />}
-                onClick={() => navigate('/messages')}
-                className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-slate-100"
-              />
-            </Badge>
+          <div className="mx-1 h-6 w-[1px] bg-slate-200" />
 
-            <NotificationDropdown badgeOverrideCount={notificationCount} />
+          <Dropdown
+            menu={{ items: (userMenuItems as any[]).map(i => i.type === 'divider' ? i : { ...i, icon: i.icon, label: i.label, onClick: i.onClick }) }}
+            placement="bottomRight"
+            trigger={['click']}
+          >
+            <div className="flex cursor-pointer items-center gap-2 rounded-xl p-1 transition-all hover:bg-slate-100 pr-2">
+              <Avatar src={user?.avatar_url} icon={<UserIcon className="h-4 w-4" />} className="bg-blue-100 text-blue-600 h-8 w-8" />
+              <div className="hidden sm:block">
+                <p className="text-xs font-bold text-slate-900 leading-none">{user?.full_name}</p>
+                <p className="text-[10px] text-slate-500 mt-0.5 capitalize">{user?.role?.replace(/_/g, ' ')}</p>
+              </div>
+            </div>
+          </Dropdown>
+        </div>
+      </Header>
 
-            <div className="mx-2 h-6 w-[1px] bg-slate-200" />
+      <Layout>
+        {/* ── Main Content Area ──────────────────────────────────────────────── */}
+        <Layout 
+          className="transition-all duration-300 ease-in-out min-h-[calc(100vh-56px)]"
+          style={{ 
+            marginLeft: 0,
+            marginRight: 0
+          }}
+        >
+          <Content className="p-6">
+            <div className="max-w-[1600px] mx-auto">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+              >
+                {children}
+              </motion.div>
+            </div>
+          </Content>
+        </Layout>
 
-            <Dropdown
-              menu={{ items: (userMenuItems as any[]).map(i => i.type === 'divider' ? i : { ...i, icon: i.icon, label: i.label, onClick: i.onClick }) }}
-              placement="bottomRight"
-              trigger={['click']}
+        {/* ── Right Quick Panel Trigger (Pull Handle) ─────────────────────── */}
+        <AnimatePresence>
+          {!rightPanelOpen && (
+            <motion.div
+              initial={{ x: 20, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 20, opacity: 0 }}
+              whileHover={{ x: -4 }}
+              className="fixed right-0 top-1/2 -translate-y-1/2 z-40 group cursor-pointer"
+              onClick={() => setRightPanelOpen(true)}
             >
-              <div className="flex cursor-pointer items-center gap-2 rounded-xl p-1.5 transition-colors hover:bg-slate-100">
-                <Avatar src={user?.avatar_url} icon={<UserIcon className="h-4 w-4" />} size="small" className="bg-blue-100 text-blue-600" />
-                <div className="hidden lg:block">
-                  <p className="text-xs font-semibold text-slate-900 leading-none">{user?.full_name}</p>
+              <div className="flex h-24 w-8 items-center justify-center rounded-l-2xl border border-r-0 border-amber-200 bg-amber-50 shadow-[-4px_0_12px_rgba(245,158,11,0.15)] transition-all group-hover:w-10 group-hover:bg-amber-100">
+                <div className="flex flex-col items-center gap-2">
+                  <Zap className="h-4 w-4 text-amber-600 animate-pulse" />
+                  <div className="flex flex-col gap-1">
+                    <div className="h-1.5 w-[2px] bg-amber-300 rounded-full" />
+                    <div className="h-4 w-[2px] bg-amber-300 rounded-full" />
+                    <div className="h-1.5 w-[2px] bg-amber-300 rounded-full" />
+                  </div>
                 </div>
               </div>
-            </Dropdown>
-          </div>
-        </Header>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        <Content className="p-8 max-w-[1600px] mx-auto w-full">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
-          >
-            {children}
-          </motion.div>
-        </Content>
+        {/* ── Right Quick Panel (Overlay) ────────────────────────────────────── */}
+        <AnimatePresence>
+          {rightPanelOpen && (
+            <>
+              {/* Backdrop for outside click */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setRightPanelOpen(false)}
+                className="fixed inset-0 z-30 bg-slate-900/5 backdrop-blur-[1px]"
+              />
+              
+              <motion.aside
+                initial={{ x: 360, opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: 360, opacity: 0 }}
+                transition={{ type: "spring", damping: 28, stiffness: 220 }}
+                className="fixed top-14 right-0 bottom-0 z-40 w-[360px] bg-white border-l border-slate-200 shadow-2xl overflow-visible flex flex-col"
+              >
+                {/* Push Handle (Close) - Same place as Pull Handle */}
+                <div 
+                  className="absolute -left-8 top-1/2 -translate-y-1/2 w-8 h-24 bg-white border border-r-0 border-slate-200 rounded-l-2xl flex items-center justify-center cursor-pointer shadow-[-4px_0_12px_rgba(0,0,0,0.05)] hover:bg-slate-50 transition-colors group"
+                  onClick={() => setRightPanelOpen(false)}
+                >
+                  <div className="flex flex-col items-center gap-2">
+                    <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-slate-600" />
+                    <div className="flex flex-col gap-1">
+                      <div className="h-1.5 w-[2px] bg-slate-200 group-hover:bg-slate-300 rounded-full" />
+                      <div className="h-4 w-[2px] bg-slate-200 group-hover:bg-slate-300 rounded-full" />
+                      <div className="h-1.5 w-[2px] bg-slate-200 group-hover:bg-slate-300 rounded-full" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-amber-600" />
+                    <span className="text-sm font-bold text-slate-900 uppercase tracking-wider">{t('header.action_center', 'Quick Panel')}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge count={actionCenterCount} className="action-badge-pulse" />
+                  </div>
+                </div>
+
+              <div className="flex-1 overflow-y-auto">
+                <Tabs
+                  activeKey={actionCenterTab}
+                  onChange={setActionCenterTab}
+                  size="small"
+                  className="px-4"
+                  items={actionCenterTabItems.map((it) => ({ key: it.key, label: it.label }))}
+                />
+                
+                <div className="p-4 space-y-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Recent Activity</span>
+                    <Button type="text" size="small" className="text-[11px] text-blue-600 font-semibold p-0 h-auto">View All</Button>
+                  </div>
+                  
+                  {actionCenterItems.length > 0 ? (
+                    actionCenterItems.map((item, idx) => (
+                      <div 
+                        key={idx} 
+                        className="group p-3 rounded-xl border border-slate-100 bg-white hover:border-blue-200 hover:shadow-md transition-all cursor-pointer relative overflow-hidden"
+                      >
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5 h-2 w-2 rounded-full bg-blue-500 shrink-0" />
+                          <div>
+                            <p className="text-sm text-slate-700 font-medium leading-tight">{item}</p>
+                            <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                              <Clock3 className="h-3 w-3" /> 2 hours ago
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-12 text-center">
+                      <CheckCircleOutlined className="text-4xl text-slate-200 mb-4" />
+                      <p className="text-sm text-slate-500">No pending items</p>
+                    </div>
+                  )}
+
+                  <div className="pt-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Reminders</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="p-3 rounded-xl bg-amber-50 border border-amber-100">
+                        <div className="flex items-center gap-2 mb-1">
+                          <CalendarIcon className="h-3.5 w-3.5 text-amber-600" />
+                          <span className="text-xs font-bold text-amber-900">Follow up with Sarah</span>
+                        </div>
+                        <p className="text-[11px] text-amber-700/80">Pending feedback for the Senior Dev role</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 border-t border-slate-100 bg-slate-50/30">
+                <Button block className="rounded-lg h-9 text-xs font-bold border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-200">
+                  Manage Tasks
+                </Button>
+              </div>
+            </motion.aside>
+            </>
+          )}
+        </AnimatePresence>
       </Layout>
 
-      <div className="fixed bottom-6 right-6 z-[60]">
-        <Badge count={actionCenterCount}>
-          <Button
-            type="primary"
-            shape="circle"
-            size="large"
-            icon={<Zap className="h-5 w-5" />}
-            onClick={() => setActionCenterOpen((v) => !v)}
-            className="!h-14 !w-14 !bg-blue-600 !shadow-lg"
-          />
-        </Badge>
-      </div>
+      {/* Global Modals for Quick Create */}
+      <Drawer
+        title={t('actions.create_job', 'Create New Job')}
+        open={jobCreateOpen}
+        onClose={() => setJobCreateOpen(false)}
+        width={640}
+        destroyOnClose
+      >
+        <JobCreateForm onSuccess={() => {
+          setJobCreateOpen(false)
+          antdMessage.success('Job created successfully')
+        }} />
+      </Drawer>
 
-      {actionCenterOpen && (
-        <div className="fixed bottom-24 right-6 z-[60] w-[360px] rounded-2xl border border-slate-200 bg-white shadow-2xl">
-          <div className="border-b border-slate-100 px-4 py-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Zap className="h-4 w-4 text-amber-600" />
-                <span className="text-sm font-semibold text-slate-900">{t('header.action_center', 'Action Center')}</span>
-              </div>
-              <Badge count={actionCenterCount} />
-            </div>
-          </div>
-          <Tabs
-            activeKey={actionCenterTab}
-            onChange={setActionCenterTab}
-            size="small"
-            className="px-3 pt-2"
-            items={actionCenterTabItems.map((it) => ({ key: it.key, label: it.label }))}
-          />
-          <div className="max-h-72 overflow-y-auto px-4 pb-4">
-            <div className="space-y-2">
-              {actionCenterItems.map((item) => (
-                <div key={item} className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2">
-                  <span className="text-sm text-slate-700">{item}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      <AddCandidateWorkflowModal 
+        open={candidateCreateOpen} 
+        onClose={() => setCandidateCreateOpen(false)} 
+        sourceSurface="global_header"
+        onCompleted={() => {
+          setCandidateCreateOpen(false)
+          antdMessage.success('Candidate added successfully')
+        }}
+      />
 
       <GlobalDrawer />
     </Layout>

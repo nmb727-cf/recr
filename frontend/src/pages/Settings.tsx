@@ -130,6 +130,12 @@ function OrganisationTab() {
                 {(org as any).settings?.default_currency || 'INR'}
               </Text>
             </div>
+            <div>
+              <Text className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Reference Prefix</Text>
+              <Text className="text-sm font-semibold text-slate-700">
+                {(org as any).effective_reference_prefix || 'Not set'}
+              </Text>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -177,7 +183,17 @@ function OrganisationTab() {
         </Row>
 
         <Row gutter={24}>
-          <Col span={8}>
+          <Col span={6}>
+            <Form.Item
+              name="reference_prefix_custom"
+              label="Reference Prefix"
+              tooltip="Optional custom prefix for candidate/job reference IDs."
+              rules={[{ pattern: /^[A-Za-z0-9]{0,12}$/, message: 'Use up to 12 letters/numbers.' }]}
+            >
+              <Input placeholder="e.g. APP" />
+            </Form.Item>
+          </Col>
+          <Col span={6}>
             <Form.Item name="country_code" label="Base Country" rules={[{ required: true }]}>
               <Select 
                 showSearch
@@ -187,7 +203,7 @@ function OrganisationTab() {
               />
             </Form.Item>
           </Col>
-          <Col span={8}>
+          <Col span={6}>
             <Form.Item name="timezone" label="Default Timezone" rules={[{ required: true }]}>
               <Select 
                 showSearch
@@ -197,7 +213,7 @@ function OrganisationTab() {
               />
             </Form.Item>
           </Col>
-          <Col span={8}>
+          <Col span={6}>
             <Form.Item 
               name={['settings', 'default_currency']} 
               label="Default Currency"

@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { Row, Col, Card, Skeleton, Empty, Tag, Button, Typography } from 'antd'
 import {
   Users, Briefcase, ClipboardCheck, Calendar,
@@ -464,8 +464,14 @@ function CandidateDashboard() {
 
 export default function Dashboard() {
   const { t } = useTranslation('dashboard')
+  const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
   const isAgency = user?.role === 'agency_owner' || user?.role === 'agency_recruiter'
+
+  // Candidates have their own dedicated portal — avoid duplicating a simplified view here
+  if (user?.role === 'candidate') {
+    return <Navigate to="/candidate/dashboard" replace />
+  }
 
   return (
     <motion.div
@@ -490,7 +496,7 @@ export default function Dashboard() {
         </div>
         {user?.role !== 'candidate' && !isAgency && (
           <div className="flex items-center gap-3">
-            <Button type="primary" icon={<Plus className="h-4 w-4" />} onClick={() => window.location.href = '/jobs'}>
+            <Button type="primary" icon={<Plus className="h-4 w-4" />} onClick={() => navigate('/jobs')}>
               {t('actions.create_job', 'Create Job')}
             </Button>
           </div>

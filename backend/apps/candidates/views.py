@@ -21,7 +21,7 @@ from apps.candidates.models import (
     JOB_CANDIDATE_STAGES,
 )
 from apps.candidates.serializers import (
-    CandidateSerializer, CandidateDetailSerializer,
+    CandidateSerializer, CandidateDetailSerializer, CandidateSelfSerializer,
     CandidateProfileSerializer, CandidateNoteSerializer,
     CandidateWorkspaceSerializer,
     CandidateEngagementSerializer,
@@ -279,6 +279,47 @@ def _apply_saved_view(qs, view_name, stale_days=21):
             (Q(phone='') & Q(phone_number=''))
         )
     return qs
+
+
+class CandidateSelfProfileView(APIView):
+    """
+    Candidate reads/updates their own profile from the Candidate Portal.
+    Filtered strictly by user_id — not by tenant.
+    Uses CandidateSelfSerializer to strip recruiter-internal fields.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def _get_candidate(self, user):
+        return Candidate.objects.filter(user_id=user.id, is_deleted=False).first()
+
+    def get(self, request):
+        candidate = self._get_candidate(request.user)
+        if not candidate:
+            return error_response(
+                "Candidate profile not found.",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        profile = None
+        try:
+            profile = CandidateProfile.objects.get(candidate_id=candidate.id)
+        except CandidateProfile.DoesNotExist:
+            pass
+        data = CandidateSelfSerializer(candidate).data
+        data['profile'] = CandidateProfileSerializer(profile).data if profile else None
+        return success_response(data={'candidate': data}, message="Profile retrieved.")
+
+    def put(self, request):
+        candidate = self._get_candidate(request.user)
+        if not candidate:
+            return error_response(
+                "Candidate profile not found.",
+                status_code=status.HTTP_404_NOT_FOUND,
+            )
+        serializer = CandidateSelfSerializer(candidate, data=request.data, partial=True)
+        if not serializer.is_valid():
+            return error_response("Validation failed.", serializer.errors)
+        serializer.save(updated_at=timezone.now())
+        return success_response(data={'candidate': serializer.data}, message="Profile updated.")
 
 
 class CandidateListView(APIView):

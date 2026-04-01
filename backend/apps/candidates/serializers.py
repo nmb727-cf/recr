@@ -36,6 +36,7 @@ class CandidateProfileSerializer(serializers.ModelSerializer):
 class CandidateSerializer(serializers.ModelSerializer):
     full_name = serializers.ReadOnlyField()
     engagement_summary = serializers.SerializerMethodField()
+    intelligence = serializers.SerializerMethodField()
 
     class Meta:
         model = Candidate
@@ -67,12 +68,16 @@ class CandidateSerializer(serializers.ModelSerializer):
             'assigned_to', 'owner_user_id', 'owner_tenant_id',
             'created_at', 'updated_at', 'created_by', 'metadata',
             'candidate_state', 'candidate_pool', 'is_general_pool_used',
-            'engagement_summary',
+            'engagement_summary', 'intelligence',
         ]
         read_only_fields = [
             'id', 'candidate_ref_id', 'tenant_id', 'created_at', 'updated_at',
             'global_hash', 'is_duplicate', 'duplicate_of',
         ]
+
+    def get_intelligence(self, obj):
+        from apps.candidates.services import CandidateIntelligenceService
+        return CandidateIntelligenceService.get_intelligence_profile(obj)
 
     def get_engagement_summary(self, obj):
         # Count active job-specific engagements by stage
@@ -109,6 +114,63 @@ class CandidateSerializer(serializers.ModelSerializer):
                 + ", ".join(GENERAL_CANDIDATE_STAGES)
             )
         return value
+
+
+class CandidateSelfSerializer(serializers.ModelSerializer):
+    """
+    Candidate-facing serializer for the candidate's own profile.
+    Strips recruiter/company-internal fields that must never be exposed
+    to the candidate user.
+    """
+    full_name = serializers.ReadOnlyField()
+    engagement_intelligence = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Candidate
+        fields = [
+            'id', 'candidate_ref_id', 'first_name', 'last_name', 'full_name',
+            'email', 'phone', 'whatsapp', 'linkedin_url',
+            'current_title', 'current_company',
+            'current_location_city', 'current_location_country',
+            'experience_years', 'expected_salary_min', 'expected_salary_max',
+            'salary_currency', 'notice_period_days', 'availability_date',
+            'designation', 'relevant_experience_years',
+            'current_ctc', 'current_ctc_currency',
+            'offer_in_hand', 'offer_in_hand_amount',
+            'availability_status', 'last_working_day', 'work_mode_preference',
+            'profile_status', 'account_status',
+            'is_actively_looking',
+            'source',
+            'passport_linked', 'passport_id',
+            'tags', 'skills', 'languages',
+            'profile_completeness',
+            'engagement_intelligence',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'candidate_ref_id', 'created_at', 'updated_at',
+            'profile_completeness',
+        ]
+
+    def get_engagement_intelligence(self, obj):
+        from apps.candidates.services import CandidateIntelligenceService
+        intel = CandidateIntelligenceService.get_intelligence_profile(obj)
+        
+        # Candidate-friendly engagement tips
+        tips = []
+        if obj.profile_completeness < 80:
+            tips.append("Complete your profile to increase visibility to recruiters.")
+        if not obj.is_actively_looking:
+            tips.append("Turn on 'Actively Looking' to get prioritized for new roles.")
+        if not obj.skills:
+            tips.append("Add your core skills to help our AI match you to the best jobs.")
+            
+        return {
+            'availability_label': intel['availability'],
+            'seniority_label': intel['seniority'],
+            'engagement_tips': tips,
+            'next_action': tips[0] if tips else "Stay tuned for new opportunities!"
+        }
 
 
 class CandidateDetailSerializer(CandidateSerializer):

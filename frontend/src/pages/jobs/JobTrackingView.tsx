@@ -1,67 +1,19 @@
-import React, { useState } from 'react'
+import React from 'react'
 import {
-  Table, Tag, Typography, Avatar, Card, Space, Badge, Tabs, Empty, Spin
+  Table, Tag, Typography, Avatar, Card, Badge, Spin
 } from 'antd'
 import {
-  User, Clock, ChevronRight, Briefcase, Star, Search, Calendar
+  Clock, ChevronRight, Briefcase, Calendar
 } from 'lucide-react'
 import dayjs from 'dayjs'
+import { useTranslation } from 'react-i18next'
 import { useApiQuery } from '@/hooks/useApiQuery'
 import { pipelineApi } from '@/api/pipeline'
 import { candidatesApi } from '@/api/candidates'
-import { formatStatusLabel, getStatusStyle } from '@/utils/status'
+import { formatStatusLabel, getStageZone, type TrackingZone } from '@/utils/status'
 import type { Application, Candidate } from '@/types'
 
 const { Text, Title } = Typography
-
-// ── Stage Grouping Logic ───────────────────────────────────────────────────
-
-type TrackingZone = 'pre_submission' | 'submitted' | 'hiring_flow'
-
-const STAGE_ZONES: Record<string, TrackingZone> = {
-  // Pre-Submission
-  new_lead: 'pre_submission',
-  contacted: 'pre_submission',
-  follow_up: 'pre_submission',
-  qualified: 'pre_submission',
-  nurture: 'pre_submission',
-  screening: 'pre_submission',
-  internal_review: 'pre_submission',
-  ready_for_submission: 'pre_submission',
-  
-  // Submitted
-  submitted: 'submitted',
-  client_review: 'submitted',
-  review: 'submitted',
-  under_review: 'submitted',
-  shortlisted: 'submitted',
-  hold: 'submitted',
-  rejected_before_interview: 'submitted',
-
-  // Hiring Flow
-  interview_scheduled: 'hiring_flow',
-  interviewing: 'hiring_flow',
-  interview_cleared: 'hiring_flow',
-  interview_failed: 'hiring_flow',
-  offer_extended: 'hiring_flow',
-  offer_accepted: 'hiring_flow',
-  offered: 'hiring_flow',
-  offer: 'hiring_flow',
-  hired: 'hiring_flow',
-  joined: 'hiring_flow',
-  pending_join: 'hiring_flow',
-  placement_confirmed: 'hiring_flow',
-  placement_cancelled: 'hiring_flow',
-  rejected: 'hiring_flow',
-  dropped: 'hiring_flow',
-  withdrawn: 'hiring_flow',
-}
-
-const ZONE_CONFIG: Record<TrackingZone, { label: string, color: string }> = {
-  pre_submission: { label: 'Pre-Submission / Nurturing', color: 'blue' },
-  submitted: { label: 'Submitted / Company Review', color: 'purple' },
-  hiring_flow: { label: 'Hiring Flow / Post-Shortlist', color: 'emerald' },
-}
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 
@@ -70,9 +22,10 @@ function TrackingTable({ applications, candidateMap, loading }: {
   candidateMap: Map<string, Candidate>,
   loading: boolean 
 }) {
+  const { t } = useTranslation('pipeline')
   const columns = [
     {
-      title: 'Candidate Name',
+      title: t('table.columns.candidate_name'),
       key: 'candidate',
       render: (_: any, app: Application) => {
         const candidate = candidateMap.get(app.candidate_id)
@@ -94,7 +47,7 @@ function TrackingTable({ applications, candidateMap, loading }: {
       }
     },
     {
-      title: 'Source',
+      title: t('table.columns.source'),
       dataIndex: 'source',
       key: 'source',
       render: (s: string) => (
@@ -104,7 +57,7 @@ function TrackingTable({ applications, candidateMap, loading }: {
       )
     },
     {
-      title: 'Tracking Stage',
+      title: t('table.columns.tracking_stage'),
       key: 'stage',
       render: (_: any, app: Application) => {
         const stage = app.status || 'applied'
@@ -130,7 +83,7 @@ function TrackingTable({ applications, candidateMap, loading }: {
       }
     },
     {
-      title: 'Joining',
+      title: t('table.columns.joining'),
       key: 'joining',
       render: (_: any, app: Application) => {
         const date = app.joined_at || app.expected_joining_date || app.joining_date
@@ -144,7 +97,7 @@ function TrackingTable({ applications, candidateMap, loading }: {
       }
     },
     {
-      title: 'Owner',
+      title: t('table.columns.owner'),
       key: 'owner',
       render: (_: any, app: Application) => (
         <Text className="text-xs text-slate-500 font-medium">
@@ -153,7 +106,7 @@ function TrackingTable({ applications, candidateMap, loading }: {
       )
     },
     {
-      title: 'Last Activity',
+      title: t('table.columns.last_activity'),
       dataIndex: 'updated_at',
       key: 'activity',
       render: (d: string) => (
@@ -187,6 +140,7 @@ function TrackingTable({ applications, candidateMap, loading }: {
 // ── Main View ──────────────────────────────────────────────────────────────
 
 export default function JobTrackingView({ jobId }: { jobId: string }) {
+  const { t } = useTranslation('pipeline')
   const { data: pipelineData, isLoading: pipelineLoading } = useApiQuery(
     ['job-pipeline-tracking', jobId],
     () => pipelineApi.listApplications({ requisition_id: jobId })
@@ -217,8 +171,7 @@ export default function JobTrackingView({ jobId }: { jobId: string }) {
   }
 
   applications.forEach((app: any) => {
-    const stage = app.status || 'applied'
-    const zone = STAGE_ZONES[stage] || 'submitted' // Fallback to submitted
+    const zone = getStageZone(app.status || 'applied')
     groupedApps[zone].push(app)
   })
 
@@ -226,10 +179,16 @@ export default function JobTrackingView({ jobId }: { jobId: string }) {
   if (applications.length === 0) return (
     <div className="p-20 flex flex-col items-center justify-center bg-white rounded-3xl border border-dashed border-slate-200">
       <Briefcase size={48} className="text-slate-200 mb-4" />
-      <Title level={4} className="!m-0 text-slate-400">No candidates tracked for this job</Title>
-      <p className="text-slate-400 mt-2 font-medium">Start by sourcing candidates or adding leads to this requisition.</p>
+      <Title level={4} className="!m-0 text-slate-400">{t('tracking.empty.no_candidates')}</Title>
+      <p className="text-slate-400 mt-2 font-medium">{t('tracking.empty.start_sourcing')}</p>
     </div>
   )
+
+  const ZONE_CONFIG: Record<TrackingZone, { label: string, color: string }> = {
+    pre_submission: { label: t('tracking.zones.pre_submission'), color: 'blue' },
+    submitted: { label: t('tracking.zones.submitted'), color: 'purple' },
+    hiring_flow: { label: t('tracking.zones.hiring_flow'), color: 'emerald' },
+  }
 
   return (
     <div className="space-y-6 pb-20">
@@ -254,7 +213,7 @@ export default function JobTrackingView({ jobId }: { jobId: string }) {
           >
             {apps.length === 0 ? (
                <div className="p-10 text-center border-t border-slate-50">
-                  <Text className="text-slate-400 italic text-xs">No candidates in this stage zone</Text>
+                  <Text className="text-slate-400 italic text-xs">{t('tracking.empty.no_candidates_in_zone')}</Text>
                </div>
             ) : (
               <TrackingTable 

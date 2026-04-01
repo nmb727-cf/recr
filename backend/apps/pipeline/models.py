@@ -13,6 +13,7 @@ class Application(models.Model):
         max_length=50,
         choices=[
             ('applied', 'Applied'),
+            ('sourcing', 'Sourcing'),
             ('screening', 'Screening'),
             ('shortlisted', 'Shortlisted'),
             ('interview', 'Interview'),

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
   Button, Typography,
-  Spin, Empty, message, Tag
+  Spin, Empty, message, Tag, Modal
 } from 'antd'
 import {
   Briefcase, Users, ArrowRight,
@@ -16,6 +16,7 @@ import { pipelineApi } from '@/api/pipeline'
 import { candidatesApi } from '@/api/candidates'
 import type { JobRequisition, RequisitionStatus, Application, PipelineData } from '@/types'
 import { cn } from '@/utils/cn'
+import JobCreateForm from '@/components/forms/JobCreateForm'
 
 const { Title } = Typography
 
@@ -31,6 +32,8 @@ const STATUS_BANNER: Record<RequisitionStatus, { label: string, color: string }>
   pending_approval: { label: '⏳ Waiting for approval', color: 'border-amber-400 bg-amber-50 text-amber-700' },
   approved: { label: '✓ Approved — Ready to publish', color: 'border-blue-400 bg-blue-50 text-blue-700' },
   active: { label: '🟢 Live — Accepting applications', color: 'border-emerald-400 bg-emerald-50 text-emerald-700' },
+  paused: { label: '⏸ Paused — Sourcing on hold', color: 'border-amber-300 bg-amber-50 text-amber-600' },
+  in_guarantee_period: { label: '🛡 Guarantee Period — Hired', color: 'border-purple-400 bg-purple-50 text-purple-700' },
   closed: { label: 'Closed', color: 'border-rose-400 bg-rose-50 text-rose-700' },
   cancelled: { label: 'Cancelled', color: 'border-slate-300 bg-slate-50 text-slate-500' },
 }
@@ -39,8 +42,9 @@ export default function JobQuickView({ jobId, onOpenFullView, onClose: _onClose,
   const queryClient = useQueryClient()
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [candidateNames, setCandidateNames] = useState<Record<string, string>>({})
+  const [editModalOpen, setEditModalOpen] = useState(false)
 
-  const { data, isLoading } = useApiQuery(
+  const { data, isLoading, refetch } = useApiQuery(
     ['requisition', 'quick', jobId],
     () => requisitionsApi.get(jobId)
   )
@@ -115,6 +119,9 @@ export default function JobQuickView({ jobId, onOpenFullView, onClose: _onClose,
           <h2 className="text-2xl font-bold text-slate-900 tracking-tight leading-tight">
             {requisition.title}
           </h2>
+          <p className="text-indigo-600 text-[11px] font-bold uppercase tracking-widest mt-1">
+            {requisition.job_ref_id || requisition.id}
+          </p>
           <p className="text-slate-500 mt-1 flex items-center gap-1.5 text-sm font-medium">
             <Briefcase className="h-3.5 w-3.5" /> {requisition.job_type.replace('_', ' ')} · {requisition.work_mode}
           </p>
@@ -266,6 +273,7 @@ export default function JobQuickView({ jobId, onOpenFullView, onClose: _onClose,
           style={{ flex: 1 }}
           icon={<Edit className="h-4 w-4" />} 
           className="h-12 rounded-xl font-bold flex items-center justify-center gap-2 border-slate-200 text-slate-600"
+          onClick={() => setEditModalOpen(true)}
         >
           Edit Job
         </Button>
@@ -278,6 +286,28 @@ export default function JobQuickView({ jobId, onOpenFullView, onClose: _onClose,
           Open Full View <ArrowRight className="h-4 w-4" />
         </Button>
       </div>
+
+      <Modal
+        open={editModalOpen}
+        onCancel={() => setEditModalOpen(false)}
+        width={720}
+        title={<span className="text-xl font-black tracking-tight text-slate-900 uppercase tracking-widest">Edit Requisition</span>}
+        footer={null}
+        destroyOnClose
+        className="rounded-3xl overflow-hidden"
+      >
+        <div className="pt-4">
+          <JobCreateForm 
+            onSuccess={() => {
+              setEditModalOpen(false)
+              refetch()
+              if (onRefresh) onRefresh()
+              queryClient.invalidateQueries({ queryKey: ['requisition', 'quick', jobId] })
+            }} 
+            initialValues={requisition} 
+          />
+        </div>
+      </Modal>
     </div>
   )
 }

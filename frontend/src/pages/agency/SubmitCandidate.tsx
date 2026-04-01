@@ -6,13 +6,13 @@ import {
 } from 'antd'
 import {
   Search, CheckCircle, User, Briefcase, FileText, 
-  Send, AlertCircle
+  Send, AlertCircle, ShieldCheck
 } from 'lucide-react'
 import dayjs from 'dayjs'
 import { useApiQuery } from '@/hooks/useApiQuery'
 import { candidatesApi } from '@/api/candidates'
 import { agenciesApi } from '@/api/agencies'
-import type { Candidate, JobRequisition } from '@/types'
+import type { Candidate, JobRequisition, AgencyAssignment } from '@/types'
 import { cn } from '@/utils/cn'
 
 const { Title, Text } = Typography
@@ -22,7 +22,7 @@ export default function SubmitCandidate() {
   const navigate = useNavigate()
   const [candidateSearch, setCandidateSearch] = useState('')
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null)
-  const [selectedJob, setSelectedJob] = useState<{ requisition: JobRequisition } | null>(null)
+  const [selectedJob, setSelectedJob] = useState<{ requisition: JobRequisition, assignment: AgencyAssignment } | null>(null)
   const [coverNote, setCoverNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)

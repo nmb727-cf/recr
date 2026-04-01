@@ -482,22 +482,96 @@ class AgencyJobAssignmentDetailView(APIView):
         )
 
 
+from apps.agencies.services import AgencyIntelligenceService
+
 class AgencyPerformanceListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        qs = AgencyPerformanceScore.objects.filter(
-            tenant_id=request.user.tenant_id
-        )
-
         agency_id = request.query_params.get('agency_id')
+        
         if agency_id:
-            qs = qs.filter(agency_tenant_id=agency_id)
+            metrics = AgencyIntelligenceService.calculate_agency_metrics(
+                tenant_id=request.user.tenant_id,
+                agency_tenant_id=agency_id
+            )
+            risks = AgencyIntelligenceService.detect_agency_risks(
+                tenant_id=request.user.tenant_id,
+                agency_tenant_id=agency_id
+            )
+            return success_response(
+                data={
+                    'metrics': metrics,
+                    'risks': risks
+                },
+                message="Agency performance retrieved."
+            )
+
+        # List all relationships with summary scores
+        relationships = AgencyClientRelationship.objects.filter(
+            company_tenant_id=request.user.tenant_id,
+            is_deleted=False
+        )
+        
+        result = []
+        for rel in relationships:
+            metrics = AgencyIntelligenceService.calculate_agency_metrics(
+                tenant_id=request.user.tenant_id,
+                agency_tenant_id=rel.agency_tenant_id
+            )
+            result.append({
+                'agency_tenant_id': str(rel.agency_tenant_id),
+                'agency_name': rel.metadata.get('agency_name', 'Unknown Agency'),
+                'tier': rel.tier,
+                'score': metrics['overall_score'],
+                'metrics': metrics
+            })
 
         return success_response(
-            data={'performance': AgencyPerformanceScoreSerializer(qs, many=True).data},
-            message="Performance scores retrieved.",
-            meta={'total': qs.count()}
+            data={'performance': result},
+            message="Agency performance list retrieved.",
+            meta={'total': len(result)}
+        )
+
+
+class JobAgencyIntelligenceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, requisition_id):
+        tenant_id = request.user.tenant_id
+        
+        # 1. Get currently assigned agencies performance
+        assignments = AgencyJobAssignment.objects.filter(
+            requisition_id=requisition_id,
+            tenant_id=tenant_id,
+            is_deleted=False
+        )
+        
+        assigned_stats = []
+        for ass in assignments:
+            metrics = AgencyIntelligenceService.calculate_agency_metrics(
+                tenant_id=tenant_id,
+                agency_tenant_id=ass.agency_tenant_id
+            )
+            assigned_stats.append({
+                'agency_tenant_id': str(ass.agency_tenant_id),
+                'score': metrics['overall_score'],
+                'submission_count': ass.submission_count,
+                'status': ass.status
+            })
+
+        # 2. Get recommendations
+        recommendations = AgencyIntelligenceService.get_job_agency_recommendations(
+            requisition_id=requisition_id,
+            tenant_id=tenant_id
+        )
+
+        return success_response(
+            data={
+                'assigned_performance': assigned_stats,
+                'recommendations': recommendations
+            },
+            message="Job agency intelligence retrieved."
         )
 class AgencyMyJobsView(APIView):
     permission_classes = [IsAuthenticated]

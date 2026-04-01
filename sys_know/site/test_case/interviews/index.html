@@ -1,0 +1,1512 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Test Cases — Interview Command Center - TalentOS System Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#test-cases-interview-command-center" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="TalentOS System Documentation" class="md-header__button md-logo" aria-label="TalentOS System Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            TalentOS System Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Test Cases — Interview Command Center
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="TalentOS System Documentation" class="md-nav__button md-logo" aria-label="TalentOS System Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    TalentOS System Documentation
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../dashboard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dashboard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../testing_setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#models" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Models
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Models">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#interviewtype" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InterviewType
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interviewtemplate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InterviewTemplate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interview
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interviewfeedback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InterviewFeedback
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interviewdecision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InterviewDecision
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#services" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Services
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Services">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#interviewservice" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InterviewService
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interviewfeedbackservice" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InterviewFeedbackService
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#interviewdecisionservice" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InterviewDecisionService
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#api-endpoints" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        API Endpoints
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="API Endpoints">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#auth-tenant-isolation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auth &amp; Tenant Isolation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rbac" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RBAC
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-interviewstypes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /interviews/types/
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-interviewstypes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /interviews/types/
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#getpost-interviewstemplates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET/POST /interviews/templates/
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#get-interviews" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET /interviews/
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-interviews" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /interviews/
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-interviewsidstart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /interviews/\&lt;id>/start/
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-interviewsidcomplete" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /interviews/\&lt;id>/complete/
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#post-interviewsidcancel" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        POST /interviews/\&lt;id>/cancel/
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#getpost-interviewsidstructured-feedback" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET+POST /interviews/\&lt;id>/structured-feedback/
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#getpost-interviewsiddecision" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GET+POST /interviews/\&lt;id>/decision/
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#events" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Events
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="test-cases-interview-command-center">Test Cases — Interview Command Center</h1>
+<p><strong>Module:</strong> <code>apps/interviews</code>
+<strong>Last updated:</strong> 2026-03-28</p>
+<hr />
+<h2 id="models">Models</h2>
+<h3 id="interviewtype">InterviewType</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Test</th>
+<th>Assertion</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M-T-01</td>
+<td>Create with valid name + code</td>
+<td>Saved, <code>is_active=True</code>, <code>is_deleted=False</code></td>
+</tr>
+<tr>
+<td>M-T-02</td>
+<td>Duplicate <code>code</code></td>
+<td><code>IntegrityError</code> (unique constraint)</td>
+</tr>
+<tr>
+<td>M-T-03</td>
+<td><code>soft_delete()</code></td>
+<td><code>is_deleted=True</code>, <code>deleted_at</code> populated</td>
+</tr>
+<tr>
+<td>M-T-04</td>
+<td>Filter active types</td>
+<td><code>is_deleted=False</code> + <code>is_active=True</code> only</td>
+</tr>
+</tbody>
+</table>
+<h3 id="interviewtemplate">InterviewTemplate</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Test</th>
+<th>Assertion</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M-TM-01</td>
+<td>Create with <code>tenant_id</code>, <code>name</code>, <code>interview_type</code></td>
+<td>Saved with <code>scoring_type='numeric'</code> default</td>
+</tr>
+<tr>
+<td>M-TM-02</td>
+<td><code>type</code> FK null (legacy template)</td>
+<td>Allowed — nullable FK</td>
+</tr>
+<tr>
+<td>M-TM-03</td>
+<td><code>type</code> FK points to deleted <code>InterviewType</code></td>
+<td>FK set to NULL (<code>SET_NULL</code>)</td>
+</tr>
+<tr>
+<td>M-TM-04</td>
+<td><code>soft_delete()</code></td>
+<td><code>is_deleted=True</code>, <code>deleted_at</code> set</td>
+</tr>
+<tr>
+<td>M-TM-05</td>
+<td>Template from different tenant not visible</td>
+<td>Filter by <code>tenant_id</code> excludes it</td>
+</tr>
+</tbody>
+</table>
+<h3 id="interview">Interview</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Test</th>
+<th>Assertion</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M-I-01</td>
+<td>Create with required fields</td>
+<td><code>status='scheduled'</code>, <code>is_deleted=False</code></td>
+</tr>
+<tr>
+<td>M-I-02</td>
+<td><code>soft_delete()</code></td>
+<td><code>is_deleted=True</code>, <code>deleted_at</code> set</td>
+</tr>
+<tr>
+<td>M-I-03</td>
+<td>Default ordering</td>
+<td>Queryset ordered by <code>-created_at</code></td>
+</tr>
+<tr>
+<td>M-I-04</td>
+<td>Cross-tenant query isolation</td>
+<td><code>tenant_id</code> filter excludes other tenants</td>
+</tr>
+</tbody>
+</table>
+<h3 id="interviewfeedback">InterviewFeedback</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Test</th>
+<th>Assertion</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M-F-01</td>
+<td>Two feedbacks for same <code>(interview_id, panelist_id)</code></td>
+<td><code>IntegrityError</code> (unique_together)</td>
+</tr>
+<tr>
+<td>M-F-02</td>
+<td><code>soft_delete()</code></td>
+<td><code>is_deleted=True</code>, <code>deleted_at</code> set</td>
+</tr>
+<tr>
+<td>M-F-03</td>
+<td><code>score=None</code> allowed</td>
+<td>Saved without error</td>
+</tr>
+<tr>
+<td>M-F-04</td>
+<td><code>criteria_scores</code> stores dict</td>
+<td>JSONField persists arbitrary structure</td>
+</tr>
+</tbody>
+</table>
+<h3 id="interviewdecision">InterviewDecision</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Test</th>
+<th>Assertion</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M-D-01</td>
+<td>Two decisions for same <code>interview_id</code></td>
+<td><code>IntegrityError</code> (unique on <code>interview_id</code>)</td>
+</tr>
+<tr>
+<td>M-D-02</td>
+<td>Valid <code>decision</code> choices</td>
+<td><code>hire</code>, <code>reject</code>, <code>hold</code>, <code>next_round</code> accepted</td>
+</tr>
+<tr>
+<td>M-D-03</td>
+<td>Invalid <code>decision</code> value</td>
+<td>Rejected at serializer validation</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="services">Services</h2>
+<h3 id="interviewservice">InterviewService</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Test</th>
+<th>Input</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S-I-01</td>
+<td><code>create()</code> schedules interview</td>
+<td>valid kwargs</td>
+<td>Interview saved, <code>status='scheduled'</code></td>
+</tr>
+<tr>
+<td>S-I-02</td>
+<td><code>create()</code> with valid <code>template_id</code></td>
+<td>template with 2 questions</td>
+<td>2 <code>InterviewQuestion</code> rows created</td>
+</tr>
+<tr>
+<td>S-I-03</td>
+<td><code>create()</code> with invalid <code>template_id</code></td>
+<td>non-existent UUID</td>
+<td>Interview created, no questions (silent)</td>
+</tr>
+<tr>
+<td>S-I-04</td>
+<td><code>create()</code> fires event</td>
+<td>—</td>
+<td><code>events.interview.scheduled</code> received</td>
+</tr>
+<tr>
+<td>S-I-05</td>
+<td><code>start()</code> from <code>scheduled</code></td>
+<td>interview.status='scheduled'</td>
+<td><code>status='in_progress'</code>, <code>started_at</code> set</td>
+</tr>
+<tr>
+<td>S-I-06</td>
+<td><code>start()</code> from <code>completed</code></td>
+<td>interview.status='completed'</td>
+<td><code>ValueError</code> raised</td>
+</tr>
+<tr>
+<td>S-I-07</td>
+<td><code>complete()</code> from <code>in_progress</code></td>
+<td>score, recommendation</td>
+<td><code>status='completed'</code>, <code>completed_at</code> set</td>
+</tr>
+<tr>
+<td>S-I-08</td>
+<td><code>complete()</code> aggregates feedback scores</td>
+<td>3 feedback rows with scores 60,70,80</td>
+<td><code>human_score=70.0</code></td>
+</tr>
+<tr>
+<td>S-I-09</td>
+<td><code>complete()</code> fires events</td>
+<td>—</td>
+<td><code>events.interview.completed</code> + <code>events.application.interviewed</code></td>
+</tr>
+<tr>
+<td>S-I-10</td>
+<td><code>complete()</code> application missing</td>
+<td>no matching Application</td>
+<td>Completes silently, no crash</td>
+</tr>
+<tr>
+<td>S-I-11</td>
+<td><code>cancel()</code> from <code>scheduled</code></td>
+<td>reason='no show'</td>
+<td><code>status='cancelled'</code>, reason in <code>feedback_summary</code></td>
+</tr>
+<tr>
+<td>S-I-12</td>
+<td><code>cancel()</code> from <code>completed</code></td>
+<td>—</td>
+<td><code>ValueError</code> raised</td>
+</tr>
+<tr>
+<td>S-I-13</td>
+<td><code>reschedule()</code></td>
+<td>new datetime</td>
+<td><code>scheduled_at</code> updated, <code>status='rescheduled'</code></td>
+</tr>
+<tr>
+<td>S-I-14</td>
+<td><code>add_panelist()</code> idempotent</td>
+<td>same user twice</td>
+<td>Second call returns existing row, no duplicate</td>
+</tr>
+</tbody>
+</table>
+<h3 id="interviewfeedbackservice">InterviewFeedbackService</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Test</th>
+<th>Input</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S-F-01</td>
+<td><code>submit()</code> creates new record</td>
+<td>valid kwargs</td>
+<td><code>InterviewFeedback</code> row created</td>
+</tr>
+<tr>
+<td>S-F-02</td>
+<td><code>submit()</code> updates existing record</td>
+<td>same <code>(interview_id, panelist_id)</code></td>
+<td>Row updated, not duplicated</td>
+</tr>
+<tr>
+<td>S-F-03</td>
+<td><code>submit()</code> recalculates <code>human_score</code></td>
+<td>2 existing scores 50,90 + new 70</td>
+<td><code>Interview.human_score=70.0</code></td>
+</tr>
+<tr>
+<td>S-F-04</td>
+<td><code>submit()</code> with <code>score=None</code></td>
+<td>score omitted</td>
+<td>Avg recalc ignores null scores</td>
+</tr>
+</tbody>
+</table>
+<h3 id="interviewdecisionservice">InterviewDecisionService</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Test</th>
+<th>Input</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S-D-01</td>
+<td><code>record()</code> creates new decision</td>
+<td>valid kwargs</td>
+<td><code>InterviewDecision</code> row created</td>
+</tr>
+<tr>
+<td>S-D-02</td>
+<td><code>record()</code> updates existing decision</td>
+<td>same <code>interview_id</code></td>
+<td>Row updated (<code>update_or_create</code>)</td>
+</tr>
+<tr>
+<td>S-D-03</td>
+<td><code>record()</code> fires event</td>
+<td>—</td>
+<td><code>events.interview.decision_recorded</code> with <code>created=True/False</code></td>
+</tr>
+<tr>
+<td>S-D-04</td>
+<td><code>get_for_interview()</code> no decision</td>
+<td>no row</td>
+<td>Returns <code>None</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="api-endpoints">API Endpoints</h2>
+<h3 id="auth-tenant-isolation">Auth &amp; Tenant Isolation</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Test</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A-01</td>
+<td>All endpoints without JWT</td>
+<td><code>401 Unauthorized</code></td>
+</tr>
+<tr>
+<td>A-02</td>
+<td>GET <code>/interviews/</code> with valid JWT</td>
+<td>Returns only caller's tenant interviews</td>
+</tr>
+<tr>
+<td>A-03</td>
+<td>GET <code>/interviews/&lt;id&gt;/</code> with valid JWT but wrong tenant</td>
+<td><code>404 Not Found</code></td>
+</tr>
+<tr>
+<td>A-04</td>
+<td>POST <code>/interviews/&lt;id&gt;/decision/</code> with correct tenant</td>
+<td><code>200 OK</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="rbac">RBAC</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Endpoint</th>
+<th>Missing Permission</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R-01</td>
+<td><code>GET /interviews/types/</code></td>
+<td><code>interviews.type.view</code></td>
+<td><code>403 Forbidden</code></td>
+</tr>
+<tr>
+<td>R-02</td>
+<td><code>POST /interviews/types/</code></td>
+<td><code>interviews.type.manage</code></td>
+<td><code>403 Forbidden</code></td>
+</tr>
+<tr>
+<td>R-03</td>
+<td><code>POST /interviews/</code></td>
+<td><code>interviews.interview.create</code></td>
+<td><code>403 Forbidden</code></td>
+</tr>
+<tr>
+<td>R-04</td>
+<td><code>POST /interviews/&lt;id&gt;/start/</code></td>
+<td><code>interviews.interview.start</code></td>
+<td><code>403 Forbidden</code></td>
+</tr>
+<tr>
+<td>R-05</td>
+<td><code>POST /interviews/&lt;id&gt;/decision/</code></td>
+<td><code>interviews.decision.record</code></td>
+<td><code>403 Forbidden</code></td>
+</tr>
+<tr>
+<td>R-06</td>
+<td><code>POST /interviews/&lt;id&gt;/structured-feedback/</code></td>
+<td><code>interviews.feedback.submit</code></td>
+<td><code>403 Forbidden</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-interviewstypes">GET /interviews/types/</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Scenario</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>E-TY-01</td>
+<td>Valid request</td>
+<td><code>200</code>, list of active types</td>
+</tr>
+<tr>
+<td>E-TY-02</td>
+<td>Deleted type exists</td>
+<td>Not included in response</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-interviewstypes">POST /interviews/types/</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Scenario</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>E-TY-03</td>
+<td>Valid <code>name</code> + unique <code>code</code></td>
+<td><code>201</code>, type object returned</td>
+</tr>
+<tr>
+<td>E-TY-04</td>
+<td>Duplicate <code>code</code></td>
+<td><code>400</code> validation error</td>
+</tr>
+<tr>
+<td>E-TY-05</td>
+<td>Missing <code>name</code></td>
+<td><code>400</code> validation error</td>
+</tr>
+</tbody>
+</table>
+<h3 id="getpost-interviewstemplates">GET/POST /interviews/templates/</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Scenario</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>E-TM-01</td>
+<td>GET — own templates only</td>
+<td><code>200</code>, filtered by <code>tenant_id</code></td>
+</tr>
+<tr>
+<td>E-TM-02</td>
+<td>POST valid payload</td>
+<td><code>201</code>, template object returned</td>
+</tr>
+<tr>
+<td>E-TM-03</td>
+<td>POST missing <code>name</code></td>
+<td><code>400</code></td>
+</tr>
+<tr>
+<td>E-TM-04</td>
+<td>DELETE — soft deletes</td>
+<td>Template excluded from future GET</td>
+</tr>
+</tbody>
+</table>
+<h3 id="get-interviews">GET /interviews/</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Scenario</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>E-IL-01</td>
+<td>No filters</td>
+<td>All tenant interviews returned</td>
+</tr>
+<tr>
+<td>E-IL-02</td>
+<td><code>?status=scheduled</code></td>
+<td>Only scheduled interviews</td>
+</tr>
+<tr>
+<td>E-IL-03</td>
+<td><code>?candidate_id=&lt;uuid&gt;</code></td>
+<td>Filtered by candidate</td>
+</tr>
+<tr>
+<td>E-IL-04</td>
+<td><code>?application_id=&lt;uuid&gt;</code></td>
+<td>Filtered by application</td>
+</tr>
+<tr>
+<td>E-IL-05</td>
+<td>Response includes <code>meta.total</code></td>
+<td>Count matches list length</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-interviews">POST /interviews/</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Scenario</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>E-IC-01</td>
+<td>Valid payload, no template</td>
+<td><code>201</code>, <code>status='scheduled'</code>, no questions</td>
+</tr>
+<tr>
+<td>E-IC-02</td>
+<td>Valid payload with <code>template_id</code></td>
+<td><code>201</code>, questions seeded from template</td>
+</tr>
+<tr>
+<td>E-IC-03</td>
+<td><code>panelist_ids</code> provided</td>
+<td>Panelist rows created</td>
+</tr>
+<tr>
+<td>E-IC-04</td>
+<td>Missing required field</td>
+<td><code>400</code> validation error</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-interviewsidstart">POST /interviews/\&lt;id&gt;/start/</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Scenario</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>E-IS-01</td>
+<td>Interview in <code>scheduled</code> state</td>
+<td><code>200</code>, <code>status='in_progress'</code>, <code>started_at</code> set</td>
+</tr>
+<tr>
+<td>E-IS-02</td>
+<td>Interview already <code>in_progress</code></td>
+<td><code>400</code> error message</td>
+</tr>
+<tr>
+<td>E-IS-03</td>
+<td>Interview <code>completed</code></td>
+<td><code>400</code> error message</td>
+</tr>
+<tr>
+<td>E-IS-04</td>
+<td>Wrong tenant interview</td>
+<td><code>404</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-interviewsidcomplete">POST /interviews/\&lt;id&gt;/complete/</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Scenario</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>E-IC-01</td>
+<td>Interview <code>in_progress</code></td>
+<td><code>200</code>, <code>status='completed'</code></td>
+</tr>
+<tr>
+<td>E-IC-02</td>
+<td>Interview <code>scheduled</code> (not started)</td>
+<td><code>400</code></td>
+</tr>
+<tr>
+<td>E-IC-03</td>
+<td>With <code>overall_score</code> and <code>recommendation</code></td>
+<td>Fields persisted</td>
+</tr>
+</tbody>
+</table>
+<h3 id="post-interviewsidcancel">POST /interviews/\&lt;id&gt;/cancel/</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Scenario</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>E-CA-01</td>
+<td>Interview <code>scheduled</code></td>
+<td><code>200</code>, <code>status='cancelled'</code></td>
+</tr>
+<tr>
+<td>E-CA-02</td>
+<td>Interview <code>completed</code></td>
+<td><code>400</code></td>
+</tr>
+<tr>
+<td>E-CA-03</td>
+<td><code>reason</code> provided</td>
+<td>Appears in <code>feedback_summary</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="getpost-interviewsidstructured-feedback">GET+POST /interviews/\&lt;id&gt;/structured-feedback/</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Scenario</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>E-SF-01</td>
+<td>GET — no feedback yet</td>
+<td><code>200</code>, empty list</td>
+</tr>
+<tr>
+<td>E-SF-02</td>
+<td>POST valid <code>score</code> + <code>recommendation</code></td>
+<td><code>200</code>, feedback record upserted</td>
+</tr>
+<tr>
+<td>E-SF-03</td>
+<td>POST twice (same panelist)</td>
+<td>Second call updates, not duplicates</td>
+</tr>
+<tr>
+<td>E-SF-04</td>
+<td>POST invalid <code>recommendation</code></td>
+<td><code>400</code></td>
+</tr>
+<tr>
+<td>E-SF-05</td>
+<td>POST updates <code>Interview.human_score</code></td>
+<td>Aggregate recalculated</td>
+</tr>
+</tbody>
+</table>
+<h3 id="getpost-interviewsiddecision">GET+POST /interviews/\&lt;id&gt;/decision/</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Scenario</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>E-DE-01</td>
+<td>GET — no decision recorded</td>
+<td><code>404</code></td>
+</tr>
+<tr>
+<td>E-DE-02</td>
+<td>POST valid <code>decision='hire'</code></td>
+<td><code>200</code>, decision persisted</td>
+</tr>
+<tr>
+<td>E-DE-03</td>
+<td>POST then POST again</td>
+<td>Second updates, not duplicates</td>
+</tr>
+<tr>
+<td>E-DE-04</td>
+<td>POST invalid <code>decision='maybe'</code></td>
+<td><code>400</code></td>
+</tr>
+<tr>
+<td>E-DE-05</td>
+<td>GET after POST</td>
+<td>Returns recorded decision</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="events">Events</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Action</th>
+<th>Signal fired</th>
+<th>kwargs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>EV-01</td>
+<td><code>InterviewService.create()</code></td>
+<td><code>events.interview.scheduled</code></td>
+<td><code>interview</code></td>
+</tr>
+<tr>
+<td>EV-02</td>
+<td><code>InterviewService.start()</code></td>
+<td><code>events.interview.started</code></td>
+<td><code>interview</code></td>
+</tr>
+<tr>
+<td>EV-03</td>
+<td><code>InterviewService.complete()</code></td>
+<td><code>events.interview.completed</code></td>
+<td><code>interview</code></td>
+</tr>
+<tr>
+<td>EV-03b</td>
+<td><code>InterviewService.complete()</code> (app found)</td>
+<td><code>events.application.interviewed</code></td>
+<td><code>application</code>, <code>interview</code></td>
+</tr>
+<tr>
+<td>EV-04</td>
+<td><code>InterviewService.cancel()</code></td>
+<td><code>events.interview.cancelled</code></td>
+<td><code>interview</code></td>
+</tr>
+<tr>
+<td>EV-05</td>
+<td><code>InterviewDecisionService.record()</code></td>
+<td><code>events.interview.decision_recorded</code></td>
+<td><code>interview</code>, <code>decision</code>, <code>created</code></td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -150,6 +150,10 @@ export default function RegisterCompany() {
           rules={[
             { required: true, message: t('auth:password_required', 'Password is required') },
             { min: 8, message: t('auth:password_min', 'At least 8 characters') },
+            {
+              pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/,
+              message: t('auth:password_strength', 'Must include uppercase, lowercase and a number'),
+            },
           ]}
         >
           <Input.Password

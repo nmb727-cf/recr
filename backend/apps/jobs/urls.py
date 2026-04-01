@@ -1,15 +1,21 @@
 from django.urls import path
 from apps.jobs import views
+from apps.interviews import views as interview_views
 
 urlpatterns = [
     # Requisitions
     path('requisitions/', views.JobRequisitionListView.as_view(), name='requisition-list'),
+    path('requisitions/global-intelligence/', views.GlobalHiringCommandCenterView.as_view(), name='requisition-global-intelligence'),
     path('requisitions/<uuid:pk>/', views.JobRequisitionDetailView.as_view(), name='requisition-detail'),
     path('requisitions/<uuid:pk>/submit-for-approval/', views.JobRequisitionSubmitView.as_view(), name='requisition-submit'),
     path('requisitions/<uuid:pk>/approve/', views.JobRequisitionApproveView.as_view(), name='requisition-approve'),
     path('requisitions/<uuid:pk>/reject/', views.JobRequisitionRejectView.as_view(), name='requisition-reject'),
     path('requisitions/<uuid:pk>/publish/', views.JobRequisitionPublishView.as_view(), name='requisition-publish'),
+    path('requisitions/<uuid:pk>/review/', views.JobRequisitionReviewView.as_view(), name='requisition-review'),
     path('requisitions/<uuid:pk>/clone/', views.JobRequisitionCloneView.as_view(), name='requisition-clone'),
+    path('requisitions/<uuid:pk>/candidates/', views.JobRequisitionCandidatesView.as_view(), name='requisition-candidates'),
+    path('requisitions/<uuid:pk>/hiring-brain/', views.HiringAIBrainView.as_view(), name='requisition-hiring-brain'),
+    path('requisitions/<uuid:requisition_id>/interview-binding/', interview_views.JobInterviewBindingView.as_view(), name='requisition-interview-binding'),
 
     # Stages
     path('requisitions/<uuid:requisition_id>/stages/', views.JobStageListView.as_view(), name='stage-list'),

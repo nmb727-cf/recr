@@ -1,0 +1,17 @@
+{
+  "add_candidate": "उम्मीदवार जोड़ें",
+  "search_placeholder": "नाम, ईमेल, कौशल से उम्मीदवार खोजें...",
+  "database": "डेटाबेस",
+  "active_work": "सक्रिय कार्य",
+  "no_candidates": "कोई उम्मीदवार नहीं मिला",
+  "invite_link": "आमंत्रण लिंक",
+  "follow_up_queue": "फॉलो-अप कतार",
+  "workspace": {
+    "title": "टैलेंट हब",
+    "system_of_record": "सिस्टम ऑफ रिकॉर्ड",
+    "system_of_action": "सिस्टम ऑफ एक्शन",
+    "focus_mode": "फोकस",
+    "board_view": "बोर्ड",
+    "entry_method": "एंट्री मेथड"
+  }
+}

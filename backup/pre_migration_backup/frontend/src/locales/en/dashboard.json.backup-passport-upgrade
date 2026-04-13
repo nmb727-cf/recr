@@ -1,0 +1,73 @@
+{
+  "greeting": {
+    "morning": "Good morning",
+    "afternoon": "Good afternoon",
+    "evening": "Good evening"
+  },
+  "stats": {
+    "active_jobs": "Active Jobs",
+    "total_candidates": "Total Candidates",
+    "active_pipeline": "Active Pipeline",
+    "interviews_scheduled": "Interviews Scheduled"
+  },
+  "cards": {
+    "needs_attention": "Needs Attention",
+    "pipeline_distribution": "Pipeline Distribution"
+  },
+  "candidate": {
+    "subtitle": "Track your applications and upcoming interviews."
+  },
+  "cc": {
+    "subtitle": "Your career command center — track everything in one place.",
+    "browse_jobs": "Browse Jobs",
+    "browse_jobs_tip": "Discover new opportunities",
+    "my_passport": "My Passport",
+    "stat_applications": "Applications",
+    "stat_applications_sub": "Active opportunities",
+    "stat_interviews": "Interviews",
+    "stat_interviews_sub": "Upcoming & pending",
+    "stat_offers": "Offers",
+    "stat_offers_active": "Waiting for decision",
+    "stat_offers_none": "Keep going!",
+    "stat_profile": "Profile Strength",
+    "stat_profile_strong": "Excellent",
+    "stat_profile_improve": "Add more info",
+    "opportunities": "My Opportunities",
+    "no_opportunities": "No active opportunities",
+    "interviews": "My Interviews",
+    "no_interviews": "No upcoming interviews",
+    "interview": "Interview",
+    "offers": "My Offers",
+    "joins": "Joins",
+    "unknown_job": "Unknown Role",
+    "passport_summary": "Talent Passport",
+    "profile_strength": "Profile Strength",
+    "strength_strong": "Strong — ready to share",
+    "strength_good": "Good — a few items missing",
+    "strength_weak": "Incomplete — add more info",
+    "skills": "Skills",
+    "experience": "Exp. Yrs",
+    "resume": "Resume",
+    "view_passport": "View Passport",
+    "complete_profile": "Complete Your Profile",
+    "profile_complete": "Profile is complete!",
+    "sug_headline": "Add a professional headline",
+    "sug_summary": "Write a professional summary",
+    "sug_skills": "Add at least 5 skills",
+    "sug_resume": "Upload your resume / CV",
+    "sug_experience": "Add work experience",
+    "sug_education": "Add your education",
+    "activity": "Recent Activity",
+    "no_activity": "No recent activity",
+    "view_all": "View all"
+  },
+  "agency": {
+    "subtitle": "Here's your agency activity today."
+  },
+  "company": {
+    "subtitle": "Here's what's happening with your recruitment pipeline today."
+  },
+  "actions": {
+    "create_job": "Create Job"
+  }
+}

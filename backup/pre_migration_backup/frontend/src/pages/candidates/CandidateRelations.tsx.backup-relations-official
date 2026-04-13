@@ -1,0 +1,957 @@
+import React, { useState, useMemo } from 'react'
+import {
+  Typography, Button, Input, Select, Space, Tag, Avatar,
+  Spin, Badge, message, Tooltip, Dropdown, Modal, Form, DatePicker,
+  Row, Col, Alert, Drawer, Timeline, Divider, Table, Card,
+  Progress
+} from 'antd'
+import type { ColumnsType } from 'antd/es/table'
+import {
+  Search, Plus, MoreHorizontal,
+  Mail, Phone, MessageSquare, Calendar, Target,
+  User, Clock, Zap, Trash2, ShieldCheck,
+  Briefcase, DollarSign, TrendingUp, Bot, ArrowUpRight,
+  Activity, Sparkles, AlertTriangle, CheckCircle2,
+  Users, Bell, Layout, List as ListIcon, Info, ExternalLink,
+  MapPin, Check, Globe, Send, MessageCircle, StickyNote,
+  Flame, History, Save, X, Search as SearchIcon, ArrowRight
+} from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import { candidatesApi } from '@/api/candidates'
+import { useApiQuery } from '@/hooks/useApiQuery'
+import { cn } from '@/utils/cn'
+import { useAuthStore } from '@/store/authStore'
+import http from '@/utils/http'
+
+dayjs.extend(relativeTime)
+const { Title, Text, Paragraph } = Typography
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface RelationCandidate {
+  pipeline_id: string
+  candidate_id: string
+  name: string
+  current_title: string
+  current_company: string
+  days_in_stage: number
+  next_action: string
+  next_action_date: string | null
+  sentiment: 'positive' | 'neutral' | 'negative'
+  assigned_to: string | null
+  assigned_to_name?: string
+  last_contacted_at: string | null
+  last_interaction_type?: 'call' | 'email' | 'note' | 'meeting' | 'whatsapp'
+  intent: string
+  source_channel?: string
+  interest_level?: 'high' | 'medium' | 'low'
+  availability?: string
+  notice_period?: string
+  expected_salary?: string
+  location?: string
+  work_mode?: string
+  _stageKey: string
+}
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const STATUSES = [
+  { key: 'new_lead',        label: 'New Lead',        color: '#4F46E5', bg: '#EEF2FF' },
+  { key: 'contacted',       label: 'Contacted',       color: '#3B82F6', bg: '#EFF6FF' },
+  { key: 'interested',      label: 'Interested',      color: '#10B981', bg: '#ECFDF5' },
+  { key: 'follow_up',       label: 'Follow-up',       color: '#F59E0B', bg: '#FFFBEB' },
+  { key: 'qualified',       label: 'Qualified',       color: '#059669', bg: '#F0FDF4' },
+  { key: 'ready_for_job',   label: 'Ready for Job',   color: '#8B5CF6', bg: '#F5F3FF' },
+  { key: 'submitted',       label: 'Submitted',       color: '#D946EF', bg: '#FDF4FF' },
+  { key: 'future_talent',   label: 'Future Talent',   color: '#64748B', bg: '#F8FAFC' },
+  { key: 'not_interested',  label: 'Not Interested',  color: '#94A3B8', bg: '#F1F5F9' },
+  { key: 'archive',         label: 'Archive',         color: '#475569', bg: '#F1F5F9' },
+]
+
+const INTENT_OPTIONS = [
+  { value: 'specific_job',    label: 'For Specific Job' },
+  { value: 'future_jobs',     label: 'For Future Jobs' },
+  { value: 'looking_for_job', label: 'Candidate Looking for Job' },
+  { value: 'just_lead',       label: 'Just Lead / Not Sure' },
+]
+
+// ── Main Component ────────────────────────────────────────────────────────────
+
+export default function CandidateRelations() {
+  const [viewMode, setViewMode] = useState<'list' | 'board'>('list')
+  const [search, setSearch] = useState('')
+  const [filterType, setFilterType] = useState<string | null>(null)
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false)
+  const [selectedCandidate, setSelectedCandidate] = useState<RelationCandidate | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
+
+  const queryClient = useQueryClient()
+  const { user } = useAuthStore()
+
+  // ── Queries ──────────────────────────────────────────────────────────────
+  const { data: pipelineData, isLoading } = useApiQuery(
+    ['candidates-crm-pipeline'],
+    candidatesApi.crmPipeline
+  )
+  const pipeline = (pipelineData as any)?.pipeline || {}
+
+  // ── Mutations ─────────────────────────────────────────────────────────────
+  const moveMutation = useMutation({
+    mutationFn: ({ id, status, note }: { id: string; status: string; note: string }) =>
+      candidatesApi.moveCRMPipeline(id, { status, note }),
+    onSuccess: () => {
+      message.success('Status updated')
+      queryClient.invalidateQueries({ queryKey: ['candidates-crm-pipeline'] })
+    },
+    onError: (err: any) => message.error(err?.response?.data?.message || 'Failed to update status'),
+  })
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  const handleOpenDetail = (cand: RelationCandidate) => {
+    setSelectedCandidate(cand)
+    setDetailOpen(true)
+  }
+
+  const handleStatusChange = (id: string, newStatus: string) => {
+    moveMutation.mutate({ id, status: newStatus, note: 'Status updated via command center' })
+  }
+
+  if (isLoading) return (
+    <div className="flex flex-1 items-center justify-center bg-white h-[600px]">
+      <Space direction="vertical" align="center" size={24}>
+        <Spin size="large" />
+        <Text className="text-slate-400 font-medium uppercase tracking-[0.2em] text-[10px]">
+          Powering Command Center…
+        </Text>
+      </Space>
+    </div>
+  )
+
+  const flatCandidates: RelationCandidate[] = Object.entries(pipeline).flatMap(([stageKey, cands]) =>
+    (cands as any[]).map(c => ({ ...c, _stageKey: stageKey }))
+  )
+
+  const filteredCandidates = flatCandidates.filter(c => {
+    const matchesSearch = !search || 
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.current_title?.toLowerCase().includes(search.toLowerCase())
+    
+    if (!matchesSearch) return false
+
+    if (filterType === 'my_leads') return c.assigned_to === user?.id
+    if (filterType === 'new') return c._stageKey === 'new_lead'
+    if (filterType === 'followup_today') return c.next_action_date === dayjs().format('YYYY-MM-DD')
+    if (filterType === 'overdue') return c.next_action_date && dayjs(c.next_action_date).isBefore(dayjs(), 'day')
+    if (filterType === 'ready') return ['qualified', 'ready_for_job'].includes(c._stageKey)
+    if (filterType === 'idle') return !c.last_contacted_at || dayjs().diff(dayjs(c.last_contacted_at), 'day') > 5
+    
+    return true
+  })
+
+  return (
+    <div className="flex flex-1 flex-col bg-white overflow-hidden">
+
+      {/* ── Top Navigation ──────────────────────────────────────────────── */}
+      <div className="flex h-16 flex-none items-center justify-between border-b border-slate-100 px-8 bg-white z-10 shadow-sm">
+        <div className="flex items-center gap-6">
+          <div className="flex flex-col">
+            <h1 className="text-lg font-black tracking-tighter text-slate-900 leading-none">
+              RELATIONS HUB
+            </h1>
+            <Text className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.2em] mt-1 flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+              Recruiter Command Center
+            </Text>
+          </div>
+
+          <div className="h-8 w-px bg-slate-100" />
+
+          <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-100">
+            <button
+              onClick={() => setViewMode('list')}
+              className={cn(
+                'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all',
+                viewMode === 'list'
+                  ? 'bg-white text-indigo-600 shadow-sm border border-slate-100'
+                  : 'text-slate-400 hover:text-slate-600'
+              )}
+            >
+              <ListIcon size={12} /> List
+            </button>
+            <button
+              onClick={() => setViewMode('board')}
+              className={cn(
+                'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all',
+                viewMode === 'board'
+                  ? 'bg-white text-indigo-600 shadow-sm border border-slate-100'
+                  : 'text-slate-400 hover:text-slate-600'
+              )}
+            >
+              <Layout size={12} /> Board
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="relative group">
+            <SearchIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search by name, role..."
+              className="h-10 w-64 rounded-xl border border-slate-100 bg-slate-50 pl-9 pr-4 text-xs font-bold outline-none focus:border-indigo-200 focus:bg-white focus:ring-4 focus:ring-indigo-50/50 transition-all"
+            />
+          </div>
+          <Button
+            type="primary"
+            icon={<Plus size={16} />}
+            onClick={() => setIsQuickAddOpen(true)}
+            className="h-10 rounded-xl bg-slate-900 border-none px-6 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-slate-200 hover:bg-indigo-600 transition-all active:scale-95"
+          >
+            Add Lead
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Command Center KPIs ─────────────────────────────────────────── */}
+      <div className="flex h-20 flex-none items-center gap-4 px-8 border-b border-slate-100 bg-slate-50/30 overflow-x-auto custom-scrollbar">
+        <KPIButton 
+          label="My Leads" 
+          count={flatCandidates.filter(c => c.assigned_to === user?.id).length} 
+          color="#6366f1" 
+          active={filterType === 'my_leads'} 
+          onClick={() => setFilterType(filterType === 'my_leads' ? null : 'my_leads')} 
+        />
+        <KPIButton 
+          label="New Leads" 
+          count={flatCandidates.filter(c => c._stageKey === 'new_lead').length} 
+          color="#4F46E5" 
+          active={filterType === 'new'} 
+          onClick={() => setFilterType(filterType === 'new' ? null : 'new')} 
+        />
+        <KPIButton 
+          label="Follow-ups Today" 
+          count={flatCandidates.filter(c => c.next_action_date === dayjs().format('YYYY-MM-DD')).length} 
+          color="#F59E0B" 
+          active={filterType === 'followup_today'} 
+          onClick={() => setFilterType(filterType === 'followup_today' ? null : 'followup_today')} 
+        />
+        <KPIButton 
+          label="Overdue" 
+          count={flatCandidates.filter(c => c.next_action_date && dayjs(c.next_action_date).isBefore(dayjs(), 'day')).length} 
+          color="#EF4444" 
+          active={filterType === 'overdue'} 
+          onClick={() => setFilterType(filterType === 'overdue' ? null : 'overdue')} 
+        />
+        <KPIButton 
+          label="Ready to Submit" 
+          count={flatCandidates.filter(c => ['qualified', 'ready_for_job'].includes(c._stageKey)).length} 
+          color="#10B981" 
+          active={filterType === 'ready'} 
+          onClick={() => setFilterType(filterType === 'ready' ? null : 'ready')} 
+        />
+        <KPIButton 
+          label="No Activity (5d+)" 
+          count={flatCandidates.filter(c => !c.last_contacted_at || dayjs().diff(dayjs(c.last_contacted_at), 'day') > 5).length} 
+          color="#64748B" 
+          active={filterType === 'idle'} 
+          onClick={() => setFilterType(filterType === 'idle' ? null : 'idle')} 
+        />
+      </div>
+
+      {/* ── Main View Area ──────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-hidden">
+        {viewMode === 'list' ? (
+          <div className="p-6 h-full overflow-auto custom-scrollbar bg-white">
+            <ListView
+              data={filteredCandidates}
+              onOpen={handleOpenDetail}
+              onStatusChange={handleStatusChange}
+            />
+          </div>
+        ) : (
+          <BoardView
+            pipeline={pipeline}
+            onOpen={handleOpenDetail}
+            onMove={handleStatusChange}
+          />
+        )}
+      </div>
+
+      {/* ── Overlays ──────────────────────────────────────────────────────── */}
+      <DetailPanel
+        open={detailOpen}
+        candidate={selectedCandidate}
+        onClose={() => setDetailOpen(false)}
+      />
+
+      <QuickAddModal
+        open={isQuickAddOpen}
+        onClose={() => setIsQuickAddOpen(false)}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['candidates-crm-pipeline'] })}
+      />
+    </div>
+  )
+}
+
+function KPIButton({ label, count, color, active, onClick }: { label: string, count: number, color: string, active: boolean, onClick: () => void }) {
+  return (
+    <button 
+      onClick={onClick}
+      className={cn(
+        "flex flex-col gap-1 px-5 py-2.5 rounded-2xl border transition-all min-w-[140px] text-left",
+        active ? "bg-white shadow-md" : "bg-transparent border-transparent hover:bg-white/50"
+      )}
+      style={active ? { borderColor: `${color}40` } : {}}
+    >
+      <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: active ? color : '#94A3B8' }}>{label}</span>
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-xl font-black" style={{ color: active ? '#111827' : '#64748B' }}>{count}</span>
+        <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
+      </div>
+    </button>
+  )
+}
+
+// ── List View ───────────────────────────────────────────────────────
+
+function ListView({
+  data, onOpen, onStatusChange,
+}: {
+  data: RelationCandidate[]
+  onOpen: (c: RelationCandidate) => void
+  onStatusChange: (id: string, status: string) => void
+}) {
+  const columns: ColumnsType<RelationCandidate> = [
+    {
+      title: 'Candidate Name',
+      key: 'name',
+      render: (_, record) => (
+        <Space onClick={() => onOpen(record)} className="cursor-pointer group">
+          <Avatar size={34} className="bg-slate-100 text-slate-900 font-black text-[11px] uppercase border border-slate-200">
+            {record.name.charAt(0)}
+          </Avatar>
+          <div className="min-w-0">
+            <Text strong className="text-[12.5px] uppercase tracking-tight block group-hover:text-indigo-600 transition-colors">
+              {record.name}
+            </Text>
+            <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-widest truncate block">
+              {record.current_company || 'Lead'}
+            </Text>
+          </div>
+        </Space>
+      ),
+    },
+    {
+      title: 'Status',
+      key: 'status',
+      render: (_, record) => (
+        <Select
+          className="enterprise-select-xs w-36"
+          value={record._stageKey}
+          onClick={e => e.stopPropagation()}
+          onChange={newStatus => onStatusChange(record.pipeline_id, newStatus)}
+          options={STATUSES.map(s => ({
+            value: s.key,
+            label: (
+              <Space size={6}>
+                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.color }} />
+                <span className="text-[10px] font-bold uppercase">{s.label}</span>
+              </Space>
+            ),
+          }))}
+        />
+      ),
+    },
+    {
+      title: 'Attention',
+      key: 'attention',
+      align: 'center',
+      render: (_, record) => {
+        const isOverdue = record.next_action_date && dayjs(record.next_action_date).isBefore(dayjs(), 'day')
+        const isToday = record.next_action_date === dayjs().format('YYYY-MM-DD')
+        const isReady = ['qualified', 'ready_for_job'].includes(record._stageKey)
+        const isNew = record._stageKey === 'new_lead'
+        
+        const lastContactDays = record.last_contacted_at ? dayjs().diff(dayjs(record.last_contacted_at), 'day') : 99
+        const isIdleWarning = lastContactDays >= 3 && lastContactDays < 7
+        const isIdleHigh = lastContactDays >= 7 && lastContactDays < 14
+        const isIdleCritical = lastContactDays >= 14
+
+        if (isOverdue) return <Tooltip title="Overdue Action"><div className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse shadow-rose-200 shadow-lg mx-auto" /></Tooltip>
+        if (isToday) return <Tooltip title="Follow-up Today"><div className="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-amber-200 shadow-lg mx-auto" /></Tooltip>
+        if (isReady) return <Tooltip title="Ready to Submit"><div className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-emerald-200 shadow-lg mx-auto" /></Tooltip>
+        if (isNew) return <Tooltip title="New Lead"><div className="w-2.5 h-2.5 rounded-full bg-indigo-500 shadow-indigo-200 shadow-lg mx-auto" /></Tooltip>
+        
+        if (isIdleCritical) return <Tooltip title="Critical Inactivity (14d+)"><div className="w-2.5 h-2.5 rounded-full bg-rose-900 mx-auto" /></Tooltip>
+        if (isIdleHigh) return <Tooltip title="High Inactivity (7d+)"><div className="w-2.5 h-2.5 rounded-full bg-rose-400 mx-auto" /></Tooltip>
+        if (isIdleWarning) return <Tooltip title="Inactivity Warning (3d+)"><div className="w-2.5 h-2.5 rounded-full bg-slate-300 mx-auto" /></Tooltip>
+        
+        return <div className="w-2.5 h-2.5 rounded-full bg-slate-100 mx-auto" />
+      }
+    },
+    {
+      title: 'Owner',
+      dataIndex: 'assigned_to',
+      render: v => v ? (
+        <Tag className="rounded-lg m-0 text-[10px] font-black text-slate-500 border-slate-100 bg-slate-50 px-2 py-0.5">
+          {v.split(' ')[0]}
+        </Tag>
+      ) : <Text className="text-[10px] text-slate-300 italic font-bold">Unassigned</Text>,
+    },
+    {
+      title: 'Last Interaction',
+      key: 'last_interaction',
+      render: (_, record) => {
+        const iconMap = {
+          call: <Phone size={11} />,
+          email: <Mail size={11} />,
+          note: <StickyNote size={11} />,
+          meeting: <Users size={11} />,
+          whatsapp: <MessageCircle size={11} />
+        }
+        const interactionType = record.last_interaction_type || 'call'
+        const time = record.last_contacted_at ? dayjs(record.last_contacted_at).fromNow() : '—'
+        
+        return (
+          <Space className="text-slate-500">
+            <span className="text-slate-300">{iconMap[interactionType] || <Activity size={11} />}</span>
+            <Text className="text-[10.5px] font-bold uppercase tracking-tight">{time}</Text>
+          </Space>
+        )
+      }
+    },
+    {
+      title: 'Next Action',
+      key: 'next',
+      render: (_, record) => {
+        const isOverdue = record.next_action_date && dayjs(record.next_action_date).isBefore(dayjs(), 'day')
+        const isToday = record.next_action_date === dayjs().format('YYYY-MM-DD')
+        
+        return (
+          <div className="flex flex-col gap-0.5 max-w-[140px]">
+            <Text className={cn("text-[10.5px] font-black uppercase truncate", isOverdue ? "text-rose-600" : isToday ? "text-amber-600" : "text-indigo-600")}>
+              {record.next_action || '—'}
+            </Text>
+            <Text className={cn("text-[9px] font-bold uppercase", isOverdue ? "text-rose-400" : isToday ? "text-amber-400" : "text-slate-400")}>
+              {record.next_action_date ? dayjs(record.next_action_date).format('MMM DD') : 'No Date'}
+            </Text>
+          </div>
+        )
+      },
+    },
+    {
+      title: 'Job Match',
+      key: 'match',
+      render: (_, record) => (
+        <div className="flex flex-col">
+          <Text className="text-[10px] font-black uppercase text-slate-700">Senior Platform Engineer</Text>
+          <Text className="text-[9px] font-bold text-indigo-500 uppercase tracking-tighter">(2 matches)</Text>
+        </div>
+      )
+    },
+    {
+      title: 'Quick Actions',
+      key: 'quick',
+      align: 'right',
+      render: (_, record) => (
+        <Space onClick={e => e.stopPropagation()}>
+          <Tooltip title="Call"><Button size="small" type="text" className="text-slate-300 hover:text-emerald-500" icon={<Phone size={14}/>} /></Tooltip>
+          <Tooltip title="Add Note"><Button size="small" type="text" className="text-slate-300 hover:text-indigo-500" icon={<StickyNote size={14}/>} /></Tooltip>
+          <Tooltip title="Schedule"><Button size="small" type="text" className="text-slate-300 hover:text-amber-500" icon={<Calendar size={14}/>} /></Tooltip>
+          <Tooltip title="Submit"><Button size="small" type="text" className="text-slate-300 hover:text-purple-500" icon={<Target size={14}/>} /></Tooltip>
+          <Button size="small" type="text" className="text-slate-300 hover:text-slate-900" icon={<ArrowRight size={14}/>} onClick={() => onOpen(record)} />
+        </Space>
+      ),
+    },
+  ]
+
+  return (
+    <div className="rounded-3xl border border-slate-100 bg-white shadow-soft-sm overflow-hidden animate-in fade-in duration-700">
+      <Table
+        columns={columns}
+        dataSource={data}
+        rowKey="pipeline_id"
+        pagination={{ pageSize: 20, hideOnSinglePage: true }}
+        onRow={record => ({
+          onClick: () => onOpen(record),
+          className: 'cursor-pointer hover:bg-slate-50/50 transition-colors',
+        })}
+        expandable={{
+          expandedRowRender: (record) => (
+            <div className="p-6 bg-slate-50/50 rounded-2xl border border-slate-100 mx-4 mb-4 flex gap-12">
+              <div className="w-1/3 space-y-4">
+                <Text className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Live Timeline</Text>
+                <Timeline 
+                  size="small"
+                  items={[
+                    { children: <div className="flex flex-col"><Text strong className="text-[11px] uppercase">Call Logged</Text><Text className="text-[10px] text-slate-400">2 days ago by {record.assigned_to_name || 'System'}</Text></div>, color: 'green' },
+                    { children: <div className="flex flex-col"><Text strong className="text-[11px] uppercase">Email Sent</Text><Text className="text-[10px] text-slate-400">4 days ago</Text></div>, color: 'blue' },
+                    { children: <div className="flex flex-col"><Text strong className="text-[11px] uppercase text-slate-400">Lead Created</Text><Text className="text-[10px] text-slate-400">1 week ago</Text></div>, color: 'gray' },
+                  ]} 
+                />
+              </div>
+              <div className="w-1/3 space-y-4 border-x border-slate-100 px-8">
+                <Text className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Qualification Mapping</Text>
+                <div className="space-y-3">
+                   <div className="flex justify-between items-center"><Text className="text-[11px] text-slate-500 uppercase font-bold">Fit Score</Text><Badge count="94%" style={{ backgroundColor: '#10b981', fontSize: 10, fontWeight: 900 }} /></div>
+                   <div className="flex justify-between items-center"><Text className="text-[11px] text-slate-500 uppercase font-bold">Notice Period</Text><Text className="text-[11px] font-black uppercase text-slate-900">30 Days</Text></div>
+                   <div className="flex justify-between items-center"><Text className="text-[11px] text-slate-500 uppercase font-bold">Work Mode</Text><Tag className="m-0 text-[9px] font-black uppercase border-none bg-slate-100">Hybrid</Tag></div>
+                </div>
+              </div>
+              <div className="flex-1 space-y-4">
+                <Text className="text-[10px] font-black uppercase text-slate-400 tracking-widest block">Quick Action Log</Text>
+                <Input.TextArea placeholder="Enter interaction summary..." rows={3} className="rounded-xl text-xs border-slate-200" />
+                <Button size="small" type="primary" className="rounded-lg font-black uppercase text-[10px] bg-slate-900 h-9 px-6">Save Activity</Button>
+              </div>
+            </div>
+          ),
+          expandRowByClick: false,
+        }}
+      />
+    </div>
+  )
+}
+
+// ── Board View ────────────────────────────────────────────────────
+
+function BoardView({
+  pipeline, onOpen, onMove,
+}: {
+  pipeline: Record<string, RelationCandidate[]>
+  onOpen: (c: RelationCandidate) => void
+  onMove: (id: string, status: string) => void
+}) {
+  return (
+    <div className="flex h-full gap-0 overflow-x-auto custom-scrollbar bg-white">
+      {STATUSES.slice(0, 6).map((stage, idx) => (
+        <div key={stage.key} className={cn(
+          'flex w-[300px] shrink-0 flex-col border-r border-slate-50',
+          idx === 5 && 'border-r-0'
+        )}>
+          <div className="flex h-14 items-center justify-between px-6 bg-white shrink-0 border-b border-slate-100/50">
+            <div className="flex items-center gap-2.5">
+              <div className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.color }} />
+              <span className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-900">{stage.label}</span>
+              <Badge
+                count={(pipeline[stage.key] || []).length}
+                style={{ backgroundColor: stage.bg, color: stage.color, fontWeight: 900, fontSize: '10px', boxShadow: 'none' }}
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 space-y-4 overflow-y-auto p-4 custom-scrollbar bg-slate-50/20">
+            {(pipeline[stage.key] || []).map((cand) => (
+              <CandidateCard key={cand.pipeline_id} cand={cand} accentColor={stage.color} onClick={() => onOpen(cand)} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function CandidateCard({ cand, accentColor, onClick }: { cand: any, accentColor: string, onClick: () => void }) {
+  return (
+    <Card
+      onClick={onClick}
+      className="rounded-2xl border-slate-200 shadow-soft-sm hover:border-indigo-300 transition-all cursor-pointer group relative overflow-hidden"
+      bodyStyle={{ padding: '16px' }}
+    >
+      <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: accentColor }} />
+      <div className="flex flex-col gap-2">
+        <Text strong className="text-xs uppercase tracking-tight truncate">{cand.name}</Text>
+        <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">
+          {cand.current_title || 'Expert'}
+        </Text>
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-50">
+          <Tag className="m-0 border-none bg-slate-50 text-slate-400 text-[9px] font-black uppercase px-2 py-0.5 rounded-lg">
+            {cand.days_in_stage}D
+          </Tag>
+          <Avatar size={20} className="bg-slate-100 text-slate-400 text-[8px] font-black uppercase">
+            {cand.assigned_to?.charAt(0) || '?'}
+          </Avatar>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+// ── Detail Panel (Major Upgrade) ─────────────────────────────────────────────
+
+function DetailPanel({
+  open, candidate, onClose,
+}: {
+  open: boolean
+  candidate: RelationCandidate | null
+  onClose: () => void
+}) {
+  const [activeTab, setActiveTab] = useState('interactions')
+  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false)
+  const [form] = Form.useForm()
+  const queryClient = useQueryClient()
+
+  const { data: interactionsData, isLoading: loadingInteractions } = useApiQuery(
+    ['candidates-crm-interactions', candidate?.candidate_id],
+    () => candidatesApi.crmInteractions(candidate!.candidate_id),
+    { enabled: !!candidate && open }
+  )
+
+  const logMutation = useMutation({
+    mutationFn: (values: any) => candidatesApi.logCRMInteraction(candidate!.candidate_id, values),
+    onSuccess: () => {
+      message.success('Interaction logged')
+      queryClient.invalidateQueries({ queryKey: ['candidates-crm-interactions', candidate?.candidate_id] })
+      form.resetFields()
+    },
+  })
+
+  const archiveMutation = useMutation({
+    mutationFn: (reason: string) =>
+      candidatesApi.moveCRMPipeline(candidate!.pipeline_id, { status: 'lost', note: reason }),
+    onSuccess: () => {
+      message.success('Lead archived')
+      queryClient.invalidateQueries({ queryKey: ['candidates-crm-pipeline'] })
+      onClose()
+    },
+  })
+
+  const TABS = [
+    { key: 'interactions',   label: 'Interactions',   icon: <MessageSquare size={13} /> },
+    { key: 'qualification',  label: 'Qualification',  icon: <ShieldCheck size={13} /> },
+    { key: 'mapping',        label: 'Job Mapping',    icon: <Target size={13} /> },
+    { key: 'notes',          label: 'Internal Notes', icon: <StickyNote size={13} /> },
+    { key: 'timeline',       label: 'History',        icon: <History size={13} /> },
+  ]
+
+  return (
+    <Drawer
+      open={open}
+      onClose={onClose}
+      width={640}
+      styles={{
+        header: { borderBottom: '1px solid #F1F5F9', padding: '24px 32px' },
+        body:   { padding: 0, backgroundColor: '#F8FAFC' },
+        footer: { borderTop: '1px solid #F1F5F9', padding: '16px 32px', backgroundColor: '#fff' }
+      }}
+      title={
+        <div className="flex items-center gap-4">
+          <Avatar size={48} className="bg-indigo-600 font-black text-base shrink-0 border-2 border-indigo-100 shadow-lg">{candidate?.name.charAt(0)}</Avatar>
+          <div className="flex flex-col">
+            <h3 className="text-xl font-black text-slate-900 tracking-tighter m-0 leading-none mb-1">{candidate?.name}</h3>
+            <Text className="text-[10.5px] font-black text-slate-400 uppercase tracking-widest leading-none">
+              {candidate?.current_title} · {candidate?.current_company}
+            </Text>
+          </div>
+        </div>
+      }
+      footer={
+        <div className="flex justify-between items-center w-full">
+          <Button size="large" className="rounded-xl px-8 font-black uppercase text-[11px] border-slate-200" onClick={onClose}>Dismiss</Button>
+          <Space size={12}>
+            <Button size="large" className="rounded-xl px-8 font-black uppercase text-[11px] border-slate-200" onClick={() => message.info('Lead state saved')}>Save Lead</Button>
+            <Button size="large" type="primary" className="rounded-xl px-8 font-black uppercase text-[11px] bg-slate-900 border-none shadow-xl shadow-slate-200" onClick={() => setIsSubmitModalOpen(true)}>Submit to Job</Button>
+          </Space>
+        </div>
+      }
+    >
+      <div className="flex flex-col h-full">
+        
+        {/* Step 1: Quick Action Bar */}
+        <div className="grid grid-cols-6 gap-3 p-6 bg-white border-b border-slate-100">
+          <QuickActionButton icon={<Phone size={18}/>} label="Call" color="emerald" />
+          <QuickActionButton icon={<Mail size={18}/>} label="Email" color="blue" />
+          <QuickActionButton icon={<MessageCircle size={18}/>} label="WhatsApp" color="green" />
+          <QuickActionButton icon={<StickyNote size={18}/>} label="Note" color="indigo" />
+          <QuickActionButton icon={<Calendar size={18}/>} label="Follow-up" color="amber" />
+          <QuickActionButton icon={<Target size={18}/>} label="Submit" color="purple" />
+        </div>
+
+        {/* Step 6: Smart Warnings */}
+        {(!candidate?.next_action_date || dayjs(candidate.next_action_date).isBefore(dayjs(), 'day')) && (
+          <div className="px-6 pt-6">
+            <Alert 
+              message={<span className="text-[11px] font-black uppercase tracking-tight text-rose-700">Immediate Action Required</span>}
+              description={<span className="text-[10px] font-medium text-rose-600 block mt-0.5">Critical: No follow-up scheduled for this high-potential lead. System detected 5 days of inactivity.</span>}
+              type="error"
+              showIcon
+              icon={<AlertTriangle size={18} />}
+              className="rounded-2xl border-rose-100 bg-rose-50 shadow-sm"
+            />
+          </div>
+        )}
+
+        <div className="bg-white mt-6 border-y border-slate-100 px-8 flex gap-8">
+          {TABS.map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={cn(
+                'flex items-center gap-2 py-4 text-[10.5px] font-black uppercase tracking-widest transition-all relative border-b-2',
+                activeTab === tab.key ? 'text-indigo-600 border-indigo-600' : 'text-slate-400 border-transparent hover:text-slate-600'
+              )}
+            >
+              {tab.icon} {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+          {activeTab === 'interactions' && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+              
+              {/* Step 2: Next Action Panel */}
+              <div className="p-6 rounded-[2.5rem] bg-slate-900 text-white shadow-2xl relative overflow-hidden">
+                <Zap size={100} className="absolute -right-6 -bottom-6 text-white/5 rotate-12" />
+                <div className="flex items-center gap-2 mb-6">
+                   <div className="w-2 h-2 rounded-full bg-indigo-400 animate-pulse" />
+                   <Text className="text-[10px] font-black uppercase text-white/60 tracking-widest block">Next Action Protocol</Text>
+                </div>
+                <div className="grid grid-cols-2 gap-6 items-end relative z-10">
+                  <div className="space-y-2">
+                    <Text className="text-[9px] font-black uppercase text-white/40 block ml-1">Task Type</Text>
+                    <Select defaultValue="call" className="kernel-select-dark w-full h-11" options={[
+                      { value: 'call', label: '📞 Call Candidate' },
+                      { value: 'email', label: '✉️ Send Outreach' },
+                      { value: 'note', label: '📝 Internal Review' },
+                    ]} />
+                  </div>
+                  <div className="space-y-2">
+                    <Text className="text-[9px] font-black uppercase text-white/40 block ml-1">Deadline</Text>
+                    <DatePicker className="kernel-datepicker-dark w-full h-11" />
+                  </div>
+                </div>
+                <Button block size="large" className="mt-6 h-12 rounded-2xl bg-indigo-600 text-white font-black uppercase text-[11px] border-none shadow-xl shadow-indigo-900/50 hover:bg-indigo-500 transition-all">Save Next Action</Button>
+              </div>
+
+              {/* Interaction Feed (Step 5) */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-2">
+                   <Text className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Interaction Timeline</Text>
+                   <Button size="small" type="text" className="text-[9px] font-black uppercase text-indigo-600 tracking-widest">+ Log Result</Button>
+                </div>
+                {loadingInteractions ? <Spin /> : (interactionsData as any)?.interactions?.map((i: any) => (
+                  <div key={i.id} className="group flex gap-5 rounded-[2rem] border border-slate-100 bg-white p-6 shadow-sm hover:shadow-xl transition-all duration-300">
+                    <div className="p-3 rounded-2xl bg-slate-50 text-slate-400 group-hover:text-indigo-500 transition-colors h-fit shadow-inner">
+                      {i.interaction_type === 'call' ? <Phone size={16} /> : i.interaction_type === 'email' ? <Mail size={16} /> : <StickyNote size={16} />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <Text strong className="text-xs uppercase tracking-tight text-slate-900">{i.interaction_type}</Text>
+                        <Text className="text-[10px] font-bold text-slate-400 uppercase">{dayjs(i.created_at).fromNow()}</Text>
+                      </div>
+                      <Paragraph className="text-[13px] text-slate-600 m-0 leading-relaxed italic font-medium">"{i.content}"</Paragraph>
+                      <div className="mt-3 flex items-center gap-2">
+                         <Avatar size={18} className="bg-indigo-50 text-indigo-600 text-[8px] font-black uppercase">JD</Avatar>
+                         <Text className="text-[9px] font-black uppercase text-slate-400 tracking-tighter">Logged by recruiter</Text>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'qualification' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-500">
+              {/* Step 3: Qualification Panel */}
+              <div className="grid grid-cols-2 gap-4">
+                <MetricInfoCard label="Interest Level" value={candidate?.interest_level || 'High'} icon={<TrendingUp size={14}/>} trend="Positive" />
+                <MetricInfoCard label="Availability" value={candidate?.availability || '15 Days'} icon={<Clock size={14}/>} />
+                <MetricInfoCard label="Notice Period" value={candidate?.notice_period || '30 Days'} icon={<Calendar size={14}/>} />
+                <MetricInfoCard label="Expected CTC" value={candidate?.expected_salary || '$125k/yr'} icon={<DollarSign size={14}/>} />
+                <MetricInfoCard label="Work Mode" value={candidate?.work_mode || 'Remote'} icon={<Globe size={14}/>} />
+                <MetricInfoCard label="Location" value={candidate?.location || 'New York'} icon={<MapPin size={14}/>} />
+              </div>
+              <Card className="rounded-[2rem] bg-indigo-50/30 border-indigo-100 p-8">
+                <Text className="text-[10px] font-black uppercase text-indigo-600 tracking-widest block mb-3">Recruiter Strategic Assessment</Text>
+                <Text className="text-sm font-medium text-slate-700 leading-relaxed">
+                  "Candidate demonstrates advanced proficiency in distributed systems. High match for upcoming H2 infrastructure initiatives. Follow-up prioritized for Wednesday sync."
+                </Text>
+              </Card>
+            </div>
+          )}
+
+          {activeTab === 'mapping' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-500">
+              {/* Step 4: Job Match Panel */}
+              <div className="p-8 rounded-[2.5rem] bg-emerald-50 border border-emerald-100 flex flex-col gap-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-white rounded-2xl text-emerald-600 shadow-sm"><ShieldCheck size={24}/></div>
+                    <div>
+                      <Text strong className="text-lg tracking-tight block text-emerald-900 leading-none mb-1">94% Match</Text>
+                      <Text className="text-[10px] text-emerald-700 uppercase font-black tracking-widest">High Affinity Detection</Text>
+                    </div>
+                  </div>
+                  <Button type="primary" className="bg-emerald-600 border-none rounded-xl font-black uppercase text-[10px] h-10 px-6 shadow-lg shadow-emerald-200">Submit Now</Button>
+                </div>
+                
+                <div className="space-y-2">
+                   <Text className="text-[10px] font-black uppercase text-emerald-800 tracking-widest block ml-1">Best Fit Requisition</Text>
+                   <div className="p-4 rounded-2xl bg-white border border-emerald-100 flex items-center justify-between">
+                      <Space>
+                         <Briefcase size={14} className="text-slate-400" />
+                         <Text strong className="text-xs uppercase text-slate-900">Senior Software Architect (REF-902)</Text>
+                      </Space>
+                      <ArrowUpRight size={14} className="text-slate-300" />
+                   </div>
+                </div>
+              </div>
+
+              <div className="rounded-[2.5rem] border border-dashed border-slate-200 p-12 text-center bg-white">
+                <Target size={40} className="text-slate-200 mx-auto mb-4" />
+                <Paragraph className="text-[11px] text-slate-400 font-black uppercase tracking-[0.2em] mb-8">Secondary Job Gaps</Paragraph>
+                <Button size="large" className="rounded-2xl h-12 px-10 font-black uppercase text-[11px] tracking-widest border-slate-200 shadow-soft-sm">Explore All Requisitions</Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <SubmitToJobModal
+        open={isSubmitModalOpen}
+        candidate={candidate}
+        onClose={() => setIsSubmitModalOpen(false)}
+        onSuccess={() => {
+          setIsSubmitModalOpen(false)
+          onClose()
+          queryClient.invalidateQueries({ queryKey: ['candidates-crm-pipeline'] })
+        }}
+      />
+    </Drawer>
+  )
+}
+
+function QuickActionButton({ icon, label, color }: { icon: React.ReactNode, label: string, color: string }) {
+  const colors: Record<string, string> = {
+    emerald: 'text-emerald-600 hover:bg-emerald-50 bg-slate-50/50',
+    blue: 'text-blue-600 hover:bg-blue-50 bg-slate-50/50',
+    green: 'text-green-600 hover:bg-green-50 bg-slate-50/50',
+    indigo: 'text-indigo-600 hover:bg-indigo-50 bg-slate-50/50',
+    amber: 'text-amber-600 hover:bg-amber-50 bg-slate-50/50',
+    purple: 'text-purple-600 hover:bg-purple-50 bg-slate-50/50',
+  }
+  return (
+    <Tooltip title={label}>
+      <Button icon={icon} className={cn("rounded-2xl border-none transition-all h-[72px] flex flex-col items-center justify-center gap-2 p-0 shadow-sm", colors[color])}>
+         <span className="text-[9px] font-black uppercase tracking-tighter opacity-60">{label}</span>
+      </Button>
+    </Tooltip>
+  )
+}
+
+function MetricInfoCard({ label, value, icon, trend }: { label: string, value: string, icon: React.ReactNode, trend?: string }) {
+  return (
+    <div className="p-5 rounded-[2rem] bg-white border border-slate-100 shadow-soft-sm flex flex-col gap-3 group hover:border-indigo-200 transition-all">
+      <div className="flex justify-between items-center">
+         <div className="p-2 rounded-xl bg-slate-50 text-slate-300 group-hover:text-indigo-500 transition-colors">{icon}</div>
+         {trend && <Tag color="green" className="m-0 border-none rounded-lg text-[9px] font-black uppercase px-2">{trend}</Tag>}
+      </div>
+      <div>
+        <Text className="text-[9px] font-black uppercase text-slate-400 tracking-widest block mb-1">{label}</Text>
+        <Text strong className="text-[13px] uppercase text-slate-900 truncate block">{value}</Text>
+      </div>
+    </div>
+  )
+}
+
+// ── Modals ────────────────────────────────────────────────────────────────────
+
+function SubmitToJobModal({ open, candidate, onClose, onSuccess }: { open: boolean; candidate: RelationCandidate | null; onClose: () => void; onSuccess: () => void }) {
+  const [targetJobId, setTargetJobId] = useState<string | null>(null)
+  const { data: jobsData } = useApiQuery(['active-jobs-list-relations'], () => http.get('/jobs/requisitions/?status=open'))
+  const jobs = (jobsData as any)?.data || []
+
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      await candidatesApi.moveCRMPipeline(candidate!.pipeline_id, {
+        status: 'submitted',
+        note: `Submitted to job: ${targetJobId}`,
+      })
+      await http.post('/pipeline/pipeline/submit/', {
+        candidate_id: candidate!.candidate_id,
+        requisition_id: targetJobId,
+        source: 'relations_nurture',
+      })
+    },
+    onSuccess: () => {
+      message.success('Handed off to ATS')
+      onSuccess()
+    },
+  })
+
+  return (
+    <Modal
+      title={<div className="flex items-center gap-2"><Target size={18} className="text-indigo-600" /><span className="font-black uppercase tracking-tight">ATS Mission Handoff</span></div>}
+      open={open}
+      onCancel={onClose}
+      onOk={() => { if (!targetJobId) return message.error('Select job'); submitMutation.mutate() }}
+      okText="Confirm Submission"
+      confirmLoading={submitMutation.isPending}
+      className="rounded-[2.5rem] overflow-hidden"
+      width={480}
+      okButtonProps={{ className: 'bg-slate-900 h-11 px-8 rounded-xl font-black uppercase text-[10px] border-none shadow-xl shadow-slate-200' }}
+    >
+      <div className="py-6 space-y-6">
+        <div className="space-y-2">
+          <Text className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Target Job Requisition</Text>
+          <Select
+            className="w-full h-11 rounded-xl"
+            placeholder="Search active jobs..."
+            showSearch
+            onChange={setTargetJobId}
+            options={jobs.map((j: any) => ({ value: j.id, label: `${j.title} (${j.job_ref_id})` }))}
+          />
+        </div>
+        <Alert showIcon type="info" message="Handoff Rule" description="This will initiate a live application cycle in the ATS pipeline for this candidate." className="rounded-2xl" />
+      </div>
+    </Modal>
+  )
+}
+
+function QuickAddModal({ open, onClose, onSuccess }: { open: boolean; onClose: () => void; onSuccess: () => void }) {
+  const [form] = Form.useForm()
+  const createMutation = useMutation({
+    mutationFn: async (values: any) => {
+      const res = await candidatesApi.create(values)
+      const candidateId = res.data.data.candidate.id
+      return await candidatesApi.addToCRMPipeline({
+        candidate_id: candidateId,
+        intent: form.getFieldValue('intent'),
+        status: 'new_lead',
+      })
+    },
+    onSuccess: () => {
+      message.success('Lead added')
+      onSuccess()
+      onClose()
+      form.resetFields()
+    },
+  })
+
+  return (
+    <Modal
+      title={<div className="flex items-center gap-2"><Sparkles size={18} className="text-indigo-600" /><span className="font-black uppercase tracking-tight text-sm">Rapid Lead Intake</span></div>}
+      open={open}
+      onCancel={onClose}
+      onOk={() => form.submit()}
+      confirmLoading={createMutation.isPending}
+      width={480}
+      okText="Add & Nurture"
+      okButtonProps={{ className: 'bg-slate-900 h-11 px-8 rounded-xl font-black uppercase text-[10px] border-none shadow-xl shadow-slate-200' }}
+    >
+      <Form form={form} layout="vertical" className="pt-6" onFinish={(v) => createMutation.mutate(v)}>
+        <Row gutter={16}>
+          <Col span={12}><Form.Item name="first_name" label="First Name" rules={[{ required: true }]}><Input className="h-11 rounded-xl bg-slate-50 border-slate-100" /></Form.Item></Col>
+          <Col span={12}><Form.Item name="last_name" label="Last Name" rules={[{ required: true }]}><Input className="h-11 rounded-xl bg-slate-50 border-slate-100" /></Form.Item></Col>
+        </Row>
+        <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email' }]}><Input className="h-11 rounded-xl bg-slate-50 border-slate-100" /></Form.Item>
+        <Form.Item name="current_title" label="Current Designation"><Input className="h-11 rounded-xl bg-slate-50 border-slate-100" /></Form.Item>
+        <Form.Item name="intent" label="Entry Intent" initialValue="just_lead"><Select className="enterprise-select-lg" options={INTENT_OPTIONS} /></Form.Item>
+      </Form>
+    </Modal>
+  )
+}

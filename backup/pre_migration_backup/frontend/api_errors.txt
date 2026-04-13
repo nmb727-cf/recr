@@ -1,0 +1,12 @@
+Schemathesis v4.14.0
+━━━━━━━━━━━━━━━━━━━━
+
+
+ ❌  Failed to load specification from http://localhost:8000/openapi.json after 
+ 0.01s                                                                          
+                                                                                
+ Schema Loading Error                                                           
+                                                                                
+ Failed to load schema due to client error (HTTP 404 Not Found)                 
+
+Tip: Verify that the URL points directly to the Open API schema or GraphQL endpoint

@@ -1,0 +1,88 @@
+{
+  "sidebar": {
+    "dashboard": "डैशबोर्ड",
+    "jobs": "नौकरियाँ",
+    "incoming_jobs": "आने वाली नौकरियाँ",
+    "internal_jobs": "आंतरिक नौकरियाँ",
+    "pipeline": "पाइपलाइन",
+    "candidates": "उम्मीदवार",
+    "candidates_database": "डेटाबेस",
+    "candidates_active": "सक्रिय",
+    "agencies": "एजेंसियाँ",
+    "interviews": "साक्षात्कार",
+    "offers": "ऑफर",
+    "reports": "रिपोर्ट",
+    "settings": "सेटिंग्स",
+    "performance": "प्रदर्शन",
+    "submissions": "सबमिशन",
+    "clients": "क्लाइंट",
+    "team": "टीम",
+    "recruiters": "भर्तीकर्ता",
+    "hierarchy": "पदानुक्रम",
+    "applications": "आवेदन",
+    "roles_permissions": "भूमिकाएं और अनुमतियाँ"
+  },
+  "actions": {
+    "save": "सहेजें",
+    "cancel": "रद्द करें",
+    "delete": "हटाएं",
+    "edit": "संपादित करें",
+    "add": "जोड़ें",
+    "create": "बनाएं",
+    "submit": "जमा करें",
+    "confirm": "पुष्टि करें",
+    "back": "वापस",
+    "next": "अगला",
+    "finish": "समाप्त करें",
+    "close": "बंद करें",
+    "search": "खोजें",
+    "filter": "फ़िल्टर",
+    "export": "निर्यात",
+    "import": "आयात",
+    "refresh": "ताज़ा करें",
+    "invite": "आमंत्रित करें",
+    "mark_all_read": "सभी को पढ़ा हुआ चिह्नित करें",
+    "view_all": "सभी देखें"
+  },
+  "empty": {
+    "all_caught_up": "सब पढ़ लिया गया है!",
+    "no_notifications": "कोई नई सूचना नहीं है।",
+    "no_data": "कोई डेटा उपलब्ध नहीं है",
+    "empty": "खाली"
+  },
+  "messages": {
+    "failed_mark_all_read": "सभी को पढ़ा हुआ चिह्नित नहीं किया जा सका",
+    "failed_mark_read": "पढ़ा हुआ चिह्नित नहीं किया जा सका"
+  },
+  "user_menu": {
+    "my_profile": "मेरी प्रोफ़ाइल",
+    "settings": "सेटिंग्स"
+  },
+  "language_switcher": {
+    "label": "भाषा",
+    "en": "अंग्रेजी",
+    "hi": "हिंदी",
+    "mr": "मराठी",
+    "fr": "फ्रेंच",
+    "de": "जर्मन",
+    "es": "स्पेनिश",
+    "ar": "अरबी",
+    "zh": "चीनी"
+  },
+  "search": {
+    "placeholder": "खोजें"
+  },
+  "header": {
+    "action_center": "एक्शन सेंटर",
+    "urgent": "अति आवश्यक",
+    "today": "आज",
+    "upcoming": "आगामी",
+    "action_items": {
+      "new_candidate_submitted": "नया उम्मीदवार जमा हुआ",
+      "interview_today": "आज इंटरव्यू",
+      "candidate_requested_info": "उम्मीदवार ने जानकारी मांगी",
+      "client_reply": "क्लाइंट का जवाब",
+      "follow_up_due": "फॉलो-अप देय"
+    }
+  }
+}

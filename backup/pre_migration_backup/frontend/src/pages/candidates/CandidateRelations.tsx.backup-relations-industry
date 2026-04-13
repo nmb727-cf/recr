@@ -1,0 +1,1458 @@
+import React, { useState } from 'react'
+import {
+  Typography, Button, Input, Select, Space, Tag, Avatar,
+  Spin, Badge, message, Tooltip, Dropdown, Modal, Form, DatePicker,
+  Row, Col, Alert, Drawer, Timeline, Divider, Table
+} from 'antd'
+import type { ColumnsType } from 'antd/es/table'
+import {
+  Search, Plus, MoreHorizontal,
+  Mail, Phone, MessageSquare, Calendar, Target,
+  User, Clock, Zap, Trash2, ShieldCheck,
+  Briefcase, DollarSign, TrendingUp, Bot, ArrowUpRight,
+  Activity, Sparkles, AlertTriangle, CheckCircle2,
+  Users, Bell, Flame, StickyNote, Layout, List as ListIcon
+} from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import { candidatesApi } from '@/api/candidates'
+import { useApiQuery } from '@/hooks/useApiQuery'
+import { cn } from '@/utils/cn'
+import http from '@/utils/http'
+
+dayjs.extend(relativeTime)
+const { Text, Paragraph } = Typography
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface RelationCandidate {
+  pipeline_id: string
+  candidate_id: string
+  name: string
+  current_title: string
+  current_company: string
+  days_in_stage: number
+  next_action: string
+  next_action_date: string | null
+  sentiment: 'positive' | 'neutral' | 'negative'
+  assigned_to: string | null
+  last_contacted_at: string | null
+  intent: string
+}
+
+type QuickActionType = 'call' | 'whatsapp' | 'note' | 'schedule' | 'submit'
+type SignalKey = 'overdue' | 'no_response' | 'hot' | 'ready' | 'job_match'
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const STAGES = [
+  { key: 'new_lead',        label: 'New Lead',        color: '#4F46E5', bg: '#EEF2FF' },
+  { key: 'nurturing',       label: 'Nurturing',       color: '#F59E0B', bg: '#FFFBEB' },
+  { key: 'qualified',       label: 'Qualified',       color: '#10B981', bg: '#ECFDF5' },
+  { key: 'ready_to_submit', label: 'Ready to Submit', color: '#8B5CF6', bg: '#F5F3FF' },
+]
+
+const INTENT_OPTIONS = [
+  { value: 'specific_job',    label: 'For Specific Job' },
+  { value: 'future_jobs',     label: 'For Future Jobs' },
+  { value: 'looking_for_job', label: 'Candidate Looking for Job' },
+  { value: 'just_lead',       label: 'Just Lead / Not Sure' },
+]
+
+const SIGNAL_DEFS: Record<SignalKey, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
+  overdue:    { label: 'Overdue',     color: '#EF4444', bg: '#FEF2F2', icon: <AlertTriangle size={9} /> },
+  no_response:{ label: 'No Response', color: '#F59E0B', bg: '#FFFBEB', icon: <Bell size={9} /> },
+  hot:        { label: 'Hot',         color: '#EF4444', bg: '#FFF1F1', icon: <Flame size={9} /> },
+  ready:      { label: 'Ready',       color: '#10B981', bg: '#ECFDF5', icon: <CheckCircle2 size={9} /> },
+  job_match:  { label: 'Job Match',   color: '#8B5CF6', bg: '#F5F3FF', icon: <Target size={9} /> },
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function getCardSignals(cand: RelationCandidate, stageKey: string): SignalKey[] {
+  const sigs: SignalKey[] = []
+  const today = dayjs()
+  if (cand.next_action_date && dayjs(cand.next_action_date).isBefore(today, 'day')) sigs.push('overdue')
+  if (!cand.last_contacted_at || today.diff(dayjs(cand.last_contacted_at), 'day') > 14) sigs.push('no_response')
+  if (cand.sentiment === 'positive') sigs.push('hot')
+  if (stageKey === 'ready_to_submit') sigs.push('ready')
+  if (cand.intent === 'specific_job') sigs.push('job_match')
+  // Prioritise: overdue > no_response > ready > hot > job_match
+  return sigs.slice(0, 2)
+}
+
+// ── Main Component ────────────────────────────────────────────────────────────
+
+export default function CandidateRelations() {
+  const [viewMode, setViewMode] = useState<'board' | 'list'>('board')
+  const [search, setSearch] = useState('')
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false)
+  const [selectedCandidate, setSelectedCandidate] = useState<RelationCandidate | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
+  const [quickNoteCandidate, setQuickNoteCandidate] = useState<RelationCandidate | null>(null)
+  const [quickNoteOpen, setQuickNoteOpen] = useState(false)
+  const [quickSubmitCandidate, setQuickSubmitCandidate] = useState<RelationCandidate | null>(null)
+  const [quickSubmitOpen, setQuickSubmitOpen] = useState(false)
+
+  const queryClient = useQueryClient()
+
+  const { data: pipelineData, isLoading } = useApiQuery(
+    ['candidates-crm-pipeline'],
+    candidatesApi.crmPipeline
+  )
+  const pipeline = (pipelineData as any)?.pipeline || {}
+
+  const moveMutation = useMutation({
+    mutationFn: ({ id, status, note }: { id: string; status: string; note: string }) =>
+      candidatesApi.moveCRMPipeline(id, { status, note }),
+    onSuccess: () => {
+      message.success('Lead stage updated')
+      queryClient.invalidateQueries({ queryKey: ['candidates-crm-pipeline'] })
+    },
+    onError: (err: any) => message.error(err?.response?.data?.message || 'Failed to move lead'),
+  })
+
+  const handleOpenDetail = (cand: RelationCandidate) => {
+    setSelectedCandidate(cand)
+    setDetailOpen(true)
+  }
+
+  const handleQuickAction = (cand: RelationCandidate, action: QuickActionType) => {
+    if (action === 'call') {
+      message.info(`Initiating call workflow for ${cand.name}…`)
+    } else if (action === 'whatsapp') {
+      message.info(`Opening WhatsApp for ${cand.name}…`)
+    } else if (action === 'note') {
+      setQuickNoteCandidate(cand)
+      setQuickNoteOpen(true)
+    } else if (action === 'schedule') {
+      setSelectedCandidate(cand)
+      setDetailOpen(true)
+    } else if (action === 'submit') {
+      setQuickSubmitCandidate(cand)
+      setQuickSubmitOpen(true)
+    }
+  }
+
+  const handleMove = (id: string, status: string) => {
+    Modal.confirm({
+      title: 'Stage Transition',
+      icon: <TrendingUp size={18} className="text-indigo-500" />,
+      content: (
+        <div className="pt-4 space-y-4">
+          <Paragraph className="text-slate-500 text-xs font-medium">
+            Moving to{' '}
+            <Tag color="blue" className="rounded-lg font-black uppercase text-[9px]">
+              {status.replace(/_/g, ' ')}
+            </Tag>
+            — provide rationale:
+          </Paragraph>
+          <Input.TextArea
+            id="move-note"
+            placeholder="Recruiter assessment…"
+            rows={3}
+            className="rounded-2xl border-slate-200 focus:border-indigo-300 transition-all"
+          />
+        </div>
+      ),
+      onOk: () => {
+        const note = (document.getElementById('move-note') as HTMLTextAreaElement)?.value
+        if (!note) { message.error('Rationale is required'); return Promise.reject() }
+        moveMutation.mutate({ id, status, note })
+      },
+      okText: 'Confirm Transition',
+      okButtonProps: { className: 'bg-indigo-600 rounded-xl font-black uppercase text-[10px] h-10 px-6' },
+      cancelButtonProps: { className: 'rounded-xl h-10 px-6 font-bold' },
+    })
+  }
+
+  if (isLoading) return (
+    <div className="flex flex-1 items-center justify-center bg-white h-[600px]">
+      <Space direction="vertical" align="center" size={24}>
+        <Spin size="large" />
+        <Text className="text-slate-400 font-medium uppercase tracking-[0.2em] text-[10px]">
+          Synchronizing Relations…
+        </Text>
+      </Space>
+    </div>
+  )
+
+  const searchedPipeline: Record<string, RelationCandidate[]> = search.trim()
+    ? Object.fromEntries(
+        Object.entries(pipeline).map(([k, v]) => [
+          k,
+          (v as RelationCandidate[]).filter(c =>
+            c.name.toLowerCase().includes(search.toLowerCase()) ||
+            c.current_title?.toLowerCase().includes(search.toLowerCase())
+          ),
+        ])
+      )
+    : pipeline
+
+  return (
+    <div className="flex flex-1 flex-col bg-slate-50/30 overflow-hidden">
+
+      {/* ── Top Navigation ──────────────────────────────────────────────── */}
+      <div className="flex h-14 flex-none items-center justify-between border-b border-slate-100 px-8 bg-white z-10">
+        <div className="flex items-center gap-5">
+          <div className="flex flex-col">
+            <h1 className="text-sm font-black tracking-tight text-slate-900 leading-none">
+              CANDIDATE RELATIONS
+            </h1>
+            <Text className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.18em] mt-1 flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+              Lead Nurture Terminal
+            </Text>
+          </div>
+
+          <div className="h-7 w-px bg-slate-100" />
+
+          <div className="flex items-center gap-1 bg-slate-50 p-0.5 rounded-xl border border-slate-100">
+            {[
+              { key: 'board', icon: <Layout size={12} />, label: 'Board' },
+              { key: 'list',  icon: <ListIcon size={12} />, label: 'List'  },
+            ].map(v => (
+              <button
+                key={v.key}
+                onClick={() => setViewMode(v.key as any)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3.5 py-1.5 rounded-[10px] text-[10px] font-black uppercase tracking-widest transition-all',
+                  viewMode === v.key
+                    ? 'bg-white text-indigo-600 shadow-sm border border-slate-100'
+                    : 'text-slate-400 hover:text-slate-600'
+                )}
+              >
+                {v.icon} {v.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <div className="relative group">
+            <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Filter leads…"
+              className="h-9 w-56 rounded-xl border border-slate-100 bg-slate-50 pl-8 pr-3 text-xs font-bold outline-none focus:border-indigo-200 focus:bg-white focus:ring-4 focus:ring-indigo-50/50 transition-all"
+            />
+          </div>
+          <Button
+            type="primary"
+            icon={<Plus size={14} />}
+            onClick={() => setIsQuickAddOpen(true)}
+            className="h-9 rounded-xl bg-slate-900 border-none px-5 text-[10px] font-black uppercase tracking-[0.08em] shadow-lg shadow-slate-200/80 hover:bg-indigo-600 transition-all active:scale-95"
+          >
+            New Lead
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Smart Header Signals ─────────────────────────────────────────── */}
+      <SmartHeader pipeline={searchedPipeline} />
+
+      {/* ── Board / List ────────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-hidden">
+        {viewMode === 'board' ? (
+          <BoardView
+            pipeline={searchedPipeline}
+            onOpen={handleOpenDetail}
+            onMove={handleMove}
+            onQuickAction={handleQuickAction}
+          />
+        ) : (
+          <div className="p-8 h-full overflow-auto custom-scrollbar">
+            <ListView pipeline={searchedPipeline} onOpen={handleOpenDetail} />
+          </div>
+        )}
+      </div>
+
+      {/* ── Overlays ──────────────────────────────────────────────────────── */}
+      <DetailPanel open={detailOpen} candidate={selectedCandidate} onClose={() => setDetailOpen(false)} />
+
+      <QuickNoteModal
+        open={quickNoteOpen}
+        candidate={quickNoteCandidate}
+        onClose={() => setQuickNoteOpen(false)}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['candidates-crm-pipeline'] })}
+      />
+
+      <SubmitToJobModal
+        open={quickSubmitOpen}
+        candidate={quickSubmitCandidate}
+        onClose={() => setQuickSubmitOpen(false)}
+        onSuccess={() => {
+          setQuickSubmitOpen(false)
+          queryClient.invalidateQueries({ queryKey: ['candidates-crm-pipeline'] })
+        }}
+      />
+
+      <QuickAddModal
+        open={isQuickAddOpen}
+        onClose={() => setIsQuickAddOpen(false)}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['candidates-crm-pipeline'] })}
+      />
+    </div>
+  )
+}
+
+// ── Smart Header ──────────────────────────────────────────────────────────────
+
+function SmartHeader({ pipeline }: { pipeline: Record<string, RelationCandidate[]> }) {
+  const all = Object.values(pipeline).flat()
+  const today = dayjs().startOf('day')
+
+  const newLeads       = (pipeline['new_lead'] || []).length
+  const followupsToday = all.filter(c => c.next_action_date && dayjs(c.next_action_date).isSame(today, 'day')).length
+  const readyToSubmit  = (pipeline['ready_to_submit'] || []).length
+  const overdue        = all.filter(c => c.next_action_date && dayjs(c.next_action_date).isBefore(today, 'day')).length
+
+  const stats = [
+    { label: 'New Leads',       value: newLeads,       color: '#4F46E5', bg: '#EEF2FF', icon: <Users size={13} /> },
+    { label: 'Follow-ups Today',value: followupsToday, color: '#F59E0B', bg: '#FFFBEB', icon: <Bell size={13} /> },
+    { label: 'Ready to Submit', value: readyToSubmit,  color: '#8B5CF6', bg: '#F5F3FF', icon: <CheckCircle2 size={13} /> },
+    { label: 'Overdue',         value: overdue,        color: '#EF4444', bg: '#FEF2F2', icon: <AlertTriangle size={13} /> },
+  ]
+
+  return (
+    <div className="flex items-center gap-3 px-8 py-3 bg-white border-b border-slate-100 shrink-0">
+      {stats.map(s => (
+        <div
+          key={s.label}
+          className="flex items-center gap-2.5 px-4 py-2 rounded-2xl border transition-all hover:shadow-sm cursor-default"
+          style={{ backgroundColor: s.bg, borderColor: `${s.color}25` }}
+        >
+          <div style={{ color: s.color }}>{s.icon}</div>
+          <div>
+            <div className="text-[17px] font-black leading-none" style={{ color: s.color }}>
+              {s.value}
+            </div>
+            <div className="text-[8.5px] font-black uppercase tracking-widest mt-0.5" style={{ color: `${s.color}80` }}>
+              {s.label}
+            </div>
+          </div>
+        </div>
+      ))}
+
+      <div className="ml-auto flex items-center gap-2 px-3 py-2 rounded-2xl bg-slate-50 border border-slate-100">
+        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">
+          {all.length} leads in pipeline
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// ── Board View ────────────────────────────────────────────────────────────────
+
+function BoardView({
+  pipeline, onMove, onOpen, onQuickAction,
+}: {
+  pipeline: Record<string, RelationCandidate[]>
+  onMove: (id: string, status: string) => void
+  onOpen: (c: RelationCandidate) => void
+  onQuickAction: (c: RelationCandidate, action: QuickActionType) => void
+}) {
+  const today = dayjs().startOf('day')
+
+  return (
+    <div className="flex h-full gap-0 overflow-x-auto custom-scrollbar">
+      {STAGES.map((stage, idx) => {
+        const cards = pipeline[stage.key] || []
+        const overdueCount = cards.filter(c =>
+          c.next_action_date && dayjs(c.next_action_date).isBefore(today, 'day')
+        ).length
+        const followupTodayCount = cards.filter(c =>
+          c.next_action_date && dayjs(c.next_action_date).isSame(today, 'day')
+        ).length
+
+        return (
+          <div
+            key={stage.key}
+            className={cn(
+              'flex w-[310px] shrink-0 flex-col',
+              idx < STAGES.length - 1 && 'border-r border-slate-100'
+            )}
+            style={{ backgroundColor: `${stage.color}04` }}
+          >
+            {/* Column Header */}
+            <div className="shrink-0 px-5 pt-5 pb-3 bg-white border-b border-slate-100">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.color }} />
+                  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-800">
+                    {stage.label}
+                  </span>
+                  <span
+                    className="px-2 py-0.5 rounded-lg text-[9px] font-black"
+                    style={{ backgroundColor: stage.bg, color: stage.color }}
+                  >
+                    {cards.length}
+                  </span>
+                </div>
+                <button
+                  className="w-6 h-6 rounded-lg flex items-center justify-center text-slate-300 hover:text-slate-600 hover:bg-slate-50 transition-all"
+                >
+                  <Plus size={13} />
+                </button>
+              </div>
+
+              {/* Column meta signals */}
+              <div className="flex items-center gap-2 min-h-[18px]">
+                {overdueCount > 0 && (
+                  <span className="flex items-center gap-1 text-[8.5px] font-black uppercase text-red-400">
+                    <AlertTriangle size={8} /> {overdueCount} overdue
+                  </span>
+                )}
+                {followupTodayCount > 0 && (
+                  <span className="flex items-center gap-1 text-[8.5px] font-black uppercase text-amber-500">
+                    <Bell size={8} /> {followupTodayCount} today
+                  </span>
+                )}
+                {overdueCount === 0 && followupTodayCount === 0 && cards.length > 0 && (
+                  <span className="text-[8.5px] font-bold uppercase text-slate-300 tracking-wide">
+                    All clear
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Column Cards */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
+              {cards.map(cand => (
+                <CandidateCard
+                  key={cand.pipeline_id}
+                  cand={cand}
+                  stageKey={stage.key}
+                  accentColor={stage.color}
+                  onOpen={onOpen}
+                  onMove={onMove}
+                  onQuickAction={onQuickAction}
+                />
+              ))}
+
+              {cards.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16 select-none">
+                  <div
+                    className="w-10 h-10 rounded-2xl flex items-center justify-center mb-3 opacity-20"
+                    style={{ backgroundColor: stage.bg }}
+                  >
+                    <Users size={18} style={{ color: stage.color }} />
+                  </div>
+                  <span
+                    className="text-[9px] font-black uppercase tracking-[0.2em] opacity-20"
+                    style={{ color: stage.color }}
+                  >
+                    Queue Empty
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Candidate Card ─────────────────────────────────────────────────────────────
+
+function CandidateCard({
+  cand, stageKey, accentColor, onOpen, onMove, onQuickAction,
+}: {
+  cand: RelationCandidate
+  stageKey: string
+  accentColor: string
+  onOpen: (c: RelationCandidate) => void
+  onMove: (id: string, status: string) => void
+  onQuickAction: (c: RelationCandidate, action: QuickActionType) => void
+}) {
+  const signals = getCardSignals(cand, stageKey)
+  const today = dayjs()
+  const isOverdue = Boolean(
+    cand.next_action_date && dayjs(cand.next_action_date).isBefore(today, 'day')
+  )
+  const overdueDays = isOverdue
+    ? today.diff(dayjs(cand.next_action_date), 'day')
+    : 0
+
+  const quickActions: { icon: React.ReactNode; label: string; action: QuickActionType; hoverCls: string }[] = [
+    { icon: <Phone size={12} />,        label: 'Call',        action: 'call',     hoverCls: 'hover:bg-emerald-50 hover:text-emerald-600 text-slate-400' },
+    { icon: <MessageSquare size={12} />,label: 'WhatsApp',    action: 'whatsapp', hoverCls: 'hover:bg-green-50 hover:text-green-600 text-slate-400'   },
+    { icon: <StickyNote size={12} />,   label: 'Add Note',    action: 'note',     hoverCls: 'hover:bg-indigo-50 hover:text-indigo-600 text-slate-400' },
+    { icon: <Calendar size={12} />,     label: 'Follow-up',   action: 'schedule', hoverCls: 'hover:bg-amber-50 hover:text-amber-600 text-slate-400'   },
+    { icon: <ArrowUpRight size={12} />, label: 'Submit to ATS',action: 'submit',  hoverCls: 'hover:bg-purple-50 hover:text-purple-600 text-slate-400' },
+  ]
+
+  return (
+    <div
+      onClick={() => onOpen(cand)}
+      className="group relative flex flex-col gap-0 rounded-2xl border border-slate-100 bg-white shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer overflow-hidden"
+    >
+      {/* Accent bar */}
+      <div className="absolute left-0 top-0 bottom-0 w-[3px]" style={{ backgroundColor: accentColor }} />
+
+      {/* Card body */}
+      <div className="pl-4 pr-4 pt-4 pb-3 flex flex-col gap-2.5">
+
+        {/* Row 1: Avatar + Name + Menu */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <Avatar
+              size={34}
+              className="shrink-0 font-black text-[11px] border-2 shadow-sm"
+              style={{
+                backgroundColor: `${accentColor}18`,
+                borderColor: `${accentColor}35`,
+                color: accentColor,
+              }}
+            >
+              {cand.name.charAt(0)}
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <h4 className="text-[12.5px] font-black text-slate-900 truncate leading-none mb-1 group-hover:text-indigo-600 transition-colors">
+                {cand.name}
+              </h4>
+              <p className="text-[10px] font-medium text-slate-400 truncate leading-none">
+                {[cand.current_title, cand.current_company].filter(Boolean).join(' · ') || 'Professional'}
+              </p>
+            </div>
+          </div>
+
+          <Dropdown
+            menu={{
+              items: [
+                { key: 'details', label: 'View Full Profile', icon: <User size={12} />, onClick: () => onOpen(cand) },
+                { type: 'divider' },
+                ...STAGES.filter(s => s.key !== stageKey).map(s => ({
+                  key: s.key,
+                  label: `Move → ${s.label}`,
+                  onClick: (info: any) => { info.domEvent.stopPropagation(); onMove(cand.pipeline_id, s.key) },
+                })),
+              ],
+            }}
+            trigger={['click']}
+          >
+            <button
+              onClick={e => e.stopPropagation()}
+              className="opacity-0 group-hover:opacity-100 shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-300 hover:text-slate-600 hover:bg-slate-50 transition-all"
+            >
+              <MoreHorizontal size={14} />
+            </button>
+          </Dropdown>
+        </div>
+
+        {/* Row 2: Signal chips */}
+        {signals.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap -mt-0.5">
+            {signals.map(sig => (
+              <span
+                key={sig}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[8.5px] font-black uppercase tracking-tight"
+                style={{ backgroundColor: SIGNAL_DEFS[sig].bg, color: SIGNAL_DEFS[sig].color }}
+              >
+                {SIGNAL_DEFS[sig].icon}
+                {SIGNAL_DEFS[sig].label}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Row 3: Meta (owner + last contact + days in stage) */}
+        <div className="flex items-center gap-3 text-[9px] font-bold text-slate-400 uppercase tracking-tight">
+          {cand.assigned_to && (
+            <span className="flex items-center gap-1.5 shrink-0">
+              <div
+                className="w-4 h-4 rounded-full flex items-center justify-center text-[7.5px] font-black text-white"
+                style={{ backgroundColor: accentColor }}
+              >
+                {cand.assigned_to.charAt(0)}
+              </div>
+              {cand.assigned_to.split(' ')[0]}
+            </span>
+          )}
+          {cand.last_contacted_at ? (
+            <span className="flex items-center gap-1 shrink-0">
+              <Clock size={9} />
+              {dayjs(cand.last_contacted_at).fromNow(true)}
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-red-300 shrink-0">
+              <Clock size={9} /> Never contacted
+            </span>
+          )}
+          <span className="ml-auto text-slate-300 font-black">{cand.days_in_stage}D</span>
+        </div>
+
+        {/* Row 4: Next action */}
+        {cand.next_action && (
+          <div
+            className={cn(
+              'flex items-center gap-2.5 rounded-xl p-2.5 border transition-colors',
+              isOverdue ? 'bg-red-50/60 border-red-100' : 'bg-slate-50/80 border-slate-100/70'
+            )}
+          >
+            <div
+              className={cn(
+                'flex h-6 w-6 items-center justify-center rounded-lg shrink-0',
+                isOverdue ? 'bg-red-100 text-red-500' : 'bg-white shadow-sm text-indigo-500'
+              )}
+            >
+              {isOverdue ? <AlertTriangle size={11} /> : <Zap size={11} />}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-black text-slate-900 truncate leading-none mb-0.5">
+                {cand.next_action}
+              </p>
+              <p className={cn(
+                'text-[9px] font-bold leading-none uppercase',
+                isOverdue ? 'text-red-400' : 'text-slate-400'
+              )}>
+                {cand.next_action_date
+                  ? isOverdue
+                    ? `${overdueDays}d overdue`
+                    : dayjs(cand.next_action_date).format('MMM DD')
+                  : 'No date set'}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Quick Actions (hover reveal) */}
+      <div className="px-3 pb-3 opacity-0 group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 transition-all duration-200">
+        <div className="flex items-center gap-0.5 pt-2 border-t border-slate-50">
+          {quickActions.map(qa => (
+            <Tooltip key={qa.action} title={qa.label} placement="bottom" mouseEnterDelay={0.5}>
+              <button
+                onClick={e => { e.stopPropagation(); onQuickAction(cand, qa.action) }}
+                className={cn(
+                  'flex-1 flex items-center justify-center py-1.5 rounded-lg transition-all',
+                  qa.hoverCls
+                )}
+              >
+                {qa.icon}
+              </button>
+            </Tooltip>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Detail Panel ──────────────────────────────────────────────────────────────
+
+function DetailPanel({
+  open, candidate, onClose,
+}: {
+  open: boolean
+  candidate: RelationCandidate | null
+  onClose: () => void
+}) {
+  const [activeTab, setActiveTab] = useState('interactions')
+  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false)
+  const [form] = Form.useForm()
+  const queryClient = useQueryClient()
+
+  const { data: interactionsData, isLoading: loadingInteractions } = useApiQuery(
+    ['candidates-crm-interactions', candidate?.candidate_id],
+    () => candidatesApi.crmInteractions(candidate!.candidate_id),
+    { enabled: !!candidate && open }
+  )
+
+  const logMutation = useMutation({
+    mutationFn: (values: any) => candidatesApi.logCRMInteraction(candidate!.candidate_id, values),
+    onSuccess: () => {
+      message.success('Activity logged')
+      queryClient.invalidateQueries({ queryKey: ['candidates-crm-interactions', candidate?.candidate_id] })
+      form.resetFields()
+    },
+  })
+
+  const archiveMutation = useMutation({
+    mutationFn: (reason: string) =>
+      candidatesApi.moveCRMPipeline(candidate!.pipeline_id, { status: 'lost', note: reason }),
+    onSuccess: () => {
+      message.success('Lead archived')
+      queryClient.invalidateQueries({ queryKey: ['candidates-crm-pipeline'] })
+      onClose()
+    },
+  })
+
+  const handleArchive = () => {
+    Modal.confirm({
+      title: 'Archive Lead',
+      content: (
+        <div className="pt-4 space-y-3">
+          <Paragraph className="text-xs text-slate-500">Select a reason for archiving:</Paragraph>
+          <Select
+            id="archive-reason"
+            className="w-full"
+            defaultValue="not_interested"
+            options={[
+              { value: 'not_interested',  label: 'Not Interested' },
+              { value: 'not_qualified',   label: 'Not Qualified' },
+              { value: 'no_response',     label: 'No Response' },
+              { value: 'comp_mismatch',   label: 'Compensation Mismatch' },
+            ]}
+          />
+        </div>
+      ),
+      onOk: () => archiveMutation.mutate('not_interested'),
+      okText: 'Confirm Archive',
+      okButtonProps: { danger: true, className: 'rounded-xl font-bold' },
+    })
+  }
+
+  // Stage context for signals
+  const stageKey = (() => {
+    for (const s of STAGES) {
+      if (s.key === candidate?.pipeline_id) return s.key
+    }
+    return 'new_lead'
+  })()
+  const stage = STAGES.find(s => s.key === stageKey) || STAGES[0]
+  const isOverdue = Boolean(
+    candidate?.next_action_date && dayjs(candidate.next_action_date).isBefore(dayjs(), 'day')
+  )
+
+  const TABS = [
+    { key: 'interactions', label: 'Interactions', icon: <MessageSquare size={13} /> },
+    { key: 'qualification', label: 'Qualification', icon: <ShieldCheck size={13} /> },
+    { key: 'mapping',      label: 'Job Mapping',   icon: <Target size={13} /> },
+    { key: 'timeline',     label: 'Timeline',       icon: <Activity size={13} /> },
+  ]
+
+  return (
+    <Drawer
+      open={open}
+      onClose={onClose}
+      width={520}
+      styles={{
+        header: { borderBottom: '1px solid #F1F5F9', padding: '20px 28px' },
+        body:   { padding: 0, backgroundColor: '#F8FAFC' },
+      }}
+      title={
+        <div className="flex items-center gap-3">
+          <Avatar
+            size={38}
+            className="font-black text-sm shrink-0"
+            style={{ backgroundColor: stage.color, color: '#fff' }}
+          >
+            {candidate?.name.charAt(0)}
+          </Avatar>
+          <div>
+            <h3 className="text-sm font-black text-slate-900 tracking-tight m-0 leading-none">
+              {candidate?.name}
+            </h3>
+            <div className="flex items-center gap-2 mt-1">
+              <span
+                className="text-[8.5px] font-black uppercase tracking-widest px-2 py-0.5 rounded-lg"
+                style={{ backgroundColor: stage.bg, color: stage.color }}
+              >
+                {stage.label}
+              </span>
+              {isOverdue && (
+                <span className="text-[8.5px] font-black uppercase tracking-widest px-2 py-0.5 rounded-lg bg-red-50 text-red-400">
+                  Overdue
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      }
+      extra={
+        <Space size={10}>
+          <Tooltip title="Archive Lead">
+            <Button
+              icon={<Trash2 size={14} />}
+              onClick={handleArchive}
+              className="rounded-xl border-slate-200 hover:border-red-200 hover:text-red-500 transition-all w-9 h-9 p-0"
+            />
+          </Tooltip>
+          <Button
+            type="primary"
+            onClick={() => setIsSubmitModalOpen(true)}
+            className="rounded-xl bg-slate-900 border-none font-black text-[10px] uppercase h-9 px-5 shadow-md"
+            icon={<ArrowUpRight size={13} />}
+          >
+            Submit to ATS
+          </Button>
+        </Space>
+      }
+    >
+      <div className="flex flex-col h-full">
+        {/* Quick stats bar */}
+        <div className="bg-white border-b border-slate-100 px-6 py-3 flex items-center gap-4">
+          {[
+            { label: 'Days in Stage', value: `${candidate?.days_in_stage ?? 0}D`, icon: <Clock size={11} /> },
+            { label: 'Last Contact',  value: candidate?.last_contacted_at ? dayjs(candidate.last_contacted_at).fromNow(true) : 'Never', icon: <Bell size={11} /> },
+            { label: 'Sentiment',     value: candidate?.sentiment || '—', icon: <TrendingUp size={11} />,
+              color: candidate?.sentiment === 'positive' ? '#10B981' : candidate?.sentiment === 'negative' ? '#EF4444' : '#94A3B8' },
+          ].map(s => (
+            <div key={s.label} className="flex items-center gap-1.5">
+              <span className="text-slate-300" style={s.color ? { color: s.color } : {}}>{s.icon}</span>
+              <div>
+                <div className="text-[10px] font-black text-slate-800 uppercase leading-none"
+                  style={s.color ? { color: s.color } : {}}>
+                  {s.value}
+                </div>
+                <div className="text-[8.5px] font-bold text-slate-400 uppercase leading-none mt-0.5">{s.label}</div>
+              </div>
+              {s.label !== 'Sentiment' && <div className="w-px h-5 bg-slate-100 ml-2" />}
+            </div>
+          ))}
+        </div>
+
+        {/* Tabs */}
+        <div className="bg-white border-b border-slate-100 px-6 flex gap-6">
+          {TABS.map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={cn(
+                'flex items-center gap-1.5 py-3.5 text-[9.5px] font-black uppercase tracking-widest transition-all border-b-2',
+                activeTab === tab.key
+                  ? 'text-indigo-600 border-indigo-600'
+                  : 'text-slate-400 border-transparent hover:text-slate-600'
+              )}
+            >
+              {tab.icon} {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+          {activeTab === 'interactions' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-400">
+              {/* Log form */}
+              <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+                <Text className="text-[9.5px] font-black uppercase text-slate-400 tracking-widest mb-4 block">
+                  Log Activity
+                </Text>
+                <Form form={form} layout="vertical" onFinish={v => logMutation.mutate(v)}>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <Form.Item name="interaction_type" initialValue="call" className="m-0">
+                      <Select
+                        className="enterprise-select-sm"
+                        options={[
+                          { value: 'call',     label: 'Voice Call' },
+                          { value: 'email',    label: 'Email' },
+                          { value: 'whatsapp', label: 'WhatsApp' },
+                          { value: 'meeting',  label: 'Meeting' },
+                          { value: 'note',     label: 'Internal Note' },
+                        ]}
+                      />
+                    </Form.Item>
+                    <Form.Item name="next_followup_date" className="m-0">
+                      <DatePicker placeholder="Follow-up date" className="w-full rounded-xl h-9" />
+                    </Form.Item>
+                  </div>
+                  <Form.Item name="content" rules={[{ required: true, message: 'Notes required' }]} className="mb-3">
+                    <Input.TextArea
+                      placeholder="Highlights from interaction…"
+                      rows={3}
+                      className="rounded-xl border-slate-100 text-xs"
+                    />
+                  </Form.Item>
+                  <Button
+                    type="primary"
+                    htmlType="submit"
+                    loading={logMutation.isPending}
+                    className="w-full bg-slate-900 rounded-xl h-9 font-black uppercase text-[10px] tracking-widest border-none"
+                  >
+                    Log Interaction
+                  </Button>
+                </Form>
+              </div>
+
+              {/* History */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between px-1">
+                  <Text className="text-[9.5px] font-black uppercase text-slate-400 tracking-widest">
+                    Interaction History
+                  </Text>
+                  <Badge
+                    count={(interactionsData as any)?.interactions?.length || 0}
+                    style={{ backgroundColor: '#F1F5F9', color: '#64748B', boxShadow: 'none', fontSize: '9px' }}
+                  />
+                </div>
+                {loadingInteractions ? (
+                  <div className="flex justify-center py-8"><Spin size="small" /></div>
+                ) : (
+                  (interactionsData as any)?.interactions?.map((i: any) => {
+                    const iconMap: Record<string, React.ReactNode> = {
+                      call:     <Phone size={12} />,
+                      email:    <Mail size={12} />,
+                      whatsapp: <MessageSquare size={12} />,
+                      meeting:  <Users size={12} />,
+                      note:     <StickyNote size={12} />,
+                    }
+                    return (
+                      <div
+                        key={i.id}
+                        className="group flex gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm hover:shadow-md transition-all"
+                      >
+                        <div className="p-2 rounded-xl bg-slate-50 text-slate-400 group-hover:text-indigo-500 transition-colors h-fit shrink-0">
+                          {iconMap[i.interaction_type] || <Activity size={12} />}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <Text strong className="text-[10px] uppercase tracking-tight text-slate-900">
+                              {i.interaction_type}
+                            </Text>
+                            <Text className="text-[8.5px] font-bold text-slate-400 uppercase">
+                              {dayjs(i.created_at).fromNow()}
+                            </Text>
+                          </div>
+                          <Paragraph className="text-[11px] text-slate-500 m-0 leading-relaxed">
+                            {i.content}
+                          </Paragraph>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+                {!(interactionsData as any)?.interactions?.length && !loadingInteractions && (
+                  <div className="text-center py-8 text-slate-300">
+                    <MessageSquare size={28} className="mx-auto mb-2 opacity-40" />
+                    <p className="text-[9px] font-black uppercase tracking-widest">No interactions yet</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'qualification' && (
+            <div className="space-y-5 animate-in fade-in slide-in-from-right-2 duration-400">
+              <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+                <div className="px-5 py-3 bg-slate-50 border-b border-slate-100">
+                  <Text className="text-[9.5px] font-black uppercase text-slate-400 tracking-widest">
+                    Recruiter Assessment
+                  </Text>
+                </div>
+                <div className="p-5 space-y-4">
+                  {[
+                    { label: 'Current Role',    val: candidate?.current_title,   icon: <Briefcase size={13} /> },
+                    { label: 'Company',         val: candidate?.current_company, icon: <Layout size={13} /> },
+                    { label: 'Compensation',    val: 'Confidential',             icon: <DollarSign size={13} /> },
+                    { label: 'Notice Period',   val: '30 Days',                  icon: <Clock size={13} /> },
+                    { label: 'Interest Level',  val: candidate?.sentiment === 'positive' ? 'High' : candidate?.sentiment === 'negative' ? 'Low' : 'Medium', icon: <TrendingUp size={13} /> },
+                    { label: 'Intent',          val: INTENT_OPTIONS.find(o => o.value === candidate?.intent)?.label || candidate?.intent, icon: <Target size={13} /> },
+                  ].map(item => (
+                    <div key={item.label} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-slate-300">{item.icon}</span>
+                        <Text className="text-[10px] font-bold text-slate-500 uppercase tracking-tight">
+                          {item.label}
+                        </Text>
+                      </div>
+                      <Text strong className="text-[10px] uppercase text-slate-900 text-right">
+                        {item.val || '—'}
+                      </Text>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <Alert
+                showIcon
+                type="info"
+                icon={<Bot size={16} className="text-indigo-500" />}
+                message={<span className="text-[10px] font-black uppercase tracking-tight">AI Qualification</span>}
+                description={
+                  <span className="text-[10.5px] text-slate-500 leading-relaxed">
+                    Analyzing profile artifacts to generate automated fitment signals.
+                  </span>
+                }
+                className="rounded-2xl border-indigo-100 bg-indigo-50/40"
+              />
+            </div>
+          )}
+
+          {activeTab === 'mapping' && (
+            <div className="space-y-5 animate-in fade-in slide-in-from-right-2 duration-400">
+              <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+                <div className="px-5 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                  <Text className="text-[9.5px] font-black uppercase text-slate-400 tracking-widest">Job Mapping</Text>
+                  <Button type="link" size="small" className="text-[10px] font-black uppercase p-0 h-auto text-indigo-500">
+                    + Map to Job
+                  </Button>
+                </div>
+                <div className="p-8 text-center">
+                  <Target size={28} className="text-slate-200 mx-auto mb-3" />
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest m-0">
+                    No active job links
+                  </p>
+                  <p className="text-[10.5px] text-slate-400 mt-2">
+                    Link to an open requisition to track fitment and interest.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'timeline' && (
+            <div className="animate-in fade-in slide-in-from-right-2 duration-400">
+              <Timeline
+                className="custom-relations-timeline"
+                items={[
+                  {
+                    color: '#4F46E5',
+                    children: (
+                      <div className="pb-5">
+                        <Text strong className="text-[11px] uppercase block mb-1 text-slate-900">Lead Created</Text>
+                        <Text className="text-[9px] text-slate-400 uppercase font-bold">
+                          {candidate?.last_contacted_at
+                            ? dayjs(candidate.last_contacted_at).format('DD MMM YYYY, HH:mm')
+                            : 'Date unknown'}
+                        </Text>
+                      </div>
+                    ),
+                  },
+                  {
+                    color: '#E5E7EB',
+                    children: (
+                      <div className="pb-5 opacity-50">
+                        <Text className="text-[11px] uppercase block font-medium text-slate-500">
+                          Nurture Sequence Started
+                        </Text>
+                      </div>
+                    ),
+                  },
+                  {
+                    color: stage.color,
+                    children: (
+                      <div className="pb-5">
+                        <Text strong className="text-[11px] uppercase block mb-1 text-slate-900">
+                          Stage: {stage.label}
+                        </Text>
+                        <Text className="text-[9px] text-slate-400 uppercase font-bold">
+                          {candidate?.days_in_stage} days in current stage
+                        </Text>
+                      </div>
+                    ),
+                  },
+                ]}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+
+      <SubmitToJobModal
+        open={isSubmitModalOpen}
+        candidate={candidate}
+        onClose={() => setIsSubmitModalOpen(false)}
+        onSuccess={() => {
+          setIsSubmitModalOpen(false)
+          onClose()
+          queryClient.invalidateQueries({ queryKey: ['candidates-crm-pipeline'] })
+        }}
+      />
+    </Drawer>
+  )
+}
+
+// ── Submit to Job Modal ───────────────────────────────────────────────────────
+
+function SubmitToJobModal({
+  open, candidate, onClose, onSuccess,
+}: {
+  open: boolean
+  candidate: RelationCandidate | null
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [targetJobId, setTargetJobId] = useState<string | null>(null)
+
+  const { data: jobsData } = useApiQuery(
+    ['active-jobs-list-relations'],
+    () => http.get('/jobs/requisitions/?status=open')
+  )
+  const jobs = (jobsData as any)?.data || []
+
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      await candidatesApi.moveCRMPipeline(candidate!.pipeline_id, {
+        status: 'submitted',
+        note: `Submitted to job: ${targetJobId}`,
+      })
+      await http.post('/pipeline/pipeline/submit/', {
+        candidate_id: candidate!.candidate_id,
+        requisition_id: targetJobId,
+        source: 'relations_nurture',
+      })
+    },
+    onSuccess: () => {
+      message.success('Candidate handed off to ATS pipeline')
+      onSuccess()
+    },
+  })
+
+  return (
+    <Modal
+      title={
+        <div className="flex items-center gap-2">
+          <Target size={17} className="text-indigo-600" />
+          <span className="font-black uppercase tracking-tight">ATS Submission Handoff</span>
+        </div>
+      }
+      open={open}
+      onCancel={onClose}
+      onOk={() => { if (!targetJobId) return message.error('Select a target job'); submitMutation.mutate() }}
+      okText="Confirm Submission"
+      confirmLoading={submitMutation.isPending}
+      width={480}
+      okButtonProps={{
+        className: 'bg-slate-900 h-10 px-8 rounded-xl font-black uppercase text-[10px] tracking-widest border-none',
+      }}
+      cancelButtonProps={{ className: 'rounded-xl h-10 px-6 font-bold' }}
+    >
+      <div className="py-5 space-y-5">
+        <div className="p-4 rounded-2xl bg-slate-900 text-white flex items-center gap-3">
+          <Avatar size={36} className="font-black" style={{ backgroundColor: '#4F46E5' }}>
+            {candidate?.name.charAt(0)}
+          </Avatar>
+          <div>
+            <Text className="block text-white font-black uppercase tracking-tight leading-none text-sm">
+              {candidate?.name}
+            </Text>
+            <Text className="text-indigo-300 text-[9px] font-bold uppercase tracking-widest mt-1 block">
+              {candidate?.current_title}
+            </Text>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Text className="text-[9.5px] font-black uppercase text-slate-400 tracking-widest pl-1">
+            Target Job Requisition
+          </Text>
+          <Select
+            className="w-full"
+            style={{ height: 42 }}
+            placeholder="Search active jobs…"
+            showSearch
+            onChange={setTargetJobId}
+            options={jobs.map((j: any) => ({ value: j.id, label: `${j.title} (${j.job_ref_id})` }))}
+          />
+        </div>
+        <Alert
+          showIcon
+          type="info"
+          message="Handoff Rule"
+          description="Submitting will move this candidate from Relations into the active ATS pipeline."
+          className="rounded-2xl text-xs"
+        />
+      </div>
+    </Modal>
+  )
+}
+
+// ── Quick Note Modal ──────────────────────────────────────────────────────────
+
+function QuickNoteModal({
+  open, candidate, onClose, onSuccess,
+}: {
+  open: boolean
+  candidate: RelationCandidate | null
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [form] = Form.useForm()
+
+  const logMutation = useMutation({
+    mutationFn: (values: any) =>
+      candidatesApi.logCRMInteraction(candidate!.candidate_id, { ...values, interaction_type: 'note' }),
+    onSuccess: () => {
+      message.success('Note saved')
+      form.resetFields()
+      onSuccess()
+      onClose()
+    },
+  })
+
+  return (
+    <Modal
+      title={
+        <div className="flex items-center gap-2">
+          <StickyNote size={16} className="text-indigo-600" />
+          <span className="font-black uppercase tracking-tight text-sm">Quick Note</span>
+          {candidate && (
+            <span className="text-[10px] font-bold text-slate-400 uppercase ml-1">— {candidate.name}</span>
+          )}
+        </div>
+      }
+      open={open}
+      onCancel={() => { form.resetFields(); onClose() }}
+      onOk={() => form.submit()}
+      okText="Save Note"
+      confirmLoading={logMutation.isPending}
+      width={440}
+      okButtonProps={{
+        className: 'bg-slate-900 h-10 px-6 rounded-xl font-black uppercase text-[10px] border-none',
+      }}
+      cancelButtonProps={{ className: 'rounded-xl h-10 px-4 font-bold' }}
+    >
+      <Form form={form} layout="vertical" className="pt-4" onFinish={v => logMutation.mutate(v)}>
+        <Form.Item
+          name="content"
+          rules={[{ required: true, message: 'Note content required' }]}
+          className="mb-3"
+        >
+          <Input.TextArea
+            placeholder="Quick observation, update, or reminder…"
+            rows={4}
+            className="rounded-xl border-slate-100 text-sm"
+            autoFocus
+          />
+        </Form.Item>
+        <Form.Item name="next_followup_date" label="Schedule follow-up (optional)" className="mb-0">
+          <DatePicker placeholder="Pick a date" className="w-full rounded-xl h-9" />
+        </Form.Item>
+      </Form>
+    </Modal>
+  )
+}
+
+// ── List View ─────────────────────────────────────────────────────────────────
+
+function ListView({
+  pipeline, onOpen,
+}: {
+  pipeline: Record<string, RelationCandidate[]>
+  onOpen: (c: RelationCandidate) => void
+}) {
+  const allCandidates = Object.entries(pipeline).flatMap(([stageKey, cands]) =>
+    cands.map(c => ({ ...c, _stageKey: stageKey }))
+  )
+
+  const columns: ColumnsType<RelationCandidate & { _stageKey: string }> = [
+    {
+      title: 'Candidate',
+      dataIndex: 'name',
+      render: (text, record) => {
+        const stage = STAGES.find(s => s.key === record._stageKey)
+        return (
+          <Space onClick={() => onOpen(record)} className="cursor-pointer group">
+            <Avatar
+              size={32}
+              className="font-black text-[10px] border-2 shrink-0"
+              style={{
+                backgroundColor: `${stage?.color}18`,
+                borderColor: `${stage?.color}35`,
+                color: stage?.color,
+              }}
+            >
+              {text.charAt(0)}
+            </Avatar>
+            <div>
+              <Text strong className="text-xs uppercase tracking-tight block group-hover:text-indigo-600 transition-colors">
+                {text}
+              </Text>
+              <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                {record.current_title}
+              </Text>
+            </div>
+          </Space>
+        )
+      },
+    },
+    {
+      title: 'Stage',
+      dataIndex: '_stageKey',
+      render: (_, record) => {
+        const stage = STAGES.find(s => s.key === record._stageKey)
+        return (
+          <Tag
+            style={{ backgroundColor: stage?.bg, color: stage?.color, border: `1px solid ${stage?.color}25` }}
+            className="rounded-lg font-black uppercase text-[9px] px-2.5"
+          >
+            {stage?.label}
+          </Tag>
+        )
+      },
+    },
+    {
+      title: 'Next Action',
+      dataIndex: 'next_action',
+      render: (text, record) => {
+        const overdue = record.next_action_date && dayjs(record.next_action_date).isBefore(dayjs(), 'day')
+        return (
+          <div className="flex items-center gap-2">
+            <div className={cn('p-1.5 rounded-lg', overdue ? 'bg-red-50 text-red-400' : 'bg-indigo-50 text-indigo-500')}>
+              {overdue ? <AlertTriangle size={11} /> : <Zap size={11} />}
+            </div>
+            <div>
+              <Text className="text-[10px] font-black uppercase text-slate-900 block">{text || '—'}</Text>
+              {record.next_action_date && (
+                <Text className={cn('text-[9px] font-bold uppercase', overdue ? 'text-red-400' : 'text-slate-400')}>
+                  {overdue
+                    ? `${dayjs().diff(record.next_action_date, 'day')}d overdue`
+                    : dayjs(record.next_action_date).format('MMM DD')}
+                </Text>
+              )}
+            </div>
+          </div>
+        )
+      },
+    },
+    {
+      title: 'Owner',
+      dataIndex: 'assigned_to',
+      render: v => v
+        ? <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600"><User size={11} />{v}</span>
+        : <span className="text-[9px] text-slate-300 font-bold">Unassigned</span>,
+    },
+    {
+      title: 'Last Contact',
+      dataIndex: 'last_contacted_at',
+      render: v => <Text className="text-[10px] font-bold text-slate-500">{v ? dayjs(v).fromNow() : '—'}</Text>,
+    },
+    {
+      title: 'Aging',
+      dataIndex: 'days_in_stage',
+      align: 'center',
+      render: v => <Text className="text-xs font-black text-slate-400">{v}D</Text>,
+    },
+    {
+      title: 'Signals',
+      dataIndex: 'sentiment',
+      render: (_, record) => {
+        const sigs = getCardSignals(record, record._stageKey)
+        return (
+          <div className="flex items-center gap-1">
+            {sigs.map(sig => (
+              <span
+                key={sig}
+                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[8px] font-black uppercase"
+                style={{ backgroundColor: SIGNAL_DEFS[sig].bg, color: SIGNAL_DEFS[sig].color }}
+              >
+                {SIGNAL_DEFS[sig].icon}
+              </span>
+            ))}
+            {sigs.length === 0 && <span className="text-[9px] text-slate-300 font-bold">—</span>}
+          </div>
+        )
+      },
+    },
+  ]
+
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-white shadow-sm overflow-hidden">
+      <Table
+        columns={columns}
+        dataSource={allCandidates}
+        rowKey="pipeline_id"
+        pagination={false}
+        className="enterprise-table"
+        onRow={record => ({ onClick: () => onOpen(record), className: 'cursor-pointer hover:bg-slate-50/60 transition-colors' })}
+      />
+    </div>
+  )
+}
+
+// ── Quick Add Modal ───────────────────────────────────────────────────────────
+
+function QuickAddModal({
+  open, onClose, onSuccess,
+}: {
+  open: boolean
+  onClose: () => void
+  onSuccess: () => void
+}) {
+  const [form] = Form.useForm()
+  const queryClient = useQueryClient()
+
+  const createMutation = useMutation({
+    mutationFn: async (values: any) => {
+      const res = await candidatesApi.create(values)
+      const candidateId = res.data.data.candidate.id
+      return await candidatesApi.addToCRMPipeline({
+        candidate_id: candidateId,
+        intent: form.getFieldValue('intent'),
+        status: 'new_lead',
+      })
+    },
+    onSuccess: () => {
+      message.success('New lead ingested successfully')
+      onSuccess()
+      onClose()
+      form.resetFields()
+    },
+    onError: (err: any) => message.error(err?.response?.data?.message || 'Failed to ingest lead'),
+  })
+
+  return (
+    <Modal
+      title={
+        <div className="flex items-center gap-2">
+          <Sparkles size={17} className="text-indigo-600" />
+          <span className="font-black uppercase tracking-tight">Rapid Lead Intake</span>
+        </div>
+      }
+      open={open}
+      onCancel={onClose}
+      onOk={() => form.submit()}
+      confirmLoading={createMutation.isPending}
+      width={520}
+      okText="Ingest & Nurture"
+      okButtonProps={{
+        className:
+          'bg-slate-900 h-10 px-8 rounded-xl font-black uppercase text-[10px] tracking-[0.1em] border-none shadow-lg shadow-slate-200',
+      }}
+      cancelButtonProps={{ className: 'rounded-xl h-10 px-6 font-bold uppercase text-[10px] border-slate-200' }}
+    >
+      <Form form={form} layout="vertical" className="pt-5" onFinish={v => createMutation.mutate(v)}>
+        <Row gutter={14}>
+          <Col span={12}>
+            <Form.Item name="first_name" label="First Name" rules={[{ required: true }]}>
+              <Input
+                placeholder="John"
+                className="h-10 rounded-xl bg-slate-50 border-slate-100 focus:bg-white transition-all font-bold text-xs"
+              />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item name="last_name" label="Last Name" rules={[{ required: true }]}>
+              <Input
+                placeholder="Doe"
+                className="h-10 rounded-xl bg-slate-50 border-slate-100 focus:bg-white transition-all font-bold text-xs"
+              />
+            </Form.Item>
+          </Col>
+        </Row>
+        <Form.Item name="email" label="Primary Email" rules={[{ required: true, type: 'email' }]}>
+          <Input
+            placeholder="john@example.com"
+            className="h-10 rounded-xl bg-slate-50 border-slate-100 focus:bg-white transition-all font-bold text-xs"
+          />
+        </Form.Item>
+        <Form.Item name="current_title" label="Current Designation">
+          <Input
+            placeholder="Senior Software Engineer"
+            className="h-10 rounded-xl bg-slate-50 border-slate-100 focus:bg-white transition-all font-bold text-xs"
+          />
+        </Form.Item>
+        <Divider className="my-5 border-slate-100" />
+        <div className="bg-indigo-50/40 p-5 rounded-2xl border border-indigo-100/60">
+          <Form.Item
+            name="intent"
+            label={<span className="text-indigo-600 font-black uppercase text-[9.5px] tracking-widest">Entry Intent</span>}
+            initialValue="just_lead"
+            className="mb-0"
+          >
+            <Select className="enterprise-select-lg" options={INTENT_OPTIONS} />
+          </Form.Item>
+          <Text className="text-[9.5px] text-indigo-400 font-bold uppercase tracking-tight mt-3 block">
+            Intent guides automatic nurture workflows and priority signals.
+          </Text>
+        </div>
+      </Form>
+    </Modal>
+  )
+}

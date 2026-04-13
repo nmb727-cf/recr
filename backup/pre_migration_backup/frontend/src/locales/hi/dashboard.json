@@ -1,0 +1,29 @@
+{
+  "greeting": {
+    "morning": "सुप्रभात",
+    "afternoon": "नमस्कार",
+    "evening": "शुभ संध्या"
+  },
+  "stats": {
+    "active_jobs": "सक्रिय जॉब्स",
+    "total_candidates": "कुल उम्मीदवार",
+    "active_pipeline": "सक्रिय पाइपलाइन",
+    "interviews_scheduled": "निर्धारित इंटरव्यू"
+  },
+  "cards": {
+    "needs_attention": "ध्यान आवश्यक",
+    "pipeline_distribution": "पाइपलाइन वितरण"
+  },
+  "candidate": {
+    "subtitle": "अपने आवेदन और आने वाले इंटरव्यू ट्रैक करें।"
+  },
+  "agency": {
+    "subtitle": "आज की आपकी एजेंसी गतिविधि यहाँ है।"
+  },
+  "company": {
+    "subtitle": "आज आपकी भर्ती पाइपलाइन में क्या हो रहा है, देखें।"
+  },
+  "actions": {
+    "create_job": "जॉब बनाएँ"
+  }
+}

@@ -1,0 +1,62 @@
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
+import {
+  Card, Tag, Typography, Spin, Empty, Button,
+  Avatar, message, Modal,
+  Tabs, Table, Timeline, Row, Col, Select, Input, Badge, Radio, Tooltip, Divider
+} from 'antd'
+import {
+  Zap, AlertTriangle, TrendingUp, ChevronRight, MessageSquare, UserPlus, Clock, Users,
+  CheckCircle, ShieldCheck, DollarSign, Scale, Receipt, BarChart3, MapPin, Briefcase, Plus,
+  FileText, ExternalLink, Mail, Phone, Star, X, Maximize2, Minimize2, Search, Filter, 
+  ChevronDown, Layers, Eye, BrainCircuit, Workflow
+} from 'lucide-react'
+import dayjs from 'dayjs'
+import isToday from 'dayjs/plugin/isToday'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import { useTranslation } from 'react-i18next'
+import { useAuthStore } from '@/store/authStore'
+
+dayjs.extend(relativeTime)
+dayjs.extend(isToday)
+
+import {
+  DragDropContext,
+  Droppable,
+  Draggable,
+  type DropResult,
+} from 'react-beautiful-dnd'
+import { useApiQuery } from '@/hooks/useApiQuery'
+import { pipelineApi } from '@/api/pipeline'
+import { candidatesApi } from '@/api/candidates'
+import { requisitionsApi } from '@/api/jobs'
+import { interviewsApi } from '@/api/interviews'
+import { cn } from '@/utils/cn'
+import type { Application, Candidate, JobRequisition, CandidateDetail } from '@/types'
+import { formatStatusLabel, getStatusStyle } from '@/utils/status'
+import { isJobOwner } from '@/utils/permissions'
+import InterviewScheduleModal from '@/components/modals/InterviewScheduleModal'
+import MakeOfferModal from '@/components/modals/MakeOfferModal'
+import { HiringAIBrainDashboard } from '../jobs/JobCommandCenterView'
+
+const { Text, Title } = Typography
+const { TextArea } = Input
+
+type PipelineContext = 'single' | 'my_live' | 'all_live'
+
+interface PipelineStageData {
+  stage: {
+    id: string
+    name: string
+    stage_order: number
+    action_deadline_hours?: number
+  }
+  applications: Application[]
+  stats: {
+    count: number
+    overdue: number
+    newToday: number
+  }
+}
+
+// ... rest of file (ApplicationDetailPanel, etc.)

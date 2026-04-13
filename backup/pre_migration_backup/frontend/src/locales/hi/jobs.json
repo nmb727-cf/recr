@@ -1,0 +1,197 @@
+{
+  "page": {
+    "title": "जॉब रिक्विज़िशन",
+    "subtitle": "अपनी संस्था में खुली भूमिकाओं को प्रबंधित और ट्रैक करें।",
+    "back_to_jobs": "जॉब्स पर वापस जाएँ"
+  },
+  "actions": {
+    "create_job": "जॉब बनाएँ",
+    "refresh": "रीफ़्रेश",
+    "export": "एक्सपोर्ट",
+    "edit_job": "जॉब रिक्विज़िशन संपादित करें",
+    "create_job_drawer": "नई जॉब रिक्विज़िशन बनाएँ",
+    "assign_agency": "इस जॉब पर एजेंसी असाइन करें",
+    "assign_agency_cta": "एजेंसी असाइन करें",
+    "assign_agency_short": "एजेंसी असाइन करें",
+    "save_job_changes": "जॉब बदलाव सहेजें",
+    "view_all": "सभी देखें",
+    "open_pipeline": "पाइपलाइन खोलें",
+    "quick_action": "त्वरित कार्रवाई",
+    "activity": "गतिविधि"
+  },
+  "tabs": {
+    "overview": "ओवरव्यू",
+    "hiring_team": "हायरिंग टीम",
+    "sourcing": "सोर्सिंग",
+    "tracking": "ट्रैकिंग",
+    "interviews": "इंटरव्यू",
+    "offers": "ऑफर और प्लेसमेंट",
+    "activity": "गतिविधि"
+  },
+  "fields": {
+    "agency_partner": "एजेंसी पार्टनर",
+    "submission_limit": "सबमिशन सीमा",
+    "deadline": "डेडलाइन",
+    "special_instructions": "विशेष निर्देश",
+    "job_id": "जॉब आईडी",
+    "status": "स्टेटस",
+    "priority": "प्राथमिकता",
+    "department": "विभाग",
+    "location": "स्थान",
+    "experience": "अनुभव",
+    "salary": "वेतन",
+    "headcount": "हेडकाउंट",
+    "owner": "ओनर",
+    "hiring_manager": "हायरिंग मैनेजर",
+    "recruiter": "रिक्रूटर",
+    "source": "स्रोत",
+    "stage": "चरण",
+    "match_score": "मैच स्कोर",
+    "last_activity": "पिछली गतिविधि",
+    "years": "वर्ष",
+    "openings": "रिक्तियां"
+  },
+  "summary": {
+    "total_candidates": "कुल उम्मीदवार",
+    "submitted": "सबमिट किए गए",
+    "shortlisted": "शॉर्टलिस्ट किए गए",
+    "interview": "इंटरव्यू",
+    "offer": "ऑफर",
+    "joined": "शामिल हुए",
+    "overdue": "विलंबित",
+    "pipeline_summary": "पाइपलाइन सारांश",
+    "quick_stats": "त्वरित आंकड़े",
+    "sourcing_summary": "सोर्सिंग सारांश",
+    "direct_applicants": "सीधे आवेदक",
+    "internal": "आंतरिक",
+    "agency": "एजेंसी",
+    "assigned_agencies": "असाइन की गई एजेंसियाँ",
+    "stage_distribution": "चरण वितरण",
+    "bottlenecks": "रुकावटें",
+    "pending_actions": "लंबित कार्रवाइयां",
+    "placement_summary": "प्लेसमेंट सारांश",
+    "commission_foundation": "कमीशन फाउंडेशन",
+    "agency_placements": "एजेंसी प्लेसमेंट",
+    "commission_applicable": "कमीशन लागू",
+    "calculated": "गणना की गई",
+    "awaiting_payment": "भुगतान की प्रतीक्षा"
+  },
+  "command_center": {
+    "title": "जॉब कमांड सेंटर",
+    "urgent_actions": "त्वरित कार्रवाइयां",
+    "bottlenecks": "रुकावटें",
+    "recent_activity": "हालिया गतिविधि",
+    "candidates_waiting_review": "समीक्षा की प्रतीक्षा कर रहे उम्मीदवार",
+    "interviews_pending": "लंबित इंटरव्यू",
+    "offers_pending": "लंबित ऑफर",
+    "stuck_candidates": "अटके हुए उम्मीदवार",
+    "delays": "विलंब",
+    "pending_approvals": "लंबित अनुमोदन",
+    "last_submission": "पिछला सबमिशन",
+    "last_interview": "पिछला इंटरव्यू",
+    "last_offer": "पिछला ऑफर",
+    "pipeline": "पाइपलाइन",
+    "sourced": "सोर्स किए गए",
+    "submitted": "सबमिट किए गए",
+    "screening": "स्क्रीनिंग",
+    "interview": "इंटरव्यू",
+    "offer": "ऑफर",
+    "hired": "हायर किए गए",
+    "hiring_team": "हायरिंग टीम",
+    "interview_panel": "इंटरव्यू पैनल",
+    "agencies": "एजेंसियाँ",
+    "quick_actions": {
+      "assign": "असाइन करें",
+      "message": "संदेश",
+      "follow_up": "फॉलो अप"
+    },
+    "sourcing_intelligence": "सोर्सिंग इंटेलिजेंस",
+    "agency_performance": "एजेंसी प्रदर्शन",
+    "interview_intelligence": "इंटरव्यू इंटेलिजेंस",
+    "offer_intelligence": "ऑफर इंटेलिजेंस",
+    "upcoming_interviews": "आगामी इंटरव्यू",
+    "negotiations": "बातचीत (Negotiations)",
+    "joining": "जॉइनिंग",
+    "rejected": "अस्वीकृत",
+    "open_positions": "खुले पद"
+  },
+  "candidate_panel": {
+    "title": "उम्मीदवार पैनल",
+    "empty_state": "इस जॉब के लिए अभी तक कोई उम्मीदवार नहीं मिला।",
+    "total": "कुल",
+    "submitted": "सबमिट",
+    "shortlisted": "शॉर्टलिस्ट",
+    "interview": "इंटरव्यू",
+    "offer": "ऑफर"
+  },
+  "interview_summary": {
+    "package_name": "पैकेज का नाम",
+    "rounds": "राउंड",
+    "automation": "स्वचालन"
+  },
+  "offer_summary": {
+    "offer_pending": "ऑफर लंबित",
+    "joining_pending": "जॉइनिंग लंबित",
+    "joined": "शामिल हुए"
+  },
+  "filters": {
+    "status": "स्टेटस"
+  },
+  "search": {
+    "placeholder": "भूमिका, लोकेशन या विभाग से खोजें..."
+  },
+  "list": {
+    "all_jobs": "सभी जॉब्स"
+  },
+  "validation": {
+    "select_agency": "कृपया एजेंसी चुनें"
+  },
+  "messages": {
+    "assigned_success": "जॉब सफलतापूर्वक एजेंसी को असाइन हुई",
+    "assigned_error": "एजेंसी असाइन नहीं हो सकी",
+    "submitted_for_approval": "रिक्विज़िशन अनुमोदन के लिए भेजी गई",
+    "approved": "रिक्विज़िशन अनुमोदित हो गई",
+    "published_active": "रिक्विज़िशन प्रकाशित हो गई और अब सक्रिय है",
+    "job_created_success": "जॉब सफलतापूर्वक बनाई गई",
+    "job_updated_success": "जॉब सफलतापूर्वक अपडेट हुई",
+    "job_create_failed": "जॉब नहीं बन सकी",
+    "job_update_failed": "जॉब अपडेट नहीं हो सकी"
+  },
+  "placeholders": {
+    "select_agency": "पार्टनर एजेंसी चुनें...",
+    "special_instructions": "इस एजेंसी के लिए विशेष आवश्यकताएँ..."
+  },
+  "form": {
+    "job_title": "जॉब शीर्षक",
+    "job_type": "जॉब प्रकार",
+    "work_mode": "वर्क मोड",
+    "priority": "प्राथमिकता",
+    "headcount": "हेडकाउंट",
+    "job_owner": "जॉब ओनर",
+    "internal_recruiters": "आंतरिक रिक्रूटर्स",
+    "department": "आंतरिक टीम / विभाग",
+    "owner_recruiter_hint": "ओनर और रिक्रूटर चयन Phase 1 में requisition metadata में सुरक्षित किए जाते हैं।",
+    "currency": "मुद्रा",
+    "min_salary": "न्यूनतम वेतन",
+    "max_salary": "अधिकतम वेतन",
+    "description": "विवरण",
+    "requirements": "आवश्यकताएँ",
+    "skills": "कौशल (कॉमा से अलग)",
+    "use_agencies": "इस जॉब के लिए एजेंसियों का उपयोग करें",
+    "select_agencies": "एजेंसियाँ चुनें",
+    "agency_max_submissions": "प्रति एजेंसी अधिकतम सबमिशन",
+    "agency_deadline": "एजेंसी सबमिशन डेडलाइन",
+    "selected_agencies": "चयनित एजेंसियाँ",
+    "no_agencies_selected": "कोई एजेंसी चयनित नहीं",
+    "placeholders": {
+      "job_title": "उदा. सीनियर सॉफ्टवेयर इंजीनियर",
+      "select_owner": "ओनर चुनें",
+      "select_recruiters": "रिक्रूटर्स चुनें",
+      "select_department": "विभाग चुनें",
+      "description": "भूमिका का विवरण लिखें...",
+      "requirements": "आवश्यकताएँ लिखें...",
+      "skills": "उदा. React, Python",
+      "select_agencies": "एक या अधिक एजेंसियाँ चुनें"
+    }
+  }
+}

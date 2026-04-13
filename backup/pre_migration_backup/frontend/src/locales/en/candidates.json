@@ -1,0 +1,17 @@
+{
+  "add_candidate": "Add Candidate",
+  "search_placeholder": "Search candidates by name, email, skills...",
+  "database": "Database",
+  "active_work": "Active Work",
+  "no_candidates": "No candidates found",
+  "invite_link": "Invite Link",
+  "follow_up_queue": "Follow-up Queue",
+  "workspace": {
+    "title": "Talent Hub",
+    "system_of_record": "System of Record",
+    "system_of_action": "System of Action",
+    "focus_mode": "Focus",
+    "board_view": "Board",
+    "entry_method": "Entry Method"
+  }
+}

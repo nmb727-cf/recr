@@ -1,0 +1,739 @@
+import React, { useState } from 'react'
+import {
+  Typography, Button, Input, Select, Space, Tag, Avatar,
+  Spin, Badge, message, Tooltip, Dropdown, Modal, Form, DatePicker,
+  Row, Col, Alert, Drawer, Timeline, Divider, Table, Card
+} from 'antd'
+import type { ColumnsType } from 'antd/es/table'
+import {
+  Search, Plus, MoreHorizontal,
+  Mail, Phone, MessageSquare, Calendar, Target,
+  User, Clock, Zap, Trash2, ShieldCheck,
+  Briefcase, DollarSign, TrendingUp, Bot, ArrowUpRight,
+  Activity, Sparkles, AlertTriangle, CheckCircle2,
+  Users, Bell, Layout, List as ListIcon, Info, ExternalLink,
+  MapPin, Check, Globe, Send, MessageCircle, StickyNote
+} from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import { candidatesApi } from '@/api/candidates'
+import { useApiQuery } from '@/hooks/useApiQuery'
+import { cn } from '@/utils/cn'
+import http from '@/utils/http'
+
+dayjs.extend(relativeTime)
+const { Title, Text, Paragraph } = Typography
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface RelationCandidate {
+  pipeline_id: string
+  candidate_id: string
+  name: string
+  current_title: string
+  current_company: string
+  days_in_stage: number
+  next_action: string
+  next_action_date: string | null
+  sentiment: 'positive' | 'neutral' | 'negative'
+  assigned_to: string | null
+  last_contacted_at: string | null
+  intent: string
+  source_channel?: string
+}
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const STATUSES = [
+  { key: 'new_lead',        label: 'New Lead',        color: '#4F46E5', bg: '#EEF2FF' },
+  { key: 'contacted',       label: 'Contacted',       color: '#3B82F6', bg: '#EFF6FF' },
+  { key: 'interested',      label: 'Interested',      color: '#10B981', bg: '#ECFDF5' },
+  { key: 'follow_up',       label: 'Follow-up',       color: '#F59E0B', bg: '#FFFBEB' },
+  { key: 'qualified',       label: 'Qualified',       color: '#059669', bg: '#F0FDF4' },
+  { key: 'ready_for_job',   label: 'Ready for Job',   color: '#8B5CF6', bg: '#F5F3FF' },
+  { key: 'submitted',       label: 'Submitted',       color: '#D946EF', bg: '#FDF4FF' },
+  { key: 'future_talent',   label: 'Future Talent',   color: '#64748B', bg: '#F8FAFC' },
+  { key: 'not_interested',  label: 'Not Interested',  color: '#94A3B8', bg: '#F1F5F9' },
+  { key: 'archive',         label: 'Archive',         color: '#475569', bg: '#F1F5F9' },
+]
+
+const INTENT_OPTIONS = [
+  { value: 'specific_job',    label: 'For Specific Job' },
+  { value: 'future_jobs',     label: 'For Future Jobs' },
+  { value: 'looking_for_job', label: 'Candidate Looking for Job' },
+  { value: 'just_lead',       label: 'Just Lead / Not Sure' },
+]
+
+// ── Main Component ────────────────────────────────────────────────────────────
+
+export default function CandidateRelations() {
+  const [viewMode, setViewMode] = useState<'list' | 'board'>('list')
+  const [search, setSearch] = useState('')
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false)
+  const [selectedCandidate, setSelectedCandidate] = useState<RelationCandidate | null>(null)
+  const [detailOpen, setDetailOpen] = useState(false)
+
+  const queryClient = useQueryClient()
+
+  // ── Queries ──────────────────────────────────────────────────────────────
+  const { data: pipelineData, isLoading } = useApiQuery(
+    ['candidates-crm-pipeline'],
+    candidatesApi.crmPipeline
+  )
+  const pipeline = (pipelineData as any)?.pipeline || {}
+
+  // ── Mutations ─────────────────────────────────────────────────────────────
+  const moveMutation = useMutation({
+    mutationFn: ({ id, status, note }: { id: string; status: string; note: string }) =>
+      candidatesApi.moveCRMPipeline(id, { status, note }),
+    onSuccess: () => {
+      message.success('Status updated')
+      queryClient.invalidateQueries({ queryKey: ['candidates-crm-pipeline'] })
+    },
+    onError: (err: any) => message.error(err?.response?.data?.message || 'Failed to update status'),
+  })
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  const handleOpenDetail = (cand: RelationCandidate) => {
+    setSelectedCandidate(cand)
+    setDetailOpen(true)
+  }
+
+  const handleStatusChange = (id: string, newStatus: string) => {
+    moveMutation.mutate({ id, status: newStatus, note: 'Status updated via list view' })
+  }
+
+  if (isLoading) return (
+    <div className="flex flex-1 items-center justify-center bg-white h-[600px]">
+      <Space direction="vertical" align="center" size={24}>
+        <Spin size="large" />
+        <Text className="text-slate-400 font-medium uppercase tracking-[0.2em] text-[10px]">
+          Synchronizing Lead Hub…
+        </Text>
+      </Space>
+    </div>
+  )
+
+  const flatCandidates = Object.entries(pipeline).flatMap(([stageKey, cands]) =>
+    (cands as RelationCandidate[]).map(c => ({ ...c, _stageKey: stageKey }))
+  )
+
+  const filteredCandidates = search.trim()
+    ? flatCandidates.filter(c =>
+        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.current_title?.toLowerCase().includes(search.toLowerCase())
+      )
+    : flatCandidates
+
+  return (
+    <div className="flex flex-1 flex-col bg-white overflow-hidden">
+
+      {/* ── Top Navigation ──────────────────────────────────────────────── */}
+      <div className="flex h-16 flex-none items-center justify-between border-b border-slate-100 px-8 bg-white z-10 shadow-sm">
+        <div className="flex items-center gap-6">
+          <div className="flex flex-col">
+            <h1 className="text-lg font-black tracking-tighter text-slate-900 leading-none">
+              RELATIONS
+            </h1>
+            <Text className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.2em] mt-1 flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+              Industry Standard CRM
+            </Text>
+          </div>
+
+          <div className="h-8 w-px bg-slate-100" />
+
+          <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-100">
+            <button
+              onClick={() => setViewMode('list')}
+              className={cn(
+                'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all',
+                viewMode === 'list'
+                  ? 'bg-white text-indigo-600 shadow-sm border border-slate-100'
+                  : 'text-slate-400 hover:text-slate-600'
+              )}
+            >
+              <ListIcon size={12} /> List
+            </button>
+            <button
+              onClick={() => setViewMode('board')}
+              className={cn(
+                'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all',
+                viewMode === 'board'
+                  ? 'bg-white text-indigo-600 shadow-sm border border-slate-100'
+                  : 'text-slate-400 hover:text-slate-600'
+              )}
+            >
+              <Layout size={12} /> Board
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <div className="relative group">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search leads…"
+              className="h-10 w-64 rounded-xl border border-slate-100 bg-slate-50 pl-9 pr-4 text-xs font-bold outline-none focus:border-indigo-200 focus:bg-white focus:ring-4 focus:ring-indigo-50/50 transition-all"
+            />
+          </div>
+          <Button
+            type="primary"
+            icon={<Plus size={16} />}
+            onClick={() => setIsQuickAddOpen(true)}
+            className="h-10 rounded-xl bg-slate-900 border-none px-6 text-[10px] font-black uppercase tracking-widest shadow-lg shadow-slate-200 hover:bg-indigo-600 transition-all active:scale-95"
+          >
+            Add Lead
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Main View Area ──────────────────────────────────────────────── */}
+      <div className="flex-1 overflow-hidden">
+        {viewMode === 'list' ? (
+          <div className="p-8 h-full overflow-auto custom-scrollbar">
+            <ListView
+              data={filteredCandidates}
+              onOpen={handleOpenDetail}
+              onStatusChange={handleStatusChange}
+            />
+          </div>
+        ) : (
+          <BoardView
+            pipeline={pipeline}
+            onOpen={handleOpenDetail}
+            onMove={handleStatusChange}
+          />
+        )}
+      </div>
+
+      {/* ── Overlays ──────────────────────────────────────────────────────── */}
+      <DetailPanel
+        open={detailOpen}
+        candidate={selectedCandidate}
+        onClose={() => setDetailOpen(false)}
+      />
+
+      <QuickAddModal
+        open={isQuickAddOpen}
+        onClose={() => setIsQuickAddOpen(false)}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: ['candidates-crm-pipeline'] })}
+      />
+    </div>
+  )
+}
+
+// ── List View (Primary) ───────────────────────────────────────────────────────
+
+function ListView({
+  data, onOpen, onStatusChange,
+}: {
+  data: any[]
+  onOpen: (c: RelationCandidate) => void
+  onStatusChange: (id: string, status: string) => void
+}) {
+  const columns: ColumnsType<any> = [
+    {
+      title: 'Candidate Name',
+      dataIndex: 'name',
+      render: (text, record) => (
+        <Space onClick={() => onOpen(record)} className="cursor-pointer group">
+          <Avatar size={32} className="bg-slate-50 text-slate-900 font-black text-[10px] uppercase border border-slate-100">
+            {text.charAt(0)}
+          </Avatar>
+          <div>
+            <Text strong className="text-xs uppercase tracking-tight block group-hover:text-indigo-600 transition-colors">
+              {text}
+            </Text>
+            <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+              {record.current_company || 'Lead'}
+            </Text>
+          </div>
+        </Space>
+      ),
+    },
+    {
+      title: 'Role / Title',
+      dataIndex: 'current_title',
+      render: v => <Text className="text-xs font-medium text-slate-600">{v || '—'}</Text>,
+    },
+    {
+      title: 'Status',
+      dataIndex: '_stageKey',
+      render: (v, record) => (
+        <Select
+          className="enterprise-select-xs w-32"
+          value={v}
+          onClick={e => e.stopPropagation()}
+          onChange={newStatus => onStatusChange(record.pipeline_id, newStatus)}
+          options={STATUSES.map(s => ({
+            value: s.key,
+            label: (
+              <Space size={6}>
+                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.color }} />
+                <span className="text-[10px] font-bold uppercase">{s.label}</span>
+              </Space>
+            ),
+          }))}
+        />
+      ),
+    },
+    {
+      title: 'Owner',
+      dataIndex: 'assigned_to',
+      render: v => v ? (
+        <Tag className="rounded-lg m-0 text-[10px] font-bold text-slate-500 border-slate-100 bg-slate-50 px-2 py-0.5">
+          {v.split(' ')[0]}
+        </Tag>
+      ) : <Text className="text-[10px] text-slate-300 italic">Unassigned</Text>,
+    },
+    {
+      title: 'Last Interaction',
+      dataIndex: 'last_contacted_at',
+      render: v => <Text className="text-[10px] font-bold text-slate-400 uppercase">{v ? dayjs(v).fromNow() : '—'}</Text>,
+    },
+    {
+      title: 'Next Action',
+      dataIndex: 'next_action',
+      render: (text, record) => (
+        <div className="flex flex-col gap-0.5">
+          <Text className="text-[10px] font-black uppercase text-indigo-600 truncate max-w-[120px]">
+            {text || '—'}
+          </Text>
+          {record.next_action_date && (
+            <Text className="text-[9px] font-bold text-slate-400 uppercase">
+              {dayjs(record.next_action_date).format('MMM DD')}
+            </Text>
+          )}
+        </div>
+      ),
+    },
+    {
+      title: 'Due Date',
+      dataIndex: 'next_action_date',
+      render: v => <Text className="text-[10px] font-bold text-slate-500 uppercase">{v ? dayjs(v).format('MMM DD') : '—'}</Text>,
+    },
+    {
+      title: 'Job Match',
+      dataIndex: 'intent',
+      render: v => v === 'specific_job' ? <Tag color="blue" className="text-[9px] font-black uppercase m-0 px-2 py-0.5 rounded-lg">Matching</Tag> : <Text className="text-[10px] text-slate-300">—</Text>
+    },
+    {
+      title: 'Source',
+      dataIndex: 'source_channel',
+      render: v => <Text className="text-[10px] font-bold text-slate-400 uppercase">{v || 'Organic'}</Text>,
+    },
+    {
+      title: '',
+      key: 'actions',
+      render: (_, record) => (
+        <Button
+          size="small"
+          type="text"
+          icon={<MoreHorizontal size={14} className="text-slate-300" />}
+          onClick={e => { e.stopPropagation(); onOpen(record) }}
+        />
+      ),
+    },
+  ]
+
+  return (
+    <div className="rounded-3xl border border-slate-100 bg-white shadow-soft-sm overflow-hidden animate-in fade-in duration-700">
+      <Table
+        columns={columns}
+        dataSource={data}
+        rowKey="pipeline_id"
+        pagination={{ pageSize: 20, hideOnSinglePage: true }}
+        onRow={record => ({
+          onClick: () => onOpen(record),
+          className: 'cursor-pointer hover:bg-slate-50/50 transition-colors',
+        })}
+      />
+    </div>
+  )
+}
+
+// ── Board View (Secondary) ────────────────────────────────────────────────────
+
+function BoardView({
+  pipeline, onOpen, onMove,
+}: {
+  pipeline: Record<string, RelationCandidate[]>
+  onOpen: (c: RelationCandidate) => void
+  onMove: (id: string, status: string) => void
+}) {
+  return (
+    <div className="flex h-full gap-0 overflow-x-auto custom-scrollbar bg-white">
+      {STATUSES.slice(0, 6).map((stage, idx) => (
+        <div key={stage.key} className={cn(
+          'flex w-[300px] shrink-0 flex-col border-r border-slate-50',
+          idx === 5 && 'border-r-0'
+        )}>
+          <div className="flex h-14 items-center justify-between px-6 bg-white shrink-0 border-b border-slate-100/50">
+            <div className="flex items-center gap-2.5">
+              <div className="h-2 w-2 rounded-full" style={{ backgroundColor: stage.color }} />
+              <span className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-900">{stage.label}</span>
+              <Badge
+                count={(pipeline[stage.key] || []).length}
+                style={{ backgroundColor: stage.bg, color: stage.color, fontWeight: 900, fontSize: '10px', boxShadow: 'none' }}
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 space-y-4 overflow-y-auto p-4 custom-scrollbar bg-slate-50/20">
+            {(pipeline[stage.key] || []).map((cand) => (
+              <CandidateCard key={cand.pipeline_id} cand={cand} accentColor={stage.color} onClick={() => onOpen(cand)} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function CandidateCard({ cand, accentColor, onClick }: { cand: any, accentColor: string, onClick: () => void }) {
+  return (
+    <Card
+      onClick={onClick}
+      className="rounded-2xl border-slate-200 shadow-soft-sm hover:border-indigo-300 transition-all cursor-pointer group"
+      bodyStyle={{ padding: '16px' }}
+    >
+      <div className="absolute left-0 top-0 bottom-0 w-1" style={{ backgroundColor: accentColor }} />
+      <div className="flex flex-col gap-2">
+        <Text strong className="text-xs uppercase tracking-tight truncate">{cand.name}</Text>
+        <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">
+          {cand.current_title || 'Expert'}
+        </Text>
+        <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-50">
+          <Tag className="m-0 border-none bg-slate-50 text-slate-400 text-[9px] font-black uppercase px-2 py-0.5 rounded-lg">
+            {cand.days_in_stage}D
+          </Tag>
+          <Avatar size={20} className="bg-slate-100 text-slate-400 text-[8px] font-black uppercase">
+            {cand.assigned_to?.charAt(0) || '?'}
+          </Avatar>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+// ── Detail Panel (Right Sidebar) ─────────────────────────────────────────────
+
+function DetailPanel({
+  open, candidate, onClose,
+}: {
+  open: boolean
+  candidate: RelationCandidate | null
+  onClose: () => void
+}) {
+  const [activeTab, setActiveTab] = useState('overview')
+  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false)
+  const [form] = Form.useForm()
+  const queryClient = useQueryClient()
+
+  const { data: interactionsData, isLoading: loadingInteractions } = useApiQuery(
+    ['candidates-crm-interactions', candidate?.candidate_id],
+    () => candidatesApi.crmInteractions(candidate!.candidate_id),
+    { enabled: !!candidate && open }
+  )
+
+  const logMutation = useMutation({
+    mutationFn: (values: any) => candidatesApi.logCRMInteraction(candidate!.candidate_id, values),
+    onSuccess: () => {
+      message.success('Interaction logged')
+      queryClient.invalidateQueries({ queryKey: ['candidates-crm-interactions', candidate?.candidate_id] })
+      form.resetFields()
+    },
+  })
+
+  const TABS = [
+    { key: 'overview',      label: 'Overview',      icon: <Info size={13} /> },
+    { key: 'activity',      label: 'Activity',      icon: <Activity size={13} /> },
+    { key: 'notes',         label: 'Notes',         icon: <StickyNote size={13} /> },
+    { key: 'qualification', label: 'Qualification', icon: <ShieldCheck size={13} /> },
+    { key: 'mapping',       label: 'Job Mapping',   icon: <Target size={13} /> },
+  ]
+
+  return (
+    <Drawer
+      open={open}
+      onClose={onClose}
+      width={560}
+      styles={{
+        header: { borderBottom: '1px solid #F1F5F9', padding: '24px 32px' },
+        body:   { padding: 0, backgroundColor: '#F8FAFC' },
+      }}
+      title={
+        <div className="flex items-center gap-4">
+          <Avatar size={42} className="bg-indigo-600 font-black text-sm">{candidate?.name.charAt(0)}</Avatar>
+          <div className="flex flex-col">
+            <h3 className="text-base font-black text-slate-900 tracking-tight m-0 leading-none mb-1">{candidate?.name}</h3>
+            <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Lead Nurture Flow</Text>
+          </div>
+        </div>
+      }
+      extra={
+        <Button
+          type="primary"
+          onClick={() => setIsSubmitModalOpen(true)}
+          className="rounded-xl bg-slate-900 border-none font-black text-[10px] uppercase h-10 px-6 shadow-xl shadow-slate-200"
+          icon={<ArrowUpRight size={14} />}
+        >
+          Submit to ATS
+        </Button>
+      }
+    >
+      <div className="flex flex-col h-full">
+        {/* Navigation Tabs */}
+        <div className="bg-white border-b border-slate-100 px-8 flex gap-8">
+          {TABS.map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={cn(
+                'flex items-center gap-2 py-4 text-[10px] font-black uppercase tracking-widest transition-all relative border-b-2',
+                activeTab === tab.key ? 'text-indigo-600 border-indigo-600' : 'text-slate-400 border-transparent hover:text-slate-600'
+              )}
+            >
+              {tab.icon} {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab Content */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+          {activeTab === 'overview' && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
+              {/* Interaction Quick Log */}
+              <div className="rounded-3xl border border-slate-100 bg-white p-6 shadow-sm">
+                <Text className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-4 block">Quick Log</Text>
+                <Form form={form} layout="vertical" onFinish={v => logMutation.mutate(v)}>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <Form.Item name="interaction_type" initialValue="call" className="m-0">
+                      <Select options={[
+                        { value: 'call', label: 'Call' },
+                        { value: 'email', label: 'Email' },
+                        { value: 'whatsapp', label: 'WhatsApp' },
+                        { value: 'note', label: 'Note' },
+                        { value: 'follow_up', label: 'Follow-up' },
+                        { value: 'meeting', label: 'Meeting' },
+                      ]} className="rounded-xl" />
+                    </Form.Item>
+                    <Form.Item name="next_followup_date" className="m-0">
+                      <DatePicker placeholder="Next Follow-up" className="w-full rounded-xl" />
+                    </Form.Item>
+                  </div>
+                  <Form.Item name="content" rules={[{ required: true }]} className="mb-4">
+                    <Input.TextArea placeholder="Highlights from interaction..." rows={3} className="rounded-2xl border-slate-100" />
+                  </Form.Item>
+                  <Button type="primary" htmlType="submit" loading={logMutation.isPending} className="w-full bg-slate-900 rounded-xl h-10 font-black uppercase text-[10px] tracking-widest border-none shadow-lg shadow-slate-100">
+                    Log Interaction
+                  </Button>
+                </Form>
+              </div>
+
+              {/* Status & Next Step Summary */}
+              <Card className="rounded-3xl border-slate-100 shadow-sm overflow-hidden" bodyStyle={{ padding: 0 }}>
+                <div className="p-6 space-y-6">
+                  <div className="flex justify-between items-center">
+                    <Space size={12}><Clock size={14} className="text-slate-300" /><Text className="text-[10px] font-black uppercase text-slate-400">Current Status</Text></Space>
+                    <Tag className="rounded-lg font-black uppercase text-[10px] m-0" color="blue">{candidate?._stageKey?.replace('_',' ')}</Tag>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <Space size={12}><Zap size={14} className="text-slate-300" /><Text className="text-[10px] font-black uppercase text-slate-400">Next Action</Text></Space>
+                    <Text strong className="text-[11px] uppercase text-indigo-600">{candidate?.next_action || 'Pending'}</Text>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {activeTab === 'activity' && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-500">
+              {loadingInteractions ? <Spin /> : (interactionsData as any)?.interactions?.map((i: any) => {
+                const iconMap: Record<string, React.ReactNode> = {
+                  call: <Phone size={14} />,
+                  email: <Mail size={14} />,
+                  whatsapp: <MessageCircle size={14} />,
+                  meeting: <Users size={14} />,
+                  note: <StickyNote size={14} />,
+                  follow_up: <Bell size={14} />
+                }
+                return (
+                  <div key={i.id} className="group flex gap-4 rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+                    <div className="p-2 rounded-xl bg-slate-50 text-slate-400 group-hover:text-indigo-500 transition-colors h-fit">
+                      {iconMap[i.interaction_type] || <Activity size={14} />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between mb-2">
+                        <Text strong className="text-[11px] uppercase tracking-tight">{i.interaction_type}</Text>
+                        <Text className="text-[9px] font-bold text-slate-400 uppercase">{dayjs(i.created_at).fromNow()}</Text>
+                      </div>
+                      <Paragraph className="text-xs text-slate-600 m-0 leading-relaxed italic">"{i.content}"</Paragraph>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {activeTab === 'notes' && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-right-2 duration-500">
+              <div className="rounded-[2.5rem] border border-dashed border-slate-200 p-12 text-center bg-white">
+                <StickyNote size={32} className="text-slate-200 mx-auto mb-4" />
+                <Paragraph className="text-[11px] text-slate-400 font-bold uppercase tracking-widest mb-6">No specific internal notes</Paragraph>
+                <Button className="rounded-xl h-10 px-8 font-black uppercase text-[10px] tracking-widest border-slate-200">+ Add Note</Button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'qualification' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-500">
+              <Card className="rounded-3xl border-slate-100 shadow-sm overflow-hidden" bodyStyle={{ padding: '24px' }}>
+                <div className="space-y-6">
+                  {[
+                    { label: 'Role', val: candidate?.current_title, icon: <Briefcase size={14} /> },
+                    { label: 'Company', val: candidate?.current_company, icon: <Layout size={14} /> },
+                    { label: 'Expectation', val: 'Confidential', icon: <DollarSign size={14} /> },
+                    { label: 'Notice Period', val: '30 Days', icon: <Clock size={14} /> },
+                    { label: 'Interest Level', val: 'High', icon: <TrendingUp size={14} /> },
+                    { label: 'Work Mode', val: 'Hybrid', icon: <MapPin size={14} /> },
+                  ].map(item => (
+                    <div key={item.label} className="flex items-center justify-between">
+                      <Space size={12}><div className="text-slate-300">{item.icon}</div><Text className="text-[10px] font-black uppercase text-slate-400 tracking-tight">{item.label}</Text></Space>
+                      <Text strong className="text-xs uppercase text-slate-900">{item.val || '—'}</Text>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {activeTab === 'mapping' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-2 duration-500">
+              <div className="rounded-[2.5rem] border border-dashed border-slate-200 p-12 text-center">
+                <Target size={32} className="text-slate-200 mx-auto mb-4" />
+                <Paragraph className="text-[11px] text-slate-400 font-bold uppercase tracking-widest mb-6">No active job links</Paragraph>
+                <Button className="rounded-xl h-10 px-8 font-black uppercase text-[10px] tracking-widest border-slate-200" icon={<Plus size={14}/>}>
+                  Link to Job
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <SubmitToJobModal
+        open={isSubmitModalOpen}
+        candidate={candidate}
+        onClose={() => setIsSubmitModalOpen(false)}
+        onSuccess={() => {
+          setIsSubmitModalOpen(false)
+          onClose()
+          queryClient.invalidateQueries({ queryKey: ['candidates-crm-pipeline'] })
+        }}
+      />
+    </Drawer>
+  )
+}
+
+// ── Modals ────────────────────────────────────────────────────────────────────
+
+function SubmitToJobModal({ open, candidate, onClose, onSuccess }: { open: boolean; candidate: RelationCandidate | null; onClose: () => void; onSuccess: () => void }) {
+  const [targetJobId, setTargetJobId] = useState<string | null>(null)
+  const { data: jobsData } = useApiQuery(['active-jobs-list-relations'], () => http.get('/jobs/requisitions/?status=open'))
+  const jobs = (jobsData as any)?.data || []
+
+  const submitMutation = useMutation({
+    mutationFn: async () => {
+      await candidatesApi.moveCRMPipeline(candidate!.pipeline_id, {
+        status: 'submitted',
+        note: `Submitted to job: ${targetJobId}`,
+      })
+      await http.post('/pipeline/pipeline/submit/', {
+        candidate_id: candidate!.candidate_id,
+        requisition_id: targetJobId,
+        source: 'relations_nurture',
+      })
+    },
+    onSuccess: () => {
+      message.success('Handed off to ATS')
+      onSuccess()
+    },
+  })
+
+  return (
+    <Modal
+      title={<div className="flex items-center gap-2"><Target size={18} className="text-indigo-600" /><span className="font-black uppercase tracking-tight">ATS Handoff</span></div>}
+      open={open}
+      onCancel={onClose}
+      onOk={() => { if (!targetJobId) return message.error('Select job'); submitMutation.mutate() }}
+      okText="Confirm Submission"
+      confirmLoading={submitMutation.isPending}
+      className="rounded-[2.5rem] overflow-hidden"
+      width={480}
+      okButtonProps={{ className: 'bg-slate-900 h-11 px-8 rounded-xl font-black uppercase text-[10px] border-none' }}
+    >
+      <div className="py-6 space-y-6">
+        <div className="space-y-2">
+          <Text className="text-[10px] font-black uppercase text-slate-400 tracking-widest pl-1">Target Job Requisition</Text>
+          <Select
+            className="w-full h-11 rounded-xl"
+            placeholder="Search active jobs..."
+            showSearch
+            onChange={setTargetJobId}
+            options={jobs.map((j: any) => ({ value: j.id, label: `${j.title} (${j.job_ref_id})` }))}
+          />
+        </div>
+        <Alert showIcon type="info" message="Handoff Rule" description="This will trigger a live application in the ATS pipeline." className="rounded-2xl" />
+      </div>
+    </Modal>
+  )
+}
+
+function QuickAddModal({ open, onClose, onSuccess }: { open: boolean; onClose: () => void; onSuccess: () => void }) {
+  const [form] = Form.useForm()
+  const createMutation = useMutation({
+    mutationFn: async (values: any) => {
+      const res = await candidatesApi.create(values)
+      const candidateId = res.data.data.candidate.id
+      return await candidatesApi.addToCRMPipeline({
+        candidate_id: candidateId,
+        intent: form.getFieldValue('intent'),
+        status: 'new_lead',
+      })
+    },
+    onSuccess: () => {
+      message.success('Lead added')
+      onSuccess()
+      onClose()
+      form.resetFields()
+    },
+  })
+
+  return (
+    <Modal
+      title={<div className="flex items-center gap-2"><Sparkles size={18} className="text-indigo-600" /><span className="font-black uppercase tracking-tight text-sm">New Lead</span></div>}
+      open={open}
+      onCancel={onClose}
+      onOk={() => form.submit()}
+      confirmLoading={createMutation.isPending}
+      width={480}
+      okText="Add & Nurture"
+      okButtonProps={{ className: 'bg-slate-900 h-11 px-8 rounded-xl font-black uppercase text-[10px] border-none' }}
+    >
+      <Form form={form} layout="vertical" className="pt-6" onFinish={(v) => createMutation.mutate(v)}>
+        <Row gutter={16}>
+          <Col span={12}><Form.Item name="first_name" label="First Name" rules={[{ required: true }]}><Input className="h-11 rounded-xl" /></Form.Item></Col>
+          <Col span={12}><Form.Item name="last_name" label="Last Name" rules={[{ required: true }]}><Input className="h-11 rounded-xl" /></Form.Item></Col>
+        </Row>
+        <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email' }]}><Input className="h-11 rounded-xl" /></Form.Item>
+        <Form.Item name="current_title" label="Current Title"><Input className="h-11 rounded-xl" /></Form.Item>
+        <Form.Item name="intent" label="Entry Intent" initialValue="just_lead"><Select className="enterprise-select-lg" options={INTENT_OPTIONS} /></Form.Item>
+      </Form>
+    </Modal>
+  )
+}

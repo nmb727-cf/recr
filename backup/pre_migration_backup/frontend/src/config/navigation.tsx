@@ -1,0 +1,270 @@
+import {
+  DashboardOutlined,
+  RocketOutlined,
+  RobotOutlined,
+  ApartmentOutlined,
+  CalendarOutlined,
+  CheckCircleOutlined,
+  FileDoneOutlined,
+  ProjectOutlined,
+  TeamOutlined,
+  DatabaseOutlined,
+  BankOutlined,
+  BarChartOutlined,
+  HistoryOutlined,
+  PlayCircleOutlined,
+  UsergroupAddOutlined,
+  ControlOutlined,
+  SettingOutlined,
+  IdcardOutlined,
+  NodeIndexOutlined,
+  ThunderboltOutlined,
+  DeploymentUnitOutlined,
+  PlusOutlined,
+  SafetyOutlined,
+  ApiOutlined,
+  AppstoreOutlined as LayoutGridOutlined,
+  BellOutlined,
+} from '@ant-design/icons'
+import { ReactNode } from 'react'
+
+export interface NavItem {
+  key: string
+  label: ReactNode
+  icon?: ReactNode
+  permission?: string
+  children?: NavItem[]
+}
+
+export const companySidebarConfig: NavItem[] = [
+  { key: '/dashboard', label: 'Dashboard', icon: <DashboardOutlined /> },
+  {
+    key: 'workflow-system',
+    label: 'Workflow System',
+    icon: <NodeIndexOutlined />,
+    children: [
+      {
+        key: 'workflow-overview',
+        label: 'Overview',
+        children: [
+          { key: '/workflows/hub', label: 'Workflow Hub', icon: <NodeIndexOutlined /> },
+          { key: '/workflows/dashboard', label: 'Dashboard', icon: <DashboardOutlined /> },
+          { key: '/workflows/active', label: 'Active Workflows', icon: <PlayCircleOutlined /> },
+        ],
+      },
+      {
+        key: 'workflow-builder',
+        label: 'Builder',
+        children: [
+          { key: '/workflows/guided-builder', label: 'Guided Builder', icon: <RocketOutlined /> },
+          { key: '/workflows/advanced-builder', label: 'Advanced Visual Builder', icon: <ControlOutlined /> },
+          { key: '/workflows/templates', label: 'Templates', icon: <LayoutGridOutlined /> },
+          { key: '/workflows/playbooks', label: 'Playbooks', icon: <FileDoneOutlined /> },
+        ],
+      },
+      {
+        key: 'workflow-e2e',
+        label: 'End-to-End Flows',
+        children: [
+          { key: '/workflows/e2e/company', label: 'Company Hiring Flows' },
+          { key: '/workflows/e2e/agency', label: 'Agency Recruitment Flows' },
+          { key: '/workflows/e2e/cross-entity', label: 'Cross-Entity Flows' },
+        ],
+      },
+      {
+        key: 'workflow-automation',
+        label: 'Automation',
+        children: [
+          { key: '/workflows/event-triggers', label: 'Event Triggers', icon: <ThunderboltOutlined /> },
+          { key: '/workflows/rules', label: 'Automation Rules' },
+          { key: '/workflows/actions', label: 'Smart Actions' },
+          { key: '/workflows/escalations', label: 'Escalation Rules' },
+          { key: '/workflows/approvals', label: 'Approval Rules' },
+        ],
+      },
+      {
+        key: 'workflow-execution',
+        label: 'Execution',
+        children: [
+          { key: '/workflows/instances', label: 'Running Instances' },
+          { key: '/workflows/history', label: 'Execution History', icon: <HistoryOutlined /> },
+          { key: '/workflows/failures', label: 'Failure Logs', icon: <CheckCircleOutlined /> },
+          { key: '/workflows/recovery', label: 'Recovery Queue' },
+        ],
+      },
+      {
+        key: 'workflow-governance',
+        label: 'Governance',
+        children: [
+          { key: '/workflows/sla', label: 'SLA Tracking' },
+          { key: '/workflows/governance', label: 'Governance', icon: <SafetyOutlined /> },
+          { key: '/workflows/versioning', label: 'Versioning' },
+          { key: '/workflows/audit', label: 'Audit Logs' },
+        ],
+      },
+      {
+        key: 'workflow-analytics',
+        label: 'Analytics',
+        children: [
+          { key: '/workflows/analytics', label: 'Workflow Analytics', icon: <BarChartOutlined /> },
+          { key: '/workflows/performance', label: 'Process Performance' },
+          { key: '/workflows/coverage', label: 'Coverage Metrics' },
+        ],
+      },
+    ],
+  },
+  { key: '/hiring-command-center', label: 'Mission Control', icon: <ControlOutlined /> },
+  {
+    key: 'work',
+    label: 'Work',
+    icon: <RocketOutlined />,
+    children: [
+      { key: '/jobs', label: 'Jobs', icon: <ProjectOutlined /> },
+      { key: '/pipeline', label: 'Job Pipeline Command Center', icon: <RocketOutlined /> },
+      { key: '/candidates', label: 'Candidate Database', icon: <DatabaseOutlined /> },
+      { key: '/candidates/active', label: 'Active Work', icon: <RocketOutlined /> },
+      { key: '/candidates/leads', label: 'Lead Candidates', icon: <UsergroupAddOutlined /> },
+      { key: '/candidates/pools', label: 'General Pools', icon: <UsergroupAddOutlined /> },
+      { key: '/applications', label: 'Submissions Flow', icon: <CheckCircleOutlined /> },
+      { key: '/interviews', label: 'Interviews', icon: <CalendarOutlined /> },
+      { key: '/messages', label: 'Communication History', icon: <HistoryOutlined /> },
+      { key: '/offers', label: 'Offers', icon: <FileDoneOutlined /> },
+      { key: '/approvals', label: 'Approvals', icon: <CheckCircleOutlined /> },
+    ],
+  },
+  {
+    key: 'icc',
+    label: 'Interview Command Center',
+    icon: <CalendarOutlined />,
+    children: [
+      { key: '/interviews', label: 'ICC Dashboard', icon: <CalendarOutlined /> },
+      { key: '/interviews/registry', label: 'Interview Registry', icon: <DatabaseOutlined /> },
+      { key: '/interviews/templates', label: 'Interview Templates', icon: <LayoutGridOutlined /> },
+      { key: '/interviews/scorecards', label: 'Scorecards', icon: <FileDoneOutlined /> },
+      { key: '/interviews/scheduling', label: 'Scheduling', icon: <CalendarOutlined /> },
+      { key: '/interviews/bulk-scheduling', label: 'Bulk Scheduling', icon: <CalendarOutlined /> },
+      { key: '/interviews/dashboard', label: 'Recruiter Interview Views', icon: <TeamOutlined /> },
+      { key: '/interviews/queue', label: 'Recruiter Interview Queue', icon: <CheckCircleOutlined /> },
+      { key: '/interviews/productivity', label: 'Recruiter Productivity', icon: <RocketOutlined /> },
+      { key: '/interviews/ai', label: 'AI Interview Engine', icon: <ControlOutlined /> },
+      { key: '/interviews/technical', label: 'Technical Engine', icon: <ProjectOutlined /> },
+      { key: '/interviews/human', label: 'Human Interview Engine', icon: <TeamOutlined /> },
+      { key: '/interviews/video', label: 'Video Interview Engine', icon: <CalendarOutlined /> },
+      { key: '/interviews/group-discussion', label: 'Group Discussion Engine', icon: <UsergroupAddOutlined /> },
+      { key: '/interviews/presentation-interview', label: 'Presentation Engine', icon: <FileDoneOutlined /> },
+      { key: '/interviews/portfolio-review', label: 'Portfolio Engine', icon: <ProjectOutlined /> },
+      { key: '/interviews/campus-hiring', label: 'Campus Hiring', icon: <BankOutlined /> },
+      { key: '/interviews/walkin-drive', label: 'Walk-in Drive', icon: <RocketOutlined /> },
+      { key: '/interviews/live', label: 'Live Interview Center', icon: <ControlOutlined /> },
+      { key: '/interviews/automation', label: 'Interview Automation', icon: <ControlOutlined /> },
+      { key: '/interviews/integrations', label: 'Interview Integrations', icon: <ControlOutlined /> },
+      { key: '/interviews/prequalification', label: 'Pre-Qualification', icon: <FileDoneOutlined /> },
+    ],
+  },
+  {
+    key: 'hdc',
+    label: 'Hiring Decision Center',
+    icon: <CheckCircleOutlined />,
+    children: [
+      { key: '/hiring-decisions', label: 'Decision Dashboard', icon: <DashboardOutlined /> },
+      { key: '/hiring-decisions/committee', label: 'Committee', icon: <TeamOutlined /> },
+      { key: '/hiring-decisions/comparison', label: 'Candidate Comparison', icon: <UsergroupAddOutlined /> },
+      { key: '/offers', label: 'Offers', icon: <FileDoneOutlined /> },
+      { key: '/approvals', label: 'Approvals', icon: <CheckCircleOutlined /> },
+      { key: '/hiring-decisions/offer-intelligence', label: 'Offer Intelligence', icon: <BarChartOutlined /> },
+      { key: '/hiring-decisions/compensation', label: 'Compensation', icon: <BankOutlined /> },
+      { key: '/hiring-decisions/negotiation', label: 'Negotiation', icon: <TeamOutlined /> },
+      { key: '/hiring-decisions/offer-release', label: 'Offer Release', icon: <FileDoneOutlined /> },
+      { key: '/hiring-decisions/offer-acceptance', label: 'Offer Acceptance', icon: <CheckCircleOutlined /> },
+      { key: '/hiring-decisions/joining', label: 'Joining Tracking', icon: <RocketOutlined /> },
+    ],
+  },
+  {
+    key: 'intelligence-hub',
+    label: 'Intelligence Hub',
+    icon: <ThunderboltOutlined />,
+    children: [
+      { key: '/intelligence', label: 'Human Review', icon: <DashboardOutlined /> },
+      { key: '/intelligence/automation-intelligence', label: 'AI Suggestions', icon: <ControlOutlined /> },
+      { key: '/intelligence/automation-insights-dashboard', label: 'AI Insights Dashboard', icon: <BarChartOutlined /> },
+      { key: '/intelligence/analytics', label: 'Intelligence Analytics', icon: <BarChartOutlined /> },
+      { key: '/intelligence/learning', label: 'Learning Engine' },
+      { key: '/intelligence/optimization', label: 'Optimization' },
+      { key: '/intelligence/governance', label: 'AI Governance', icon: <SafetyOutlined /> },
+      { key: '/intelligence/observability', label: 'Observability' },
+      { key: '/intelligence/change-impact', label: 'Change Impact' },
+      { key: '/intelligence/library', label: 'Enterprise Library', icon: <LayoutGridOutlined /> },
+      { key: '/intelligence/settings', label: 'Settings', icon: <SettingOutlined /> },
+    ],
+  },
+  {
+    key: 'records',
+    label: 'Records',
+    icon: <DatabaseOutlined />,
+    children: [
+      { key: '/jobs/create', label: 'Create Job', icon: <PlusOutlined /> },
+    ],
+  },
+  {
+    key: 'network',
+    label: 'Network',
+    icon: <BankOutlined />,
+    children: [
+      { key: '/agencies', label: 'Agencies', icon: <BankOutlined /> },
+      { key: '/applications', label: 'Agency Submissions', icon: <CheckCircleOutlined /> },
+    ],
+  },
+  {
+    key: 'admin',
+    label: 'Admin',
+    icon: <ControlOutlined />,
+    children: [
+      { key: '/admin', label: 'Master Admin', icon: <DashboardOutlined /> },
+      { key: '/admin/tenants', label: 'Tenant Control', icon: <BankOutlined /> },
+      { key: '/admin/settings', label: 'Platform Settings', icon: <SettingOutlined /> },
+      { key: '/admin/audit', label: 'Admin Audit', icon: <HistoryOutlined /> },
+      { key: '/settings?tab=users', label: 'Team & Roles', icon: <TeamOutlined /> },
+      { key: '/workflow-templates', label: 'Workflow Templates', icon: <ControlOutlined /> },
+      { key: '/settings', label: 'Settings', icon: <SettingOutlined /> },
+      { key: '/settings/notification-control', label: 'Notification Control', icon: <BellOutlined /> },
+      { key: '/integrations', label: 'Integrations', icon: <ApiOutlined /> },
+    ],
+  },
+]
+
+export const agencySidebarConfig: NavItem[] = [
+  { key: '/dashboard', label: 'Dashboard', icon: <DashboardOutlined /> },
+  { key: '/agency/talent-pool', label: 'Talent Pool', icon: <DatabaseOutlined /> },
+  { key: '/agency/pipeline', label: 'Pipeline', icon: <RocketOutlined /> },
+  { key: '/agency/hotlists', label: 'Hotlists', icon: <ThunderboltOutlined /> },
+  { key: '/agency/followups', label: 'Followups', icon: <CalendarOutlined /> },
+  { key: '/agency/clients', label: 'Clients', icon: <BankOutlined /> },
+  { key: '/agency/jobs', label: 'Jobs', icon: <ProjectOutlined /> },
+  { key: '/agency/submissions', label: 'Submissions', icon: <CheckCircleOutlined /> },
+  { key: '/settings?tab=users', label: 'Team', icon: <TeamOutlined /> },
+  { key: '/agency/analytics', label: 'Analytics', icon: <BarChartOutlined /> },
+  { key: '/settings', label: 'Settings', icon: <SettingOutlined /> },
+]
+export const candidateSidebarConfig: NavItem[] = [
+  { key: '/candidate/dashboard', label: 'Dashboard', icon: <DashboardOutlined /> },
+  {
+    key: 'work',
+    label: 'Work',
+    icon: <RocketOutlined />,
+    children: [
+      { key: '/candidate/applications', label: 'Applications', icon: <RocketOutlined /> },
+      { key: '/candidate/interviews', label: 'Interviews', icon: <CalendarOutlined /> },
+      { key: '/candidate/jobs', label: 'Browse Jobs', icon: <ProjectOutlined /> },
+    ],
+  },
+  {
+    key: 'admin',
+    label: 'Admin',
+    icon: <ControlOutlined />,
+    children: [
+      { key: '/passport', label: 'Passport', icon: <IdcardOutlined /> },
+      { key: '/settings', label: 'Settings', icon: <SettingOutlined /> },
+      { key: '/integrations', label: 'Integrations', icon: <ApiOutlined /> },
+    ],
+  },
+]

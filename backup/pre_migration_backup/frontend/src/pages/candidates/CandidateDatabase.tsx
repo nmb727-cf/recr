@@ -1,0 +1,856 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import {
+  Avatar, Button, Checkbox, Dropdown, Empty, Input,
+  Divider, Modal, Select, Spin, Table, Tabs, Tooltip, message, Typography, Badge, Space, Timeline, Tag
+} from 'antd'
+import type { ColumnsType, TableRowSelection } from 'antd/es/table/interface'
+import {
+  Activity, AlertTriangle, BadgeCheck, Bot, Briefcase,
+  ChevronDown, ChevronLeft, Clock3, Copy, Database, Download, ExternalLink,
+  Filter, MapPin, MoreHorizontal, Plus, RefreshCw, Search,
+  Settings2, Sparkles, Target, Trash2, User, FileText,
+  Users, XCircle, Zap, BookOpen, Maximize2, Minimize2, ShieldCheck,
+  History as HistoryIcon, Notebook, Mail, Phone, Linkedin, ChevronRight, DollarSign, Building2, Calendar, Link2, FileDown, Paperclip, Globe, Layers, MessageSquare, Flag,
+  Smartphone, Share2, ClipboardList
+} from 'lucide-react'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { useApiQuery } from '@/hooks/useApiQuery'
+import { candidatesApi } from '@/api/candidates'
+import { talentPoolsApi } from '@/api/talentPools'
+import { requisitionsApi } from '@/api/jobs'
+import { organisationApi } from '@/api/organisation'
+import http from '@/utils/http'
+import type { CandidateSmartRow, CandidateCommandCenter as CCData, CandidateDetail } from '@/types'
+import { usePermission } from '@/hooks/usePermission'
+import AddCandidateWorkflowModal from '@/components/candidates/AddCandidateWorkflowModal'
+import { cn } from '@/utils/cn'
+import { formatStatusLabel, getStatusStyle } from '@/utils/status'
+import { useAuthStore } from '@/store/authStore'
+import TalentPoolsList from '../talent-pools/TalentPoolsList'
+import CandidateWorkbench from './CandidateWorkbench'
+import CandidateRelations from './CandidateRelations'
+
+import { CustomizeView } from '@/components/common/CustomizeView'
+import { useUserPreferences } from '@/hooks/useUserPreferences'
+
+dayjs.extend(relativeTime)
+const { Title, Text, Paragraph } = Typography
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const SEARCH_MODES = [
+  { key: 'all', label: 'All Candidates' },
+  { key: 'search', label: 'Talent Search' },
+  { key: 'match_job', label: 'Job Matching' },
+  { key: 'duplicates', label: 'Data Health' },
+  { key: 'needs_review', label: 'Needs Review' },
+] as const
+
+type SearchMode = typeof SEARCH_MODES[number]['key']
+
+const SOURCE_OPTIONS = [
+  { value: 'company', label: 'Direct' },
+  { value: 'agency', label: 'Agency' },
+  { value: 'referral', label: 'Referral' },
+  { value: 'job_board', label: 'Job Board' },
+  { value: 'passport', label: 'Passport' },
+  { value: 'linkedin', label: 'LinkedIn' },
+]
+
+const DEFAULT_VISIBLE_COLS = [
+  'candidate', 'experience', 'location', 'fit', 'readiness', 'actions'
+]
+
+const COLUMN_GROUPS = [
+  {
+    title: 'Core Info',
+    options: [
+      { key: 'candidate', label: 'Candidate Profile' },
+      { key: 'current_title', label: 'Title / Role' },
+      { key: 'experience', label: 'Experience' },
+      { key: 'location', label: 'Location' },
+      { key: 'availability', label: 'Availability' },
+      { key: 'source', label: 'Source' },
+      { key: 'owner', label: 'Owner' },
+      { key: 'last_activity', label: 'Last Activity' },
+    ]
+  },
+  {
+    title: 'Decision Signals',
+    options: [
+      { key: 'fit', label: 'Fit' },
+      { key: 'match', label: 'Match' },
+      { key: 'readiness', label: 'Readiness' },
+      { key: 'status', label: 'Status' },
+      { key: 'tags', label: 'Tags' },
+    ]
+  },
+  {
+    title: 'Additional Info',
+    options: [
+      { key: 'phone', label: 'Phone' },
+      { key: 'email', label: 'Email' },
+      { key: 'company', label: 'Current Company' },
+      { key: 'notice_period', label: 'Notice Period' },
+      { key: 'expected_salary', label: 'Expected Salary' },
+    ]
+  }
+]
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function avatarColor(name: string) {
+  const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#f97316', '#22c55e', '#14b8a6', '#3b82f6']
+  return colors[(name?.charCodeAt(0) || 0) % colors.length]
+}
+
+function scoreColor(score: number | null | undefined): { bg: string; color: string } {
+  if (score == null) return { bg: '#f1f5f9', color: '#94a3b8' }
+  if (score >= 75) return { bg: '#f0fdf4', color: '#15803d' }
+  if (score >= 50) return { bg: '#fefce8', color: '#b45309' }
+  return { bg: '#fef2f2', color: '#dc2626' }
+}
+
+function mapCandidateListItemToSmartRow(candidate: any): CandidateSmartRow {
+  const firstName = candidate?.first_name || ''
+  const lastName = candidate?.last_name || ''
+  const fullName = candidate?.name || `${firstName} ${lastName}`.trim() || candidate?.full_name || 'Unnamed Candidate'
+  const incomingSignals = candidate?.signals || {}
+  return {
+    id: String(candidate?.id || ''),
+    candidate_ref_id: candidate?.candidate_ref_id || '',
+    name: fullName,
+    current_title: candidate?.current_title || candidate?.headline || '',
+    company: candidate?.company || candidate?.current_company || '',
+    experience: candidate?.experience != null ? Number(candidate.experience) : candidate?.experience_years != null ? Number(candidate.experience_years) : null,
+    location: candidate?.location || [candidate?.current_location_city, candidate?.current_location_country].filter(Boolean).join(', '),
+    source: candidate?.source || candidate?.source_type || '',
+    source_type: candidate?.source_type || '',
+    owner: candidate?.owner || candidate?.owner_user_id || candidate?.assigned_to || null,
+    owner_name: candidate?.owner_name || null,
+    last_touch: candidate?.last_touch || candidate?.last_contact_at || null,
+    last_activity: candidate?.last_activity || candidate?.last_activity_at || candidate?.updated_at || null,
+    signals: {
+      readiness_score: incomingSignals?.readiness_score ?? candidate?.readiness_score ?? null,
+      fit_score: incomingSignals?.fit_score ?? candidate?.fit_score ?? null,
+      completeness_score: incomingSignals?.completeness_score ?? candidate?.completeness_score ?? candidate?.profile_completeness ?? null,
+      warning_signals: incomingSignals?.warning_signals || candidate?.warning_signals || [],
+    },
+    job_engagement_summary: candidate?.job_engagement_summary || {},
+    skills: candidate?.skills || [],
+    pools: candidate?.pools || [],
+    resume_url: candidate?.resume_url || candidate?.cv_url || null,
+    passport_linked: Boolean(candidate?.passport_linked || candidate?.passport_id),
+    is_duplicate: Boolean(candidate?.is_duplicate || candidate?.duplicate_of),
+    notice_period_days: candidate?.notice_period_days ?? null,
+    availability_status: candidate?.availability_status ?? null,
+    open_engagements: candidate?.open_engagements ?? 0,
+    engagement_stage: candidate?.engagement_stage || candidate?.status || 'lead',
+    email: candidate?.email || '',
+    phone: candidate?.phone || '',
+    tags: candidate?.tags || [],
+    expected_salary_min: candidate?.expected_salary_min ?? null,
+    expected_salary_max: candidate?.expected_salary_max ?? null,
+    salary_currency: candidate?.salary_currency || '',
+    is_agency_protected: Boolean(candidate?.is_agency_protected),
+    protected_until: candidate?.protected_until ?? null,
+    protection_scope: candidate?.protection_scope ?? null,
+  }
+}
+
+// ── ScoreChip ─────────────────────────────────────────────────────────────────
+
+function ScoreChip({
+  score, label, explanation,
+}: { score?: number | null; label: string; explanation?: string }) {
+  const { bg, color } = scoreColor(score)
+  const chip = (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold cursor-default"
+      style={{ backgroundColor: bg, color }}
+    >
+      {score != null ? score : '—'}
+    </span>
+  )
+  if (!explanation && score == null) return chip
+  return (
+    <Tooltip
+      title={
+        <div className="space-y-1">
+          <div className="font-semibold">{label}: {score ?? 'N/A'}</div>
+          {explanation && <div className="text-xs opacity-80">{explanation}</div>}
+        </div>
+      }
+    >
+      {chip}
+    </Tooltip>
+  )
+}
+
+// ── FilterSection ─────────────────────────────────────────────────────────────
+
+function FilterSection({
+  title, children, defaultOpen = true,
+}: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="border-b border-slate-100 last:border-0">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex w-full items-center justify-between px-4 py-2.5 hover:bg-slate-50 transition group"
+      >
+        <span className="text-[10px] font-black uppercase tracking-[0.12em] text-slate-400 group-hover:text-slate-600">{title}</span>
+        <ChevronDown
+          size={12}
+          className={cn("text-slate-300 transition-transform duration-200", open ? '' : '-rotate-90')}
+        />
+      </button>
+      {open && <div className="px-4 pb-3 space-y-2 animate-in fade-in slide-in-from-top-1 duration-200">{children}</div>}
+    </div>
+  )
+}
+
+// ── FilterRail ────────────────────────────────────────────────────────────────
+
+interface FilterState {
+  skills: string
+  experience_min: string
+  experience_max: string
+  location: string
+  source_type: string
+  owner: string
+}
+
+const EMPTY_FILTERS: FilterState = {
+  skills: '',
+  experience_min: '',
+  experience_max: '',
+  location: '',
+  source_type: '',
+  owner: '',
+}
+
+function FilterRail({
+  filters, onChange, onClear, memberOptions,
+}: {
+  filters: FilterState
+  onChange: (f: Partial<FilterState>) => void
+  onClear: () => void
+  memberOptions: { value: string; label: string }[]
+}) {
+  const activeCount = Object.entries(filters).filter(([, v]) => v !== '' && v !== null).length
+
+  return (
+    <div className="flex flex-col h-full overflow-hidden bg-white border-r border-slate-200 shadow-soft-sm">
+      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 bg-white shrink-0">
+        <div className="flex items-center gap-2">
+          <Filter size={14} className="text-indigo-600" />
+          <span className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Filters</span>
+          {activeCount > 0 && <Badge count={activeCount} size="small" style={{ backgroundColor: '#4F46E5', fontSize: '9px' }} />}
+        </div>
+        {activeCount > 0 && (
+          <button onClick={onClear} className="text-[10px] text-indigo-600 hover:text-indigo-800 font-black uppercase tracking-tight transition-colors">Reset</button>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
+        <FilterSection title="Search Profile">
+          <Input size="small" placeholder="Keywords..." value={filters.skills} onChange={e => onChange({ skills: e.target.value })} allowClear className="rounded-lg border-slate-200 h-8 text-[11px] font-bold" />
+        </FilterSection>
+        <FilterSection title="Experience">
+          <div className="flex items-center gap-2">
+            <Input size="small" type="number" placeholder="Min" value={filters.experience_min} onChange={e => onChange({ experience_min: e.target.value })} className="rounded-lg h-8" />
+            <Input size="small" type="number" placeholder="Max" value={filters.experience_max} onChange={e => onChange({ experience_max: e.target.value })} className="rounded-lg h-8" />
+          </div>
+        </FilterSection>
+        <FilterSection title="Location">
+          <Input size="small" placeholder="City..." value={filters.location} onChange={e => onChange({ location: e.target.value })} allowClear className="rounded-lg h-8" />
+        </FilterSection>
+        <FilterSection title="Ownership">
+          <Select size="small" className="w-full" placeholder="Any owner" allowClear value={filters.owner || undefined} onChange={v => onChange({ owner: v || '' })} options={memberOptions} />
+        </FilterSection>
+      </div>
+    </div>
+  )
+}
+
+// ── CandidateFocusView ────────────────────────────────────────────────────────
+
+function CandidateFocusView({
+  candidateId,
+  row,
+  onBack,
+  onAddToActive,
+  onAddToPool,
+  onSubmitToJob,
+}: {
+  candidateId: string
+  row: CandidateSmartRow
+  onBack: () => void
+  onAddToActive: () => void
+  onAddToPool: () => void
+  onSubmitToJob: () => void
+}) {
+  const [activeTab, setActiveTab] = useState('overview')
+  const commandQ = useQuery({
+    queryKey: ['candidate-command-center', candidateId],
+    queryFn: async () => (await candidatesApi.commandCenter(candidateId)).data.data,
+    enabled: !!candidateId,
+  })
+  const cc = commandQ.data as CCData | null
+  const candidateDetail: any = (cc as any)?.candidate || {}
+  const formatValue = (v: any) => (v === null || v === undefined || v === '' ? '—' : String(v))
+
+  return (
+    <div className="flex flex-1 flex-col bg-white overflow-hidden animate-in fade-in duration-500">
+      {/* 1. Header Bar */}
+      <div className="flex h-14 items-center justify-between border-b border-slate-800/10 bg-slate-900 px-6 text-white shrink-0">
+        <div className="flex items-center gap-4">
+          <button onClick={onBack} className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest hover:bg-white/20 transition-all border border-white/10">
+            <ChevronLeft size={14} /> BACK TO SEARCH
+          </button>
+          <div className="h-6 w-px bg-white/20 mx-2" />
+          <div className="flex items-center gap-3">
+            <Avatar size={32} style={{ backgroundColor: avatarColor(row.name) }} className="font-black border border-white/20 shadow-sm text-xs">{(row.name || '?').charAt(0)}</Avatar>
+            <div className="min-w-0">
+              <h2 className="text-sm font-black truncate tracking-tight leading-none mb-1 uppercase tracking-widest">{row.name}</h2>
+              <p className="text-[10px] font-bold text-slate-400 truncate uppercase tracking-widest leading-none">{row.current_title || 'Expert Professional'}</p>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button onClick={onAddToActive} className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-[10px] font-black uppercase tracking-wider hover:bg-indigo-500 shadow-lg transition-all active:scale-95"><Zap size={14} /> ACTIVE</button>
+          <button onClick={onSubmitToJob} className="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-wider hover:bg-white/20 transition-all active:scale-95 shadow-sm border border-white/10"><Target size={14} /> SUBMIT TO JOB</button>
+          <button onClick={onAddToPool} className="flex items-center gap-2 rounded-lg bg-white/10 px-4 py-2 text-[10px] font-black uppercase tracking-wider hover:bg-white/20 transition-all active:scale-95 shadow-sm border border-white/10"><Users size={14} /> POOL</button>
+        </div>
+      </div>
+
+      {/* 2. Meta Panels Grid */}
+      <div className="grid grid-cols-1 gap-3 border-b border-slate-200 bg-slate-50/50 px-6 py-4 lg:grid-cols-3 shrink-0">
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-soft-sm">
+          <div className="mb-3 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">CANDIDATE IDENTITY</div>
+          <div className="space-y-1">
+            <div className="text-[13px] font-black tracking-tight text-slate-900 uppercase leading-none">{row.name}</div>
+            <div className="text-[11px] font-bold text-slate-500 uppercase tracking-tight">{row.current_title || 'Expert Professional'}</div>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-bold text-slate-400 mt-2">
+              <span className="inline-flex items-center gap-1 uppercase tracking-tight"><MapPin size={11} /> {row.location || 'REMOTE'}</span>
+              <span className="inline-flex items-center gap-1 uppercase tracking-tight"><Briefcase size={11} /> {row.experience ? `${row.experience}Y` : 'N/A'}</span>
+              <span className="inline-flex items-center gap-1 uppercase tracking-tight"><Clock3 size={11} /> {row.availability_status || 'IMMEDIATE'}</span>
+            </div>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-soft-sm">
+          <div className="mb-3 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">DECISION SIGNALS</div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="text-center">
+              <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">FIT</div>
+              <div className="text-sm font-black text-slate-300">—</div>
+              <div className="h-0.5 w-6 bg-slate-200 mx-auto mt-1" />
+            </div>
+            <div className="text-center">
+              <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">READY</div>
+              <div className="text-sm font-black text-slate-300">—</div>
+              <div className="h-0.5 w-6 bg-slate-200 mx-auto mt-1" />
+            </div>
+            <div className="text-center">
+              <div className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">PROFILE</div>
+              <div className="text-sm font-black text-slate-300">—</div>
+              <div className="h-0.5 w-6 bg-slate-200 mx-auto mt-1" />
+            </div>
+          </div>
+        </div>
+        <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-soft-sm">
+          <div className="mb-3 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">ACTIVITY SUMMARY</div>
+          <div className="space-y-2 text-[10px] font-bold text-slate-500">
+            <div className="flex items-center justify-between uppercase tracking-tight"><span>Active Engagements</span><span className="font-black text-indigo-600">3</span></div>
+            <div className="flex items-center justify-between uppercase tracking-tight"><span>Pool Membership</span><span className="font-black text-slate-800">0</span></div>
+            <div className="flex items-center justify-between uppercase tracking-tight"><span>Last Activity</span><span className="font-black text-slate-800">5 HOURS AGO</span></div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Main Workspace Area */}
+      <div className="flex-1 overflow-hidden bg-slate-50/30 p-6">
+        <div className="flex h-full gap-6">
+          <div className="flex flex-1 flex-col min-w-0 bg-white rounded-3xl border border-slate-200 shadow-soft-sm overflow-hidden">
+            <div className="px-8 border-b border-slate-100 shrink-0">
+              <Tabs activeKey={activeTab} onChange={setActiveTab} className="focus-master-tabs" items={[
+                { key: 'overview', label: <span className="text-[10px] font-black uppercase tracking-[0.15em] py-5 block">Strategy Overview</span> },
+                { key: 'resume', label: <span className="text-[10px] font-black uppercase tracking-[0.15em] py-5 block">Resume</span> },
+                { key: 'engagements', label: <span className="text-[10px] font-black uppercase tracking-[0.15em] py-5 block">Engagements</span> },
+                { key: 'documents', label: <span className="text-[10px] font-black uppercase tracking-[0.15em] py-5 block">Documents</span> },
+                { key: 'insights', label: <span className="text-[10px] font-black uppercase tracking-[0.15em] py-5 block">Insights</span> },
+                { key: 'feed', label: <span className="text-[10px] font-black uppercase tracking-[0.15em] py-5 block">Feed</span> },
+                { key: 'history', label: <span className="text-[10px] font-black uppercase tracking-[0.15em] py-5 block">History</span> },
+              ]} />
+            </div>
+            
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+              {activeTab === 'overview' && (
+                <div className="space-y-8 animate-in slide-in-from-bottom-2 duration-500">
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/30 p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                      <div className="flex items-center gap-3"><span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">EMAIL:</span><span className="text-xs font-black text-blue-600 select-all">{formatValue(candidateDetail.email || 'cat9@test.com')}</span></div>
+                      <div className="flex items-center gap-3"><span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400">PHONE:</span><span className="text-xs font-black text-slate-700 select-all">{formatValue(candidateDetail.phone || '265626262')}</span></div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-soft-sm">
+                      <div className="flex items-center gap-2 mb-6"><User size={14} className="text-indigo-600" /><span className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em]">GEOGRAPHIC & IDENTITY</span></div>
+                      <div className="space-y-4">
+                        {[
+                          { label: 'FULL NAME', val: row.name, color: 'text-slate-900' },
+                          { label: 'LOCATION', val: row.location || '—', color: 'text-slate-700' },
+                          { label: 'NATIONALITY', val: '—', color: 'text-slate-700' },
+                          { label: 'AVAILABILITY', val: 'IMMEDIATE', color: 'text-emerald-600' },
+                          { label: 'WORK MODE', val: 'ANY', color: 'text-slate-700' },
+                          { label: 'JOINED DATE', val: dayjs(row.created_at).format('DD MMM YYYY'), color: 'text-slate-700' },
+                        ].map((item, i) => (
+                          <div key={i} className="flex justify-between items-center text-[10px] font-bold uppercase border-b border-slate-50 pb-2 last:border-0 last:pb-0"><span className="text-slate-400 tracking-tight">{item.label}</span><span className={cn("font-black tracking-tight", item.color)}>{item.val}</span></div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-soft-sm">
+                      <div className="flex items-center gap-2 mb-6"><DollarSign size={14} className="text-indigo-600" /><span className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em]">ECONOMICS & RANGE</span></div>
+                      <div className="space-y-4">
+                        {[
+                          { label: 'EXPECTED SALARY', val: '—', color: 'text-slate-700' },
+                          { label: 'NOTICE PERIOD', val: '— DAYS', color: 'text-slate-700' },
+                          { label: 'CURRENCY', val: 'INR', color: 'text-slate-700' },
+                          { label: 'EMPLOYMENT TYPE', val: 'FULL TIME', color: 'text-slate-700' },
+                          { label: 'CURRENT SALARY', val: 'CONFIDENTIAL', color: 'text-slate-700' },
+                        ].map((item, i) => (
+                          <div key={i} className="flex justify-between items-center text-[10px] font-bold uppercase border-b border-slate-50 pb-2 last:border-0 last:pb-0"><span className="text-slate-400 tracking-tight">{item.label}</span><span className={cn("font-black tracking-tight", item.color)}>{item.val}</span></div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-soft-sm">
+                    <div className="flex items-center gap-2 mb-4"><Layers size={14} className="text-indigo-600" /><span className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em]">TECHNICAL DOMAIN & SKILLS</span></div>
+                    <div className="h-12 flex items-center justify-center border-t border-slate-50"><span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">No skills mapped yet</span></div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="w-[340px] shrink-0 flex flex-col gap-6">
+            <div className="flex flex-col bg-white rounded-3xl border border-slate-200 shadow-soft-sm overflow-hidden h-full">
+              <div className="bg-slate-900 px-5 py-3.5 border-b border-slate-800 shrink-0"><span className="text-[10px] font-black text-white uppercase tracking-[0.25em]">INTELLIGENCE TERMINAL</span></div>
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-6">
+                <div>
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] block mb-4">OPERATIONAL COMMAND</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { icon: <Mail size={16} />, label: 'OUTREACH' },
+                      { icon: <Phone size={16} />, label: 'VOICE CALL' },
+                      { icon: <Smartphone size={16} />, label: 'WHATSAPP' },
+                      { icon: <Link2 size={16} />, label: 'COPY LINK' },
+                      { icon: <Calendar size={16} />, label: 'SCHEDULE' },
+                      { icon: <Flag size={16} />, label: 'PRIORITY' },
+                    ].map((cmd, idx) => (
+                      <button key={idx} className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-100 hover:border-slate-200 transition-all group">
+                        <div className="text-slate-400 group-hover:text-indigo-600 transition-colors">{cmd.icon}</div>
+                        <span className="text-[8px] font-black text-slate-500 group-hover:text-slate-900 tracking-widest">{cmd.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-5">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] block mb-3">OPERATIONAL SUMMARY</span>
+                  <p className="text-[11px] text-slate-500 font-bold italic leading-relaxed">AI synthesis is being generated for this profile.</p>
+                </div>
+                <div>
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] block mb-4">DECISION SIGNALS</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-center"><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">MATCH</p><p className="text-sm font-black text-slate-300">—</p></div>
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-center"><p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">READY</p><p className="text-sm font-black text-slate-300">—</p></div>
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-slate-100 bg-slate-50/50 p-5"><span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] block mb-1">AI DIRECTIVES</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Main: CandidateDatabase ───────────────────────────────────────────────────
+
+export default function CandidateDatabase() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const queryClient = useQueryClient()
+  const canCreate = usePermission('candidates.candidate.create')
+  
+  const { pages } = useUserPreferences()
+  const pagePrefs = pages['candidate-db'] || { hiddenColumns: [], hiddenSections: [], density: 'comfortable' }
+  const isCompact = pagePrefs.density === 'compact'
+  const isSummaryHidden = pagePrefs.hiddenSections.includes('summary')
+
+  const initialView = useMemo(() => {
+    const p = location.pathname
+    if (p.includes('/active')) return 'active'
+    if (p.includes('/pools')) return 'pools'
+    if (p.includes('/leads')) return 'leads'
+    return 'database'
+  }, [location.pathname]);
+
+  const [mainView, setMainView] = useState<'database' | 'active' | 'pools' | 'leads'>(initialView);
+  const [searchMode, setSearchMode] = useState<SearchMode>('all')
+  const [searchText, setSearchText] = useState('')
+  const [searchInputType, setSearchInputType] = useState<'keyword' | 'semantic'>('keyword')
+  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS)
+  const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([])
+  const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(null)
+  const [filterRailCollapsed, setFilterRailCollapsed] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
+  const [addToPoolOpen, setAddToPoolOpen] = useState(false)
+  const [poolTargetId, setPoolTargetId] = useState<string | null>(null)
+  const [submitToJobOpen, setSubmitToJobOpen] = useState(false)
+  const [submitTargetId, setSubmitTargetId] = useState<string | null>(null)
+  const [targetSubmissionJobId, setTargetSubmissionJobId] = useState<string | null>(null)
+  const [visibleColumns, setVisibleColumns] = useState<string[]>(() => {
+    const saved = localStorage.getItem('candidate_db_visible_columns')
+    return saved ? JSON.parse(saved) : DEFAULT_VISIBLE_COLS
+  })
+
+  useEffect(() => {
+    localStorage.setItem('candidate_db_visible_columns', JSON.stringify(visibleColumns))
+  }, [visibleColumns])
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    if (params.get('mode') === 'add') {
+      setAddOpen(true)
+      // Clean up URL
+      const newParams = new URLSearchParams(location.search)
+      newParams.delete('mode')
+      const newSearch = newParams.toString()
+      navigate({ search: newSearch ? `?${newSearch}` : '' }, { replace: true })
+    }
+  }, [location.search, navigate])
+
+  const apiParams = useMemo(() => ({
+    view: searchMode === 'duplicates' ? 'duplicates' : (searchMode === 'needs_review' ? 'missing_contact_info' : 'all_candidates'),
+    search: searchText || undefined,
+    limit: 200,
+  }), [searchText, searchMode])
+
+  const dbQ = useQuery({ queryKey: ['candidate-database-v3', apiParams], queryFn: async () => (await candidatesApi.database(apiParams)).data?.data, staleTime: 30_000 })
+  const apiRows = useMemo((): CandidateSmartRow[] => {
+    const payload: any = dbQ.data; if (!payload) return []
+    const items = payload.items || payload.results || payload.candidates || []
+    return items.map(mapCandidateListItemToSmartRow)
+  }, [dbQ.data])
+
+  const handleAddToActive = async (candidateId: string) => {
+    // Check if already active
+    const row = apiRows.find(r => r.id === candidateId)
+    if (row && (row.open_engagements || 0) > 0) {
+      return message.warning('Candidate is already in Active Work.')
+    }
+    try { 
+      await http.post(`/candidates/${candidateId}/engagements/`, { stage: 'new_lead' })
+      message.success('Added to Active Work')
+      queryClient.invalidateQueries({ queryKey: ['candidate-database-v3'] }) 
+    } catch { 
+      message.error('Failed to add to Active Work') 
+    }
+  }
+  const handleAddToPool = async (candidateId: string, poolId: string) => {
+    try { await talentPoolsApi.bulkAdd(poolId, { candidate_ids: [candidateId] }); message.success('Added to pool'); setAddToPoolOpen(false) } catch { message.error('Failed to add to pool') }
+  }
+  const handleSubmitToJob = async (candidateId: string, jobId: string) => {
+    try { await http.post(`/candidates/${candidateId}/engagements/`, { stage: 'submitted', job: jobId }); message.success('Submitted to job'); setSubmitToJobOpen(false); queryClient.invalidateQueries({ queryKey: ['candidate-database-v3'] }) } catch { message.error('Failed to submit to job') }
+  }
+
+  const poolsQ = useQuery({ queryKey: ['talent-pools-list'], queryFn: async () => (await talentPoolsApi.list()).data.data?.talent_pools || [], enabled: addToPoolOpen })
+  const jobsQ = useQuery({ 
+    queryKey: ['requisitions-list'], 
+    queryFn: async () => {
+      const resp = await requisitionsApi.list({ status: 'active' })
+      return resp.data.data?.requisitions || []
+    }, 
+    enabled: submitToJobOpen 
+  })
+
+  const tableColumns = useMemo(() => {
+    const allCols: ColumnsType<CandidateSmartRow> = [
+      { key: 'candidate', title: <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Candidate Profile</span>, fixed: 'left', width: 280, render: (_, row) => (<div className="flex items-center gap-3 py-1"><Avatar size={36} style={{ backgroundColor: avatarColor(row.name) }} className="font-black border-2 border-white shadow-soft-sm shrink-0">{row.name.charAt(0)}</Avatar><div className="min-w-0"><div className="text-[13px] font-black text-slate-900 uppercase tracking-tight truncate leading-tight">{row.name}</div><div className="text-[10px] font-black text-slate-400 uppercase tracking-widest truncate mt-0.5">{row.current_title || 'Expert Professional'}</div></div></div>) },
+      { key: 'current_title', title: <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Title / Role</span>, width: 200, render: (_, row) => <span className="text-[11px] font-black text-slate-700 uppercase tracking-tighter truncate block">{row.current_title || '—'}</span> },
+      { key: 'experience', title: <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Exp</span>, width: 80, render: (_, row) => <span className="text-[11px] font-black text-slate-700 uppercase tracking-tighter">{row.experience != null ? `${row.experience}y` : '—'}</span> },
+      { key: 'location', title: <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Location</span>, width: 140, render: (_, row) => <span className="text-[11px] font-black text-slate-700 uppercase tracking-tighter truncate block max-w-[120px]">{row.location || 'Remote'}</span> },
+      { key: 'availability', title: <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Availability</span>, width: 120, render: (_, row) => <span className="text-[11px] font-black text-slate-700 uppercase tracking-tighter">{row.availability_status || '—'}</span> },
+      { key: 'source', title: <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Source</span>, width: 120, render: (_, row) => <span className="text-[11px] font-black text-slate-700 uppercase tracking-tighter truncate block">{row.source || '—'}</span> },
+      { key: 'owner', title: <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Owner</span>, width: 120, render: (_, row) => <span className="text-[11px] font-black text-slate-700 uppercase tracking-tighter">{row.owner_name || '—'}</span> },
+      { key: 'last_activity', title: <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Last Activity</span>, width: 140, render: (_, row) => <span className="text-[11px] font-black text-slate-700 uppercase tracking-tighter">{row.last_activity ? dayjs(row.last_activity).fromNow() : '—'}</span> },
+      { key: 'fit', title: <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Fit</span>, width: 70, align: 'center', render: (_, row) => <ScoreChip score={row.signals?.fit_score} label="Fit" /> },
+      { key: 'match', title: <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Match</span>, width: 70, align: 'center', render: (_, row) => <ScoreChip score={row.signals?.fit_score} label="Match" /> },
+      { key: 'readiness', title: <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ready</span>, width: 70, align: 'center', render: (_, row) => <ScoreChip score={row.signals?.readiness_score} label="Readiness" /> },
+      { key: 'status', title: <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Status</span>, width: 120, render: (_, row) => <Tag className="rounded-full border-none px-3 text-[9px] font-black uppercase tracking-widest" color={getStatusStyle(row.engagement_stage || 'lead').antColor}>{formatStatusLabel(row.engagement_stage || 'lead')}</Tag> },
+      { key: 'tags', title: <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tags</span>, width: 150, render: (_, row) => (<div className="flex flex-wrap gap-1">{(row.tags || []).slice(0, 2).map(t => <Tag key={t} className="m-0 text-[8px] font-bold uppercase">{t}</Tag>)}{(row.tags || []).length > 2 && <span className="text-[8px] text-slate-400">+{(row.tags || []).length - 2}</span>}</div>) },
+      { key: 'phone', title: <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Phone</span>, width: 120, render: (_, row) => <span className="text-[11px] font-black text-slate-700">{row.phone || '—'}</span> },
+      { key: 'email', title: <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Email</span>, width: 180, render: (_, row) => <span className="text-[11px] font-black text-slate-700 lowercase truncate block">{row.email || '—'}</span> },
+      { key: 'company', title: <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Company</span>, width: 150, render: (_, row) => <span className="text-[11px] font-black text-slate-700 uppercase tracking-tighter truncate block">{row.company || '—'}</span> },
+      { key: 'notice_period', title: <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Notice</span>, width: 100, render: (_, row) => <span className="text-[11px] font-black text-slate-700 uppercase tracking-tighter">{row.notice_period_days != null ? `${row.notice_period_days}d` : '—'}</span> },
+      { key: 'expected_salary', title: <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Salary</span>, width: 120, render: (_, row) => <span className="text-[11px] font-black text-slate-700 uppercase tracking-tighter">{row.expected_salary_min ? `${row.salary_currency || '$'}${row.expected_salary_min.toLocaleString()}` : '—'}</span> },
+      { key: 'actions', title: '', width: 60, fixed: 'right', render: (_, row) => (
+        <Dropdown 
+          trigger={['click']} 
+          menu={{ 
+            items: [
+              {
+                key: 'active',
+                icon: <Zap size={14} />,
+                label: <span className="text-[11px] font-black uppercase tracking-widest">Active Work</span>,
+                onClick: () => handleAddToActive(row.id),
+                disabled: (row.open_engagements || 0) > 0
+              },
+              {
+                key: 'relations',
+                icon: <MessageSquare size={14} />,
+                label: <span className="text-[11px] font-black uppercase tracking-widest text-indigo-600">Send to Relations</span>,
+                onClick: () => {
+                   candidatesApi.addToCRMPipeline({ candidate_id: row.id, intent: 'just_lead', status: 'new_lead' })
+                      .then(() => message.success('Added to Relations'))
+                      .catch(() => message.error('Failed or already exists'))
+                }
+              },
+              { key: 'match', icon: <Target size={14} />, label: <span className="text-[11px] font-black uppercase tracking-widest">Match to Job</span>, onClick: () => { setSubmitTargetId(row.id); setSubmitToJobOpen(true) } },
+              { key: 'pool', icon: <Users size={14} />, label: <span className="text-[11px] font-black uppercase tracking-widest">Add to Pool</span>, onClick: () => { setPoolTargetId(row.id); setAddToPoolOpen(true) } }
+            ]
+          }}
+        >
+          <Button type="text" icon={<MoreHorizontal size={16} />} className="text-slate-400 hover:text-indigo-600" />
+        </Dropdown>
+      ) }
+    ]
+    return allCols.filter(col => visibleColumns.includes(col.key as string) || col.key === 'actions')
+  }, [visibleColumns, handleAddToActive, setSubmitTargetId, setSubmitToJobOpen, setPoolTargetId, setAddToPoolOpen])
+
+
+  const { data: usersData } = useApiQuery(['organisation-users'], () => organisationApi.listUsers())
+  const memberOptions = (usersData as any)?.users?.map((u: any) => ({ value: u.id, label: `${u.first_name} ${u.last_name}` })) ?? []
+
+  const handleViewChange = (view: 'database' | 'active' | 'pools' | 'leads') => { 
+    setMainView(view)
+    const path = view === 'database' ? '/candidates/database' : `/candidates/${view}`
+    navigate(path)
+  }
+  const selectedRow = useMemo(() => apiRows.find(r => r.id === selectedCandidateId) || null, [apiRows, selectedCandidateId])
+
+  const columnDropdown = (
+    <div className="w-64 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-[11px] font-black uppercase tracking-widest text-slate-900">Columns</span>
+        <button 
+          onClick={() => setVisibleColumns(DEFAULT_VISIBLE_COLS)}
+          className="text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:text-indigo-800"
+        >
+          Reset
+        </button>
+      </div>
+      <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
+        {COLUMN_GROUPS.map(group => (
+          <div key={group.title}>
+            <div className="mb-2 text-[9px] font-black uppercase tracking-[0.15em] text-slate-400">{group.title}</div>
+            <div className="space-y-1.5">
+              {group.options.map(opt => (
+                <div key={opt.key} className="flex items-center gap-2">
+                  <Checkbox 
+                    checked={visibleColumns.includes(opt.key)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setVisibleColumns([...visibleColumns, opt.key])
+                      } else {
+                        setVisibleColumns(visibleColumns.filter(k => k !== opt.key))
+                      }
+                    }}
+                  />
+                  <span className="text-[11px] font-bold text-slate-600">{opt.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <Divider className="my-3" />
+      <div className="flex gap-2">
+        <button 
+          onClick={() => setVisibleColumns(COLUMN_GROUPS.flatMap(g => g.options.map(o => o.key)).concat(['actions']))}
+          className="flex-1 rounded-lg bg-slate-50 py-1.5 text-[9px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-100"
+        >
+          Select All
+        </button>
+        <button 
+          onClick={() => setVisibleColumns(['candidate', 'actions'])}
+          className="flex-1 rounded-lg bg-slate-50 py-1.5 text-[9px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-100"
+        >
+          Clear All
+        </button>
+      </div>
+    </div>
+  )
+
+  return (
+    <div className="flex flex-col bg-[#F8FAFC] -mt-6 -mx-6 overflow-hidden" style={{ height: 'calc(100vh - 56px)' }}>
+      <div className="flex h-14 flex-none items-center justify-between border-b border-slate-200 bg-white px-6">
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-soft-lg">
+              {mainView === 'active' ? <Sparkles size={18} /> : <Database size={18} />}
+            </div>
+            <span className="text-sm font-black text-slate-900 uppercase tracking-widest">
+              {mainView === 'active' ? 'ACTIVE WORK' : 'CANDIDATE DATABASE'}
+            </span>
+          </div>
+          <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 border border-slate-200/50">
+            <button 
+              onClick={() => handleViewChange('database')} 
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-4 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all", 
+                mainView === 'database' ? "bg-white text-indigo-700 shadow-sm border border-indigo-100" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              <Database size={12} /> DATABASE
+            </button>
+            <button 
+              onClick={() => handleViewChange('active')} 
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-4 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all", 
+                mainView === 'active' ? "bg-white text-indigo-700 shadow-sm border border-indigo-100" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              <Activity size={12} /> ACTIVE WORK
+            </button>
+            <button 
+              onClick={() => handleViewChange('leads')} 
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-4 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all", 
+                mainView === 'leads' ? "bg-white text-indigo-700 shadow-sm border border-indigo-100" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              <Target size={12} /> RELATIONS
+            </button>
+            <button 
+              onClick={() => handleViewChange('pools')} 
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-4 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all", 
+                mainView === 'pools' ? "bg-white text-indigo-700 shadow-sm border border-indigo-100" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              <Users size={12} /> TALENT POOLS
+            </button>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          <CustomizeView 
+            pageId="candidate-db"
+            columns={COLUMN_GROUPS.flatMap(g => g.options.map(o => ({ id: o.key, label: o.label })))}
+            sections={[
+              { id: 'summary', label: 'Intelligence Cards' },
+            ]}
+          />
+          {canCreate && (
+            <button 
+              onClick={() => setAddOpen(true)} 
+              className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white hover:bg-indigo-700 transition shadow-soft-lg active:scale-95"
+            >
+              <Plus size={14} /> Add Candidate
+            </button>
+          )}
+          <button 
+            onClick={() => dbQ.refetch()} 
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 shadow-soft-sm transition-all"
+          >
+            <RefreshCw size={16} className={cn(dbQ.isLoading && "animate-spin")} />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-hidden flex flex-col relative">
+        {mainView === 'pools' ? (
+          <div className="flex-1 overflow-auto bg-white animate-in fade-in duration-300">
+            <TalentPoolsList />
+          </div>
+        ) : mainView === 'leads' ? (
+          <div className="flex-1 overflow-hidden animate-in fade-in duration-300">
+            <CandidateRelations />
+          </div>
+        ) : mainView === 'active' ? (
+          <div className="flex-1 overflow-hidden animate-in fade-in duration-300">
+            <CandidateWorkbench initialSurface="active_work" />
+          </div>
+        ) : (
+          <div className="flex-1 flex flex-col overflow-hidden animate-in fade-in duration-300">
+            <div className={cn("flex-1 flex overflow-hidden relative", selectedCandidateId ? "hidden" : "flex")}>
+              <div className={cn("flex-none transition-all duration-300 bg-white border-r border-slate-200 z-10", filterRailCollapsed ? "w-0" : "w-[240px]")}>
+                <FilterRail filters={filters} onChange={f => setFilters(prev => ({ ...prev, ...f }))} onClear={() => setFilters(EMPTY_FILTERS)} memberOptions={memberOptions} />
+              </div>
+              <div className="flex-1 flex flex-col overflow-hidden bg-white">
+                <div className="flex flex-none items-center gap-4 border-b border-slate-200 bg-white px-6 py-3">
+                  <button onClick={() => setFilterRailCollapsed(!filterRailCollapsed)} className={cn("h-9 px-4 rounded-xl border flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all shadow-soft-sm", filterRailCollapsed ? "bg-white text-slate-600 border-slate-200" : "bg-indigo-50 text-indigo-600 border-indigo-200")}><Filter size={14} /> {filterRailCollapsed ? 'Show Filters' : 'Hide Filters'}</button>
+                  <div className="flex flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 focus-within:border-indigo-300 focus-within:bg-white transition-all shadow-inner"><Search size={16} className="text-slate-400" /><input value={searchText} onChange={e => setSearchText(e.target.value)} placeholder="Search repository..." className="flex-1 bg-transparent text-xs font-black uppercase tracking-widest text-slate-700 outline-none placeholder-slate-400" /></div>
+                  <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">{(['keyword', 'semantic'] as const).map(type => (<button key={type} onClick={() => setSearchInputType(type)} className={cn("px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest transition", searchInputType === type ? "bg-white text-slate-900 shadow-sm border border-slate-100" : "text-slate-400 hover:text-slate-600")}>{type === 'keyword' ? 'Keyword' : <span className="flex items-center gap-1"><Bot size={12} /> Semantic</span>}</button>))}</div>
+                </div>
+                <div className="flex h-9 flex-none items-center border-b border-slate-100 bg-white px-6">{SEARCH_MODES.map(mode => (<button key={mode.key} onClick={() => setSearchMode(mode.key)} className={cn("px-4 h-full text-[10px] font-black uppercase tracking-widest transition relative", searchMode === mode.key ? "text-indigo-600" : "text-slate-400 hover:text-slate-600")}>{mode.label}{searchMode === mode.key && <div className="absolute bottom-0 left-0 h-0.5 w-full bg-indigo-600 rounded-full" />}</button>))}<div className="ml-auto"><span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{apiRows.length} Matches</span></div></div>
+                <div className="flex-1 overflow-y-auto custom-scrollbar"><Table<CandidateSmartRow> dataSource={apiRows} columns={tableColumns} rowKey="id" size="small" loading={dbQ.isLoading} scroll={{ x: 1000 }} onRow={row => ({ onClick: () => setSelectedCandidateId(row.id), className: "cursor-pointer group" })} /></div>
+              </div>
+            </div>
+            {selectedCandidateId && selectedRow && (
+              <CandidateFocusView candidateId={selectedCandidateId} row={selectedRow} onBack={() => setSelectedCandidateId(null)} onAddToActive={() => handleAddToActive(selectedCandidateId)} onAddToPool={() => { setPoolTargetId(selectedCandidateId); setAddToPoolOpen(true) }} onSubmitToJob={() => { setSubmitTargetId(selectedCandidateId); setSubmitToJobOpen(true) }} />
+            )}
+          </div>
+        )}
+      </div>
+
+      <AddCandidateWorkflowModal open={addOpen} onClose={() => setAddOpen(false)} sourceSurface="database" onCompleted={() => queryClient.invalidateQueries({ queryKey: ['candidate-database-v3'] })} />
+      
+      <Modal open={addToPoolOpen} onCancel={() => setAddToPoolOpen(false)} title="Target Pool" footer={null} width={440} centered>
+        <div className="space-y-2 py-4">{(poolsQ.data || []).map((pool: any) => (<button key={pool.id} onClick={() => handleAddToPool(poolTargetId || selectedCandidateId!, pool.id)} className="w-full flex items-center gap-4 p-4 rounded-2xl border border-slate-100 hover:border-indigo-200 hover:bg-indigo-50 transition-all text-left"><div className="h-10 w-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center"><Users size={18} /></div><div><p className="text-sm font-black text-slate-900 uppercase tracking-tight">{pool.name}</p><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{pool.candidate_count || 0} Talents</p></div></button>))}</div>
+      </Modal>
+
+      <Modal
+        title={<span className="text-lg font-black uppercase tracking-widest">Submit to Job</span>}
+        open={submitToJobOpen}
+        onCancel={() => setSubmitToJobOpen(false)}
+        onOk={() => {
+          if (!targetSubmissionJobId) return message.error('Please select a job')
+          handleSubmitToJob(submitTargetId || selectedCandidateId!, targetSubmissionJobId)
+        }}
+        okText="Confirm Submission"
+        centered
+        width={480}
+      >
+        <div className="py-4 space-y-4">
+          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Select target job requisition:</p>
+          <Select
+            className="w-full h-11"
+            placeholder="Search active jobs..."
+            onChange={(val) => setTargetSubmissionJobId(val)}
+            options={(jobsQ.data || []).map((j: any) => ({
+              value: j.id,
+              label: (
+                <div className="flex items-center justify-between w-full">
+                  <span className="font-bold text-slate-700">{j.title}</span>
+                  <Tag className="mr-0 border-none bg-slate-100 text-slate-500 font-bold text-[9px] uppercase tracking-tighter">{j.job_ref_id}</Tag>
+                </div>
+              )
+            }))}
+            showSearch
+            filterOption={(input, option) => (String(option?.label) ?? '').toLowerCase().includes(input.toLowerCase())}
+          />
+        </div>
+      </Modal>
+    </div>
+  )
+}

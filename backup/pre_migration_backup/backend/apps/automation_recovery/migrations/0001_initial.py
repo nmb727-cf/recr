@@ -1,0 +1,301 @@
+import uuid
+from django.db import migrations, models
+import django.db.models.deletion
+
+
+class Migration(migrations.Migration):
+
+    initial = True
+
+    dependencies = []
+
+    operations = [
+        migrations.CreateModel(
+            name='WorkflowRecoveryCase',
+            fields=[
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('tenant_id', models.UUIDField(blank=True, db_index=True, null=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('created_by', models.UUIDField(blank=True, null=True)),
+                ('is_deleted', models.BooleanField(db_index=True, default=False)),
+                ('deleted_at', models.DateTimeField(blank=True, null=True)),
+                ('metadata', models.JSONField(blank=True, default=dict)),
+                ('workflow_id', models.UUIDField(db_index=True)),
+                ('execution_id', models.UUIDField(db_index=True)),
+                ('failure_node_id', models.UUIDField(blank=True, null=True)),
+                ('failure_type', models.CharField(
+                    choices=[
+                        ('transient', 'Transient'),
+                        ('dependency_unavailable', 'Dependency Unavailable'),
+                        ('configuration_error', 'Configuration Error'),
+                        ('permission_error', 'Permission Error'),
+                        ('validation_error', 'Validation Error'),
+                        ('provider_error', 'Provider Error'),
+                        ('data_integrity_error', 'Data Integrity Error'),
+                        ('unrecoverable', 'Unrecoverable'),
+                    ],
+                    default='transient',
+                    max_length=30,
+                )),
+                ('recovery_status', models.CharField(
+                    choices=[
+                        ('open', 'Open'),
+                        ('retrying', 'Retrying'),
+                        ('resumed', 'Resumed'),
+                        ('fallback_executed', 'Fallback Executed'),
+                        ('rolled_back', 'Rolled Back'),
+                        ('dead_lettered', 'Dead Lettered'),
+                        ('manual_intervention_required', 'Manual Intervention Required'),
+                        ('resolved', 'Resolved'),
+                        ('failed', 'Failed'),
+                    ],
+                    db_index=True,
+                    default='open',
+                    max_length=40,
+                )),
+                ('recovery_strategy', models.CharField(
+                    blank=True,
+                    choices=[
+                        ('immediate_retry', 'Immediate Retry'),
+                        ('delayed_retry', 'Delayed Retry'),
+                        ('resume_from_node', 'Resume from Node'),
+                        ('fallback_path', 'Fallback Path'),
+                        ('rollback', 'Rollback'),
+                        ('dead_letter', 'Dead Letter'),
+                        ('manual', 'Manual Intervention'),
+                    ],
+                    max_length=30,
+                    null=True,
+                )),
+                ('retry_count', models.PositiveIntegerField(default=0)),
+                ('max_retry_limit', models.PositiveIntegerField(default=3)),
+                ('error_message', models.TextField(blank=True)),
+                ('execution_snapshot', models.JSONField(blank=True, default=dict)),
+                ('resolved_at', models.DateTimeField(blank=True, null=True)),
+                ('next_retry_at', models.DateTimeField(blank=True, null=True)),
+            ],
+            options={
+                'db_table': 'wf_recovery_cases',
+                'ordering': ['-created_at'],
+            },
+        ),
+        migrations.AddIndex(
+            model_name='workflowrecoverycase',
+            index=models.Index(fields=['tenant_id', 'recovery_status'], name='wf_rec_case_tenant_status_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='workflowrecoverycase',
+            index=models.Index(fields=['tenant_id', 'workflow_id'], name='wf_rec_case_tenant_wf_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='workflowrecoverycase',
+            index=models.Index(fields=['tenant_id', 'execution_id'], name='wf_rec_case_tenant_exec_idx'),
+        ),
+        migrations.CreateModel(
+            name='WorkflowRecoveryAttempt',
+            fields=[
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('tenant_id', models.UUIDField(blank=True, db_index=True, null=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('created_by', models.UUIDField(blank=True, null=True)),
+                ('is_deleted', models.BooleanField(db_index=True, default=False)),
+                ('deleted_at', models.DateTimeField(blank=True, null=True)),
+                ('metadata', models.JSONField(blank=True, default=dict)),
+                ('recovery_case', models.ForeignKey(
+                    on_delete=django.db.models.deletion.CASCADE,
+                    related_name='attempts',
+                    to='automation_recovery.workflowrecoverycase',
+                )),
+                ('attempt_number', models.PositiveIntegerField()),
+                ('strategy_used', models.CharField(
+                    choices=[
+                        ('immediate_retry', 'Immediate Retry'),
+                        ('delayed_retry', 'Delayed Retry'),
+                        ('resume_from_node', 'Resume from Node'),
+                        ('fallback_path', 'Fallback Path'),
+                        ('rollback', 'Rollback'),
+                        ('dead_letter', 'Dead Letter'),
+                        ('manual', 'Manual Intervention'),
+                    ],
+                    max_length=30,
+                )),
+                ('started_at', models.DateTimeField(auto_now_add=True)),
+                ('completed_at', models.DateTimeField(blank=True, null=True)),
+                ('status', models.CharField(
+                    choices=[
+                        ('running', 'Running'),
+                        ('succeeded', 'Succeeded'),
+                        ('failed', 'Failed'),
+                        ('cancelled', 'Cancelled'),
+                    ],
+                    default='running',
+                    max_length=20,
+                )),
+                ('error_message', models.TextField(blank=True)),
+                ('recovery_output', models.JSONField(blank=True, default=dict)),
+            ],
+            options={
+                'db_table': 'wf_recovery_attempts',
+                'ordering': ['-started_at'],
+            },
+        ),
+        migrations.AddIndex(
+            model_name='workflowrecoveryattempt',
+            index=models.Index(fields=['tenant_id', 'recovery_case_id'], name='wf_rec_att_tenant_case_idx'),
+        ),
+        migrations.CreateModel(
+            name='WorkflowDeadLetterItem',
+            fields=[
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('tenant_id', models.UUIDField(blank=True, db_index=True, null=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('created_by', models.UUIDField(blank=True, null=True)),
+                ('is_deleted', models.BooleanField(db_index=True, default=False)),
+                ('deleted_at', models.DateTimeField(blank=True, null=True)),
+                ('metadata', models.JSONField(blank=True, default=dict)),
+                ('workflow_id', models.UUIDField(db_index=True)),
+                ('execution_id', models.UUIDField(db_index=True)),
+                ('entity_type', models.CharField(blank=True, max_length=100)),
+                ('entity_id', models.UUIDField(blank=True, null=True)),
+                ('failed_node_id', models.UUIDField(blank=True, null=True)),
+                ('failure_reason', models.TextField()),
+                ('payload_snapshot', models.JSONField(blank=True, default=dict)),
+                ('status', models.CharField(
+                    choices=[
+                        ('pending', 'Pending'),
+                        ('investigating', 'Investigating'),
+                        ('retried', 'Retried'),
+                        ('resolved', 'Resolved'),
+                        ('ignored', 'Ignored'),
+                    ],
+                    db_index=True,
+                    default='pending',
+                    max_length=20,
+                )),
+                ('assigned_to', models.UUIDField(blank=True, null=True)),
+                ('resolved_at', models.DateTimeField(blank=True, null=True)),
+            ],
+            options={
+                'db_table': 'wf_dead_letter_items',
+                'ordering': ['-created_at'],
+            },
+        ),
+        migrations.AddIndex(
+            model_name='workflowdeadletteritem',
+            index=models.Index(fields=['tenant_id', 'status'], name='wf_dl_tenant_status_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='workflowdeadletteritem',
+            index=models.Index(fields=['tenant_id', 'workflow_id'], name='wf_dl_tenant_wf_idx'),
+        ),
+        migrations.CreateModel(
+            name='WorkflowFallbackRule',
+            fields=[
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('tenant_id', models.UUIDField(blank=True, db_index=True, null=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('created_by', models.UUIDField(blank=True, null=True)),
+                ('is_deleted', models.BooleanField(db_index=True, default=False)),
+                ('deleted_at', models.DateTimeField(blank=True, null=True)),
+                ('metadata', models.JSONField(blank=True, default=dict)),
+                ('workflow_id', models.UUIDField(db_index=True)),
+                ('node_id', models.UUIDField(db_index=True)),
+                ('failure_type', models.CharField(
+                    choices=[
+                        ('transient', 'Transient'),
+                        ('dependency_unavailable', 'Dependency Unavailable'),
+                        ('configuration_error', 'Configuration Error'),
+                        ('permission_error', 'Permission Error'),
+                        ('validation_error', 'Validation Error'),
+                        ('provider_error', 'Provider Error'),
+                        ('data_integrity_error', 'Data Integrity Error'),
+                        ('unrecoverable', 'Unrecoverable'),
+                    ],
+                    default='transient',
+                    max_length=30,
+                )),
+                ('fallback_action_type', models.CharField(
+                    choices=[
+                        ('send_email', 'Send Email'),
+                        ('assign_manager', 'Assign to Manager'),
+                        ('create_task', 'Create Manual Task'),
+                        ('skip_node', 'Skip Node'),
+                        ('notify_admin', 'Notify Admin'),
+                        ('custom_action', 'Custom Action'),
+                    ],
+                    max_length=30,
+                )),
+                ('fallback_config', models.JSONField(blank=True, default=dict)),
+                ('is_active', models.BooleanField(default=True)),
+            ],
+            options={
+                'db_table': 'wf_fallback_rules',
+                'ordering': ['-created_at'],
+            },
+        ),
+        migrations.AddIndex(
+            model_name='workflowfallbackrule',
+            index=models.Index(fields=['tenant_id', 'workflow_id', 'node_id'], name='wf_fb_tenant_wf_node_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='workflowfallbackrule',
+            index=models.Index(fields=['tenant_id', 'is_active'], name='wf_fb_tenant_active_idx'),
+        ),
+        migrations.CreateModel(
+            name='WorkflowRecoveryInsight',
+            fields=[
+                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
+                ('tenant_id', models.UUIDField(blank=True, db_index=True, null=True)),
+                ('created_at', models.DateTimeField(auto_now_add=True)),
+                ('updated_at', models.DateTimeField(auto_now=True)),
+                ('created_by', models.UUIDField(blank=True, null=True)),
+                ('is_deleted', models.BooleanField(db_index=True, default=False)),
+                ('deleted_at', models.DateTimeField(blank=True, null=True)),
+                ('metadata', models.JSONField(blank=True, default=dict)),
+                ('workflow_id', models.UUIDField(blank=True, db_index=True, null=True)),
+                ('insight_type', models.CharField(
+                    choices=[
+                        ('repeated_retry_failure', 'Repeated Retry Failure'),
+                        ('dependency_failure_pattern', 'Dependency Failure Pattern'),
+                        ('fallback_overuse', 'Fallback Overuse'),
+                        ('dead_letter_spike', 'Dead Letter Spike'),
+                        ('rollback_risk', 'Rollback Risk'),
+                        ('manual_intervention_hotspot', 'Manual Intervention Hotspot'),
+                    ],
+                    max_length=40,
+                )),
+                ('title', models.CharField(max_length=255)),
+                ('description', models.TextField()),
+                ('recommendation', models.TextField(blank=True)),
+                ('occurrence_count', models.PositiveIntegerField(default=1)),
+                ('last_seen_at', models.DateTimeField(auto_now=True)),
+                ('status', models.CharField(
+                    choices=[
+                        ('new', 'New'),
+                        ('acknowledged', 'Acknowledged'),
+                        ('resolved', 'Resolved'),
+                        ('ignored', 'Ignored'),
+                    ],
+                    db_index=True,
+                    default='new',
+                    max_length=20,
+                )),
+            ],
+            options={
+                'db_table': 'wf_recovery_insights',
+                'ordering': ['-last_seen_at'],
+            },
+        ),
+        migrations.AddIndex(
+            model_name='workflowrecoveryinsight',
+            index=models.Index(fields=['tenant_id', 'status'], name='wf_ins_tenant_status_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='workflowrecoveryinsight',
+            index=models.Index(fields=['tenant_id', 'insight_type'], name='wf_ins_tenant_type_idx'),
+        ),
+    ]

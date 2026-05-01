@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { SUPPORTED_LANGUAGES } from '@/i18n'
 import i18n from '@/i18n'
@@ -15,9 +15,12 @@ import {
   CalendarOutlined,
   DashboardOutlined,
   RocketOutlined,
+  NodeIndexOutlined,
   CheckCircleOutlined,
   DownOutlined,
   MenuOutlined,
+  FileOutlined,
+  InboxOutlined,
 } from '@ant-design/icons'
 import {
   Bell,
@@ -36,6 +39,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/store/authStore'
 import { notificationsApi } from '@/api/notifications'
+import { useCommunicationsStore } from '@/store/communicationsStore'
 import { GlobalDrawer } from '../components/drawers/GlobalDrawer'
 import { useApiQuery } from '@/hooks/useApiQuery'
 import { 
@@ -46,10 +50,13 @@ import {
 } from '@/config/navigation'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
-import type { Notification } from '@/types'
+import type { Notification, User } from '@/types'
 import { cn } from '@/utils/cn'
 import JobCreateForm from '@/components/forms/JobCreateForm'
 import AddCandidateWorkflowModal from '@/components/candidates/AddCandidateWorkflowModal'
+import { AttentionEngine } from '../components/common/AttentionEngine'
+import { canAccessMasterAdmin } from '@/utils/authAccess'
+import { isAgencyRole, isCompanyAdminRole } from '@/config/routeAccess'
 
 dayjs.extend(relativeTime)
 
@@ -57,7 +64,8 @@ const { Header, Content } = Layout
 
 // ─── Notification Dropdown ──────────────────────────────────────────────────
 
-function NotificationDropdown({ badgeOverrideCount }: { badgeOverrideCount?: number }) {
+function NotificationDropdown() {
+  const setUnreadNotificationCount = useCommunicationsStore((s) => s.setUnreadNotificationCount)
   const { data, refetch } = useApiQuery(['notifications', 'unread'], () =>
     notificationsApi.list({ is_read: false })
   , {
@@ -67,7 +75,12 @@ function NotificationDropdown({ badgeOverrideCount }: { badgeOverrideCount?: num
   }
   )
   const notifications = (data as { notifications: Notification[] } | undefined)?.notifications ?? []
-  const badgeCount = badgeOverrideCount ?? notifications.length
+  const badgeCount = notifications.length
+
+  // Keep store in sync whenever count changes
+  useEffect(() => {
+    setUnreadNotificationCount(badgeCount)
+  }, [badgeCount, setUnreadNotificationCount])
 
   const markAllRead = async () => {
     try {
@@ -165,16 +178,20 @@ function NotificationDropdown({ badgeOverrideCount }: { badgeOverrideCount?: num
 
 // ─── Menu Items Logic ───────────────────────────────────────────────────────
 
-const getSystemMenuItems = (
-  role: string,
-  permissions: string[] = []
+export const getSystemMenuItems = (
+  user?: User | null
 ) => {
+  const role = user?.role ?? ''
+  const isCompanyAdmin = isCompanyAdminRole(role)
+  const permissions = user?.permissions ?? []
   const can = (code: string) => permissions.includes(code)
+  const canSeeAgencyIntelligence = ['super_admin', 'tenant_admin', 'hr_manager', 'hiring_manager'].includes(role)
+  const canAccessAdmin = canAccessMasterAdmin(user)
   
   let config: NavItem[] = []
   if (role === 'candidate') {
     config = candidateSidebarConfig
-  } else if (role === 'agency_owner' || role === 'agency_admin' || role === 'agency_recruiter') {
+  } else if (isAgencyRole(role)) {
     config = agencySidebarConfig
   } else {
     config = companySidebarConfig
@@ -182,10 +199,66 @@ const getSystemMenuItems = (
 
   // Filter out Jobs, Candidates, Active Work, and Talent Pools from the dropdown
   const EXCLUDED_KEYS = ['/jobs', '/candidates', '/candidates/active', '/candidates/pools', '/agencies/my-jobs', '/candidate/jobs', 'work', 'records']
+  const COMPANY_ALLOWED_KEYS = new Set([
+    '/dashboard',
+    '/jobs',
+    '/pipeline',
+    '/candidates',
+    '/applications',
+    '/interviews',
+    '/offers',
+    '/hiring-decisions',
+    '/intelligence',
+    '/analytics',
+    '/communications',
+    '/notifications',
+    '/settings',
+    '/admin',
+    '/admin/tenants',
+    '/admin/settings',
+    '/admin/audit',
+  ])
+  const AGENCY_ALLOWED_KEYS = new Set([
+    '/dashboard',
+    '/agency/talent-pool',
+    '/agency/pipeline',
+    '/agency/hotlists',
+    '/agency/followups',
+    '/agency/jobs',
+    '/agency/submissions',
+    '/agency/clients',
+    '/agency/analytics',
+    '/interviews/dashboard',
+    '/communications',
+    '/notifications',
+    '/settings',
+    '/settings?tab=users',
+  ])
+  const CANDIDATE_ALLOWED_KEYS = new Set([
+    '/candidate/dashboard',
+    '/candidate/applications',
+    '/candidate/interviews',
+    '/candidate/jobs',
+    '/passport',
+  ])
 
   const filterItems = (items: NavItem[]): any[] => {
     return items
-      .filter(item => !item.permission || can(item.permission))
+      .filter(item => {
+        if (!canAccessAdmin && typeof item.key === 'string' && item.key.startsWith('/admin')) {
+          return false
+        }
+        if (role === 'candidate' && typeof item.key === 'string' && item.key.startsWith('/') && !CANDIDATE_ALLOWED_KEYS.has(item.key)) {
+          return false
+        }
+        if (isAgencyRole(role) && typeof item.key === 'string' && item.key.startsWith('/') && !AGENCY_ALLOWED_KEYS.has(item.key)) {
+          return false
+        }
+        if (!isCompanyAdmin && role !== 'candidate' && !isAgencyRole(role) && typeof item.key === 'string' && item.key.startsWith('/') && !COMPANY_ALLOWED_KEYS.has(item.key)) {
+          return false
+        }
+        return (!item.permission || can(item.permission)) && (item.key !== '/agency-intelligence' || canSeeAgencyIntelligence)
+      })
       .reduce((acc: any[], item) => {
         if (EXCLUDED_KEYS.includes(item.key)) {
           if (item.children) {
@@ -219,14 +292,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [actionCenterTab, setActionCenterTab] = useState('urgent')
   const [jobCreateOpen, setJobCreateOpen] = useState(false)
   const [candidateCreateOpen, setCandidateCreateOpen] = useState(false)
+  const [globalSearchText, setGlobalSearchText] = useState('')
   
   const location = useLocation()
   const navigate = useNavigate()
   const { logout } = useAuth()
   const user = useAuthStore(state => state.user)
   const { t } = useTranslation('common')
+  const role = user?.role ?? ''
+  const isCandidate = role === 'candidate'
+  const isAgency = isAgencyRole(role)
+  const homePath = isCandidate ? '/candidate/dashboard' : '/dashboard'
+  const workspaceLabel = isCandidate ? 'Candidate Workspace' : isAgency ? 'Agency Workspace' : 'Company Workspace'
 
-  const systemMenuItems = useMemo(() => getSystemMenuItems(user?.role || '', user?.permissions ?? []), [user])
+  const systemMenuItems = useMemo(() => getSystemMenuItems(user), [user])
 
   const handleLogout = async () => {
     await logout()
@@ -256,8 +335,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   ]
 
   const actionCenterCount = 5
-  const inboxCount = 4
-  const notificationCount = 6
+  const unreadThreadCount = useCommunicationsStore((s) => s.unreadThreadCount)
   const actionCenterTabItems = [
     { key: 'urgent', label: t('header.urgent', 'Urgent') },
     { key: 'today', label: t('header.today', 'Today') },
@@ -273,9 +351,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <Header className="sticky top-0 z-50 flex h-14 w-full items-center justify-between border-b border-slate-200 bg-white px-4 shadow-sm">
         {/* Left: Brand & Dropdown Menu */}
         <div className="flex items-center gap-4">
-          <Link to="/dashboard" className="flex items-center gap-2">
+          <Link to={homePath} className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-lg">T</div>
-            <span className="font-bold text-slate-900 tracking-tight text-lg hidden sm:block">TalentOS</span>
+            <div className="hidden sm:block">
+              <span className="font-bold text-slate-900 tracking-tight text-lg block leading-tight">TalentOS</span>
+              <span className="text-[10px] uppercase tracking-[0.18em] text-slate-400">{workspaceLabel}</span>
+            </div>
           </Link>
           
           <Dropdown 
@@ -300,8 +381,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="flex-1 max-w-xl mx-8 hidden lg:block">
           <Input
             allowClear
-            placeholder={t('search.placeholder', 'Global Search')}
+            value={globalSearchText}
+            placeholder={isCandidate ? 'Search jobs...' : t('search.placeholder', 'Search candidates, jobs, agencies...')}
             prefix={<Search className="h-4 w-4 text-slate-400" />}
+            onChange={(e) => setGlobalSearchText(e.target.value)}
+            onPressEnter={() => {
+              const q = globalSearchText.trim()
+              if (isCandidate) {
+                navigate(q ? `/candidate/jobs?q=${encodeURIComponent(q)}` : '/candidate/jobs')
+                return
+              }
+              navigate(q ? `/search?q=${encodeURIComponent(q)}` : '/search')
+            }}
             className="w-full rounded-xl bg-slate-100 border-none hover:bg-slate-200/70 focus:bg-white focus:ring-2 focus:ring-blue-500/20 transition-all"
           />
         </div>
@@ -309,67 +400,139 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Right: Quick Access & Profile */}
         <div className="flex items-center gap-1.5">
           <div className="flex items-center gap-1 mr-2 border-r pr-2 border-slate-200">
-            <Dropdown
-              menu={{
-                items: [
-                  { key: 'all', label: 'All Jobs', icon: <ProjectOutlined />, onClick: () => navigate('/jobs') },
-                  { key: 'create', label: 'Create Job', icon: <PlusOutlined />, onClick: () => navigate('/jobs/create') },
-                ]
-              }}
-              placement="bottomLeft"
-              trigger={['hover']}
-            >
-              <Button 
-                type="text" 
-                className={cn(
-                  "flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold transition-all h-9",
-                  location.pathname.startsWith('/jobs') ? "text-blue-600 bg-blue-50" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                )}
-              >
-                <ProjectOutlined className="h-4 w-4" />
-                {t('sidebar.jobs', 'Jobs')}
-                <DownOutlined className="text-[8px] opacity-60" />
-              </Button>
-            </Dropdown>
-            <Button 
-              type="text" 
-              icon={<TeamOutlined className="h-4 w-4" />} 
-              onClick={() => navigate('/candidates/active')}
-              className={cn(
-                "flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold transition-all h-9",
-                location.pathname.startsWith('/candidates') ? "text-blue-600 bg-blue-50" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-              )}
-            >
-              {t('sidebar.candidates', 'Candidates')}
-            </Button>
+            {!isCandidate && !isAgency && (
+              <>
+                <Dropdown
+                  menu={{
+                    items: [
+                      { key: 'all', label: 'All Jobs', icon: <ProjectOutlined />, onClick: () => navigate('/jobs') },
+                      { key: 'create', label: 'Create Job', icon: <PlusOutlined />, onClick: () => navigate('/jobs/create') },
+                      { type: 'divider' },
+                      { key: 'templates', label: 'JD Templates', icon: <FileOutlined />, onClick: () => navigate('/jobs/templates') },
+                      { key: 'archived', label: 'Archived Jobs', icon: <InboxOutlined />, onClick: () => navigate('/jobs?status=cancelled') },
+                    ]
+                  }}
+                  placement="bottomLeft"
+                  trigger={['hover']}
+                >
+                  <Button
+                    type="text"
+                    className={cn(
+                      "flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold transition-all h-9",
+                      location.pathname.startsWith('/jobs') ? "text-blue-600 bg-blue-50" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                    )}
+                  >
+                    <ProjectOutlined className="h-4 w-4" />
+                    {t('sidebar.jobs', 'Jobs')}
+                    <DownOutlined className="text-[8px] opacity-60" />
+                  </Button>
+                </Dropdown>
+                <Button
+                  type="text"
+                  icon={<TeamOutlined className="h-4 w-4" />}
+                  onClick={() => navigate('/candidates/active')}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold transition-all h-9",
+                    location.pathname.startsWith('/candidates') ? "text-blue-600 bg-blue-50" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                  )}
+                >
+                  {t('sidebar.candidates', 'Candidates')}
+                </Button>
+                <Button
+                  type="text"
+                  icon={<NodeIndexOutlined className="h-4 w-4" />}
+                  onClick={() => navigate('/workflows')}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold transition-all h-9",
+                    location.pathname.startsWith('/workflows') ? "text-blue-600 bg-blue-50" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                  )}
+                >
+                  Workflows
+                </Button>
+              </>
+            )}
+            {isAgency && (
+              <>
+                <Button
+                  type="text"
+                  icon={<ProjectOutlined className="h-4 w-4" />}
+                  onClick={() => navigate('/agencies/my-jobs')}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold transition-all h-9",
+                    location.pathname.startsWith('/agencies/my-jobs') ? "text-blue-600 bg-blue-50" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                  )}
+                >
+                  My Jobs
+                </Button>
+                <Button
+                  type="text"
+                  icon={<CheckCircleOutlined className="h-4 w-4" />}
+                  onClick={() => navigate('/agencies/my-submissions')}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold transition-all h-9",
+                    location.pathname.startsWith('/agencies/my-submissions') ? "text-blue-600 bg-blue-50" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                  )}
+                >
+                  Submissions
+                </Button>
+              </>
+            )}
+            {isCandidate && (
+              <>
+                <Button
+                  type="text"
+                  icon={<ProjectOutlined className="h-4 w-4" />}
+                  onClick={() => navigate('/candidate/jobs')}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold transition-all h-9",
+                    location.pathname.startsWith('/candidate/jobs') ? "text-blue-600 bg-blue-50" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                  )}
+                >
+                  Browse Jobs
+                </Button>
+                <Button
+                  type="text"
+                  icon={<InboxOutlined className="h-4 w-4" />}
+                  onClick={() => navigate('/candidate/applications')}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold transition-all h-9",
+                    location.pathname.startsWith('/candidate/applications') ? "text-blue-600 bg-blue-50" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                  )}
+                >
+                  Applications
+                </Button>
+              </>
+            )}
           </div>
 
           <Tooltip title={t('calendar.title', 'Calendar')}>
             <Button
               type="text"
               icon={<CalendarIcon className="h-5 w-5 text-slate-600" />}
-              onClick={() => navigate('/interviews')}
+              onClick={() => navigate(isCandidate ? '/candidate/interviews' : '/interviews')}
               className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-slate-100"
             />
           </Tooltip>
 
-          <Badge count={inboxCount} size="small" offset={[-2, 6]}>
+          <Badge count={unreadThreadCount} size="small" offset={[-2, 6]}>
             <Button
               type="text"
               icon={<Inbox className="h-5 w-5 text-slate-600" />}
-              onClick={() => navigate('/messages')}
+              onClick={() => navigate('/communications')}
               className="flex h-10 w-10 items-center justify-center rounded-xl hover:bg-slate-100"
             />
           </Badge>
 
-          <NotificationDropdown badgeOverrideCount={notificationCount} />
+          <NotificationDropdown />
 
-          <Button
-            type="text"
-            icon={<Zap className={cn("h-5 w-5", rightPanelOpen ? "text-amber-600" : "text-slate-600")} />}
-            onClick={() => setRightPanelOpen(!rightPanelOpen)}
-            className={cn("flex h-10 w-10 items-center justify-center rounded-xl transition-colors", rightPanelOpen ? "bg-amber-50" : "hover:bg-slate-100")}
-          />
+          {!isCandidate && (
+            <Button
+              type="text"
+              icon={<Zap className={cn("h-5 w-5", rightPanelOpen ? "text-amber-600" : "text-slate-600")} />}
+              onClick={() => setRightPanelOpen(!rightPanelOpen)}
+              className={cn("flex h-10 w-10 items-center justify-center rounded-xl transition-colors", rightPanelOpen ? "bg-amber-50" : "hover:bg-slate-100")}
+            />
+          )}
 
           <div className="mx-1 h-6 w-[1px] bg-slate-200" />
 
@@ -573,6 +736,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         }}
       />
 
+      <AttentionEngine />
       <GlobalDrawer />
     </Layout>
   )

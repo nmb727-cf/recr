@@ -1,3 +1,4 @@
+// TalentOS Main Application Entry
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
 import { ConfigProvider, App as AntApp } from 'antd'
@@ -32,12 +33,12 @@ import Dashboard from '@/pages/dashboard/Dashboard'
 import HiringCommandCenter from '@/pages/dashboard/HiringCommandCenter'
 import JobsList from '@/pages/jobs/JobsList'
 import JobSetupStudio from '@/pages/jobs/JobSetupStudio'
-import CandidatesList from '@/pages/candidates/CandidatesList'
-import ActiveCandidatesPage from '@/pages/candidates/ActiveCandidatesPage'
-import AllApplications from '@/pages/candidates/AllApplications'
+import JobTemplates from '@/pages/jobs/JobTemplates'
 import CandidateDatabase from '@/pages/candidates/CandidateDatabase'
-import Leads from '@/pages/leads/Leads'
+import CandidateRelations from '@/pages/candidates/CandidateRelations'
+import AllApplications from '@/pages/candidates/AllApplications'
 import PipelineBoard from '@/pages/pipeline/PipelineBoard'
+import OfferManagement from '@/pages/offers/OfferManagement'
 import InterviewsList from '@/pages/interviews/InterviewsList'
 import InterviewCommandCenter from '@/pages/interviews/InterviewCommandCenter'
 import InterviewLiveCenter from '@/pages/interviews/InterviewLiveCenter'
@@ -76,8 +77,20 @@ import InterviewWalkinDriveEngine from '@/pages/interviews/InterviewWalkinDriveE
 import InterviewWhiteboardEngine from '@/pages/interviews/InterviewWhiteboardEngine'
 import InterviewScreeningEngine from '@/pages/interviews/InterviewScreeningEngine'
 import Analytics from '@/pages/Analytics'
+import HiringAIBrainDashboard from '@/pages/analytics/HiringAIBrainDashboard'
 import HiringIntelligenceDashboard from '@/pages/analytics/HiringIntelligenceDashboard'
 import RecruiterIntelligenceDashboard from '@/pages/analytics/RecruiterIntelligenceDashboard'
+import AgencyEventTriggers from '@/pages/workflows/AgencyEventTriggers'
+import AgencyOrchestrationEngine from '@/pages/workflows/AgencyOrchestrationEngine'
+import AgencyIntelligenceDashboard from '@/pages/analytics/AgencyIntelligenceDashboard'
+import UnifiedOperationsDashboard from '@/pages/analytics/UnifiedOperationsDashboard'
+import ExecutiveDecisionCenter from '@/pages/analytics/ExecutiveDecisionCenter'
+import TalentControlTower from '@/pages/analytics/TalentControlTower'
+import SystemIntelligenceMemory from '@/pages/analytics/SystemIntelligenceMemory'
+import GovernanceCenter from '@/pages/intelligence/GovernanceCenter'
+import AutomationAnalytics from '@/pages/intelligence/AutomationAnalytics'
+import IntegrationHub from '@/pages/organisation/IntegrationHub'
+import AutonomousHiringEngine from '@/pages/analytics/AutonomousHiringEngine'
 import CompanyAgencies from '@/pages/agencies/CompanyAgencies'
 import AgencyClients from '@/pages/agencies/AgencyClients'
 import MyJobs from '@/pages/agency/MyJobs'
@@ -95,22 +108,56 @@ import CandidateInterviewExperience from '@/pages/candidate/CandidateInterviewEx
 import CandidateInterviewFeedback from '@/pages/candidate/CandidateInterviewFeedback'
 import CandidateInterviewResults from '@/pages/candidate/CandidateInterviewResults'
 import CandidateInterviewRuntime from '@/pages/candidate/CandidateInterviewRuntime'
+import CandidatePrequalification from '@/pages/candidate/CandidatePrequalification'
 import CandidateInterviewTimeline from '@/pages/candidate/CandidateInterviewTimeline'
 import CandidateInterviewStatus from '@/pages/candidate/CandidateInterviewStatus'
 import CandidateInterviewBlocked from '@/pages/candidate/CandidateInterviewBlocked'
 import CandidateInterviewExpired from '@/pages/candidate/CandidateInterviewExpired'
 import Settings from '@/pages/Settings'
 import PassportPage from '@/pages/candidate/Passport'
-import Messages from '@/pages/Messages'
+import CommunicationsPage from '@/pages/communications/CommunicationsPage'
+import NotificationsPage from '@/pages/notifications/NotificationsPage'
 import TalentPoolsList from '@/pages/talent-pools/TalentPoolsList'
 import TalentPoolDetail from '@/pages/talent-pools/TalentPoolDetail'
 import PrequalificationList from '@/pages/prequalification/PrequalificationList'
 import PrequalificationBuilder from '@/pages/prequalification/PrequalificationBuilder'
 import HiringDecisionWorkspace from '@/pages/hdc/HiringDecisionWorkspace'
 import IntelligenceHubWorkspace from '@/pages/intelligence/IntelligenceHubWorkspace'
+import WorkflowSystemWorkspace from './pages/workflows/WorkflowSystemWorkspace'
+import GuidedWorkflowBuilder from './pages/workflows/GuidedWorkflowBuilder'
+import AdvancedWorkflowBuilder from './pages/workflows/AdvancedWorkflowBuilder'
+import OrchestrationEngine from './pages/workflows/OrchestrationEngine'
+
 import WorkflowTemplatesPage from '@/pages/system/WorkflowTemplatesPage'
-import NotificationsCenterPage from '@/pages/system/NotificationsCenterPage'
+import GlobalAutomationOrchestrator from '@/pages/system/GlobalAutomationOrchestrator'
+import NotificationsCenterPage from '@/pages/system/NotificationsCenterPage' // legacy demo page
+import NotificationControlCenter from '@/pages/settings/NotificationControlCenter'
+import CommunicationControlCenter from '@/pages/settings/CommunicationControlCenter'
 import ActivityLogPage from '@/pages/system/ActivityLogPage'
+import ModuleReadiness from '@/pages/qa/ModuleReadiness'
+import AutomationCommandCenter from '@/pages/automation/AutomationCommandCenter'
+import AutomationPermissions from '@/pages/intelligence/AutomationPermissions'
+import AutomationNotifications from '@/pages/intelligence/AutomationNotifications'
+import AutomationTasks from '@/pages/intelligence/AutomationTasks'
+import MasterAdminDashboard from '@/pages/admin/MasterAdminDashboard'
+import MasterAdminTenants from '@/pages/admin/MasterAdminTenants'
+import MasterAdminTenantDetail from '@/pages/admin/MasterAdminTenantDetail'
+import MasterAdminSettings from '@/pages/admin/MasterAdminSettings'
+import MasterAdminAudit from '@/pages/admin/MasterAdminAudit'
+import GlobalSearch from '@/pages/search/GlobalSearch'
+import {
+  ADMIN_ONLY_ROLES,
+  AGENCY_ROLES,
+  CANDIDATE_ROLES,
+  COMPANY_HIRING_ROLES,
+  COMPANY_HR_HIRING_ROLES,
+  COMPANY_HR_ROLES,
+  COMPANY_ROLES,
+  COMPANY_AND_AGENCY_RECRUITER_ROLES,
+  NON_CANDIDATE_ROLES,
+  RECRUITER_OPERATIONAL_ROLES,
+  TENANT_OR_AGENCY_ADMIN_ROLES,
+} from '@/config/routeAccess'
 
 // Redirect /prequalification/forms/:id/builder → /interviews/prequalification/forms/:id/builder
 function PrequalBuilderRedirect() {
@@ -171,12 +218,14 @@ const antTheme = {
 function Protected({
   children,
   roles,
+  requireMasterAdmin,
 }: {
   children: React.ReactNode
   roles?: string[]
+  requireMasterAdmin?: boolean
 }) {
   return (
-    <ProtectedRoute allowedRoles={roles as never}>
+    <ProtectedRoute allowedRoles={roles as never} requireMasterAdmin={requireMasterAdmin}>
       <OnboardingGuard>
         <AppLayout>{children}</AppLayout>
       </OnboardingGuard>
@@ -238,12 +287,19 @@ const ANT_LOCALES: Record<string, Locale> = {
 // and syncs the active i18next language with the user's stored preference.
 function AuthBootstrap() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated)
+  const hasHydrated = useAuthStore((s) => s.hasHydrated)
   const fetchMe = useAuthStore((s) => s.fetchMe)
   const language = useAuthStore((s) => s.user?.language)
 
   useEffect(() => {
-    if (isAuthenticated) fetchMe()
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    if (hasHydrated && isAuthenticated) fetchMe()
+  }, [hasHydrated, isAuthenticated, fetchMe])
+
+  useEffect(() => {
+    if (hasHydrated && !isAuthenticated) {
+      queryClient.clear()
+    }
+  }, [hasHydrated, isAuthenticated])
 
   useEffect(() => {
     if (language && i18n.language !== language) {
@@ -323,7 +379,7 @@ export default function App() {
               <Route
                 path="/agency-onboarding"
                 element={
-                  <ProtectedRoute allowedRoles={['agency_owner', 'agency_admin', 'agency_recruiter']}>
+                  <ProtectedRoute allowedRoles={AGENCY_ROLES}>
                     <OnboardingLayout
                       title="Agency Setup"
                       subtitle="Configure your agency profile."
@@ -341,7 +397,7 @@ export default function App() {
               <Route
                 path="/dashboard"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <Dashboard />
                   </Protected>
                 }
@@ -350,23 +406,119 @@ export default function App() {
               <Route
                 path="/hiring-command-center"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager']}>
+                  <Protected roles={RECRUITER_OPERATIONAL_ROLES}>
                     <HiringCommandCenter />
                   </Protected>
                 }
               />
               <Route 
+                path="/hiring-ai" 
+                element={ 
+                  <Protected roles={RECRUITER_OPERATIONAL_ROLES}> 
+                    <HiringAIBrainDashboard /> 
+                  </Protected> 
+                } 
+              />
+              <Route 
+                path="/executive-decision" 
+                element={ 
+                  <Protected roles={COMPANY_HR_ROLES}> 
+                    <ExecutiveDecisionCenter /> 
+                  </Protected> 
+                } 
+              />
+              <Route 
+                path="/control-tower" 
+                element={ 
+                  <Protected roles={COMPANY_HR_HIRING_ROLES}> 
+                    <TalentControlTower /> 
+                  </Protected> 
+                } 
+              />
+              <Route 
+                path="/system-intelligence" 
+                element={ 
+                  <Protected roles={COMPANY_HR_ROLES}> 
+                    <SystemIntelligenceMemory /> 
+                  </Protected> 
+                } 
+              />
+              <Route 
+                path="/governance" 
+                element={ 
+                  <Protected roles={COMPANY_HR_ROLES}> 
+                    <GovernanceCenter /> 
+                  </Protected> 
+                } 
+              />
+              <Route 
+                path="/automation-analytics" 
+                element={ 
+                  <Protected roles={COMPANY_HR_ROLES}> 
+                    <AutomationAnalytics /> 
+                  </Protected> 
+                } 
+              />
+              <Route 
+                path="/integrations" 
+                element={ 
+                  <Protected roles={COMPANY_HR_ROLES}> 
+                    <IntegrationHub /> 
+                  </Protected> 
+                } 
+              />
+              <Route 
+                path="/autonomous-hiring" 
+                element={ 
+                  <Protected roles={COMPANY_HR_HIRING_ROLES}> 
+                    <AutonomousHiringEngine /> 
+                  </Protected> 
+                } 
+              />
+              <Route 
+                path="/unified-operations" 
+                element={ 
+                  <Protected roles={COMPANY_HR_HIRING_ROLES}> 
+                    <UnifiedOperationsDashboard /> 
+                  </Protected> 
+                } 
+              />
+              <Route 
                 path="/hiring-intelligence" 
                 element={ 
-                  <Protected roles={["tenant_admin", "super_admin", "recruiter", "hiring_manager"]}> 
+                  <Protected roles={RECRUITER_OPERATIONAL_ROLES}> 
                     <HiringIntelligenceDashboard /> 
+                  </Protected> 
+                } 
+              />
+              <Route 
+                path="/agency-intelligence" 
+                element={ 
+                  <Protected roles={COMPANY_HR_HIRING_ROLES}> 
+                    <AgencyIntelligenceDashboard /> 
+                  </Protected> 
+                } 
+              />
+              <Route 
+                path="/workflows/event-triggers" 
+                element={ 
+                  <Protected roles={TENANT_OR_AGENCY_ADMIN_ROLES}> 
+                    <AgencyEventTriggers /> 
+                  </Protected> 
+                } 
+              />
+              <Route 
+                path="/workflows/orchestration" 
+                element={ 
+                  <Protected roles={COMPANY_AND_AGENCY_RECRUITER_ROLES}> 
+                    <AgencyOrchestrationEngine /> 
                   </Protected> 
                 } 
               />
               <Route 
                 path="/recruiter-intelligence" 
                 element={ 
-                  <Protected roles={["tenant_admin", "super_admin", "recruiter", "hiring_manager", "hr_manager"]}> 
+                  <Protected roles={COMPANY_HIRING_ROLES}> 
                     <RecruiterIntelligenceDashboard /> 
                   </Protected> 
                 } 
@@ -375,7 +527,7 @@ export default function App() {
               <Route
                 path="/jobs"
                 element={
-                  <Protected>
+                  <Protected roles={COMPANY_HIRING_ROLES}>
                     <JobsList />
                   </Protected>
                 }
@@ -384,7 +536,7 @@ export default function App() {
               <Route
                 path="/jobs/create"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager']}>
+                  <Protected roles={RECRUITER_OPERATIONAL_ROLES}>
                     <JobSetupStudio />
                   </Protected>
                 }
@@ -393,8 +545,17 @@ export default function App() {
               <Route
                 path="/jobs/:id/setup"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager']}>
+                  <Protected roles={RECRUITER_OPERATIONAL_ROLES}>
                     <JobSetupStudio />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/jobs/templates"
+                element={
+                  <Protected roles={COMPANY_HIRING_ROLES}>
+                    <JobTemplates />
                   </Protected>
                 }
               />
@@ -402,7 +563,7 @@ export default function App() {
               <Route
                 path="/candidates"
                 element={
-                  <Protected>
+                  <Protected roles={COMPANY_HIRING_ROLES}>
                     <CandidateDatabase />
                   </Protected>
                 }
@@ -411,7 +572,7 @@ export default function App() {
               <Route
                 path="/candidates/database"
                 element={
-                  <Protected>
+                  <Protected roles={COMPANY_HIRING_ROLES}>
                     <CandidateDatabase />
                   </Protected>
                 }
@@ -420,7 +581,7 @@ export default function App() {
               <Route
                 path="/candidates/active"
                 element={
-                  <Protected>
+                  <Protected roles={COMPANY_HIRING_ROLES}>
                     <CandidateDatabase />
                   </Protected>
                 }
@@ -429,8 +590,8 @@ export default function App() {
               <Route
                 path="/candidates/leads"
                 element={
-                  <Protected>
-                    <Leads />
+                  <Protected roles={COMPANY_HIRING_ROLES}>
+                    <CandidateRelations />
                   </Protected>
                 }
               />
@@ -438,7 +599,7 @@ export default function App() {
               <Route
                 path="/candidates/pools"
                 element={
-                  <Protected>
+                  <Protected roles={COMPANY_HIRING_ROLES}>
                     <CandidateDatabase />
                   </Protected>
                 }
@@ -447,7 +608,7 @@ export default function App() {
               <Route
                 path="/candidates/pools/:id"
                 element={
-                  <Protected>
+                  <Protected roles={COMPANY_HIRING_ROLES}>
                     <TalentPoolDetail />
                   </Protected>
                 }
@@ -456,7 +617,7 @@ export default function App() {
               <Route
                 path="/applications"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager']}>
+                  <Protected roles={RECRUITER_OPERATIONAL_ROLES}>
                     <AllApplications />
                   </Protected>
                 }
@@ -465,8 +626,17 @@ export default function App() {
               <Route
                 path="/pipeline"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <PipelineBoard />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/offers"
+                element={
+                  <Protected roles={COMPANY_HIRING_ROLES}>
+                    <OfferManagement />
                   </Protected>
                 }
               />
@@ -474,7 +644,7 @@ export default function App() {
               <Route
                 path="/interviews"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewCommandCenter />
                   </Protected>
                 }
@@ -482,7 +652,7 @@ export default function App() {
               <Route
                 path="/interviews/dashboard"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
+                  <Protected roles={COMPANY_AND_AGENCY_RECRUITER_ROLES}>
                     <RecruiterInterviewDashboard />
                   </Protected>
                 }
@@ -490,7 +660,7 @@ export default function App() {
               <Route
                 path="/interviews/queue"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
+                  <Protected roles={COMPANY_AND_AGENCY_RECRUITER_ROLES}>
                     <RecruiterInterviewQueue />
                   </Protected>
                 }
@@ -498,7 +668,7 @@ export default function App() {
               <Route
                 path="/interviews/bulk-scheduling"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
+                  <Protected roles={COMPANY_AND_AGENCY_RECRUITER_ROLES}>
                     <RecruiterBulkScheduling />
                   </Protected>
                 }
@@ -506,7 +676,7 @@ export default function App() {
               <Route
                 path="/interviews/productivity"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
+                  <Protected roles={COMPANY_AND_AGENCY_RECRUITER_ROLES}>
                     <RecruiterProductivityTools />
                   </Protected>
                 }
@@ -515,7 +685,7 @@ export default function App() {
               <Route
                 path="/interviews/registry"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewsList />
                   </Protected>
                 }
@@ -523,7 +693,7 @@ export default function App() {
               <Route
                 path="/interviews/types"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTypes />
                   </Protected>
                 }
@@ -531,7 +701,7 @@ export default function App() {
               <Route
                 path="/interviews/types/:id/config"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTypeConfig />
                   </Protected>
                 }
@@ -539,7 +709,7 @@ export default function App() {
               <Route
                 path="/interviews/types/ai-interviews"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTypes />
                   </Protected>
                 }
@@ -547,7 +717,7 @@ export default function App() {
               <Route
                 path="/interviews/types/technical-interviews"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTypes />
                   </Protected>
                 }
@@ -555,7 +725,7 @@ export default function App() {
               <Route
                 path="/interviews/types/human-interviews"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTypes />
                   </Protected>
                 }
@@ -563,7 +733,7 @@ export default function App() {
               <Route
                 path="/interviews/types/screening-interviews"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTypes />
                   </Protected>
                 }
@@ -571,7 +741,7 @@ export default function App() {
               <Route
                 path="/interviews/types/sequential-round"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTypes />
                   </Protected>
                 }
@@ -579,7 +749,7 @@ export default function App() {
               <Route
                 path="/interviews/types/group-discussion"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTypes />
                   </Protected>
                 }
@@ -587,7 +757,7 @@ export default function App() {
               <Route
                 path="/interviews/types/bar-raiser"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTypes />
                   </Protected>
                 }
@@ -595,7 +765,7 @@ export default function App() {
               <Route
                 path="/interviews/types/role-play"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTypes />
                   </Protected>
                 }
@@ -603,7 +773,7 @@ export default function App() {
               <Route
                 path="/interviews/types/presentation-interview"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTypes />
                   </Protected>
                 }
@@ -611,7 +781,7 @@ export default function App() {
               <Route
                 path="/interviews/types/portfolio-review"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTypes />
                   </Protected>
                 }
@@ -619,7 +789,7 @@ export default function App() {
               <Route
                 path="/interviews/types/assessment-center"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTypes />
                   </Protected>
                 }
@@ -627,7 +797,7 @@ export default function App() {
               <Route
                 path="/interviews/types/campus-hiring"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTypes />
                   </Protected>
                 }
@@ -635,7 +805,7 @@ export default function App() {
               <Route
                 path="/interviews/types/mock-interview"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTypes />
                   </Protected>
                 }
@@ -643,7 +813,7 @@ export default function App() {
               <Route
                 path="/interviews/types/walkin-drive"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTypes />
                   </Protected>
                 }
@@ -651,7 +821,7 @@ export default function App() {
               <Route
                 path="/interviews/types/video-interviews"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTypes />
                   </Protected>
                 }
@@ -659,7 +829,7 @@ export default function App() {
               <Route
                 path="/interviews/types/whiteboard-interview"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTypes />
                   </Protected>
                 }
@@ -667,7 +837,7 @@ export default function App() {
               <Route
                 path="/interviews/types/assessments"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTypes />
                   </Protected>
                 }
@@ -675,7 +845,7 @@ export default function App() {
               <Route
                 path="/interviews/types/prequalification"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTypes />
                   </Protected>
                 }
@@ -683,7 +853,7 @@ export default function App() {
               <Route
                 path="/interviews/ai"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewAIEngine />
                   </Protected>
                 }
@@ -691,7 +861,7 @@ export default function App() {
               <Route
                 path="/interviews/technical"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTechnicalEngine />
                   </Protected>
                 }
@@ -699,7 +869,7 @@ export default function App() {
               <Route
                 path="/interviews/human"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewHumanEngine />
                   </Protected>
                 }
@@ -707,7 +877,7 @@ export default function App() {
               <Route
                 path="/interviews/screening"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewScreeningEngine />
                   </Protected>
                 }
@@ -715,7 +885,7 @@ export default function App() {
               <Route
                 path="/interviews/sequential-round"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewSequentialRoundEngine />
                   </Protected>
                 }
@@ -723,7 +893,7 @@ export default function App() {
               <Route
                 path="/interviews/group-discussion"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewGroupDiscussionEngine />
                   </Protected>
                 }
@@ -731,7 +901,7 @@ export default function App() {
               <Route
                 path="/interviews/bar-raiser"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewBarRaiserEngine />
                   </Protected>
                 }
@@ -739,7 +909,7 @@ export default function App() {
               <Route
                 path="/interviews/role-play"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewRolePlayEngine />
                   </Protected>
                 }
@@ -747,7 +917,7 @@ export default function App() {
               <Route
                 path="/interviews/presentation-interview"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewPresentationEngine />
                   </Protected>
                 }
@@ -755,7 +925,7 @@ export default function App() {
               <Route
                 path="/interviews/portfolio-review"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewPortfolioReviewEngine />
                   </Protected>
                 }
@@ -763,7 +933,7 @@ export default function App() {
               <Route
                 path="/interviews/assessment-center"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewAssessmentCenterEngine />
                   </Protected>
                 }
@@ -771,7 +941,7 @@ export default function App() {
               <Route
                 path="/interviews/campus-hiring"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewCampusHiringEngine />
                   </Protected>
                 }
@@ -779,7 +949,7 @@ export default function App() {
               <Route
                 path="/interviews/mock-interview"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewMockEngine />
                   </Protected>
                 }
@@ -787,7 +957,7 @@ export default function App() {
               <Route
                 path="/interviews/walkin-drive"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewWalkinDriveEngine />
                   </Protected>
                 }
@@ -795,7 +965,7 @@ export default function App() {
               <Route
                 path="/interviews/video"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewVideoEngine />
                   </Protected>
                 }
@@ -803,7 +973,7 @@ export default function App() {
               <Route
                 path="/interviews/whiteboard"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewWhiteboardEngine />
                   </Protected>
                 }
@@ -811,7 +981,7 @@ export default function App() {
               <Route
                 path="/interviews/assessments"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewAssessmentEngine />
                   </Protected>
                 }
@@ -819,7 +989,7 @@ export default function App() {
               <Route
                 path="/interviews/prequalification"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewPrequalificationEngine />
                   </Protected>
                 }
@@ -827,7 +997,7 @@ export default function App() {
               <Route
                 path="/interviews/types/scorecards"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <Navigate to="/interviews/scorecards" replace />
                   </Protected>
                 }
@@ -836,7 +1006,7 @@ export default function App() {
               <Route
                 path="/interviews/templates"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewTemplates />
                   </Protected>
                 }
@@ -845,7 +1015,7 @@ export default function App() {
               <Route
                 path="/interviews/scorecards"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewScorecards />
                   </Protected>
                 }
@@ -854,7 +1024,7 @@ export default function App() {
               <Route
                 path="/interviews/:id/kit"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewKit />
                   </Protected>
                 }
@@ -863,7 +1033,7 @@ export default function App() {
               <Route
                 path="/interviews/:id/feedback"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewFeedbackSubmit />
                   </Protected>
                 }
@@ -871,7 +1041,7 @@ export default function App() {
               <Route
                 path="/interviews/:id/decision"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewDecisionPanel />
                   </Protected>
                 }
@@ -880,7 +1050,7 @@ export default function App() {
               <Route
                 path="/interviews/scheduling"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewSchedulingEngine />
                   </Protected>
                 }
@@ -889,7 +1059,7 @@ export default function App() {
               <Route
                 path="/interviews/live"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewLiveCenter />
                   </Protected>
                 }
@@ -898,7 +1068,7 @@ export default function App() {
               <Route
                 path="/interviews/analytics"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewCommandCenter />
                   </Protected>
                 }
@@ -907,7 +1077,7 @@ export default function App() {
               <Route
                 path="/interviews/automation"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewAutomation />
                   </Protected>
                 }
@@ -916,7 +1086,7 @@ export default function App() {
               <Route
                 path="/interviews/integrations"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewIntegrations />
                   </Protected>
                 }
@@ -925,7 +1095,7 @@ export default function App() {
               <Route
                 path="/interviews/questions"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <InterviewQuestionBank />
                   </Protected>
                 }
@@ -937,7 +1107,7 @@ export default function App() {
               <Route
                 path="/interviews/prequalification/forms/:id/builder"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager']}>
+                  <Protected roles={RECRUITER_OPERATIONAL_ROLES}>
                     <PrequalificationBuilder />
                   </Protected>
                 }
@@ -956,7 +1126,7 @@ export default function App() {
               <Route
                 path="/approvals"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <Navigate to="/hiring-decisions/approvals" replace />
                   </Protected>
                 }
@@ -965,7 +1135,7 @@ export default function App() {
               <Route
                 path="/offers"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <Navigate to="/hiring-decisions/offer-release" replace />
                   </Protected>
                 }
@@ -974,7 +1144,7 @@ export default function App() {
               <Route
                 path="/hiring-decisions"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
+                  <Protected roles={RECRUITER_OPERATIONAL_ROLES}>
                     <HiringDecisionWorkspace />
                   </Protected>
                 }
@@ -983,7 +1153,7 @@ export default function App() {
               <Route
                 path="/hiring-decisions/:section"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
+                  <Protected roles={RECRUITER_OPERATIONAL_ROLES}>
                     <HiringDecisionWorkspace />
                   </Protected>
                 }
@@ -992,7 +1162,7 @@ export default function App() {
               <Route
                 path="/intelligence"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin', 'hr_manager', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter', 'viewer']}>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <IntelligenceHubWorkspace />
                   </Protected>
                 }
@@ -1001,8 +1171,94 @@ export default function App() {
               <Route
                 path="/intelligence/:section"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin', 'hr_manager', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter', 'viewer']}>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <IntelligenceHubWorkspace />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/workflows/:section"
+                element={
+                  <Protected roles={NON_CANDIDATE_ROLES}>
+                    <WorkflowSystemWorkspace />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/workflows"
+                element={
+                  <Protected roles={NON_CANDIDATE_ROLES}>
+                    <WorkflowSystemWorkspace />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/workflows/guided-builder"
+                element={
+                  <Protected roles={COMPANY_HIRING_ROLES}>
+                    <GuidedWorkflowBuilder />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/workflows/advanced-builder"
+                element={
+                  <Protected roles={ADMIN_ONLY_ROLES}>
+                    <AdvancedWorkflowBuilder />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/workflows/advanced-builder/:id"
+                element={
+                  <Protected roles={ADMIN_ONLY_ROLES}>
+                    <AdvancedWorkflowBuilder />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/automation-center"
+                element={
+                  <Protected roles={COMPANY_ROLES}>
+                    <AutomationCommandCenter />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/automation-center/:section"
+                element={
+                  <Protected roles={COMPANY_ROLES}>
+                    <AutomationCommandCenter />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/automation-permissions"
+                element={
+                  <Protected roles={COMPANY_HR_ROLES}>
+                    <AutomationPermissions />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/automation-notifications"
+                element={
+                  <Protected roles={COMPANY_HR_ROLES}>
+                    <AutomationNotifications />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/automation-tasks"
+                element={
+                  <Protected roles={COMPANY_HIRING_ROLES}>
+                    <AutomationTasks />
                   </Protected>
                 }
               />
@@ -1010,7 +1266,7 @@ export default function App() {
               <Route
                 path="/agencies"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter']}>
+                  <Protected roles={RECRUITER_OPERATIONAL_ROLES}>
                     <CompanyAgencies />
                   </Protected>
                 }
@@ -1019,7 +1275,7 @@ export default function App() {
               <Route
                 path="/agencies/my-jobs"
                 element={
-                  <Protected roles={['agency_owner', 'agency_admin', 'agency_recruiter']}>
+                  <Protected roles={AGENCY_ROLES}>
                     <MyJobs />
                   </Protected>
                 }
@@ -1027,7 +1283,7 @@ export default function App() {
               <Route
                 path="/agencies/my-submissions"
                 element={
-                  <Protected roles={['agency_owner', 'agency_admin', 'agency_recruiter']}>
+                  <Protected roles={AGENCY_ROLES}>
                     <MySubmissions />
                   </Protected>
                 }
@@ -1035,7 +1291,7 @@ export default function App() {
               <Route
                 path="/agencies/my-clients"
                 element={
-                  <Protected roles={['agency_owner', 'agency_admin', 'agency_recruiter']}>
+                  <Protected roles={AGENCY_ROLES}>
                     <AgencyClients />
                   </Protected>
                 }
@@ -1043,7 +1299,7 @@ export default function App() {
               <Route
                 path="/agencies/submit-candidate"
                 element={
-                  <Protected roles={['agency_owner', 'agency_admin', 'agency_recruiter']}>
+                  <Protected roles={AGENCY_ROLES}>
                     <SubmitCandidate />
                   </Protected>
                 }
@@ -1052,7 +1308,7 @@ export default function App() {
               <Route
                 path="/analytics"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin', 'recruiter', 'hiring_manager', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
+                  <Protected roles={COMPANY_AND_AGENCY_RECRUITER_ROLES}>
                     <Analytics />
                   </Protected>
                 }
@@ -1061,8 +1317,67 @@ export default function App() {
               <Route
                 path="/activity-log"
                 element={
-                  <Protected>
+                  <Protected roles={NON_CANDIDATE_ROLES}>
                     <ActivityLogPage />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/qa/module-readiness"
+                element={
+                  <Protected roles={ADMIN_ONLY_ROLES}>
+                    <ModuleReadiness />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/automation-orchestrator"
+                element={
+                  <Protected roles={COMPANY_HIRING_ROLES}>
+                    <GlobalAutomationOrchestrator />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/admin"
+                element={
+                  <Protected requireMasterAdmin>
+                    <MasterAdminDashboard />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/admin/tenants"
+                element={
+                  <Protected requireMasterAdmin>
+                    <MasterAdminTenants />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/admin/tenants/:id"
+                element={
+                  <Protected requireMasterAdmin>
+                    <MasterAdminTenantDetail />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/admin/settings"
+                element={
+                  <Protected requireMasterAdmin>
+                    <MasterAdminSettings />
+                  </Protected>
+                }
+              />
+              <Route
+                path="/admin/audit"
+                element={
+                  <Protected requireMasterAdmin>
+                    <MasterAdminAudit />
                   </Protected>
                 }
               />
@@ -1070,7 +1385,7 @@ export default function App() {
               <Route
                 path="/workflow-templates"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin', 'agency_owner', 'agency_admin']}>
+                  <Protected roles={TENANT_OR_AGENCY_ADMIN_ROLES}>
                     <WorkflowTemplatesPage />
                   </Protected>
                 }
@@ -1079,7 +1394,7 @@ export default function App() {
               <Route
                 path="/candidate/dashboard"
                 element={
-                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                  <Protected roles={CANDIDATE_ROLES}>
                     <CandidateCommandCenter />
                   </Protected>
                 }
@@ -1088,7 +1403,7 @@ export default function App() {
               <Route
                 path="/candidate/jobs"
                 element={
-                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                  <Protected roles={CANDIDATE_ROLES}>
                     <JobSearch />
                   </Protected>
                 }
@@ -1097,7 +1412,7 @@ export default function App() {
               <Route
                 path="/candidate/applications"
                 element={
-                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                  <Protected roles={CANDIDATE_ROLES}>
                     <MyApplications />
                   </Protected>
                 }
@@ -1106,7 +1421,7 @@ export default function App() {
               <Route
                 path="/candidate/interviews"
                 element={
-                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                  <Protected roles={CANDIDATE_ROLES}>
                     <CandidateInterviewDashboard />
                   </Protected>
                 }
@@ -1115,7 +1430,7 @@ export default function App() {
               <Route
                 path="/candidate/interviews/:id/instructions"
                 element={
-                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                  <Protected roles={CANDIDATE_ROLES}>
                     <CandidateInterviewInstructions />
                   </Protected>
                 }
@@ -1124,7 +1439,7 @@ export default function App() {
               <Route
                 path="/candidate/interviews/results"
                 element={
-                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                  <Protected roles={CANDIDATE_ROLES}>
                     <CandidateInterviewResults />
                   </Protected>
                 }
@@ -1133,7 +1448,7 @@ export default function App() {
               <Route
                 path="/candidate/interviews/notifications"
                 element={
-                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                  <Protected roles={CANDIDATE_ROLES}>
                     <CandidateInterviewNotifications />
                   </Protected>
                 }
@@ -1142,7 +1457,7 @@ export default function App() {
               <Route
                 path="/candidate/interviews/help"
                 element={
-                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                  <Protected roles={CANDIDATE_ROLES}>
                     <CandidateInterviewHelp />
                   </Protected>
                 }
@@ -1151,7 +1466,7 @@ export default function App() {
               <Route
                 path="/candidate/interviews/feedback"
                 element={
-                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                  <Protected roles={CANDIDATE_ROLES}>
                     <CandidateInterviewFeedback />
                   </Protected>
                 }
@@ -1160,7 +1475,7 @@ export default function App() {
               <Route
                 path="/candidate/interviews/experience"
                 element={
-                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                  <Protected roles={CANDIDATE_ROLES}>
                     <CandidateInterviewExperience />
                   </Protected>
                 }
@@ -1169,7 +1484,7 @@ export default function App() {
               <Route
                 path="/candidate/interviews/preparation"
                 element={
-                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                  <Protected roles={CANDIDATE_ROLES}>
                     <CandidateInterviewPreparation />
                   </Protected>
                 }
@@ -1178,7 +1493,7 @@ export default function App() {
               <Route
                 path="/candidate/interviews/timeline"
                 element={
-                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                  <Protected roles={CANDIDATE_ROLES}>
                     <CandidateInterviewTimeline />
                   </Protected>
                 }
@@ -1187,8 +1502,17 @@ export default function App() {
               <Route
                 path="/candidate/interviews/:id/runtime"
                 element={
-                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                  <Protected roles={CANDIDATE_ROLES}>
                     <CandidateInterviewRuntime />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/candidate/prequalification"
+                element={
+                  <Protected roles={CANDIDATE_ROLES}>
+                    <CandidatePrequalification />
                   </Protected>
                 }
               />
@@ -1196,7 +1520,7 @@ export default function App() {
               <Route
                 path="/candidate/interviews/:id/status"
                 element={
-                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                  <Protected roles={CANDIDATE_ROLES}>
                     <CandidateInterviewStatus />
                   </Protected>
                 }
@@ -1205,7 +1529,7 @@ export default function App() {
               <Route
                 path="/candidate/interviews/blocked"
                 element={
-                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                  <Protected roles={CANDIDATE_ROLES}>
                     <CandidateInterviewBlocked />
                   </Protected>
                 }
@@ -1214,7 +1538,7 @@ export default function App() {
               <Route
                 path="/candidate/interviews/expired"
                 element={
-                  <Protected roles={['candidate', 'tenant_admin', 'super_admin']}>
+                  <Protected roles={CANDIDATE_ROLES}>
                     <CandidateInterviewExpired />
                   </Protected>
                 }
@@ -1223,8 +1547,26 @@ export default function App() {
               <Route
                 path="/settings"
                 element={
-                  <Protected roles={['tenant_admin', 'super_admin', 'agency_owner', 'agency_admin', 'agency_recruiter']}>
+                  <Protected roles={COMPANY_AND_AGENCY_RECRUITER_ROLES}>
                     <Settings />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/settings/notification-control"
+                element={
+                  <Protected roles={ADMIN_ONLY_ROLES}>
+                    <NotificationControlCenter />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/settings/communication-control"
+                element={
+                  <Protected roles={ADMIN_ONLY_ROLES}>
+                    <CommunicationControlCenter />
                   </Protected>
                 }
               />
@@ -1232,7 +1574,7 @@ export default function App() {
               <Route
                 path="/passport"
                 element={
-                  <Protected roles={['candidate']}>
+                  <Protected roles={CANDIDATE_ROLES}>
                     <PassportPage />
                   </Protected>
                 }
@@ -1240,9 +1582,14 @@ export default function App() {
 
               <Route
                 path="/messages"
+                element={<Navigate to="/communications" replace />}
+              />
+
+              <Route
+                path="/communications"
                 element={
-                  <Protected>
-                    <Messages />
+                  <Protected roles={NON_CANDIDATE_ROLES}>
+                    <CommunicationsPage />
                   </Protected>
                 }
               />
@@ -1250,14 +1597,15 @@ export default function App() {
               <Route
                 path="/notifications"
                 element={
-                  <Protected>
-                    <NotificationsCenterPage />
+                  <Protected roles={NON_CANDIDATE_ROLES}>
+                    <NotificationsPage />
                   </Protected>
                 }
               />
 
               {/* ── Misc ──────────────────────────────────────────── */}
               <Route path="/unauthorized" element={<Unauthorized />} />
+              <Route path="/search" element={<Protected roles={NON_CANDIDATE_ROLES}><GlobalSearch /></Protected>} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
           </BrowserRouter>

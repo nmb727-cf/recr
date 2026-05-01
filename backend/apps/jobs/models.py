@@ -110,6 +110,30 @@ class JobRequisition(models.Model):
     current_approver_id = models.UUIDField(null=True, blank=True)
     approved_at = models.DateTimeField(null=True, blank=True)
     approved_by = models.UUIDField(null=True, blank=True)
+    # Prequalification binding
+    prequal_enabled = models.BooleanField(default=False)
+    prequal_form_id = models.UUIDField(null=True, blank=True, db_index=True)
+    prequal_threshold_override = models.IntegerField(
+        null=True, blank=True,
+        help_text="Override the form's default pass threshold (0-100). Null = use form default."
+    )
+    prequal_pass_action = models.CharField(
+        max_length=50,
+        default='advance',
+        choices=[
+            ('advance', 'Advance to Next Stage'),
+            ('manual_review', 'Flag for Manual Review'),
+        ]
+    )
+    prequal_fail_action = models.CharField(
+        max_length=50,
+        default='reject',
+        choices=[
+            ('reject', 'Auto-Reject'),
+            ('hold', 'Hold — Awaiting Review'),
+            ('manual_review', 'Flag for Manual Review'),
+        ]
+    )
     target_date = models.DateField(null=True, blank=True)
     closed_at = models.DateTimeField(null=True, blank=True)
     closed_reason = models.CharField(max_length=255, blank=True)
@@ -155,7 +179,16 @@ class JobRequisition(models.Model):
     # Offer & Closure Defaults
     offer_salary_default = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
     offer_currency_default = models.CharField(max_length=10, default='INR')
-    auto_close_on_fulfillment = models.BooleanField(default=True)
+    auto_close_on_headcount_met = models.BooleanField(default=True)
+    hiring_complete_action = models.CharField(
+        max_length=50,
+        choices=[
+            ('manual', 'Manual Only'),
+            ('auto_onboarding', 'Trigger Onboarding Flow'),
+            ('archive', 'Archive Application'),
+        ],
+        default='auto_onboarding'
+    )
     # Agency Commercial Defaults (per job)
     agency_commission_model = models.CharField(
         max_length=30,
@@ -172,6 +205,13 @@ class JobRequisition(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.UUIDField(null=True, blank=True)
+
+    # Workflow Master Binding
+    workflow_id = models.UUIDField(null=True, blank=True, db_index=True)
+    workflow_template_id = models.UUIDField(null=True, blank=True, db_index=True)
+    workflow_enabled = models.BooleanField(default=False)
+    is_workflow_controlled = models.BooleanField(default=False)
+
     is_deleted = models.BooleanField(default=False, db_index=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
     metadata = models.JSONField(default=dict, blank=True)
@@ -254,6 +294,7 @@ class JobStage(models.Model):
         max_length=50,
         choices=[
             ('sourcing', 'Sourcing'),
+            ('shortlisted', 'Shortlisted'),
             ('screening', 'Screening'),
             ('interview', 'Interview'),
             ('assessment', 'Assessment'),
@@ -288,6 +329,43 @@ class JobStage(models.Model):
     is_critical_path = models.BooleanField(default=True)
     action_deadline_hours = models.IntegerField(default=48)
     sla_target_hours = models.IntegerField(default=24)
+    responsible_user_id = models.UUIDField(null=True, blank=True, db_index=True)
+    responsible_role = models.CharField(
+        max_length=50,
+        choices=[
+            ('hiring_manager', 'Hiring Manager'),
+            ('recruiter', 'Recruiter'),
+            ('coordinator', 'Coordinator'),
+            ('interviewer', 'Interviewer/Panel'),
+            ('agency', 'Agency'),
+            ('external', 'External Provider'),
+        ],
+        default='recruiter'
+    )
+    decision_authority = models.CharField(
+        max_length=50,
+        choices=[
+            ('hiring_manager', 'Hiring Manager'),
+            ('recruiter', 'Recruiter'),
+            ('coordinator', 'Coordinator'),
+            ('approver', 'Specific Approver'),
+            ('admin', 'Admin/Owner'),
+            ('any', 'Anyone in Team'),
+        ],
+        default='any'
+    )
+    trigger_type = models.CharField(
+        max_length=50,
+        choices=[
+            ('none', 'None'),
+            ('interview', 'Interview Round'),
+            ('prequal', 'Prequalification'),
+            ('assessment', 'External Assessment'),
+            ('approval', 'Stage Approval'),
+        ],
+        default='none'
+    )
+    trigger_config = models.JSONField(default=dict, blank=True)
     auto_actions = models.JSONField(default=dict, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -367,6 +445,91 @@ class CustomFieldDefinition(models.Model):
     class Meta:
         db_table = 'jobs_custom_field_definition'
         unique_together = ['tenant_id', 'entity_type', 'field_name']
+
+
+class JobDescriptionTemplate(models.Model):
+    """
+    Reusable job description template library.
+    Stores pre-written JD content that can be applied when creating a job.
+    """
+    CATEGORY_CHOICES = [
+        ('engineering', 'Engineering'),
+        ('product', 'Product'),
+        ('design', 'Design'),
+        ('sales', 'Sales'),
+        ('marketing', 'Marketing'),
+        ('operations', 'Operations'),
+        ('finance', 'Finance'),
+        ('hr', 'HR'),
+        ('legal', 'Legal'),
+        ('other', 'Other'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_id = models.UUIDField(db_index=True)
+    name = models.CharField(max_length=255)
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='other', db_index=True)
+    job_type = models.CharField(
+        max_length=50,
+        choices=[
+            ('full_time', 'Full Time'), ('part_time', 'Part Time'),
+            ('contract', 'Contract'), ('internship', 'Internship'),
+            ('freelance', 'Freelance')
+        ],
+        blank=True
+    )
+    description = models.TextField(blank=True)
+    requirements = models.TextField(blank=True)
+    responsibilities = models.TextField(blank=True)
+    skills_suggested = models.JSONField(default=list, blank=True)
+    # Usage tracking
+    usage_count = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.UUIDField(null=True, blank=True)
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    def soft_delete(self):
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.save()
+
+    def __str__(self):
+        return self.name
+
+    class Meta:
+        db_table = 'jobs_jd_template'
+        ordering = ['-usage_count', '-created_at']
+        indexes = [
+            models.Index(fields=['tenant_id', 'is_active']),
+            models.Index(fields=['tenant_id', 'category']),
+        ]
+
+
+class JobLocation(models.Model):
+    """
+    Many-to-many junction: one job can be open in multiple locations.
+    The legacy location_id on JobRequisition remains for primary/default location.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_id = models.UUIDField(db_index=True)
+    requisition = models.ForeignKey(
+        JobRequisition, on_delete=models.CASCADE, related_name='locations'
+    )
+    location_id = models.UUIDField(db_index=True)
+    location_name = models.CharField(max_length=200, blank=True)  # denormalized for display speed
+    is_primary = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'jobs_location'
+        unique_together = ['requisition', 'location_id']
+        indexes = [
+            models.Index(fields=['tenant_id', 'requisition_id']),
+        ]
 
 
 class CustomFieldValue(models.Model):

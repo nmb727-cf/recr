@@ -1,200 +1,29 @@
+import logging
 from django.utils import timezone
-from datetime import timedelta
 from rest_framework import status
-from rest_framework.views import APIView
+
+logger = logging.getLogger(__name__)
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
 
 from apps.pipeline.models import Application, ApplicationStageHistory, ActionDeadline
 from apps.pipeline.serializers import (
-    ApplicationSerializer, ApplicationStageHistorySerializer,
+    ApplicationSerializer,
+    ApplicationStageHistorySerializer,
     ActionDeadlineSerializer,
 )
-from apps.jobs.models import JobRequisition, JobStage
-from apps.candidates.models import Candidate
-from apps.accounts.models import CustomUser
 from apps.core.responses import success_response, error_response
-from apps.core import events
-from apps.candidates.pipeline_hooks import (
-    on_application_created,
-    on_application_stage_changed,
-    on_application_rejected,
-    on_offer_made,
-    on_candidate_hired,
-)
-from apps.candidates.protection import (
-    check_protected_action,
-    mark_placement_via_source,
-    start_rejection_based_protection_if_needed,
-)
-
-from apps.jobs.permissions import can_perform_job_action, is_automation_actor
-
-OWNER_ONLY_STAGE_MOVE_MESSAGE = "Only the job owner can manually change stages for submitted candidates."
-# JobStage.stage_type values that are in the company-visible hiring flow.
-# Matches the choices defined on jobs.models.JobStage.stage_type.
-COMPANY_VISIBLE_STAGE_TYPES = {
-    'sourcing',
-    'screening',
-    'shortlisted',
-    'interview',
-    'assessment',
-    'offer',
-    'joined',
-}
-# Application.status values that put the application in the company-visible
-# hiring flow.  Matches the choices on pipeline.models.Application.status.
-COMPANY_VISIBLE_APP_STATUSES = {
-    'applied',
-    'sourcing',
-    'screening',
-    'shortlisted',
-    'interview',
-    'assessment',
-    'offer',
-    'joined',
-}
-
-
-def _extract_stage_note(payload):
-    note = (
-        payload.get('note')
-        or payload.get('notes')
-        or payload.get('reason')
-        or ''
-    )
-    return str(note).strip()
-
-
-def _is_automation_actor(user):
-    return is_automation_actor(user)
-
-
-def _is_company_visible_stage_context(application, target_stage=None, target_status=None):
-    current_status = str(application.status or '').lower()
-    if current_status in COMPANY_VISIBLE_APP_STATUSES:
-        return True
-
-    if target_stage and str(target_stage.stage_type or '').lower() in COMPANY_VISIBLE_STAGE_TYPES:
-        return True
-
-    if target_status and str(target_status).lower() in COMPANY_VISIBLE_STAGE_TYPES:
-        return True
-
-    if application.current_stage_id:
-        try:
-            current_stage = JobStage.objects.get(id=application.current_stage_id)
-            if str(current_stage.stage_type or '').lower() in COMPANY_VISIBLE_STAGE_TYPES:
-                return True
-        except JobStage.DoesNotExist:
-            pass
-
-    return False
-
-
-def enforce_post_submission_stage_owner_lock(application, user, target_stage=None, target_status=None):
-    """
-    For manual movement in company-visible stages, only the job owner can move stages.
-    System automation / approved-threshold automation bypasses this lock.
-    """
-    if is_automation_actor(user):
-        return True, None
-
-    if not _is_company_visible_stage_context(
-        application,
-        target_stage=target_stage,
-        target_status=target_status,
-    ):
-        return True, None
-
-    try:
-        job = JobRequisition.objects.get(id=application.requisition_id)
-    except JobRequisition.DoesNotExist:
-        return False, "Requisition not found."
-
-    # Use centralized helper for ownership resolution and fallback logic
-    if not can_perform_job_action('move_stage', job, user):
-        return False, OWNER_ONLY_STAGE_MOVE_MESSAGE
-
-    return True, None
-
-
-def _require_stage_note(payload):
-    note = _extract_stage_note(payload)
-    if not note:
-        return None, error_response(
-            "A mandatory note/reason is required for every stage change.",
-            errors={'note': ['This field is required.']},
-        )
-    return note, None
-
-
-def validate_application_move(application, target_stage, reason=None, user=None):
-    """
-    Validates if an application can move to the target stage.
-    Returns (True, None) if valid, (False, error_message) if invalid.
-    """
-    from apps.interviews.models import Interview
-    from apps.jobs.models import JobStage, JobRequisition
-
-    # 0. Job Owner Authority Lock for Post-Submission Stages
-    owner_allowed, owner_error = enforce_post_submission_stage_owner_lock(
-        application,
-        user,
-        target_stage=target_stage,
-    )
-    if not owner_allowed:
-        return False, owner_error
-
-    # 1. RBAC Check for Joined
-    if target_stage.stage_type == 'joined' and user:
-        allowed_roles = ['super_admin', 'tenant_admin', 'hr_manager']
-        if user.role not in allowed_roles and not user.is_staff:
-            return False, "Only HR Managers or Admins can mark a candidate as Joined."
-
-    # 2. State Machine Enforcement (Dynamic)
-    current_stage = None
-    if application.current_stage_id:
-        try:
-            current_stage = JobStage.objects.get(id=application.current_stage_id)
-        except JobStage.DoesNotExist:
-            pass
-
-    if current_stage:
-        # Forward movement check
-        if target_stage.stage_order > current_stage.stage_order:
-            skipped_stages = JobStage.objects.filter(
-                requisition_id=application.requisition_id,
-                is_active=True,
-                stage_order__gt=current_stage.stage_order,
-                stage_order__lt=target_stage.stage_order
-            ).exists()
-
-            if skipped_stages:
-                return False, f"Cannot skip stages for {application.id}. Please move through each stage in order."
-
-        # Backward movement requirement
-        elif target_stage.stage_order < current_stage.stage_order:
-            if not reason:
-                return False, f"A reason is required for backward stage movement of {application.id}."
-
-    # 2. Interview Validation
-    if target_stage.stage_type in ['offer', 'joined']:
-        completed_interviews = Interview.objects.filter(
-            application_id=application.id,
-            status='completed'
-        ).exists()
-        if not completed_interviews:
-            return False, f"Cannot move {application.id} to Offer/Hired stage without at least one completed interview."
-
-    return True, None
-
+from shared.actor_access import is_candidate
 
 def perform_application_move(application, target_stage, user, notes=None, reason=None, request=None):
     """
     Performs the actual database updates, history recording, and event emission.
     """
     from apps.jobs.models import JobRequisition, JobStage
-    
+    from apps.pipeline.models import ApplicationStageHistory
+    from django.utils import timezone
+    from apps.core import events
+
     stage_note = (notes or reason or '').strip()
     if not stage_note:
         raise ValueError("A mandatory note/reason is required for every stage change.")
@@ -248,7 +77,8 @@ def perform_application_move(application, target_stage, user, notes=None, reason
         except JobRequisition.DoesNotExist:
             pass
 
-        # Engagement Layer Hook
+        # Commercial & Engagement Hooks
+        from apps.pipeline.guarantee import on_candidate_hired, mark_placement_via_source
         try:
             on_candidate_hired(application, user)
         except Exception:
@@ -258,6 +88,47 @@ def perform_application_move(application, target_stage, user, notes=None, reason
             tenant_id=application.tenant_id,
             actor_user_id=user.id,
         )
+
+    # ─── Trigger Logic ────────────────────────────────────────────────────────
+    
+    # 1. Interview Trigger
+    if target_stage.trigger_type == 'interview' or (not target_stage.trigger_type and target_stage.stage_type == 'interview'):
+        from apps.interviews.services import InterviewService
+        
+        # If explicit trigger_config specifies a round, use it. Otherwise increment.
+        round_to_trigger = target_stage.trigger_config.get('interview_round')
+        if round_to_trigger is None:
+            current_round = application.metadata.get('current_interview_round', 0)
+            round_to_trigger = current_round + 1
+            
+        interview, message = InterviewService.trigger_next_round(
+            tenant_id=user.tenant_id,
+            application_id=application.id,
+            job_id=application.requisition_id,
+            candidate_id=application.candidate_id,
+            current_round=round_to_trigger - 1 # trigger_next_round adds 1
+        )
+        if interview:
+            application.metadata['current_interview_round'] = interview.interview_round
+            application.save(update_fields=['metadata'])
+
+    # 2. Prequalification Trigger
+    if target_stage.trigger_type == 'prequal':
+        from apps.jobs.prequal_service import evaluate_candidate_prequal
+        try:
+            eval_res = evaluate_candidate_prequal(
+                job_id=str(application.requisition_id),
+                candidate_id=str(application.candidate_id),
+                tenant_id=str(user.tenant_id) if user.tenant_id else None
+            )
+            application.metadata['last_prequal_result'] = eval_res.get('result')
+            application.metadata['last_prequal_score'] = eval_res.get('score')
+            application.save(update_fields=['metadata'])
+            
+            # Auto-move based on prequal result if configured
+            # (In a real system, we'd have a service handling the 'pass_action' / 'fail_action')
+        except Exception as e:
+            logger.error(f"Failed to trigger prequal for app {application.id}: {e}")
 
     # Event Emission
     events.application.stage_changed.send(
@@ -279,527 +150,314 @@ def perform_application_move(application, target_stage, user, notes=None, reason
     return application
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _get_application(pk, tenant_id):
+    return Application.objects.filter(id=pk, tenant_id=tenant_id, is_deleted=False).first()
+
+
+# ── Application views ─────────────────────────────────────────────────────────
+
 class ApplicationListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        qs = Application.objects.filter(
-            tenant_id=request.user.tenant_id,
-            is_deleted=False
-        )
-
-        # Filters
+        if is_candidate(request.user):
+            return error_response(
+                'You do not have permission to access pipeline operations.',
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        qs = Application.objects.filter(tenant_id=request.user.tenant_id, is_deleted=False)
         requisition_id = request.query_params.get('requisition_id')
+        candidate_id = request.query_params.get('candidate_id')
+        app_status = request.query_params.get('status')
+        stage_id = request.query_params.get('current_stage_id')
         if requisition_id:
             qs = qs.filter(requisition_id=requisition_id)
-
-        status_filter = request.query_params.get('status')
-        if status_filter:
-            qs = qs.filter(status=status_filter)
-
-        stage_id = request.query_params.get('stage_id')
+        if candidate_id:
+            qs = qs.filter(candidate_id=candidate_id)
+        if app_status:
+            qs = qs.filter(status=app_status)
         if stage_id:
             qs = qs.filter(current_stage_id=stage_id)
-
-        agency_id = request.query_params.get('agency_id')
-        if agency_id:
-            qs = qs.filter(agency_id=agency_id)
-
-        return success_response(
-            data={'applications': ApplicationSerializer(qs, many=True).data},
-            message="Applications retrieved.",
-            meta={'total': qs.count()}
-        )
+        return success_response(data={
+            'applications': ApplicationSerializer(qs.order_by('-created_at')[:500], many=True).data
+        })
 
     def post(self, request):
-        serializer = ApplicationSerializer(data=request.data)
-        if not serializer.is_valid():
-            return error_response("Validation failed.", serializer.errors)
-
-        data = serializer.validated_data
-        # Verify requisition exists
-        try:
-            requisition = JobRequisition.objects.get(
-                id=data['requisition_id'],
-                is_deleted=False
-            )
-        except JobRequisition.DoesNotExist:
-            return error_response("Requisition not found.", status_code=status.HTTP_404_NOT_FOUND)
-
-        tenant_id = request.user.tenant_id or requisition.tenant_id
-
-        allowed, message, _ = check_protected_action(
-            candidate_id=data['candidate_id'],
-            tenant_id=tenant_id,
-            action='workflow_allowed_job',
-            job_id=data['requisition_id'],
-            actor_user_id=request.user.id,
-        )
-        if not allowed:
-            return error_response(message, status_code=status.HTTP_403_FORBIDDEN)
-
-        # Check duplicate application
-        existing_app = Application.objects.filter(
-            tenant_id=tenant_id,
-            candidate_id=data['candidate_id'],
-            requisition_id=data['requisition_id'],
-            is_deleted=False
-        ).first()
-
-        if existing_app:
-            # Mark as duplicate attempt in metadata
-            if 'duplicate_attempts' not in existing_app.metadata:
-                existing_app.metadata['duplicate_attempts'] = []
-            
-            existing_app.metadata['duplicate_attempts'].append({
-                'attempted_at': timezone.now().isoformat(),
-                'attempted_by': str(request.user.id),
-                'source': data.get('source', 'direct')
-            })
-            existing_app.save(update_fields=['metadata', 'updated_at'])
-
+        if is_candidate(request.user):
             return error_response(
-                "Candidate has already applied for this job.",
-                status_code=status.HTTP_409_CONFLICT
+                'You do not have permission to access pipeline operations.',
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        from apps.candidates.models import Candidate
+
+        candidate_id = request.data.get('candidate_id')
+        if not candidate_id:
+            return error_response('candidate_id is required.')
+        candidate_exists = Candidate.objects.filter(
+            id=candidate_id,
+            is_deleted=False,
+        ).exists()
+        if not candidate_exists:
+            return error_response(
+                'Candidate does not exist. Resolve candidate identity before creating application.',
+                status_code=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Get first stage
-        first_stage = JobStage.objects.filter(
-            requisition_id=data['requisition_id'],
-            is_active=True
-        ).order_by('stage_order').first()
+        data = request.data.copy()
+        data['tenant_id'] = str(request.user.tenant_id) if request.user.tenant_id else None
+        data['created_by'] = str(request.user.id) if request.user.id else None
+        serializer = ApplicationSerializer(data=data)
+        if not serializer.is_valid():
+            return error_response('Validation failed.', serializer.errors)
+        application = serializer.save()
 
-        application = serializer.save(
-            tenant_id=tenant_id,
-            submitted_by=request.user.id,
-            submitted_by_tenant_id=request.user.tenant_id,
-            current_stage_id=first_stage.id if first_stage else None,
-            status='applied',
-            created_by=request.user.id,
-        )
-
-        # Record stage history
-        ApplicationStageHistory.objects.create(
-            tenant_id=tenant_id,
-            application_id=application.id,
-            to_stage_id=first_stage.id if first_stage else None,
-            to_status='applied',
-            moved_by=request.user.id,
-            notes='Application submitted',
-        )
-
-        # Create 24hr review deadline
-        ActionDeadline.objects.create(
-            tenant_id=tenant_id,
-            entity_type='application',
-            entity_id=application.id,
-            action_required='Review new application',
-            assigned_to=request.user.id,
-            deadline_at=timezone.now() + timedelta(hours=24),
-        )
-
-        # Update CRM status if candidate exists in CRM pipeline
-        from apps.candidates.crm_models import CandidatePipelineStatus
-        CandidatePipelineStatus.objects.filter(
-            tenant_id=tenant_id,
-            candidate_id=data['candidate_id'],
-            status__in=['ready_to_submit', 'in_process']
-        ).update(
-            status='submitted',
-            updated_at=timezone.now()
-        )
-
-        # Engagement Layer Hook
-        try:
-            on_application_created(application, request.user)
-        except Exception:
-            pass
-
-        # Emit Event
-        events.application.created.send(
-            sender=self.__class__,
-            application=application,
-            user=request.user,
-            request=request
-        )
+        # ─── Workflow Master Trigger ───
+        from apps.jobs.models import JobRequisition
+        from apps.jobs.workflow_service import JobWorkflowService
+        requisition = JobRequisition.objects.filter(id=application.requisition_id).first()
+        if requisition:
+            JobWorkflowService.trigger_job_workflow(
+                requisition=requisition,
+                event_type='application.created',
+                context={
+                    'application_id': str(application.id),
+                    'candidate_id': str(application.candidate_id),
+                }
+            )
 
         return success_response(
-
             data={'application': ApplicationSerializer(application).data},
-            message="Application created.",
-            status_code=status.HTTP_201_CREATED
+            status_code=status.HTTP_201_CREATED,
         )
 
 
 class ApplicationDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get_object(self, request, pk):
-        try:
-            return Application.objects.get(
-                id=pk,
-                tenant_id=request.user.tenant_id,
-                is_deleted=False
-            )
-        except Application.DoesNotExist:
-            return None
-
     def get(self, request, pk):
-        application = self.get_object(request, pk)
-        if not application:
-            return error_response("Application not found.", status_code=status.HTTP_404_NOT_FOUND)
-
-        # Get stage history
-        history = ApplicationStageHistory.objects.filter(
-            application_id=pk
-        ).order_by('moved_at')
-
-        return success_response(
-            data={
-                'application': ApplicationSerializer(application).data,
-                'stage_history': ApplicationStageHistorySerializer(history, many=True).data,
-            },
-            message="Application retrieved."
-        )
-
-    def put(self, request, pk):
-        application = self.get_object(request, pk)
-        if not application:
-            return error_response("Application not found.", status_code=status.HTTP_404_NOT_FOUND)
-
-        old_status = application.status
-        old_stage_id = application.current_stage_id
-        stage_change_requested = (
-            ('status' in request.data and request.data.get('status') != old_status) or
-            ('current_stage_id' in request.data and request.data.get('current_stage_id') != str(old_stage_id))
-        )
-        if stage_change_requested:
-            stage_note, note_error = _require_stage_note(request.data)
-            if note_error:
-                return note_error
-
-            target_stage = None
-            requested_stage_id = request.data.get('current_stage_id')
-            if requested_stage_id:
-                try:
-                    target_stage = JobStage.objects.get(
-                        id=requested_stage_id,
-                        requisition_id=application.requisition_id,
-                        is_active=True,
-                    )
-                except JobStage.DoesNotExist:
-                    target_stage = None
-
-            requested_status = request.data.get('status')
-            owner_allowed, owner_error = enforce_post_submission_stage_owner_lock(
-                application,
-                request.user,
-                target_stage=target_stage,
-                target_status=requested_status,
+        if is_candidate(request.user):
+            return error_response(
+                'You do not have permission to access pipeline operations.',
+                status_code=status.HTTP_403_FORBIDDEN,
             )
-            if not owner_allowed:
-                return error_response(owner_error, status_code=status.HTTP_403_FORBIDDEN)
-            
-            # Protection Enforcement
-            allowed, message, _ = check_protected_action(
-                candidate_id=application.candidate_id,
-                tenant_id=request.user.tenant_id,
-                action='workflow_allowed_job',
-                job_id=application.requisition_id,
-                actor_user_id=request.user.id,
-            )
-            if not allowed:
-                return error_response(message, status_code=status.HTTP_403_FORBIDDEN)
-        else:
-            stage_note = None
+        application = _get_application(pk, request.user.tenant_id)
+        if not application:
+            return error_response('Application not found.', status_code=status.HTTP_404_NOT_FOUND)
+        return success_response(data={'application': ApplicationSerializer(application).data})
 
+    def patch(self, request, pk):
+        if is_candidate(request.user):
+            return error_response(
+                'You do not have permission to access pipeline operations.',
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        application = _get_application(pk, request.user.tenant_id)
+        if not application:
+            return error_response('Application not found.', status_code=status.HTTP_404_NOT_FOUND)
         serializer = ApplicationSerializer(application, data=request.data, partial=True)
         if not serializer.is_valid():
-            return error_response("Validation failed.", serializer.errors)
-
-        updated_application = serializer.save()
-        if stage_change_requested:
-            ApplicationStageHistory.objects.create(
-                tenant_id=request.user.tenant_id,
-                application_id=updated_application.id,
-                from_stage_id=old_stage_id,
-                to_stage_id=updated_application.current_stage_id,
-                from_status=old_status,
-                to_status=updated_application.status,
-                moved_by=request.user.id,
-                reason=stage_note,
-                notes=stage_note,
-                metadata={
-                    'previous_stage': old_status,
-                    'new_stage': updated_application.status,
-                    'note': stage_note,
-                    'changed_by': str(request.user.id),
-                    'changed_at': timezone.now().isoformat(),
-                    'source': 'application_detail_put',
-                },
-            )
-            try:
-                on_application_stage_changed(
-                    updated_application,
-                    old_status,
-                    updated_application.status,
-                    request.user,
-                    note=stage_note,
-                )
-            except Exception:
-                pass
-        return success_response(
-            data={'application': serializer.data},
-            message="Application updated."
-        )
+            return error_response('Validation failed.', serializer.errors)
+        serializer.save()
+        return success_response(data={'application': serializer.data})
 
 
 class ApplicationMoveStageView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
-        from apps.jobs.models import JobStage
-
-        try:
-            application = Application.objects.get(
-                id=pk,
-                tenant_id=request.user.tenant_id,
-                is_deleted=False
+        if is_candidate(request.user):
+            return error_response(
+                'You do not have permission to access pipeline operations.',
+                status_code=status.HTTP_403_FORBIDDEN,
             )
-        except Application.DoesNotExist:
-            return error_response("Application not found.", status_code=status.HTTP_404_NOT_FOUND)
+        from apps.jobs.models import JobStage
+        application = _get_application(pk, request.user.tenant_id)
+        if not application:
+            return error_response('Application not found.', status_code=status.HTTP_404_NOT_FOUND)
 
         stage_id = request.data.get('stage_id')
-        stage_note, note_error = _require_stage_note(request.data)
-        if note_error:
-            return note_error
-
+        notes = request.data.get('notes') or request.data.get('note') or request.data.get('reason', '')
         if not stage_id:
-            return error_response("stage_id is required.")
+            return error_response('stage_id is required.')
 
-        # Protection Enforcement
-        allowed, message, _ = check_protected_action(
-            candidate_id=application.candidate_id,
-            tenant_id=request.user.tenant_id,
-            action='workflow_allowed_job',
-            job_id=application.requisition_id,
-            actor_user_id=request.user.id,
-        )
-        if not allowed:
-            return error_response(message, status_code=status.HTTP_403_FORBIDDEN)
+        target_stage = JobStage.objects.filter(
+            id=stage_id, requisition_id=application.requisition_id
+        ).first()
+        if not target_stage:
+            return error_response('Stage not found for this requisition.', status_code=status.HTTP_404_NOT_FOUND)
 
-        # Verify stage
+        # ─── Workflow Master Control ───
+        from apps.jobs.models import JobRequisition
+        from apps.jobs.workflow_service import JobWorkflowService
+        requisition = JobRequisition.objects.filter(id=application.requisition_id).first()
+        if requisition:
+            allowed, msg = JobWorkflowService.can_move_to_stage(requisition, application, target_stage, user=request.user)
+            if not allowed:
+                return error_response(msg or "Movement restricted by Workflow Master.")
+
         try:
-            target_stage = JobStage.objects.get(
-                id=stage_id,
-                requisition_id=application.requisition_id,
-                is_active=True
+            application = perform_application_move(
+                application, target_stage, request.user, notes=notes, request=request
             )
-        except JobStage.DoesNotExist:
-            return error_response("Target stage not found.", status_code=status.HTTP_404_NOT_FOUND)
+        except ValueError as exc:
+            return error_response(str(exc))
 
-        # 1. Validate Move
-        is_valid, error_msg = validate_application_move(application, target_stage, stage_note, user=request.user)
-        if not is_valid:
-            if error_msg == OWNER_ONLY_STAGE_MOVE_MESSAGE:
-                return error_response(error_msg, status_code=status.HTTP_403_FORBIDDEN)
-            return error_response(error_msg)
-
-        # 2. Perform Move
-        old_status = application.status
-        application = perform_application_move(
-            application, target_stage, request.user, 
-            notes=stage_note, reason=stage_note, request=request
-        )
-
-        # Engagement Layer Hook
-        try:
-            on_application_stage_changed(
-                application,
-                old_status,
-                application.status,
-                request.user,
-                note=stage_note,
-            )
-        except Exception:
-            pass
-
-        return success_response(
-            data={'application': ApplicationSerializer(application).data},
-            message=f"Moved to {target_stage.name}."
-        )
+        return success_response(data={'application': ApplicationSerializer(application).data})
 
 
 class ApplicationShortlistView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
-        try:
-            application = Application.objects.get(
-                id=pk,
-                tenant_id=request.user.tenant_id,
-                is_deleted=False
+        if is_candidate(request.user):
+            return error_response(
+                'You do not have permission to access pipeline operations.',
+                status_code=status.HTTP_403_FORBIDDEN,
             )
-        except Application.DoesNotExist:
-            return error_response("Application not found.", status_code=status.HTTP_404_NOT_FOUND)
+        application = _get_application(pk, request.user.tenant_id)
+        if not application:
+            return error_response('Application not found.', status_code=status.HTTP_404_NOT_FOUND)
 
-        stage_note, note_error = _require_stage_note(request.data)
-        if note_error:
-            return note_error
-
-        owner_allowed, owner_error = enforce_post_submission_stage_owner_lock(
-            application,
-            request.user,
-            target_status='shortlisted',
-        )
-        if not owner_allowed:
-            return error_response(owner_error, status_code=status.HTTP_403_FORBIDDEN)
+        if application.status in ('rejected', 'withdrawn', 'joined'):
+            return error_response(f'Cannot shortlist an application with status "{application.status}".')
 
         old_status = application.status
+        # ─── Decision Authority Check ───
+        from apps.jobs.models import JobRequisition, JobStage
+        from apps.jobs.workflow_service import JobWorkflowService
+        requisition = JobRequisition.objects.filter(id=application.requisition_id).first()
+        shortlist_stage = None
+        if requisition:
+            # Prefer an explicit shortlisted stage when configured.
+            shortlist_stage = (
+                JobStage.objects.filter(requisition_id=requisition.id, stage_type='shortlisted')
+                .order_by('stage_order')
+                .first()
+            )
+            target_stage = shortlist_stage or JobStage.objects.filter(
+                requisition_id=requisition.id,
+                stage_type='screening',
+            ).first()
+            if target_stage:
+                allowed, msg = JobWorkflowService.can_move_to_stage(
+                    requisition,
+                    application,
+                    target_stage,
+                    user=request.user,
+                )
+                if not allowed:
+                    return error_response(msg or "Decision authority restricted.")
+        notes = request.data.get('notes', 'Shortlisted')
 
-        application.status = 'shortlisted'
-        application.save(update_fields=['status', 'updated_at'])
+        if shortlist_stage:
+            try:
+                application = perform_application_move(
+                    application,
+                    shortlist_stage,
+                    request.user,
+                    notes=notes,
+                    request=request,
+                )
+            except ValueError as exc:
+                return error_response(str(exc))
+        else:
+            # Backward compatibility for tenants without explicit shortlisted stage.
+            application.status = 'shortlisted'
+            application.save(update_fields=['status', 'updated_at'])
 
-        ApplicationStageHistory.objects.create(
-            tenant_id=request.user.tenant_id,
-            application_id=application.id,
-            from_status=old_status,
-            to_status='shortlisted',
-            moved_by=request.user.id,
-            reason=stage_note,
-            notes=stage_note,
-            metadata={
-                'previous_stage': old_status,
-                'new_stage': 'shortlisted',
-                'note': stage_note,
-                'changed_by': str(request.user.id),
-                'changed_at': timezone.now().isoformat(),
-            },
-        )
+            ApplicationStageHistory.objects.create(
+                tenant_id=request.user.tenant_id,
+                application_id=application.id,
+                from_stage_id=application.current_stage_id,
+                to_stage_id=application.current_stage_id,
+                from_status=old_status,
+                to_status='shortlisted',
+                moved_by=request.user.id,
+                reason=notes,
+                notes=notes,
+            )
 
-        # 48hr deadline to schedule interview
-        ActionDeadline.objects.create(
-            tenant_id=request.user.tenant_id,
-            entity_type='application',
-            entity_id=application.id,
-            action_required='Schedule interview for shortlisted candidate',
-            assigned_to=request.user.id,
-            deadline_at=timezone.now() + timedelta(hours=48),
-        )
-
-        # Emit Event
-        events.application.shortlisted.send(
-            sender=self.__class__,
-            application=application,
-            user=request.user,
-            request=request
-        )
-
-        return success_response(
-            data={'application': ApplicationSerializer(application).data},
-            message="Candidate shortlisted."
-        )
+        return success_response(data={'application': ApplicationSerializer(application).data})
 
 
 class ApplicationRejectView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
-        try:
-            application = Application.objects.get(
-                id=pk,
-                tenant_id=request.user.tenant_id,
-                is_deleted=False
+        if is_candidate(request.user):
+            return error_response(
+                'You do not have permission to access pipeline operations.',
+                status_code=status.HTTP_403_FORBIDDEN,
             )
-        except Application.DoesNotExist:
-            return error_response("Application not found.", status_code=status.HTTP_404_NOT_FOUND)
+        application = _get_application(pk, request.user.tenant_id)
+        if not application:
+            return error_response('Application not found.', status_code=status.HTTP_404_NOT_FOUND)
 
-        stage_note, note_error = _require_stage_note(request.data)
-        if note_error:
-            return note_error
+        if application.status in ('rejected', 'withdrawn', 'joined'):
+            return error_response(f'Application is already "{application.status}".')
 
-        owner_allowed, owner_error = enforce_post_submission_stage_owner_lock(
-            application,
-            request.user,
-            target_status='rejected',
-        )
-        if not owner_allowed:
-            return error_response(owner_error, status_code=status.HTTP_403_FORBIDDEN)
+        reason = request.data.get('reason', '').strip()
+        category = request.data.get('category', '').strip()
+        if not reason:
+            return error_response('reason is required to reject an application.')
 
-        reason = stage_note
-        category = request.data.get('category', '')
         old_status = application.status
+        # ─── Decision Authority Check ───
+        from apps.jobs.models import JobRequisition, JobStage
+        from apps.jobs.workflow_service import JobWorkflowService
+        requisition = JobRequisition.objects.filter(id=application.requisition_id).first()
+        if requisition:
+            # Rejection targets the 'rejected' stage type
+            target_stage = JobStage.objects.filter(requisition_id=requisition.id, stage_type='rejected').first()
+            if target_stage:
+                allowed, msg = JobWorkflowService.can_move_to_stage(requisition, application, target_stage, user=request.user)
+                if not allowed:
+                    return error_response(msg or "Decision authority restricted.")
 
         application.status = 'rejected'
         application.rejection_reason = reason
-        application.rejection_category = category
+        if category:
+            application.rejection_category = category
         application.save(update_fields=['status', 'rejection_reason', 'rejection_category', 'updated_at'])
 
         ApplicationStageHistory.objects.create(
             tenant_id=request.user.tenant_id,
             application_id=application.id,
+            from_stage_id=application.current_stage_id,
+            to_stage_id=application.current_stage_id,
             from_status=old_status,
             to_status='rejected',
             moved_by=request.user.id,
             reason=reason,
-            notes=stage_note,
-            metadata={
-                'previous_stage': old_status,
-                'new_stage': 'rejected',
-                'note': stage_note,
-                'changed_by': str(request.user.id),
-                'changed_at': timezone.now().isoformat(),
-            },
+            notes=reason,
         )
 
-        # Engagement Layer Hook
-        try:
-            on_application_rejected(application, reason, request.user)
-        except Exception:
-            pass
-        start_rejection_based_protection_if_needed(
-            candidate_id=application.candidate_id,
-            tenant_id=application.tenant_id,
-            actor_user_id=request.user.id,
-        )
-
-        return success_response(
-            data={'application': ApplicationSerializer(application).data},
-            message="Application rejected."
-        )
+        return success_response(data={'application': ApplicationSerializer(application).data})
 
 
 class ApplicationWithdrawView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
-        try:
-            application = Application.objects.get(
-                id=pk,
-                tenant_id=request.user.tenant_id,
-                is_deleted=False
+        if is_candidate(request.user):
+            return error_response(
+                'You do not have permission to access pipeline operations.',
+                status_code=status.HTTP_403_FORBIDDEN,
             )
-        except Application.DoesNotExist:
-            return error_response("Application not found.", status_code=status.HTTP_404_NOT_FOUND)
+        application = _get_application(pk, request.user.tenant_id)
+        if not application:
+            return error_response('Application not found.', status_code=status.HTTP_404_NOT_FOUND)
 
-        # Allow if candidate themselves or job owner
-        is_candidate = str(application.candidate_id) == str(request.user.id)
-        is_owner = False
-        try:
-            job = JobRequisition.objects.get(id=application.requisition_id)
-            is_owner = (job.created_by == request.user.id)
-        except JobRequisition.DoesNotExist:
-            pass
+        if application.status in ('rejected', 'withdrawn', 'joined'):
+            return error_response(f'Application is already "{application.status}".')
 
-        if not (is_candidate or is_owner):
-            return error_response("Only the candidate or the job owner can withdraw an application.", status_code=status.HTTP_403_FORBIDDEN)
+        reason = request.data.get('reason', '').strip()
+        if not reason:
+            return error_response('reason is required to withdraw an application.')
 
-        stage_note, note_error = _require_stage_note(request.data)
-        if note_error:
-            return note_error
-        reason = stage_note
         old_status = application.status
-
         application.status = 'withdrawn'
         application.withdrawn_reason = reason
         application.save(update_fields=['status', 'withdrawn_reason', 'updated_at'])
@@ -807,407 +465,288 @@ class ApplicationWithdrawView(APIView):
         ApplicationStageHistory.objects.create(
             tenant_id=request.user.tenant_id,
             application_id=application.id,
+            from_stage_id=application.current_stage_id,
+            to_stage_id=application.current_stage_id,
             from_status=old_status,
             to_status='withdrawn',
             moved_by=request.user.id,
             reason=reason,
-            notes=stage_note,
-            metadata={
-                'previous_stage': old_status,
-                'new_stage': 'withdrawn',
-                'note': stage_note,
-                'changed_by': str(request.user.id),
-                'changed_at': timezone.now().isoformat(),
-            },
+            notes=reason,
         )
 
-        return success_response(
-            data={'application': ApplicationSerializer(application).data},
-            message="Application withdrawn."
-        )
+        return success_response(data={'application': ApplicationSerializer(application).data})
 
 
 class ApplicationMakeOfferView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
-        try:
-            application = Application.objects.get(
-                id=pk,
-                tenant_id=request.user.tenant_id,
-                is_deleted=False
+        if is_candidate(request.user):
+            return error_response(
+                'You do not have permission to access pipeline operations.',
+                status_code=status.HTTP_403_FORBIDDEN,
             )
-        except Application.DoesNotExist:
-            return error_response("Application not found.", status_code=status.HTTP_404_NOT_FOUND)
+        application = _get_application(pk, request.user.tenant_id)
+        if not application:
+            return error_response('Application not found.', status_code=status.HTTP_404_NOT_FOUND)
 
-        owner_allowed, owner_error = enforce_post_submission_stage_owner_lock(
-            application,
-            request.user,
-            target_status='offer',
-        )
-        if not owner_allowed:
-            return error_response(owner_error, status_code=status.HTTP_403_FORBIDDEN)
-
-        offer_amount = request.data.get('offer_amount')
-        currency = request.data.get('currency', 'INR')
-        joining_date = request.data.get('joining_date')
-
-        if not offer_amount:
-            return error_response("offer_amount is required.")
-        stage_note, note_error = _require_stage_note(request.data)
-        if note_error:
-            return note_error
+        if application.status in ('rejected', 'withdrawn', 'joined'):
+            return error_response(f'Cannot make an offer for an application with status "{application.status}".')
 
         old_status = application.status
+        # ─── Decision Authority Check ───
+        from apps.jobs.models import JobRequisition, JobStage
+        from apps.jobs.workflow_service import JobWorkflowService
+        requisition = JobRequisition.objects.filter(id=application.requisition_id).first()
+        if requisition:
+            # Offer targets the 'offer' stage type
+            target_stage = JobStage.objects.filter(requisition_id=requisition.id, stage_type='offer').first()
+            if target_stage:
+                allowed, msg = JobWorkflowService.can_move_to_stage(requisition, application, target_stage, user=request.user)
+                if not allowed:
+                    return error_response(msg or "Decision authority restricted.")
+
+        update_fields = ['status', 'updated_at']
 
         application.status = 'offer'
-        application.offer_amount = offer_amount
-        application.offer_currency = currency
-        application.offer_date = timezone.now().date()
-        if joining_date:
-            application.joining_date = joining_date
-        application.save(update_fields=[
-            'status', 'offer_amount', 'offer_currency',
-            'offer_date', 'joining_date', 'updated_at'
-        ])
+        if request.data.get('offer_amount'):
+            application.offer_amount = request.data['offer_amount']
+            update_fields.append('offer_amount')
+        if request.data.get('offer_currency'):
+            application.offer_currency = request.data['offer_currency']
+            update_fields.append('offer_currency')
+        if request.data.get('offer_date'):
+            application.offer_date = request.data['offer_date']
+            update_fields.append('offer_date')
+        if request.data.get('joining_date'):
+            application.joining_date = request.data['joining_date']
+            update_fields.append('joining_date')
 
+        application.save(update_fields=update_fields)
+
+        notes = request.data.get('notes', 'Offer made')
         ApplicationStageHistory.objects.create(
             tenant_id=request.user.tenant_id,
             application_id=application.id,
+            from_stage_id=application.current_stage_id,
+            to_stage_id=application.current_stage_id,
             from_status=old_status,
             to_status='offer',
             moved_by=request.user.id,
-            reason=stage_note,
-            notes=stage_note,
-            metadata={
-                'previous_stage': old_status,
-                'new_stage': 'offer',
-                'note': stage_note,
-                'changed_by': str(request.user.id),
-                'changed_at': timezone.now().isoformat(),
-                'offer_amount': str(offer_amount),
-                'offer_currency': currency,
-            },
+            reason=notes,
+            notes=notes,
         )
 
-        # 48hr deadline for candidate response
-        ActionDeadline.objects.create(
-            tenant_id=request.user.tenant_id,
-            entity_type='offer',
-            entity_id=application.id,
-            action_required='Follow up on offer response',
-            assigned_to=request.user.id,
-            deadline_at=timezone.now() + timedelta(hours=48),
-        )
+        return success_response(data={'application': ApplicationSerializer(application).data})
 
-        # Engagement Layer Hook
-        try:
-            on_offer_made(application, request.data, request.user)
-        except Exception:
-            pass
 
-        # Emit Event
-        events.application.offer_made.send(
-            sender=self.__class__,
-            application=application,
-            user=request.user,
-            request=request
-        )
-
-        return success_response(
-            data={'application': ApplicationSerializer(application).data},
-            message="Offer made."
-        )
-
+# ── Pipeline view ─────────────────────────────────────────────────────────────
 
 class PipelineView(APIView):
+    """Kanban-style pipeline grouped by stage for a requisition."""
     permission_classes = [IsAuthenticated]
 
     def get(self, request, requisition_id):
-        # Verify requisition belongs to tenant
-        try:
-            JobRequisition.objects.get(
-                id=requisition_id,
-                tenant_id=request.user.tenant_id,
-                is_deleted=False
+        if is_candidate(request.user):
+            return error_response(
+                'You do not have permission to access pipeline operations.',
+                status_code=status.HTTP_403_FORBIDDEN,
             )
-        except JobRequisition.DoesNotExist:
-            return error_response("Requisition not found.", status_code=status.HTTP_404_NOT_FOUND)
-
-        # Get all stages
+        from apps.jobs.models import JobStage
         stages = JobStage.objects.filter(
+            tenant_id=request.user.tenant_id,
             requisition_id=requisition_id,
-            is_active=True
         ).order_by('stage_order')
 
-        # Get all applications for this requisition
         applications = Application.objects.filter(
-            requisition_id=requisition_id,
             tenant_id=request.user.tenant_id,
-            is_deleted=False
-        )
+            requisition_id=requisition_id,
+            is_deleted=False,
+        ).exclude(status__in=['rejected', 'withdrawn'])
 
-        # Group applications by stage
-        applications_by_stage = {}
+        app_by_stage = {}
+        for app in applications:
+            key = str(app.current_stage_id) if app.current_stage_id else 'unassigned'
+            app_by_stage.setdefault(key, []).append(app)
+
+        pipeline = []
         for stage in stages:
-            stage_apps = applications.filter(current_stage_id=stage.id)
-            applications_by_stage[str(stage.id)] = {
+            stage_apps = app_by_stage.get(str(stage.id), [])
+            pipeline.append({
                 'stage': {
                     'id': str(stage.id),
                     'name': stage.name,
                     'stage_type': stage.stage_type,
                     'stage_order': stage.stage_order,
+                    'action_deadline_hours': getattr(stage, 'action_deadline_hours', 48),
                 },
+                'count': len(stage_apps),
                 'applications': ApplicationSerializer(stage_apps, many=True).data,
-                'count': stage_apps.count(),
-            }
+            })
 
-        return success_response(
-            data={
-                'requisition_id': requisition_id,
-                'pipeline': applications_by_stage,
-                'total_applications': applications.count(),
-            },
-            message="Pipeline retrieved."
-        )
+        unassigned = app_by_stage.get('unassigned', [])
+        if unassigned:
+            pipeline.insert(0, {
+                'stage': {
+                    'id': None,
+                    'name': 'Unassigned',
+                    'stage_type': 'applied',
+                    'stage_order': -1,
+                    'action_deadline_hours': 48,
+                },
+                'count': len(unassigned),
+                'applications': ApplicationSerializer(unassigned, many=True).data,
+            })
+
+        return success_response(data={'pipeline': pipeline, 'requisition_id': str(requisition_id)})
+
+
+class RequisitionActivityView(APIView):
+    """Stage history for all applications under a requisition."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, requisition_id):
+        if is_candidate(request.user):
+            return error_response(
+                'You do not have permission to access pipeline operations.',
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        app_ids = Application.objects.filter(
+            tenant_id=request.user.tenant_id,
+            requisition_id=requisition_id,
+            is_deleted=False,
+        ).values_list('id', flat=True)
+
+        history = ApplicationStageHistory.objects.filter(
+            application_id__in=app_ids,
+        ).order_by('-moved_at')[:200]
+
+        return success_response(data={
+            'activity': ApplicationStageHistorySerializer(history, many=True).data
+        })
 
 
 class BulkActionView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        from apps.jobs.models import JobStage
-        
-        application_ids = request.data.get('application_ids', [])
+        if is_candidate(request.user):
+            return error_response(
+                'You do not have permission to access pipeline operations.',
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
         action = request.data.get('action')
-        data = request.data.get('data', {})
+        application_ids = request.data.get('application_ids', [])
+        notes = request.data.get('notes', '').strip()
 
-        if not application_ids or not action:
-            return error_response("application_ids and action are required.")
+        if not application_ids:
+            return error_response('application_ids is required.')
 
-        if action not in ['move_stage', 'reject', 'shortlist']:
-            return error_response("Invalid action. Use: move_stage, reject, shortlist.")
-        stage_note, note_error = _require_stage_note(data)
-        if note_error:
-            return note_error
+        allowed_actions = ('shortlist', 'reject', 'withdraw')
+        if action not in allowed_actions:
+            return error_response(f'action must be one of: {", ".join(allowed_actions)}')
+
+        if action in ('reject', 'withdraw') and not notes:
+            return error_response(f'notes/reason is required for bulk {action}.')
 
         applications = Application.objects.filter(
+            tenant_id=request.user.tenant_id,
             id__in=application_ids,
-            tenant_id=request.user.tenant_id,
-            is_deleted=False
-        )
+            is_deleted=False,
+        ).exclude(status__in=['rejected', 'withdrawn', 'joined'])
 
-        target_stage = None
-        if action == 'move_stage':
-            stage_id = data.get('stage_id')
-            if not stage_id:
-                return error_response("stage_id is required for move_stage action.")
-            try:
-                target_stage = JobStage.objects.get(id=stage_id, tenant_id=request.user.tenant_id)
-            except JobStage.DoesNotExist:
-                return error_response("Target stage not found.")
+        status_map = {'shortlist': 'shortlisted', 'reject': 'rejected', 'withdraw': 'withdrawn'}
+        new_status = status_map[action]
+        update_fields_map = {
+            'reject': {'rejection_reason': notes},
+            'withdraw': {'withdrawn_reason': notes},
+        }
 
-        updated_count = 0
-        errors = []
-
-        for application in applications:
-            try:
-                owner_allowed, owner_error = enforce_post_submission_stage_owner_lock(
-                    application,
-                    request.user,
-                    target_stage=target_stage if action == 'move_stage' else None,
-                    target_status=(
-                        'rejected' if action == 'reject'
-                        else 'shortlisted' if action == 'shortlist'
-                        else None
-                    ),
-                )
-                if not owner_allowed:
-                    errors.append(f"Permission denied for application {application.id}: {owner_error}")
-                    continue
-
-                if action == 'reject':
-                    old_status = application.status
-                    application.status = 'rejected'
-                    application.rejection_reason = stage_note
-                    application.save(update_fields=['status', 'rejection_reason', 'updated_at'])
-                    ApplicationStageHistory.objects.create(
-                        tenant_id=request.user.tenant_id,
-                        application_id=application.id,
-                        from_status=old_status,
-                        to_status='rejected',
-                        moved_by=request.user.id,
-                        reason=stage_note,
-                        notes=stage_note,
-                        metadata={
-                            'previous_stage': old_status,
-                            'new_stage': 'rejected',
-                            'note': stage_note,
-                            'changed_by': str(request.user.id),
-                            'changed_at': timezone.now().isoformat(),
-                            'bulk': True,
-                        },
-                    )
-                    try:
-                        on_application_rejected(application, stage_note, request.user)
-                    except Exception:
-                        pass
-                    start_rejection_based_protection_if_needed(
-                        candidate_id=application.candidate_id,
-                        tenant_id=application.tenant_id,
-                        actor_user_id=request.user.id,
-                    )
-                    updated_count += 1
-
-                elif action == 'shortlist':
-                    old_status = application.status
-                    application.status = 'shortlisted'
-                    application.save(update_fields=['status', 'updated_at'])
-                    ApplicationStageHistory.objects.create(
-                        tenant_id=request.user.tenant_id,
-                        application_id=application.id,
-                        from_status=old_status,
-                        to_status='shortlisted',
-                        moved_by=request.user.id,
-                        reason=stage_note,
-                        notes=stage_note,
-                        metadata={
-                            'previous_stage': old_status,
-                            'new_stage': 'shortlisted',
-                            'note': stage_note,
-                            'changed_by': str(request.user.id),
-                            'changed_at': timezone.now().isoformat(),
-                            'bulk': True,
-                        },
-                    )
-                    events.application.shortlisted.send(sender=self.__class__, application=application, user=request.user, request=request)
-                    updated_count += 1
-
-                elif action == 'move_stage' and target_stage:
-                    # ENFORCE VALIDATION IN BULK
-                    is_valid, error_msg = validate_application_move(application, target_stage, reason=stage_note, user=request.user)
-                    if is_valid:
-                        old_status = application.status
-                        perform_application_move(
-                            application, target_stage, request.user, 
-                            notes=stage_note, reason=stage_note, request=request
-                        )
-                        try:
-                            refreshed = Application.objects.get(id=application.id)
-                            on_application_stage_changed(refreshed, old_status, refreshed.status, request.user, note=stage_note)
-                        except Exception:
-                            pass
-                        updated_count += 1
-                    else:
-                        errors.append(error_msg)
-            except Exception as e:
-                errors.append(f"Error processing {application.id}: {str(e)}")
-
-        return success_response(
-            data={
-                'updated_count': updated_count,
-                'errors': errors
-            },
-            message=f"Bulk action '{action}' processed. {updated_count} applications updated."
-        )
-
-
-class RequisitionActivityView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, requisition_id):
-        # Verify requisition exists
-        try:
-            JobRequisition.objects.get(
-                id=requisition_id,
+        updated_ids = []
+        history_records = []
+        for app in applications:
+            old_status = app.status
+            app.status = new_status
+            if action == 'reject':
+                app.rejection_reason = notes
+            elif action == 'withdraw':
+                app.withdrawn_reason = notes
+            app.updated_at = timezone.now()
+            updated_ids.append(app.id)
+            history_records.append(ApplicationStageHistory(
                 tenant_id=request.user.tenant_id,
-                is_deleted=False
-            )
-        except JobRequisition.DoesNotExist:
-            return error_response("Requisition not found.", status_code=status.HTTP_404_NOT_FOUND)
+                application_id=app.id,
+                from_stage_id=app.current_stage_id,
+                to_stage_id=app.current_stage_id,
+                from_status=old_status,
+                to_status=new_status,
+                moved_by=request.user.id,
+                reason=notes or action,
+                notes=notes or action,
+            ))
 
-        # Get all applications for this requisition
-        application_ids = Application.objects.filter(
-            requisition_id=requisition_id,
-            tenant_id=request.user.tenant_id,
-            is_deleted=False
-        ).values_list('id', flat=True)
+        save_fields = ['status', 'updated_at']
+        if action == 'reject':
+            save_fields.append('rejection_reason')
+        elif action == 'withdraw':
+            save_fields.append('withdrawn_reason')
 
-        # Get stage history
-        history = ApplicationStageHistory.objects.filter(
-            application_id__in=application_ids
-        ).select_related('application', 'application__candidate').order_by('-moved_at')
+        Application.objects.bulk_update(applications, save_fields)
+        ApplicationStageHistory.objects.bulk_create(history_records)
 
-        # Format events
-        events = []
-        
-        # Add submission events
-        apps = Application.objects.filter(id__in=application_ids).select_related('candidate')
-        for app in apps:
-            events.append({
-                'type': 'submission',
-                'application_id': str(app.id),
-                'candidate_id': str(app.candidate_id),
-                'candidate_name': app.candidate.full_name,
-                'text': 'submitted application',
-                'date': app.created_at,
-                'actor_name': app.candidate.full_name, # Usually candidate themselves
-                'method': 'system' if app.source == 'direct' else 'manual',
-                'notes': app.source_detail,
-            })
+        return success_response(data={'updated_count': len(updated_ids), 'updated_ids': [str(i) for i in updated_ids]})
 
-        # Add movement events
-        for h in history:
-            actor_name = 'System'
-            if h.moved_by:
-                try:
-                    user = CustomUser.objects.get(id=h.moved_by)
-                    actor_name = f"{user.first_name} {user.last_name}".strip() or user.email
-                except CustomUser.DoesNotExist:
-                    pass
 
-            events.append({
-                'type': 'move',
-                'application_id': str(h.application_id),
-                'candidate_id': str(h.application.candidate_id),
-                'candidate_name': h.application.candidate.full_name,
-                'text': f"moved to {h.to_status.replace('_', ' ')}",
-                'date': h.moved_at,
-                'actor_name': actor_name,
-                'method': 'manual' if h.moved_by else 'system',
-                'notes': h.notes or h.reason,
-            })
-
-        # Sort all by date desc
-        events.sort(key=lambda x: x['date'], reverse=True)
-
-        return success_response(
-            data={'events': events[:100]}, # Limit to 100 recent
-            message="Requisition activity retrieved."
-        )
-
+# ── Deadline views ────────────────────────────────────────────────────────────
 
 class DeadlineListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        qs = ActionDeadline.objects.filter(
+        if is_candidate(request.user):
+            return error_response(
+                'You do not have permission to access pipeline operations.',
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        qs = ActionDeadline.objects.filter(tenant_id=request.user.tenant_id)
+        entity_type = request.query_params.get('entity_type')
+        entity_id = request.query_params.get('entity_id')
+        dl_status = request.query_params.get('status')
+        if entity_type:
+            qs = qs.filter(entity_type=entity_type)
+        if entity_id:
+            qs = qs.filter(entity_id=entity_id)
+        if dl_status:
+            qs = qs.filter(status=dl_status)
+        return success_response(data={
+            'deadlines': ActionDeadlineSerializer(qs.order_by('deadline_at')[:200], many=True).data
+        })
+
+    def post(self, request):
+        if is_candidate(request.user):
+            return error_response(
+                'You do not have permission to access pipeline operations.',
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        from datetime import timedelta
+        required = ('entity_type', 'entity_id', 'action_required', 'deadline_at')
+        missing = [f for f in required if not request.data.get(f)]
+        if missing:
+            return error_response(f'Missing required fields: {", ".join(missing)}')
+
+        deadline = ActionDeadline.objects.create(
             tenant_id=request.user.tenant_id,
-            assigned_to=request.user.id,
+            entity_type=request.data['entity_type'],
+            entity_id=request.data['entity_id'],
+            action_required=request.data['action_required'],
+            deadline_at=request.data['deadline_at'],
+            assigned_to=request.data.get('assigned_to'),
+            escalate_to=request.data.get('escalate_to'),
+            metadata=request.data.get('metadata', {}),
         )
-
-        status_filter = request.query_params.get('status', 'pending')
-        if status_filter:
-            qs = qs.filter(status=status_filter)
-
-        overdue = request.query_params.get('overdue')
-        if overdue == 'true':
-            qs = qs.filter(deadline_at__lt=timezone.now(), status='pending')
-
         return success_response(
-            data={'deadlines': ActionDeadlineSerializer(qs, many=True).data},
-            message="Deadlines retrieved.",
-            meta={'total': qs.count()}
+            data={'deadline': ActionDeadlineSerializer(deadline).data},
+            status_code=status.HTTP_201_CREATED,
         )
 
 
@@ -1215,35 +754,42 @@ class DeadlineCompleteView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
-        try:
-            deadline = ActionDeadline.objects.get(
-                id=pk,
-                tenant_id=request.user.tenant_id,
+        if is_candidate(request.user):
+            return error_response(
+                'You do not have permission to access pipeline operations.',
+                status_code=status.HTTP_403_FORBIDDEN,
             )
-        except ActionDeadline.DoesNotExist:
-            return error_response("Deadline not found.", status_code=status.HTTP_404_NOT_FOUND)
+        deadline = ActionDeadline.objects.filter(id=pk, tenant_id=request.user.tenant_id).first()
+        if not deadline:
+            return error_response('Deadline not found.', status_code=status.HTTP_404_NOT_FOUND)
+
+        if deadline.status == 'completed':
+            return error_response('Deadline is already completed.')
 
         deadline.status = 'completed'
         deadline.completed_at = timezone.now()
         deadline.save(update_fields=['status', 'completed_at', 'updated_at'])
 
-        return success_response(
-            data={'deadline': ActionDeadlineSerializer(deadline).data},
-            message="Deadline marked complete."
-        )
+        return success_response(data={'deadline': ActionDeadlineSerializer(deadline).data})
 
 
 class OverdueDeadlineView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        overdue = ActionDeadline.objects.filter(
+        if is_candidate(request.user):
+            return error_response(
+                'You do not have permission to access pipeline operations.',
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        now = timezone.now()
+        qs = ActionDeadline.objects.filter(
             tenant_id=request.user.tenant_id,
-            deadline_at__lt=timezone.now(),
-            status='pending'
-        )
-        return success_response(
-            data={'deadlines': ActionDeadlineSerializer(overdue, many=True).data},
-            message="Overdue deadlines retrieved.",
-            meta={'total': overdue.count()}
-        )
+            deadline_at__lt=now,
+            status__in=['pending', 'reminded', 'escalated'],
+        ).order_by('deadline_at')
+
+        return success_response(data={
+            'deadlines': ActionDeadlineSerializer(qs[:200], many=True).data,
+            'count': qs.count(),
+        })

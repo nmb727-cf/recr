@@ -22,7 +22,7 @@ export const interviewsApi = {
     http.post<ApiResponse<{ interview: Interview }>>('/interviews/', data),
 
   update: (id: string, data: Partial<Interview>) =>
-    http.patch<ApiResponse<{ interview: Interview }>>(`/interviews/${id}/`, data),
+    http.put<ApiResponse<{ interview: Interview }>>(`/interviews/${id}/`, data),
 
   delete: (id: string) =>
     http.delete<ApiResponse<unknown>>(`/interviews/${id}/`),
@@ -33,8 +33,8 @@ export const interviewsApi = {
   start: (id: string) =>
     http.post<ApiResponse<Interview>>(`/interviews/${id}/start/`),
 
-  complete: (id: string) =>
-    http.post<ApiResponse<Interview>>(`/interviews/${id}/complete/`),
+  complete: (id: string, data?: { overall_score?: number; recommendation?: string; feedback_summary?: string }) =>
+    http.post<ApiResponse<Interview>>(`/interviews/${id}/complete/`, data || {}),
 
   cancel: (id: string, reason?: string) =>
     http.post<ApiResponse<Interview>>(`/interviews/${id}/cancel/`, { reason }),
@@ -235,6 +235,9 @@ export const interviewsApi = {
   getJobBinding: (jobId: string) =>
     http.get<ApiResponse<{ binding: InterviewPackageBinding | null }>>(`/jobs/requisitions/${jobId}/interview-binding/`),
 
+  getJobInterviewSnapshot: (jobId: string) =>
+    http.get<ApiResponse<{ snapshot: any }>>(`/jobs/requisitions/${jobId}/interview-snapshot/`),
+
   bindToJob: (jobId: string, packageId: string) =>
     http.post<ApiResponse<{ binding: InterviewPackageBinding }>>(`/jobs/requisitions/${jobId}/interview-binding/`, { package_id: packageId }),
 
@@ -271,4 +274,7 @@ export const interviewsApi = {
 
   candidateSecurityEvent: (id: string, data: { event_type: 'tab_switch' | 'copy_paste' | 'multiple_window' }) =>
     http.post<ApiResponse<any>>(`/candidate/interviews/${id}/security-event/`, data),
+
+  candidateResults: (params: { interview_id: string }) =>
+    http.get<ApiResponse<any>>('/candidate/interviews/results/', { params }),
 }

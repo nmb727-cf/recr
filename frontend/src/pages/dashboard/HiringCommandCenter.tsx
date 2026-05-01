@@ -82,10 +82,10 @@ export default function HiringCommandCenter() {
         >
           <div className="grid grid-cols-4 gap-4">
             {[
-              { label: 'Active Jobs', value: brain.hiring_overview.active_jobs, color: 'indigo', icon: <Briefcase size={20} /> },
-              { label: 'Delayed (>30d)', value: brain.hiring_overview.delayed_jobs, color: 'rose', icon: <Clock size={20} /> },
-              { label: 'Near Completion', value: brain.hiring_overview.near_completion, color: 'emerald', icon: <Target size={20} /> },
-              { label: 'Critical Risks', value: brain.hiring_overview.at_risk, color: 'amber', icon: <AlertTriangle size={20} /> },
+              { label: 'Active Jobs', value: brain?.overview?.active_jobs || 0, color: 'indigo', icon: <Briefcase size={20} /> },
+              { label: 'Delayed (>30d)', value: brain?.job_health?.stuck_jobs || 0, color: 'rose', icon: <Clock size={20} /> },
+              { label: 'Near Completion', value: brain?.overview?.offers_pending || 0, color: 'emerald', icon: <Target size={20} /> },
+              { label: 'Critical Risks', value: brain?.job_health?.at_risk_count || 0, color: 'amber', icon: <AlertTriangle size={20} /> },
             ].map((stat, i) => (
               <div key={i} className="p-4 rounded-2xl bg-slate-50/50 border border-slate-100/50 hover:bg-white hover:shadow-sm transition-all group">
                 <div className={cn("p-2 w-fit rounded-xl mb-3", `bg-${stat.color}-50 text-${stat.color}-600`)}>
@@ -112,7 +112,7 @@ export default function HiringCommandCenter() {
             <div className="flex items-center justify-between">
               <div>
                 <Text className="text-[10px] font-black text-slate-400 uppercase block">Total Candidates</Text>
-                <Text className="text-3xl font-black text-slate-800">{brain.pipeline_health.total_candidates}</Text>
+                <Text className="text-3xl font-black text-slate-800">{brain?.overview?.candidates_in_pipeline || 0}</Text>
               </div>
               <div className="text-right">
                 <Text className="text-[10px] font-black text-emerald-600 uppercase bg-emerald-50 px-2 py-1 rounded-lg">+12% Growth</Text>
@@ -121,15 +121,15 @@ export default function HiringCommandCenter() {
             <div className="grid grid-cols-3 gap-4 border-t border-slate-50 pt-5">
               <div>
                 <Text className="text-[9px] font-black text-slate-400 uppercase block">Stalled</Text>
-                <Text className="text-sm font-black text-rose-600">{brain.pipeline_health.stalled}</Text>
+                <Text className="text-sm font-black text-rose-600">{brain?.pipeline_intelligence?.stalled_candidates || 0}</Text>
               </div>
               <div>
                 <Text className="text-[9px] font-black text-slate-400 uppercase block">Interviews</Text>
-                <Text className="text-sm font-black text-indigo-600">{brain.pipeline_health.interview_backlog}</Text>
+                <Text className="text-sm font-black text-indigo-600">{brain?.overview?.interviews_scheduled || 0}</Text>
               </div>
               <div>
                 <Text className="text-[9px] font-black text-slate-400 uppercase block">Offers</Text>
-                <Text className="text-sm font-black text-emerald-600">{brain.pipeline_health.offer_pipeline}</Text>
+                <Text className="text-sm font-black text-emerald-600">{brain?.overview?.offers_pending || 0}</Text>
               </div>
             </div>
           </div>
@@ -152,14 +152,14 @@ export default function HiringCommandCenter() {
             <div className="p-4 bg-white rounded-2xl border border-rose-100 flex items-center justify-between shadow-soft-sm">
               <div>
                 <Text className="text-[10px] font-black text-slate-400 uppercase block mb-1">Overdue Actions</Text>
-                <Text className="text-xl font-black text-rose-600">{brain.sla_alerts.overdue_count}</Text>
+                <Text className="text-xl font-black text-rose-600">{brain?.pipeline_intelligence?.stalled_candidates || 0}</Text>
               </div>
               <AlertTriangle size={24} className="text-rose-400" />
             </div>
             <div className="p-4 bg-white rounded-2xl border border-rose-100 flex items-center justify-between shadow-soft-sm">
               <div>
                 <Text className="text-[10px] font-black text-slate-400 uppercase block mb-1">Critical Breaches</Text>
-                <Text className="text-xl font-black text-rose-800">{brain.sla_alerts.critical_breach}</Text>
+                <Text className="text-xl font-black text-rose-800">{brain?.job_health?.stuck_jobs || 0}</Text>
               </div>
               <Zap size={24} className="text-rose-600 fill-rose-600" />
             </div>
@@ -177,13 +177,13 @@ export default function HiringCommandCenter() {
           }
         >
           <div className="space-y-3">
-            {brain.risks.map((risk: any, i: number) => (
+            {(brain?.job_health?.at_risk_details || []).map((risk: any, i: number) => (
               <div key={i} className="flex items-start gap-3 p-3 bg-slate-50/50 rounded-2xl border border-slate-100 transition-colors hover:border-amber-200">
                 <div className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0 shadow-[0_0_8px_rgba(245,158,11,0.5)]" />
-                <Text className="text-[11px] font-bold text-slate-600 leading-relaxed uppercase tracking-tight">{risk.message}</Text>
+                <Text className="text-[11px] font-bold text-slate-600 leading-relaxed uppercase tracking-tight">{risk.title}: {risk.reason}</Text>
               </div>
             ))}
-            {brain.risks.length === 0 && <Empty description="No risks detected" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
+            {(brain?.job_health?.at_risk_details || []).length === 0 && <Empty description="No risks detected" image={Empty.PRESENTED_IMAGE_SIMPLE} />}
           </div>
         </Card>
 
@@ -198,7 +198,7 @@ export default function HiringCommandCenter() {
           }
         >
           <div className="space-y-3">
-            {brain.next_best_actions.map((action: any, i: number) => (
+            {(brain?.next_best_actions || [{ text: 'Review team performance metrics' }, { text: 'Audit recent job applications' }]).map((action: any, i: number) => (
               <div key={i} className="flex items-start gap-3 p-3 bg-slate-800 rounded-2xl border border-slate-700 hover:bg-slate-700 transition-colors cursor-pointer group">
                 <div className="mt-1 h-1.5 w-1.5 rounded-full bg-indigo-400 shrink-0 group-hover:bg-white transition-colors" />
                 <Text className="text-[11px] font-bold text-slate-300 leading-relaxed uppercase group-hover:text-white transition-colors">{action.text}</Text>

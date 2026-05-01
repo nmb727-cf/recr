@@ -4,7 +4,7 @@ import type { ApiResponse, JobRequisition, JobPosting, JobStage } from '@/types'
 // ─── Public / Candidate ───────────────────────────────────────────────────────
 
 export const jobsPublicApi = {
-  search: (params?: { q?: string; work_mode?: string; location?: string; experience?: number }) =>
+  search: (params?: { search?: string; q?: string; work_mode?: string; job_type?: string; location?: string; status?: string; experience?: number; limit?: number; offset?: number }) =>
     http.get<ApiResponse<{ jobs: JobPosting[] }>>('/jobs/search/', {
       params,
       headers: { 'X-Skip-Auth': 'true' }
@@ -61,6 +61,9 @@ export const requisitionsApi = {
   getHiringBrain: (id: string) =>
     http.get<ApiResponse<{ intelligence: any }>>(`/jobs/requisitions/${id}/hiring-brain/`),
 
+  getPipelineSnapshot: (id: string) =>
+    http.get<ApiResponse<{ snapshot: any }>>(`/jobs/requisitions/${id}/pipeline-snapshot/`),
+
   listStages: (requisitionId: string) =>
     stagesApi.list(requisitionId),
 }
@@ -80,6 +83,55 @@ export const postingsApi = {
 
   close: (id: string) =>
     http.post<ApiResponse<{ posting: JobPosting }>>(`/jobs/postings/${id}/close/`),
+}
+
+// ─── JD Templates ────────────────────────────────────────────────────────────
+
+export const jdTemplatesApi = {
+  list: (params?: { search?: string; category?: string; job_type?: string; active_only?: string }) =>
+    http.get<ApiResponse<{ templates: any[] }>>('/jobs/templates/', { params }),
+
+  get: (id: string) =>
+    http.get<ApiResponse<{ template: any }>>(`/jobs/templates/${id}/`),
+
+  create: (data: any) =>
+    http.post<ApiResponse<{ template: any }>>('/jobs/templates/', data),
+
+  update: (id: string, data: any) =>
+    http.put<ApiResponse<{ template: any }>>(`/jobs/templates/${id}/`, data),
+
+  delete: (id: string) =>
+    http.delete(`/jobs/templates/${id}/`),
+
+  duplicate: (id: string) =>
+    http.post<ApiResponse<{ template: any }>>(`/jobs/templates/${id}/duplicate/`),
+
+  /** Apply template content to a requisition (or get raw fields if no requisition_id) */
+  apply: (id: string, requisition_id?: string, overwrite = false) =>
+    http.post<ApiResponse<any>>(`/jobs/templates/${id}/apply/`, {
+      ...(requisition_id ? { requisition_id, overwrite } : {}),
+    }),
+}
+
+// ─── Job Locations ────────────────────────────────────────────────────────────
+
+export const jobLocationsApi = {
+  list: (requisitionId: string) =>
+    http.get<ApiResponse<{ locations: any[] }>>(`/jobs/requisitions/${requisitionId}/locations/`),
+
+  add: (requisitionId: string, data: { location_id: string; location_name?: string; is_primary?: boolean }) =>
+    http.post<ApiResponse<{ location: any }>>(`/jobs/requisitions/${requisitionId}/locations/`, data),
+
+  remove: (requisitionId: string, locationId: string) =>
+    http.delete(`/jobs/requisitions/${requisitionId}/locations/${locationId}/`),
+}
+
+export const jobPrequalApi = {
+  getSnapshot: (jobId: string) =>
+    http.get<ApiResponse<{ prequal: any }>>(`/jobs/requisitions/${jobId}/prequal-snapshot/`),
+
+  evaluate: (jobId: string, data: { candidate_id: string; application_id?: string }) =>
+    http.post<ApiResponse<{ result: any }>>(`/jobs/requisitions/${jobId}/prequal-evaluate/`, data),
 }
 
 export const stagesApi = {

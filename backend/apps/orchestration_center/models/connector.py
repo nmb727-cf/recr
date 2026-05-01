@@ -29,6 +29,7 @@ class TenantIntelligenceSettings(BaseModel):
     tenant_id = models.UUIDField(unique=True, db_index=True)
     ai_enabled = models.BooleanField(default=False)
     automation_enabled = models.BooleanField(default=False)
+    auto_apply_enabled = models.BooleanField(default=False)
     default_approval_mode = models.CharField(max_length=32, choices=ApprovalMode.choices, default=ApprovalMode.SUGGESTION_ONLY)
     allowed_provider_ids_json = models.JSONField(default=list, blank=True)
     feature_flags_json = models.JSONField(default=dict, blank=True)
@@ -44,4 +45,3 @@ class TenantIntelligenceSettings(BaseModel):
 
     def __str__(self):
         return f'Settings:{self.tenant_id}'
-

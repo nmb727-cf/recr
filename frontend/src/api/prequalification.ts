@@ -99,4 +99,11 @@ export const prequalificationApi = {
     answer_json?: object
   }) =>
     http.post<ApiResponse<{ response: any }>>('/prequalification/responses/', data),
+
+  // ── Candidate Side ────────────────────────────────────────────────────────
+  candidateGetForm: (id: string) =>
+    http.get<ApiResponse<{ form: any }>>(`/candidate/prequalification/forms/${id}/`),
+
+  candidateSubmitForm: (id: string, responses: any[]) =>
+    http.post<ApiResponse<unknown>>(`/candidate/prequalification/forms/${id}/submit/`, { responses }),
 }

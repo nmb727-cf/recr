@@ -17,7 +17,12 @@ Identity rules enforced here:
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from apps.candidates.models import CandidateInviteLink, CandidateFormSubmission
-from apps.candidates.identity_service import match_candidate, match_user, link_user_to_candidate
+from apps.candidates.identity_service import (
+    match_user,
+    link_user_to_candidate,
+    resolve_candidate_identity,
+    merge_candidate_payload,
+)
 from apps.core.responses import success_response, error_response
 from django.utils import timezone
 from drf_spectacular.utils import extend_schema, OpenApiResponse
@@ -174,10 +179,7 @@ class PublicApplyFormView(APIView):
                 status_code=200,
             )
 
-        # ── Identity check: does a candidate record already exist? ──────────
-        # If yes, reuse it rather than creating a duplicate.
-        from apps.candidates.models import Candidate, CandidateProfile
-        existing_candidate = match_candidate(email=submitted_email, phone=submitted_phone)
+        from apps.candidates.models import Candidate
 
         # Create the submission record first (always, for audit trail)
         submission = CandidateFormSubmission.objects.create(
@@ -193,45 +195,72 @@ class PublicApplyFormView(APIView):
             wants_account=request.data.get('wants_account', False),
         )
 
-        if existing_candidate:
-            # Reuse the existing candidate — do not create a duplicate row.
-            # Append any new information supplied in this submission.
-            candidate = existing_candidate
-            _merge_submission_into_candidate(candidate, request.data)
-        else:
-            # Create a fresh candidate record from the form data.
-            candidate = Candidate.objects.create(
-                tenant_id=link.tenant_id,
-                first_name=request.data.get('first_name', ''),
-                last_name=request.data.get('last_name', ''),
-                email=submitted_email,
-                phone=submitted_phone,
-                linkedin_url=request.data.get('linkedin_url', ''),
-                current_title=request.data.get('current_title', ''),
-                current_company=request.data.get('current_company', ''),
-                current_location_city=request.data.get('current_location_city', ''),
-                experience_years=request.data.get('experience_years'),
-                relevant_experience_years=request.data.get('relevant_experience_years'),
-                skills=request.data.get('skills', []),
-                nationality=request.data.get('nationality', ''),
-                work_authorization=request.data.get('work_authorization', 'not_specified'),
-                highest_education=request.data.get('highest_education', ''),
-                graduation_year=request.data.get('graduation_year'),
-                availability_status=request.data.get('availability_status', ''),
-                notice_period_days=request.data.get('notice_period_days'),
-                work_mode_preference=request.data.get('work_mode_preference', 'any'),
-                resume_url=request.data.get('resume_url', ''),
-                source='invite_link',
-                initial_entry_type='invite',
-                profile_status='partial',
-                owner_tenant_id=link.tenant_id,
-                candidate_state='NEW_LEAD',
-                candidate_pool='GENERAL',
-                is_general_pool_used=False,
-            )
-            CandidateProfile.objects.get_or_create(
-                tenant_id=link.tenant_id,
-                candidate_id=candidate.id,
+        resolution = resolve_candidate_identity(
+            email=submitted_email,
+            phone=submitted_phone,
+            tenant_id=link.tenant_id,
+            create_if_missing=True,
+            allow_cross_tenant=True,
+            actor_user_id=link.created_by,
+            ensure_tenant_association_flag=True,
+            ensure_visibility=True,
+            source='invite_apply',
+            candidate_defaults={
+                'tenant_id': link.tenant_id,
+                'first_name': request.data.get('first_name', ''),
+                'last_name': request.data.get('last_name', ''),
+                'email': submitted_email,
+                'phone': submitted_phone,
+                'linkedin_url': request.data.get('linkedin_url', ''),
+                'current_title': request.data.get('current_title', ''),
+                'current_company': request.data.get('current_company', ''),
+                'current_location_city': request.data.get('current_location_city', ''),
+                'experience_years': request.data.get('experience_years'),
+                'relevant_experience_years': request.data.get('relevant_experience_years'),
+                'skills': request.data.get('skills', []),
+                'nationality': request.data.get('nationality', ''),
+                'work_authorization': request.data.get('work_authorization', 'not_specified'),
+                'highest_education': request.data.get('highest_education', ''),
+                'graduation_year': request.data.get('graduation_year'),
+                'availability_status': request.data.get('availability_status', ''),
+                'notice_period_days': request.data.get('notice_period_days'),
+                'work_mode_preference': request.data.get('work_mode_preference', 'any'),
+                'resume_url': request.data.get('resume_url', ''),
+                'source': 'company',
+                'source_type': 'direct',
+                'source_detail': 'Invite apply link',
+                'initial_entry_type': 'invite',
+                'profile_status': 'partial',
+                'owner_tenant_id': link.tenant_id,
+                'candidate_state': 'NEW_LEAD',
+                'candidate_pool': 'GENERAL',
+                'is_general_pool_used': False,
+            },
+        )
+        candidate = resolution.candidate
+        if not resolution.created:
+            merge_candidate_payload(
+                candidate,
+                {
+                    'first_name': request.data.get('first_name', ''),
+                    'last_name': request.data.get('last_name', ''),
+                    'linkedin_url': request.data.get('linkedin_url', ''),
+                    'current_title': request.data.get('current_title', ''),
+                    'current_company': request.data.get('current_company', ''),
+                    'current_location_city': request.data.get('current_location_city', ''),
+                    'experience_years': request.data.get('experience_years'),
+                    'relevant_experience_years': request.data.get('relevant_experience_years'),
+                    'skills': request.data.get('skills', []),
+                    'nationality': request.data.get('nationality', ''),
+                    'work_authorization': request.data.get('work_authorization', 'not_specified'),
+                    'highest_education': request.data.get('highest_education', ''),
+                    'graduation_year': request.data.get('graduation_year'),
+                    'availability_status': request.data.get('availability_status', ''),
+                    'notice_period_days': request.data.get('notice_period_days'),
+                    'work_mode_preference': request.data.get('work_mode_preference', 'any'),
+                    'resume_url': request.data.get('resume_url', ''),
+                },
+                overwrite=False,
             )
 
         submission.candidate_id = candidate.id

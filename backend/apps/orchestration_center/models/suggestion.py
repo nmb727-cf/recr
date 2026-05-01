@@ -12,7 +12,7 @@ from apps.orchestration_center.constants.execution_statuses import (
 class AISuggestion(BaseModel):
     suggestion_key = models.CharField(max_length=64, db_index=True)
     category = models.CharField(max_length=64, choices=SuggestionCategory.choices, db_index=True)
-    status = models.CharField(max_length=32, choices=SuggestionStatus.choices, default=SuggestionStatus.DRAFT, db_index=True)
+    status = models.CharField(max_length=32, choices=SuggestionStatus.choices, default=SuggestionStatus.PENDING, db_index=True)
     source_event = models.CharField(max_length=128, blank=True, db_index=True)
     source_module = models.CharField(max_length=64, db_index=True)
     source_entity_type = models.CharField(max_length=64, db_index=True)
@@ -36,6 +36,8 @@ class AISuggestion(BaseModel):
     review_comment = models.TextField(blank=True)
     approval_comment = models.TextField(blank=True)
     rejection_reason = models.TextField(blank=True)
+    dismissal_comment = models.TextField(blank=True)
+    apply_comment = models.TextField(blank=True)
     idempotency_key = models.CharField(max_length=255, blank=True, db_index=True)
     expires_at = models.DateTimeField(null=True, blank=True, db_index=True)
     superseded_by = models.ForeignKey(
@@ -67,6 +69,13 @@ class AISuggestion(BaseModel):
     approved_at = models.DateTimeField(null=True, blank=True)
     rejected_by_id = models.UUIDField(null=True, blank=True)
     rejected_at = models.DateTimeField(null=True, blank=True)
+    dismissed_by_id = models.UUIDField(null=True, blank=True)
+    dismissed_at = models.DateTimeField(null=True, blank=True)
+    applied_by_id = models.UUIDField(null=True, blank=True)
+    applied_at = models.DateTimeField(null=True, blank=True)
+    last_apply_status = models.CharField(max_length=32, blank=True, db_index=True)
+    last_apply_error_message = models.TextField(blank=True)
+    last_apply_result_json = models.JSONField(default=dict, blank=True)
     converted_by_id = models.UUIDField(null=True, blank=True)
     converted_at = models.DateTimeField(null=True, blank=True)
 

@@ -5,13 +5,26 @@ from apps.candidates.models import Candidate
 from apps.core.responses import success_response, error_response
 from django.utils import timezone
 from django.db import models
+from rest_framework.exceptions import PermissionDenied
+from shared.actor_access import is_candidate
 
 
-class CRMPipelineView(APIView):
+class InternalCRMAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        if is_candidate(request.user):
+            raise PermissionDenied("You do not have permission to access CRM operations.")
+
+
+class CRMPipelineView(InternalCRMAPIView):
+
     def get(self, request):
-        statuses = ['new_lead','nurturing','in_process','offer_stage','placed','lost']
+        statuses = [
+            'new_lead', 'contacted', 'interested', 'follow_up', 'qualified', 
+            'ready_for_job', 'submitted', 'future_talent', 'not_interested', 'archive'
+        ]
         pipeline = {}
         
         for s in statuses:
@@ -38,6 +51,8 @@ class CRMPipelineView(APIView):
                         'sentiment': entry.sentiment,
                         'assigned_to': str(entry.assigned_to) if entry.assigned_to else None,
                         'last_contacted_at': entry.last_contacted_at,
+                        'is_pinned': entry.is_pinned,
+                        'tags': entry.tags,
                     })
                 except Candidate.DoesNotExist:
                     pass
@@ -47,8 +62,7 @@ class CRMPipelineView(APIView):
         return success_response(data={'pipeline': pipeline}, message="CRM pipeline retrieved.")
 
 
-class CRMAddToPipelineView(APIView):
-    permission_classes = [IsAuthenticated]
+class CRMAddToPipelineView(InternalCRMAPIView):
 
     def post(self, request):
         candidate_id = request.data.get('candidate_id')
@@ -60,6 +74,7 @@ class CRMAddToPipelineView(APIView):
             candidate_id=candidate_id,
             defaults={
                 'status': request.data.get('status', 'new_lead'),
+                'intent': request.data.get('intent', 'just_lead'),
                 'assigned_to': request.user.id,
                 'next_action': request.data.get('next_action', ''),
                 'next_action_date': request.data.get('next_action_date'),
@@ -81,8 +96,7 @@ class CRMAddToPipelineView(APIView):
         )
 
 
-class CRMMovePipelineView(APIView):
-    permission_classes = [IsAuthenticated]
+class CRMMovePipelineView(InternalCRMAPIView):
 
     def put(self, request, pk):
         try:
@@ -109,6 +123,10 @@ class CRMMovePipelineView(APIView):
         entry.status = target_status
         entry.next_action = request.data.get('next_action', entry.next_action)
         entry.next_action_date = request.data.get('next_action_date', entry.next_action_date)
+        if 'is_pinned' in request.data:
+            entry.is_pinned = request.data.get('is_pinned')
+        if 'tags' in request.data:
+            entry.tags = request.data.get('tags')
         entry.save()
         if target_status != previous_status:
             CandidateInteraction.objects.create(
@@ -125,8 +143,7 @@ class CRMMovePipelineView(APIView):
         return success_response(message=f"Candidate moved to {entry.status}.")
 
 
-class CRMInteractionListView(APIView):
-    permission_classes = [IsAuthenticated]
+class CRMInteractionListView(InternalCRMAPIView):
 
     def get(self, request, candidate_id):
         interactions = CandidateInteraction.objects.filter(
@@ -164,14 +181,23 @@ class CRMInteractionListView(APIView):
             created_by=request.user.id,
         )
 
-        # Update last contacted
+        # Update status record with last contact and next step
+        update_data = {
+            'last_contacted_at': timezone.now(),
+            'contact_count': models.F('contact_count') + 1
+        }
+        
+        # If a follow-up was scheduled in this interaction, sync it to the main status record
+        next_date = request.data.get('next_followup_date')
+        if next_date:
+            update_data['next_action_date'] = next_date
+            # Optionally set a default next action text if none exists
+            update_data['next_action'] = f"Follow-up ({request.data.get('interaction_type', 'activity')})"
+
         CandidatePipelineStatus.objects.filter(
             tenant_id=request.user.tenant_id,
             candidate_id=candidate_id
-        ).update(
-            last_contacted_at=timezone.now(),
-            contact_count=models.F('contact_count') + 1
-        )
+        ).update(**update_data)
 
         return success_response(
             data={'interaction_id': str(interaction.id)},
@@ -180,8 +206,7 @@ class CRMInteractionListView(APIView):
         )
 
 
-class CRMRemindersView(APIView):
-    permission_classes = [IsAuthenticated]
+class CRMRemindersView(InternalCRMAPIView):
 
     def get(self, request):
         from datetime import date
@@ -192,8 +217,8 @@ class CRMRemindersView(APIView):
             assigned_to=request.user.id,
             next_action_date__lte=today,
             is_deleted=False,
-            status__in=['new_lead', 'nurturing', 'in_process', 'offer_stage']
-        ).exclude(status__in=['placed', 'lost'])
+            status__in=['new_lead', 'contacted', 'interested', 'follow_up', 'qualified', 'ready_for_job']
+        ).exclude(status__in=['submitted', 'not_interested', 'archive'])
 
         data = []
         for entry in overdue:
@@ -218,8 +243,7 @@ class CRMRemindersView(APIView):
         )
 
 
-class CRMSuggestionsView(APIView):
-    permission_classes = [IsAuthenticated]
+class CRMSuggestionsView(InternalCRMAPIView):
 
     def get(self, request, job_id):
         from apps.jobs.models import JobRequisition

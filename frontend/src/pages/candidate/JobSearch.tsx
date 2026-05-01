@@ -26,7 +26,7 @@ export default function JobSearch() {
 
   const { data: jobsData, isLoading: jobsLoading } = useApiQuery(
     ['jobs_search', search, workMode, jobType],
-    () => jobsPublicApi.search({ q: search, work_mode: workMode, job_type: jobType })
+    () => jobsPublicApi.search({ search, work_mode: workMode, job_type: jobType })
   )
 
   const { data: appsData } = useApiQuery(

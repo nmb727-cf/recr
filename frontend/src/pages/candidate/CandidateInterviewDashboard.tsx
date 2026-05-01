@@ -53,6 +53,7 @@ function statusColor(status?: string) {
     case 'expired':
     case 'missed':
     case 'blocked':
+    case 'cancelled':
       return 'red'
     default:
       return 'default'
@@ -82,11 +83,13 @@ function InterviewRow({
   primaryLabel = 'Join Interview',
   showResult = false,
   primaryAction = 'runtime',
+  onAddToCalendar,
 }: {
   row: CandidateInterviewRow
   primaryLabel?: string
   showResult?: boolean
   primaryAction?: 'runtime' | 'results'
+  onAddToCalendar?: (row: CandidateInterviewRow) => void
 }) {
   const navigate = useNavigate()
   const reschedulePath = getReschedulePath(row)
@@ -138,6 +141,11 @@ function InterviewRow({
           <Button onClick={() => navigate(`/candidate/interviews/${row.id}/instructions?access_token=${accessToken}`)}>
             View Details
           </Button>
+          {row.status === 'scheduled' && onAddToCalendar && (
+            <Button icon={<CalendarDays className="h-4 w-4" />} onClick={() => onAddToCalendar(row)}>
+              Calendar
+            </Button>
+          )}
           <Button
             icon={<ExternalLink className="h-4 w-4" />}
             disabled={!reschedulePath}
@@ -184,6 +192,18 @@ function SectionCard({
 export default function CandidateInterviewDashboard() {
   const navigate = useNavigate()
 
+  const handleAddToCalendar = (interview: CandidateInterviewRow) => {
+    if (!interview.scheduled_at) return
+    const start = dayjs(interview.scheduled_at).format('YYYYMMDDTHHmmssZ')
+    const end = dayjs(interview.scheduled_at).add(interview.duration_minutes || 60, 'minute').format('YYYYMMDDTHHmmssZ')
+    const title = encodeURIComponent(interview.title || 'Interview')
+    const details = encodeURIComponent(`Interview Type: ${interview.interview_type}\nJoin Link: ${interview.meeting_link || 'TBD'}`)
+    
+    // Simple Google Calendar link
+    const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${start}/${end}&details=${details}&sf=true&output=xml`
+    window.open(url, '_blank')
+  }
+
   const interviewsQuery = useQuery({
     queryKey: ['candidate_interviews_dashboard'],
     queryFn: async () => (await interviewsApi.candidateList()).data?.data || {},
@@ -199,6 +219,7 @@ export default function CandidateInterviewDashboard() {
   const pendingInterviews: CandidateInterviewRow[] = dashboard.pending_interviews || []
   const completedInterviews: CandidateInterviewRow[] = dashboard.completed_interviews || []
   const missedInterviews: CandidateInterviewRow[] = dashboard.missed_interviews || []
+  const cancelledInterviews: CandidateInterviewRow[] = dashboard.cancelled_interviews || []
 
   const interviewNotifications = useMemo(() => {
     const items: Notification[] = notificationsQuery.data || []
@@ -211,7 +232,7 @@ export default function CandidateInterviewDashboard() {
   }, [notificationsQuery.data])
 
   const quickActionTarget = pendingInterviews[0] || upcomingInterviews[0] || null
-  const totalInterviews = upcomingInterviews.length + pendingInterviews.length + completedInterviews.length + missedInterviews.length
+  const totalInterviews = upcomingInterviews.length + pendingInterviews.length + completedInterviews.length + missedInterviews.length + cancelledInterviews.length
 
   return (
     <div className="space-y-6">
@@ -256,7 +277,7 @@ export default function CandidateInterviewDashboard() {
             ) : (
               <div className="space-y-3">
                 {upcomingInterviews.slice(0, 5).map((row) => (
-                  <InterviewRow key={row.id} row={row} />
+                  <InterviewRow key={row.id} row={row} onAddToCalendar={handleAddToCalendar} />
                 ))}
               </div>
             )}
@@ -272,7 +293,12 @@ export default function CandidateInterviewDashboard() {
             ) : (
               <div className="space-y-3">
                 {pendingInterviews.map((row) => (
-                  <InterviewRow key={row.id} row={row} primaryLabel={row.status === 'in_progress' ? 'Resume Interview' : 'Join Interview'} />
+                  <InterviewRow 
+                    key={row.id} 
+                    row={row} 
+                    primaryLabel={row.status === 'in_progress' ? 'Resume Interview' : 'Join Interview'} 
+                    onAddToCalendar={handleAddToCalendar}
+                  />
                 ))}
               </div>
             )}
@@ -419,11 +445,11 @@ export default function CandidateInterviewDashboard() {
               </Button>
               <div className="flex items-center justify-between rounded-2xl border border-slate-200 p-4">
                 <div>
-                  <div className="text-xs font-black uppercase tracking-widest text-slate-400">Missed / Expired</div>
-                  <div className="mt-1 text-lg font-bold text-slate-900">{missedInterviews.length}</div>
+                  <div className="text-xs font-black uppercase tracking-widest text-slate-400">Cancelled / Missed / Expired</div>
+                  <div className="mt-1 text-lg font-bold text-slate-900">{missedInterviews.length + cancelledInterviews.length}</div>
                 </div>
-                <Tag color={missedInterviews.length ? 'red' : 'default'}>
-                  {missedInterviews.length ? 'Needs attention' : 'Clear'}
+                <Tag color={(missedInterviews.length + cancelledInterviews.length) ? 'red' : 'default'}>
+                  {(missedInterviews.length + cancelledInterviews.length) ? 'Needs attention' : 'Clear'}
                 </Tag>
               </div>
               <div className="rounded-2xl border border-slate-200 p-4 text-sm text-slate-500">

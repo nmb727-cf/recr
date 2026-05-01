@@ -9,14 +9,22 @@ export const organisationApi = {
     http.put<ApiResponse<{ organisation: Organisation }>>('/organisations/profile/', data),
 
   // Users
-  listUsers: () =>
-    http.get<ApiResponse<{ users: User[] }>>('/organisations/users/'),
+  listUsers: (params?: { search?: string; role?: string; status?: string }) =>
+    http.get<ApiResponse<{ users: User[] }>>('/organisations/users/', { params }),
   inviteUser: (data: { email: string; role: string; first_name?: string; last_name?: string }) =>
     http.post<ApiResponse<{ user: User }>>('/organisations/users/', data),
   updateUser: (id: string, data: { role?: string; is_active?: boolean }) =>
     http.put<ApiResponse<{ user: User }>>(`/organisations/users/${id}/`, data),
   deleteUser: (id: string) =>
     http.delete<ApiResponse<null>>(`/organisations/users/${id}/`),
+
+  globalSearch: (params?: { search?: string; q?: string; limit?: number }) =>
+    http.get<ApiResponse<{
+      query: string
+      candidates: Array<{ id: string; name: string; email?: string; current_title?: string; current_company?: string }>
+      jobs: Array<{ id: string; title: string; status?: string; job_ref_id?: string; work_mode?: string }>
+      agencies: Array<{ id: string; name: string; status?: string; contact_email?: string }>
+    }>>('/organisations/search/', { params }),
 
   // Departments
   listDepartments: () =>

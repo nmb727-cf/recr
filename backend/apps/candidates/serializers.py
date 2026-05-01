@@ -155,6 +155,9 @@ class CandidateSelfSerializer(serializers.ModelSerializer):
     def get_engagement_intelligence(self, obj):
         from apps.candidates.services import CandidateIntelligenceService
         intel = CandidateIntelligenceService.get_intelligence_profile(obj)
+        labels = intel.get('labels') or {}
+        availability_label = labels.get('availability') or intel.get('availability') or 'Passive'
+        seniority_label = labels.get('seniority') or intel.get('seniority') or 'Junior'
         
         # Candidate-friendly engagement tips
         tips = []
@@ -166,8 +169,8 @@ class CandidateSelfSerializer(serializers.ModelSerializer):
             tips.append("Add your core skills to help our AI match you to the best jobs.")
             
         return {
-            'availability_label': intel['availability'],
-            'seniority_label': intel['seniority'],
+            'availability_label': availability_label,
+            'seniority_label': seniority_label,
             'engagement_tips': tips,
             'next_action': tips[0] if tips else "Stay tuned for new opportunities!"
         }
@@ -230,6 +233,9 @@ class CandidateEngagementSerializer(serializers.ModelSerializer):
             'workspace', 'job', 'job_title',
             'engagement_type', 'stage', 'priority', 'is_active',
             'owner_user', 'owner_name', 'source_channel',
+            'intent', 'next_action_type', 'next_action_due_at',
+            'next_action_owner_id', 'next_action_priority',
+            'next_action_reminder_minutes', 'is_nurture_track',
             'follow_up_at', 'is_follow_up_overdue',
             'last_activity_at', 'resurrected_from',
             'closure_reason', 'started_at', 'closed_at',

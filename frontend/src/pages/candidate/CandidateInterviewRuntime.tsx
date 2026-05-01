@@ -17,16 +17,28 @@ import { UploadOutlined } from '@ant-design/icons'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
+  AlertCircle,
   Bot,
+  BrainCircuit,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
+  Code,
   FileText,
+  FileUp,
+  History,
+  Info,
   ListChecks,
   Mic,
+  MoreVertical,
   PauseCircle,
   PlayCircle,
+  ShieldCheck,
+  Timer,
   Users,
   Video,
+  VideoOff,
 } from 'lucide-react'
 
 import { interviewsApi } from '@/api/interviews'
@@ -68,16 +80,21 @@ function statusColor(status?: string) {
 
 function getExecutionMode(interviewType?: string) {
   const type = interviewType || ''
-  if (type.includes('ai') || type === 'one_way_video' || type === 'async_text_interview') return 'ai'
-  if (type.includes('assessment') || type === 'aptitude_test' || type === 'case_study' || type === 'work_sample_test') return 'assessment'
-  if (type.includes('video') || type === 'one_way_video' || type === 'prerecorded_video' || type === 'live_video') return 'video'
+  // Video should be checked first to ensure one_way_video doesn't get caught by ai short-circuit
+  if (type === 'one_way_video' || type === 'live_video' || type.includes('video')) return 'video'
+  if (type === 'async_audio') return 'audio'
+  if (type === 'take_home_assignment') return 'assignment'
+  if (type === 'coding_interview') return 'coding'
+  
+  if (type.includes('ai') || type === 'async_text' || type === 'async_text_interview') return 'ai'
+  if (type.includes('assessment') || type === 'mcq_assessment' || type === 'aptitude' || type === 'aptitude_test' || type === 'case_study' || type === 'work_sample' || type === 'work_sample_test') return 'assessment'
   if (type === 'group_discussion') return 'group'
-  if (type === 'presentation_interview') return 'presentation'
+  if (type === 'presentation' || type === 'presentation_interview') return 'presentation'
   if (type === 'role_play') return 'role_play'
-  if (type === 'portfolio_review') return 'portfolio'
-  if (type === 'mock_interview') return 'mock'
-  if (type.includes('human') || type.includes('panel') || type.includes('hr') || type.includes('leadership') || type.includes('executive')) return 'human'
-  if (type.includes('technical') || type === 'coding_interview' || type === 'system_design' || type === 'debugging_interview' || type === 'whiteboard_interview') return 'technical'
+  if (type === 'portfolio' || type === 'portfolio_review') return 'portfolio'
+  if (type === 'mock' || type === 'mock_interview') return 'mock'
+  if (type.includes('human') || type.includes('panel') || type.includes('hr') || type.includes('leadership') || type.includes('executive') || type.includes('screening') || type.includes('hiring_manager') || type.includes('sequential') || type.includes('stakeholder') || type.includes('bar_raiser') || type.includes('final_round') || type === 'phone_interview') return 'human'
+  if (type.includes('technical') || type === 'system_design' || type === 'debugging_interview' || type === 'whiteboard' || type === 'whiteboard_interview') return 'technical'
   return 'generic'
 }
 
@@ -212,6 +229,9 @@ export default function CandidateInterviewRuntime() {
     const choiceOptions = current.options || current.answer_options || []
     const hasChoices = Array.isArray(choiceOptions) && choiceOptions.length > 0
     const isVideoMode = executionMode === 'video'
+    const isAudioMode = executionMode === 'audio'
+    const isAssignmentMode = executionMode === 'assignment'
+    const isCodingMode = executionMode === 'coding'
     const isHumanMode = executionMode === 'human'
     const isGroupMode = executionMode === 'group'
     const isPresentationMode = executionMode === 'presentation'
@@ -272,11 +292,14 @@ export default function CandidateInterviewRuntime() {
         ) : null}
 
         {isVideoMode ? (
-          <Card className="rounded-3xl border-slate-200" title="Video Response Shell">
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
-              <Video className="mx-auto h-10 w-10 text-slate-400" />
-              <div className="mt-3 text-sm font-semibold text-slate-700">Recording UI shell</div>
-              <div className="mt-1 text-sm text-slate-500">Video capture remains a unified candidate execution shell here. Meeting links and external providers still work from the runtime controls.</div>
+          <Card className="rounded-3xl border-slate-200" title="One-Way Video Recording">
+            <div className="rounded-2xl border border-slate-200 bg-slate-900 p-12 text-center text-white shadow-soft-sm">
+              <Video className="mx-auto h-12 w-12 text-slate-400 mb-4" />
+              <div className="text-lg font-black uppercase tracking-widest">Video Recording Mode</div>
+              <div className="mt-2 text-sm text-slate-400 max-w-md mx-auto">Your camera and microphone will be recorded for this response. Ensure you are in a well-lit area.</div>
+              <div className="mt-8 flex justify-center gap-4">
+                 <Button icon={<PlayCircle size={16} />} className="bg-emerald-600 border-none text-white font-bold uppercase text-[10px] tracking-widest h-10 px-6 rounded-xl">Start Recording</Button>
+              </div>
             </div>
             <div className="mt-4">
               <Input.TextArea
@@ -284,8 +307,87 @@ export default function CandidateInterviewRuntime() {
                 disabled={paused}
                 value={answers[current.id] || ''}
                 onChange={(event) => setAnswers((prev) => ({ ...prev, [current.id]: event.target.value }))}
-                placeholder="Optional supporting notes for your video response"
+                placeholder="Supporting notes for your video response (optional)"
               />
+            </div>
+          </Card>
+        ) : null}
+
+        {isAudioMode ? (
+          <Card className="rounded-3xl border-slate-200" title="Voice Response">
+            <div className="rounded-2xl border border-slate-200 bg-indigo-900 p-12 text-center text-white shadow-soft-sm">
+              <Mic className="mx-auto h-12 w-12 text-indigo-300 mb-4" />
+              <div className="text-lg font-black uppercase tracking-widest">Audio Recording</div>
+              <div className="mt-2 text-sm text-indigo-200 max-w-md mx-auto">Record your spoken answer. High-quality audio will be analyzed for content and sentiment.</div>
+              <div className="mt-8 flex justify-center gap-4">
+                 <Button icon={<Mic size={16} />} className="bg-white text-indigo-900 font-bold uppercase text-[10px] tracking-widest h-10 px-6 rounded-xl">Record Answer</Button>
+              </div>
+            </div>
+            <div className="mt-4">
+              <Input.TextArea
+                rows={4}
+                disabled={paused}
+                value={answers[current.id] || ''}
+                onChange={(event) => setAnswers((prev) => ({ ...prev, [current.id]: event.target.value }))}
+                placeholder="Supporting notes for your audio response (optional)"
+              />
+            </div>
+          </Card>
+        ) : null}
+
+        {isAssignmentMode ? (
+          <Card className="rounded-3xl border-slate-200" title="Take-Home Assignment Upload">
+            <div className="rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50 p-12 text-center">
+              <FileUp className="mx-auto h-12 w-12 text-slate-400 mb-4" />
+              <div className="text-lg font-black text-slate-800 uppercase tracking-widest">Upload Your Submission</div>
+              <div className="mt-2 text-sm text-slate-500 max-w-md mx-auto">Upload your completed assignment files here. Supported formats: PDF, ZIP, DOCX. Max 50MB.</div>
+              <div className="mt-8">
+                 <Upload 
+                   customRequest={({ file, onSuccess }: any) => {
+                     // Simulate real upload
+                     setTimeout(() => {
+                       setAssignmentUrl(`https://storage.tos.com/assignments/${(file as File).name}`)
+                       onSuccess("ok")
+                       message.success("File uploaded successfully")
+                     }, 1500)
+                   }}
+                   maxCount={1}
+                 >
+                   <Button icon={<FileUp size={16} />} size="large" className="rounded-xl font-bold uppercase text-[10px] tracking-widest px-8">Select File</Button>
+                 </Upload>
+              </div>
+            </div>
+            <div className="mt-4">
+              <Input.TextArea
+                rows={4}
+                disabled={paused}
+                value={answers[current.id] || ''}
+                onChange={(event) => setAnswers((prev) => ({ ...prev, [current.id]: event.target.value }))}
+                placeholder="Final comments on your submission"
+              />
+            </div>
+          </Card>
+        ) : null}
+
+        {isCodingMode ? (
+          <Card className="rounded-3xl border-slate-200" title="Coding Editor" extra={<Tag color="blue">Python / JS / Java</Tag>}>
+            <div className="rounded-2xl border border-slate-800 bg-[#1e1e1e] overflow-hidden shadow-soft-sm">
+               <div className="bg-[#252526] px-4 py-2 flex items-center justify-between border-b border-white/5">
+                  <div className="flex items-center gap-2">
+                     <Code size={14} className="text-blue-400" />
+                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">solution.py</span>
+                  </div>
+                  <Button size="small" type="text" className="text-slate-400 hover:text-white text-[9px] font-black uppercase">Run Code</Button>
+               </div>
+               <Input.TextArea
+                 rows={12}
+                 className="bg-transparent border-none text-emerald-400 font-mono text-sm p-4 focus:ring-0"
+                 spellCheck={false}
+                 value={answers[current.id] || ''}
+                 onChange={(event) => setAnswers((prev) => ({ ...prev, [current.id]: event.target.value }))}
+                 placeholder="# Write your code here..."
+                 style={{ resize: 'none', backgroundColor: '#1e1e1e', color: '#34d399' }}
+               />
             </div>
           </Card>
         ) : null}

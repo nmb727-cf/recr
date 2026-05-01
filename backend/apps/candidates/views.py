@@ -1,7 +1,7 @@
 from rest_framework import status
-from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.exceptions import PermissionDenied
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from django.db.models import Q, Count
 from django.utils import timezone
@@ -38,6 +38,29 @@ from apps.rbac.permissions import require_permission
 from apps.organisations.models import TeamMembership
 from apps.accounts.models import CustomUser
 from apps.pipeline.models import Application
+from apps.candidates.identity_service import (
+    resolve_candidate_identity,
+    merge_candidate_payload,
+)
+from shared.tenant_access import (
+    TenantAccessMixin,
+    scope_candidate_visibility_qs,
+)
+from shared.search_utils import (
+    apply_keyword_search,
+    get_search_query,
+    parse_limit_offset,
+    resolve_sort_order,
+)
+from shared.actor_access import is_candidate
+
+class InternalCandidateOpsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        if is_candidate(request.user):
+            raise PermissionDenied("You do not have permission to access candidate operations.")
 
 
 SYSTEM_DEFAULT_WORKFLOW_MODE = 'manual'
@@ -322,23 +345,29 @@ class CandidateSelfProfileView(APIView):
         return success_response(data={'candidate': serializer.data}, message="Profile updated.")
 
 
-class CandidateListView(APIView):
+class CandidateListView(TenantAccessMixin, APIView):
     permission_classes = [IsAuthenticated, require_permission('candidates.candidate.view')]
 
     def get(self, request):
+        denied = self.reject_scope_widening(request)
+        if denied:
+            return denied
+        if is_candidate(request.user):
+            return error_response(
+                "You do not have permission to access candidate operations.",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+
         # Candidates visible to this tenant:
         # 1. Candidates they created (tenant_id = their tenant)
         # 2. Self-registered candidates (tenant_id = null) — only if they have an application
-        qs = Candidate.objects.filter(
-            is_deleted=False
+        qs = Candidate.objects.filter(is_deleted=False)
+        qs = scope_candidate_visibility_qs(
+            candidate_qs=qs,
+            user=request.user,
+            application_model=Application,
+            engagement_model=CandidateEngagement,
         )
-        
-        if not request.user.is_staff:
-            qs = qs.filter(
-                Q(tenant_id=request.user.tenant_id) |
-                Q(id__in=Application.objects.filter(tenant_id=request.user.tenant_id, is_deleted=False).values('candidate_id')) |
-                Q(id__in=CandidateEngagement.objects.filter(tenant_id=request.user.tenant_id, is_deleted=False).values('candidate_id'))
-            )
 
         # Filter by specific IDs if provided
         ids = request.query_params.get('ids')
@@ -346,16 +375,22 @@ class CandidateListView(APIView):
             id_list = ids.split(',')
             qs = qs.filter(id__in=id_list)
 
-        # Search
-        search = request.query_params.get('search')
+        search = get_search_query(request.query_params)
+        search_mode = 'none'
         if search:
-            qs = qs.filter(
-                Q(first_name__icontains=search) |
-                Q(last_name__icontains=search) |
-                Q(email__icontains=search) |
-                Q(current_title__icontains=search) |
-                Q(current_company__icontains=search) |
-                Q(candidate_ref_id__icontains=search)
+            qs, search_mode = apply_keyword_search(
+                qs,
+                query=search,
+                fields=(
+                    'first_name',
+                    'last_name',
+                    'email',
+                    'current_title',
+                    'current_company',
+                    'candidate_ref_id',
+                    'skills',
+                ),
+                typo_tolerant=True,
             )
 
         # Filter by skills
@@ -378,10 +413,30 @@ class CandidateListView(APIView):
         if actively_looking:
             qs = qs.filter(is_actively_looking=actively_looking.lower() == 'true')
 
+        sort_order = resolve_sort_order(
+            request.query_params,
+            allowed_fields={
+                'first_name', 'last_name', 'email', 'current_title',
+                'current_company', 'updated_at', 'last_activity_at',
+                'created_at', 'candidate_ref_id',
+            },
+            default_field='updated_at',
+            default_dir='desc',
+        )
+        limit, offset = parse_limit_offset(request.query_params, default_limit=50, max_limit=200)
+        total = qs.count()
+        paged_qs = qs.order_by(sort_order)[offset:offset + limit]
+
         return success_response(
-            data={'candidates': CandidateSerializer(qs, many=True).data},
+            data={'candidates': CandidateSerializer(paged_qs, many=True).data},
             message="Candidates retrieved.",
-            meta={'total': qs.count()}
+            meta={
+                'total': total,
+                'limit': limit,
+                'offset': offset,
+                'sort': sort_order,
+                'search_mode': search_mode,
+            },
         )
 
     def post(self, request):
@@ -423,32 +478,6 @@ class CandidateListView(APIView):
                 status_code=status.HTTP_409_CONFLICT,
             )
 
-        existing = None
-        if email:
-            existing = Candidate.objects.filter(
-                email__iexact=email,
-                is_deleted=False
-            ).first()
-        if not existing and phone:
-            existing = Candidate.objects.filter(
-                phone=phone,
-                is_deleted=False
-            ).first()
-
-        if existing:
-            return Response({
-                'success': False,
-                'duplicate': True,
-                'message': 'A candidate already exists with this email or phone.',
-                'existing_candidate': {
-                    'id': str(existing.id),
-                    'name': f'{existing.first_name} {existing.last_name}',
-                    'email': existing.email,
-                    'phone': existing.phone,
-                    'current_title': existing.current_title,
-                }
-            }, status=status.HTTP_409_CONFLICT)
-
         payload = request.data.copy()
         entry_type = payload.pop('entry_type', payload.pop('entry_method', 'manual'))
         send_invite = payload.pop('send_invite', False)
@@ -459,25 +488,39 @@ class CandidateListView(APIView):
         serializer = CandidateSerializer(data=payload)
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors)
-
-        candidate = serializer.save(
+        validated = dict(serializer.validated_data)
+        resolution = resolve_candidate_identity(
+            email=email,
+            phone=phone,
             tenant_id=request.user.tenant_id,
-            owner_user_id=request.user.id,
-            owner_tenant_id=request.user.tenant_id,
-            created_by=request.user.id,
-            workflow_mode=_resolve_workflow_mode(request.user),
-            source_type=payload.get('source_type') or 'direct',
-            last_activity_at=timezone.now(),
-            candidate_state='NEW_LEAD',
-            candidate_pool='GENERAL',
-            is_general_pool_used=False,
+            create_if_missing=True,
+            allow_cross_tenant=True,
+            actor_user_id=request.user.id,
+            ensure_tenant_association_flag=True,
+            ensure_visibility=True,
+            source='candidate_manual_add',
+            candidate_defaults={
+                **validated,
+                'tenant_id': request.user.tenant_id,
+                'owner_user_id': request.user.id,
+                'owner_tenant_id': request.user.tenant_id,
+                'created_by': request.user.id,
+                'workflow_mode': _resolve_workflow_mode(request.user),
+                'source_type': payload.get('source_type') or 'direct',
+                'last_activity_at': timezone.now(),
+                'candidate_state': 'NEW_LEAD',
+                'candidate_pool': 'GENERAL',
+                'is_general_pool_used': False,
+            },
         )
-
-        # Auto-create empty profile
-        CandidateProfile.objects.create(
-            tenant_id=request.user.tenant_id,
+        candidate = resolution.candidate
+        merge_candidate_payload(candidate, validated, overwrite=False)
+        CandidateProfile.objects.get_or_create(
             candidate_id=candidate.id,
-            created_by=request.user.id,
+            defaults={
+                'tenant_id': request.user.tenant_id,
+                'created_by': request.user.id,
+            },
         )
 
         if entry_type in ['invite', 'quick_add', 'invite_candidate']:
@@ -612,8 +655,8 @@ class CandidateListView(APIView):
 
         return success_response(
             data=response_data,
-            message="Candidate created.",
-            status_code=status.HTTP_201_CREATED
+            message="Candidate created." if resolution.created else "Candidate reused.",
+            status_code=status.HTTP_201_CREATED if resolution.created else status.HTTP_200_OK
         )
 
 
@@ -629,18 +672,18 @@ def _get_visible_candidate(request, pk):
     """
     try:
         qs = Candidate.objects.filter(id=pk, is_deleted=False)
-        if not request.user.is_staff:
-            qs = qs.filter(
-                Q(tenant_id=request.user.tenant_id) |
-                Q(id__in=Application.objects.filter(tenant_id=request.user.tenant_id, is_deleted=False).values('candidate_id')) |
-                Q(id__in=CandidateEngagement.objects.filter(tenant_id=request.user.tenant_id, is_deleted=False).values('candidate_id'))
-            )
+        qs = scope_candidate_visibility_qs(
+            candidate_qs=qs,
+            user=request.user,
+            application_model=Application,
+            engagement_model=CandidateEngagement,
+        )
         return qs.first()
     except (Candidate.DoesNotExist, ValueError):
         return None
 
 
-class CandidateTalentPoolsView(APIView):
+class CandidateTalentPoolsView(InternalCandidateOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -661,7 +704,7 @@ class CandidateTalentPoolsView(APIView):
             message="Candidate talent pools retrieved."
         )
 
-class CandidateDetailView(APIView):
+class CandidateDetailView(InternalCandidateOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_object(self, request, pk):
@@ -731,7 +774,7 @@ class CandidateDetailView(APIView):
         )
 
 
-class CandidateTimelineView(APIView):
+class CandidateTimelineView(InternalCandidateOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -761,7 +804,7 @@ class CandidateTimelineView(APIView):
         )
 
 
-class CandidateDuplicatesView(APIView):
+class CandidateDuplicatesView(InternalCandidateOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -792,7 +835,7 @@ class CandidateDuplicatesView(APIView):
         )
 
 
-class CandidateMergeView(APIView):
+class CandidateMergeView(InternalCandidateOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -823,7 +866,7 @@ class CandidateMergeView(APIView):
         )
 
 
-class CandidateNoteListView(APIView):
+class CandidateNoteListView(InternalCandidateOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -869,7 +912,7 @@ class CandidateNoteListView(APIView):
         )
 
 
-class CandidateNoteDetailView(APIView):
+class CandidateNoteDetailView(InternalCandidateOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_object(self, request, pk, note_id):
@@ -981,7 +1024,7 @@ GLOBAL_CITIES = [
 ]
 
 
-class LocationSearchView(APIView):
+class LocationSearchView(InternalCandidateOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1020,7 +1063,7 @@ class LocationSearchView(APIView):
             message="Locations retrieved."
         )
 
-class CandidateWorkspaceView(APIView):
+class CandidateWorkspaceView(InternalCandidateOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, candidate_id):
@@ -1050,7 +1093,7 @@ class CandidateWorkspaceView(APIView):
         return error_response(serializer.errors)
 
 
-class CandidateEngagementListView(APIView):
+class CandidateEngagementListView(InternalCandidateOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, candidate_id):
@@ -1203,7 +1246,7 @@ class CandidateEngagementListView(APIView):
         return error_response(serializer.errors)
 
 
-class CandidateEngagementDetailView(APIView):
+class CandidateEngagementDetailView(InternalCandidateOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_object(self, candidate_id, engagement_id, tenant_id):
@@ -1318,7 +1361,7 @@ class CandidateEngagementDetailView(APIView):
         return error_response(serializer.errors)
 
 
-class CandidateEngagementCloseView(APIView):
+class CandidateEngagementCloseView(InternalCandidateOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -1389,7 +1432,7 @@ class CandidateEngagementCloseView(APIView):
         )
 
 
-class CandidateEngagementReviveView(APIView):
+class CandidateEngagementReviveView(InternalCandidateOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
@@ -1465,7 +1508,7 @@ class CandidateEngagementReviveView(APIView):
         )
 
 
-class ActiveCandidatesView(APIView):
+class ActiveCandidatesView(InternalCandidateOpsAPIView):
     """Recruiter-first Active Work surface: board + focus + follow-up queue."""
     permission_classes = [IsAuthenticated]
 
@@ -1574,7 +1617,7 @@ class ActiveCandidatesView(APIView):
         })
 
 
-class CandidateEngagementTimelineView(APIView):
+class CandidateEngagementTimelineView(InternalCandidateOpsAPIView):
     """Full immutable timeline for a candidate"""
     permission_classes = [IsAuthenticated]
 
@@ -1595,27 +1638,25 @@ class CandidateEngagementTimelineView(APIView):
         return success_response(serializer.data)
 
 
-class CandidateDatabaseView(APIView):
+class CandidateDatabaseView(TenantAccessMixin, APIView):
     """System-of-record layer with smart rows and enterprise saved views."""
     permission_classes = [IsAuthenticated, require_permission('candidates.candidate.view')]
 
     def get(self, request):
-        visible_candidate_ids_from_apps = Application.objects.filter(
-            tenant_id=request.user.tenant_id,
-            is_deleted=False,
-        ).values_list('candidate_id', flat=True)
+        denied = self.reject_scope_widening(request)
+        if denied:
+            return denied
+        if is_candidate(request.user):
+            return error_response(
+                "You do not have permission to access candidate operations.",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
 
-        visible_candidate_ids_from_engagements = CandidateEngagement.objects.filter(
-            tenant_id=request.user.tenant_id,
-            is_deleted=False,
-        ).values_list('candidate_id', flat=True)
-
-        qs = Candidate.objects.filter(
-            is_deleted=False
-        ).filter(
-            Q(tenant_id=request.user.tenant_id) |
-            Q(id__in=visible_candidate_ids_from_apps) |
-            Q(id__in=visible_candidate_ids_from_engagements)
+        qs = scope_candidate_visibility_qs(
+            candidate_qs=Candidate.objects.filter(is_deleted=False),
+            user=request.user,
+            application_model=Application,
+            engagement_model=CandidateEngagement,
         )
 
         view_name = request.query_params.get('view', 'all_candidates')
@@ -1632,16 +1673,23 @@ class CandidateDatabaseView(APIView):
         if view_name and view_name != 'all_candidates':
             qs = _apply_saved_view(qs, view_name, stale_days=stale_days)
 
-        search = request.query_params.get('search')
+        search = get_search_query(request.query_params)
+        search_mode = 'none'
         if search:
-            qs = qs.filter(
-                Q(first_name__icontains=search) |
-                Q(last_name__icontains=search) |
-                Q(email__icontains=search) |
-                Q(current_title__icontains=search) |
-                Q(current_company__icontains=search) |
-                Q(source_subtype__icontains=search) |
-                Q(candidate_ref_id__icontains=search)
+            qs, search_mode = apply_keyword_search(
+                qs,
+                query=search,
+                fields=(
+                    'first_name',
+                    'last_name',
+                    'email',
+                    'current_title',
+                    'current_company',
+                    'source_subtype',
+                    'candidate_ref_id',
+                    'skills',
+                ),
+                typo_tolerant=True,
             )
 
         source_type = request.query_params.get('source_type')
@@ -1685,9 +1733,21 @@ class CandidateDatabaseView(APIView):
                 qs = qs.exclude(id__in=active_protected_candidate_ids)
 
         total = qs.count()
-        limit = min(int(request.query_params.get('limit', 50)), 200)
-        offset = max(int(request.query_params.get('offset', 0)), 0)
-        qs = list(qs.order_by('-last_activity_at', '-updated_at')[offset:offset + limit])
+        limit, offset = parse_limit_offset(request.query_params, default_limit=50, max_limit=200)
+        sort_order = resolve_sort_order(
+            request.query_params,
+            allowed_fields={
+                'last_activity_at',
+                'updated_at',
+                'created_at',
+                'first_name',
+                'last_name',
+                'candidate_ref_id',
+            },
+            default_field='last_activity_at',
+            default_dir='desc',
+        )
+        qs = list(qs.order_by(sort_order, '-updated_at')[offset:offset + limit])
 
         candidate_ids = [c.id for c in qs]
         summary_map = {}
@@ -1731,12 +1791,18 @@ class CandidateDatabaseView(APIView):
                     'ready_to_submit', 'missing_contact_info', 'general_pool'
                 ]
             },
-            meta={'total': total, 'limit': limit, 'offset': offset},
+            meta={
+                'total': total,
+                'limit': limit,
+                'offset': offset,
+                'sort': sort_order,
+                'search_mode': search_mode,
+            },
             message="Candidate database retrieved."
         )
 
 
-class CandidateSavedViewsView(APIView):
+class CandidateSavedViewsView(InternalCandidateOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1780,7 +1846,7 @@ class CandidateSavedViewsView(APIView):
         )
 
 
-class CandidateWorkflowPolicyView(APIView):
+class CandidateWorkflowPolicyView(InternalCandidateOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1841,7 +1907,7 @@ class CandidateWorkflowPolicyView(APIView):
         return error_response("Validation failed.", serializer.errors)
 
 
-class CandidateCommandCenterView(APIView):
+class CandidateCommandCenterView(InternalCandidateOpsAPIView):
     """Candidate command center payload for tabs + sticky actions."""
     permission_classes = [IsAuthenticated]
 

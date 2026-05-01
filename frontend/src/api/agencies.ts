@@ -2,8 +2,8 @@ import http from '@/utils/http'
 
 export const agenciesApi = {
   // Company side
-  listRelationships: () =>
-    http.get('/agencies/relationships/'),
+  listRelationships: (params?: { search?: string; status?: string; limit?: number; offset?: number }) =>
+    http.get('/agencies/relationships/', { params }),
 
   lookup: (q: string) =>
     http.get(`/agencies/lookup/?q=${encodeURIComponent(q)}`),
@@ -52,11 +52,24 @@ export const agenciesApi = {
   listAssignments: (params?: any) => 
     http.get('/agencies/assignments/', { params }),
 
+  getDashboardIntelligence: () =>
+    http.get('/agencies/intelligence/dashboard/'),
+
+  listPerformance: (params?: any) =>
+    http.get('/agencies/performance/', { params }),
+
   getJobIntelligence: (jobId: string) =>
     http.get(`/agencies/jobs/${jobId}/intelligence/`),
 
   createAssignment: (data: any) => 
     http.post('/agencies/assignments/', data),
+
+  assignJob: (requisitionId: string, agencyTenantId: string, extras?: Record<string, any>) =>
+    http.post('/agencies/assignments/', {
+      requisition_id: requisitionId,
+      agency_tenant_id: agencyTenantId,
+      ...(extras || {}),
+    }),
 
   createGuestPortal: (data: any) => 
     http.post('/agencies/guest-portals/', data),
@@ -71,8 +84,8 @@ export const agenciesApi = {
     http.post(`/agencies/guest-portals/${portalId}/resend/`),
 
   // Agency side
-  listClientRelationships: () =>
-    http.get('/agencies/my-clients/'),
+  listClientRelationships: (params?: { search?: string; status?: string; limit?: number; offset?: number }) =>
+    http.get('/agencies/my-clients/', { params }),
 
   acceptRelationship: (id: string) =>
     http.post(`/agencies/relationships/${id}/accept/`),
@@ -80,13 +93,13 @@ export const agenciesApi = {
   accept: (id: string) => 
     http.post(`/agencies/relationships/${id}/accept/`),
 
-  myJobs: () => 
-    http.get('/agencies/my-jobs/'),
+  myJobs: (params?: { search?: string; limit?: number; offset?: number }) => 
+    http.get('/agencies/my-jobs/', { params }),
 
   submitCandidate: (data: any) => 
     http.post('/agencies/submit-candidate/', data),
 
-  mySubmissions: (params?: any) => 
+  mySubmissions: (params?: { search?: string; status?: string; requisition_id?: string; limit?: number; offset?: number }) => 
     http.get('/agencies/my-submissions/', { params }),
 
   assignInternalRecruiter: (assignmentId: string, recruiterId: string) =>

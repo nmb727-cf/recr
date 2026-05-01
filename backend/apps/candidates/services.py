@@ -293,82 +293,79 @@ class CandidateIntelligenceService:
     @staticmethod
     def get_intelligence_profile(candidate: Candidate):
         """
-        Generates a robust, multi-factor intelligence profile (CIL v2).
-        Experience weight is reduced to < 20%.
+        Generates candidate intelligence from the shared intelligence substrate.
+        Keeps the response schema backward-compatible for existing UI consumers.
         """
-        now = timezone.now()
-        
-        # 1. Availability & Engagement Intelligence (25%)
-        availability_score = 0
-        availability_label = "Passive"
-        if candidate.is_actively_looking:
-            availability_score = 100
-            availability_label = "Active"
-        
-        last_activity = candidate.last_activity_at
-        engagement_score = 0
-        if last_activity:
-            days = (now - last_activity).days
-            engagement_score = max(0, 100 - (days * 2))
-            if days < 7: availability_label = "Engaged"
-            elif days > 90: availability_label = "Stale"
+        from apps.analytics.intelligence_substrate import IntelligenceAggregator
 
-        # 2. Pipeline Intelligence (25%)
-        from apps.pipeline.models import Application
-        apps = Application.objects.filter(candidate_id=candidate.id, is_deleted=False)
-        
-        pipeline_score = 0
+        snapshot = IntelligenceAggregator.build_candidate_intelligence(
+            tenant_id=candidate.tenant_id,
+            candidate_id=candidate.id,
+        )
+        signals = snapshot.get('signals', {})
+
+        engagement = signals.get('engagement_signals', {})
+        skill = signals.get('skill_match_signals', {})
+        experience = signals.get('experience_signals', {})
+        activity = signals.get('activity_signals', {})
+        interview = signals.get('interview_signals', {})
+
+        days_since_activity = engagement.get('days_since_last_activity', 999)
+        availability_score = 100 if engagement.get('is_actively_looking') else 30
+        engagement_score = max(0, 100 - min(int(days_since_activity), 120))
+
+        availability_label = "Passive"
+        if engagement.get('is_actively_looking'):
+            availability_label = "Active"
+        if days_since_activity <= 7:
+            availability_label = "Engaged"
+        elif days_since_activity >= 90:
+            availability_label = "Stale"
+
+        active_app_count = activity.get('active_application_count', 0)
         pipeline_label = "Idle"
-        if apps.filter(status='active').exists():
-            pipeline_score = 70
+        if active_app_count > 0:
             pipeline_label = "In Progress"
-        
-        # Fast Moving Detection
-        if apps.filter(status='active', updated_at__gt=now - timezone.timedelta(days=3)).exists():
-            pipeline_score = 100
+        if active_app_count > 0 and days_since_activity <= 3:
             pipeline_label = "Fast Moving"
 
-        # 3. Interview & Knowledge Intelligence (30%)
-        # Derived from Interview feedbacks if available
-        from apps.interviews.models import Interview, InterviewFeedback
-        interview_ids = Interview.objects.filter(candidate_id=candidate.id).values_list('id', flat=True)
-        feedbacks = InterviewFeedback.objects.filter(interview_id__in=interview_ids)
-        interview_score = 0
-        if feedbacks.exists():
-            avg_feedback = feedbacks.aggregate(Avg('score'))['score__avg'] or 0
-            interview_score = float(avg_feedback) * 20 # 1-5 scale to 0-100
-
-        # 4. Experience & Seniority (Reduced to 20%)
-        exp_years = float(candidate.experience_years or 0)
-        experience_score = min(100, exp_years * 8)
-        
+        exp_years = float(experience.get('experience_years') or 0)
         seniority = "Junior"
-        if exp_years > 10: seniority = "Principal / Lead"
-        elif exp_years > 5: seniority = "Senior"
-        elif exp_years > 2: seniority = "Mid-Level"
+        if exp_years > 10:
+            seniority = "Principal / Lead"
+        elif exp_years > 5:
+            seniority = "Senior"
+        elif exp_years > 2:
+            seniority = "Mid-Level"
 
-        # Final Scores
-        fit_score = (candidate.fit_score or 0)
-        # Readiness = mix of availability, engagement and profile completeness
-        readiness_score = (availability_score * 0.4) + (engagement_score * 0.3) + (candidate.profile_completeness * 0.3)
-        
-        # Confidence = based on data points available
-        data_points = 0
-        if candidate.skills: data_points += 1
-        if feedbacks.exists(): data_points += 2
-        if candidate.experience_years: data_points += 1
-        confidence_score = min(100, data_points * 25)
+        fit_score = int(skill.get('fit_score') or 0)
+        interview_score = int(interview.get('avg_interview_score') or 0)
+        experience_score = min(100, int(exp_years * 8))
+        readiness_score = int((availability_score * 0.4) + (engagement_score * 0.3) + (candidate.profile_completeness * 0.3))
+        confidence_score = min(
+            100,
+            (
+                25
+                + (25 if candidate.skills else 0)
+                + (25 if interview.get('completed_interviews', 0) > 0 else 0)
+                + (25 if exp_years > 0 else 0)
+            ),
+        )
 
         rationale = []
-        if fit_score > 80: rationale.append("Strong skill match")
-        if interview_score > 70: rationale.append("Strong interview performance")
-        if pipeline_label == "Fast Moving": rationale.append("High hiring velocity")
-        if availability_label == "Engaged": rationale.append("Responsive and engaged")
+        if fit_score >= 80:
+            rationale.append("Strong skill match")
+        if interview_score >= 70:
+            rationale.append("Strong interview performance")
+        if pipeline_label == "Fast Moving":
+            rationale.append("High hiring velocity")
+        if availability_label in ("Active", "Engaged"):
+            rationale.append("Responsive and engaged")
 
         return {
             'scores': {
                 'fit': fit_score,
-                'readiness': int(readiness_score),
+                'readiness': readiness_score,
                 'potential': int((experience_score * 0.3) + (interview_score * 0.7)) if interview_score else int(experience_score),
                 'confidence': confidence_score
             },
@@ -387,7 +384,8 @@ class CandidateIntelligenceService:
             'explainable_ai': {
                 'rationale': rationale,
                 'summary': f"Scored {fit_score}% fit based on {', '.join(rationale) if rationale else 'profile alignment'}."
-            }
+            },
+            'substrate_snapshot_at': snapshot.get('computed_at'),
         }
 
     @staticmethod

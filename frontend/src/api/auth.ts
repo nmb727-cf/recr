@@ -42,8 +42,8 @@ export const authApi = {
   updateMe: (data: Partial<User>) =>
     http.put<ApiResponse<{ user: User }>>('/auth/me/', data),
 
-  logout: () =>
-    http.post<ApiResponse<null>>('/auth/logout/'),
+  logout: (refreshToken: string) =>
+    http.post<ApiResponse<null>>('/auth/logout/', { refresh_token: refreshToken }),
 
   refreshToken: (refresh_token: string) =>
     http.post<ApiResponse<AuthTokens>>('/auth/refresh/', { refresh: refresh_token }),

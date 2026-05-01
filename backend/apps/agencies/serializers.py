@@ -66,7 +66,7 @@ class AgencyJobAssignmentSerializer(serializers.ModelSerializer):
         model = AgencyJobAssignment
         fields = [
             'id', 'tenant_id', 'requisition_id', 'agency_tenant_id',
-            'assigned_by', 'deadline', 'max_submissions', 'submission_count',
+            'internal_recruiter_id', 'assigned_by', 'deadline', 'max_submissions', 'submission_count',
             'status', 'notes', 'created_at', 'updated_at', 'metadata',
         ]
         read_only_fields = ['id', 'tenant_id', 'created_at', 'updated_at', 'submission_count']

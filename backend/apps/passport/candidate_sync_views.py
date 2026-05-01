@@ -25,9 +25,9 @@ Both views are IsAuthenticated and candidate-role only.
 
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Q
 
 from apps.core.responses import success_response, error_response
+from apps.candidates.identity_service import resolve_candidate_identity
 
 
 def _find_linked_candidate(user):
@@ -39,36 +39,19 @@ def _find_linked_candidate(user):
       2. Email match (case-insensitive)
       3. Phone match (against both phone and phone_number columns)
     """
-    from apps.candidates.models import Candidate
-
-    # Priority 1 — explicit link
-    candidate = Candidate.objects.filter(
-        user_id=user.id,
-        is_deleted=False,
-    ).first()
-    if candidate:
-        return candidate
-
-    # Priority 2 — email match
-    if user.email:
-        candidate = Candidate.objects.filter(
-            email__iexact=user.email,
-            is_deleted=False,
-        ).first()
-        if candidate:
-            return candidate
-
-    # Priority 3 — phone match
-    user_phone = user.phone or user.phone_number
-    if user_phone:
-        candidate = Candidate.objects.filter(
-            Q(phone=user_phone) | Q(phone_number=user_phone),
-            is_deleted=False,
-        ).first()
-        if candidate:
-            return candidate
-
-    return None
+    resolution = resolve_candidate_identity(
+        email=user.email,
+        phone=user.phone or user.phone_number,
+        user=user,
+        tenant_id=getattr(user, 'tenant_id', None),
+        create_if_missing=False,
+        allow_cross_tenant=True,
+        ensure_tenant_association_flag=False,
+        ensure_visibility=False,
+        create_profile=False,
+        source='passport_my_candidate_lookup',
+    )
+    return resolution.candidate
 
 
 class MyCandidateView(APIView):

@@ -1,0 +1,175 @@
+{
+  "generated_at": "2026-04-07T17:48:02.937961",
+  "modules": [
+    {
+      "module_key": "onboarding_handoff",
+      "functional_score": 0,
+      "integration_score": 0,
+      "workflow_score": 0,
+      "overall_score": 0,
+      "final_status": "not_started",
+      "blockers_count": 2,
+      "warnings_count": 2
+    },
+    {
+      "module_key": "analytics",
+      "functional_score": 0,
+      "integration_score": 0,
+      "workflow_score": 0,
+      "overall_score": 0,
+      "final_status": "not_started",
+      "blockers_count": 1,
+      "warnings_count": 2
+    },
+    {
+      "module_key": "audit_logs",
+      "functional_score": 0,
+      "integration_score": 0,
+      "workflow_score": 0,
+      "overall_score": 0,
+      "final_status": "not_started",
+      "blockers_count": 1,
+      "warnings_count": 2
+    },
+    {
+      "module_key": "sla_engine",
+      "functional_score": 0,
+      "integration_score": 0,
+      "workflow_score": 0,
+      "overall_score": 0,
+      "final_status": "not_started",
+      "blockers_count": 1,
+      "warnings_count": 2
+    },
+    {
+      "module_key": "task_engine",
+      "functional_score": 0,
+      "integration_score": 0,
+      "workflow_score": 0,
+      "overall_score": 0,
+      "final_status": "not_started",
+      "blockers_count": 1,
+      "warnings_count": 2
+    },
+    {
+      "module_key": "calendar_scheduling",
+      "functional_score": 0,
+      "integration_score": 0,
+      "workflow_score": 0,
+      "overall_score": 0,
+      "final_status": "not_started",
+      "blockers_count": 1,
+      "warnings_count": 2
+    },
+    {
+      "module_key": "workflow_engine",
+      "functional_score": 0,
+      "integration_score": 100,
+      "workflow_score": 100,
+      "overall_score": 60,
+      "final_status": "functional_ready",
+      "blockers_count": 1,
+      "warnings_count": 0
+    },
+    {
+      "module_key": "event_system",
+      "functional_score": 0,
+      "integration_score": 0,
+      "workflow_score": 100,
+      "overall_score": 25,
+      "final_status": "in_development",
+      "blockers_count": 1,
+      "warnings_count": 1
+    },
+    {
+      "module_key": "roles_permissions",
+      "functional_score": 0,
+      "integration_score": 0,
+      "workflow_score": 0,
+      "overall_score": 0,
+      "final_status": "not_started",
+      "blockers_count": 1,
+      "warnings_count": 2
+    },
+    {
+      "module_key": "documents",
+      "functional_score": 0,
+      "integration_score": 0,
+      "workflow_score": 0,
+      "overall_score": 0,
+      "final_status": "not_started",
+      "blockers_count": 1,
+      "warnings_count": 2
+    },
+    {
+      "module_key": "communication",
+      "functional_score": 0,
+      "integration_score": 0,
+      "workflow_score": 0,
+      "overall_score": 0,
+      "final_status": "not_started",
+      "blockers_count": 1,
+      "warnings_count": 2
+    },
+    {
+      "module_key": "offers",
+      "functional_score": 0,
+      "integration_score": 0,
+      "workflow_score": 0,
+      "overall_score": 0,
+      "final_status": "not_started",
+      "blockers_count": 1,
+      "warnings_count": 2
+    },
+    {
+      "module_key": "interviews",
+      "functional_score": 0,
+      "integration_score": 0,
+      "workflow_score": 0,
+      "overall_score": 0,
+      "final_status": "not_started",
+      "blockers_count": 1,
+      "warnings_count": 2
+    },
+    {
+      "module_key": "agencies",
+      "functional_score": 0,
+      "integration_score": 100,
+      "workflow_score": 100,
+      "overall_score": 60,
+      "final_status": "functional_ready",
+      "blockers_count": 1,
+      "warnings_count": 0
+    },
+    {
+      "module_key": "applications_pipeline",
+      "functional_score": 0,
+      "integration_score": 0,
+      "workflow_score": 0,
+      "overall_score": 0,
+      "final_status": "not_started",
+      "blockers_count": 1,
+      "warnings_count": 2
+    },
+    {
+      "module_key": "jobs",
+      "functional_score": 0,
+      "integration_score": 100,
+      "workflow_score": 100,
+      "overall_score": 60,
+      "final_status": "functional_ready",
+      "blockers_count": 1,
+      "warnings_count": 0
+    },
+    {
+      "module_key": "candidates",
+      "functional_score": 0,
+      "integration_score": 100,
+      "workflow_score": 100,
+      "overall_score": 60,
+      "final_status": "functional_ready",
+      "blockers_count": 1,
+      "warnings_count": 0
+    }
+  ]
+}

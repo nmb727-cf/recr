@@ -1,6 +1,7 @@
+import { useState } from 'react'
 import {
   Table, Tag, Button, Typography, Card,
-  Progress,
+  Progress, Input,
 } from 'antd'
 import {
   MapPin, Clock, Plus
@@ -25,8 +26,9 @@ type JobWithAssignment = {
 export default function MyJobs() {
   const navigate = useNavigate()
   const openQuickView = useDrawerStore(s => s.openQuickView)
+  const [search, setSearch] = useState('')
 
-  const { data, isLoading } = useApiQuery(['agency', 'my-jobs'], () => agenciesApi.myJobs())
+  const { data, isLoading } = useApiQuery(['agency', 'my-jobs', search], () => agenciesApi.myJobs({ search: search || undefined }))
   const jobs = (data as any)?.jobs ?? []
 
   const columns: ColumnsType<JobWithAssignment> = [
@@ -92,9 +94,18 @@ export default function MyJobs() {
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">My Assigned Jobs</h1>
           <p className="text-slate-500 mt-1">Roles assigned to your agency by our enterprise clients.</p>
         </div>
-        <Button icon={<Plus className="h-4 w-4" />} type="primary" className="h-10 rounded-xl font-bold bg-blue-600 border-none shadow-soft-md" onClick={() => navigate('/agencies/submit-candidate')}>
-          New Submission
-        </Button>
+        <div className="flex items-center gap-2">
+          <Input
+            allowClear
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search assigned jobs..."
+            className="w-64 rounded-xl"
+          />
+          <Button icon={<Plus className="h-4 w-4" />} type="primary" className="h-10 rounded-xl font-bold bg-blue-600 border-none shadow-soft-md" onClick={() => navigate('/agencies/submit-candidate')}>
+            New Submission
+          </Button>
+        </div>
       </div>
 
       <Card bordered={false} className="shadow-soft-sm overflow-hidden p-0">

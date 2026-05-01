@@ -51,7 +51,7 @@ const FeedbackModal = ({ interviewId, open, onClose }: { interviewId: string; op
       await interviewsApi.submitFeedback(interviewId, {
         score: values.score,
         recommendation: values.recommendation,
-        feedback_text: values.feedback_text,
+        feedback: values.feedback,
       })
       await queryClient.invalidateQueries({ queryKey: ['interview-feedback', interviewId] })
       message.success('Feedback submitted')
@@ -93,7 +93,7 @@ const FeedbackModal = ({ interviewId, open, onClose }: { interviewId: string; op
             </Form.Item>
           </Col>
         </Row>
-        <Form.Item name="feedback_text" label="Comments" rules={[{ required: true }]}>
+        <Form.Item name="feedback" label="Comments" rules={[{ required: true }]}>
           <Input.TextArea rows={4} placeholder="Detailed feedback..." className="rounded-xl" />
         </Form.Item>
       </Form>
@@ -249,7 +249,7 @@ const InterviewDetailPanel = ({ interview, onClose, onRefetch }: { interview: In
     () => http.get(`/interviews/${interviewId}/feedback/`),
     { enabled: !!interviewId }
   )
-  const feedbackList = Array.isArray((feedbackData as any)?.data?.feedback) ? (feedbackData as any).data.feedback : []
+  const feedbackList = Array.isArray((feedbackData as any)?.data?.feedbacks) ? (feedbackData as any).data.feedbacks : []
 
   const { data: applicationData } = useApiQuery(
     ['application', interview.application_id],
@@ -413,7 +413,7 @@ const InterviewDetailPanel = ({ interview, onClose, onRefetch }: { interview: In
                     </Tag>
                   </div>
                 </div>
-                <Text className="text-slate-600 text-sm leading-relaxed block">{fb.feedback_text || 'No comments.'}</Text>
+                <Text className="text-slate-600 text-sm leading-relaxed block">{fb.feedback || 'No comments.'}</Text>
               </div>
             )) : (
               <div className="py-16 text-center bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">

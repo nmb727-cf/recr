@@ -22,5 +22,14 @@ export const automationApi = {
 
   listLogs: (params?: Record<string, unknown>) =>
     http.get<ApiResponse<{ logs: any[] }>>('/automation/logs/', { params }),
+
+  getOrchestratorDashboard: () =>
+    http.get<ApiResponse<{ orchestrator: any }>>('/automation/orchestrator/'),
+
+  getAutonomousEngine: () =>
+    http.get<ApiResponse<{ autonomous: any }>>('/automation/autonomous-engine/'),
+
+  updateAutonomousAction: (id: string, data: { action: 'approve' | 'reject', item_type: 'suggestion' | 'approval' }) =>
+    http.post<ApiResponse<any>>(`/automation/autonomous-engine/actions/${id}/`, data),
 }
 

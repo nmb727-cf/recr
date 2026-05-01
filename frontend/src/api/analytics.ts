@@ -27,6 +27,21 @@ export const analyticsApi = {
   hiringIntelligence: () =>
     http.get<ApiResponse<any>>('/analytics/hiring-intelligence/'),
 
+  getAIBrainIntelligence: () =>
+    http.get<ApiResponse<any>>('/analytics/hiring-ai-brain/'),
+
+  getUnifiedOperations: () =>
+    http.get<ApiResponse<any>>('/analytics/unified-operations/'),
+
+  getExecutiveDecisionCenter: () =>
+    http.get<ApiResponse<any>>('/analytics/executive-decision/'),
+
+  getControlTower: (params?: any) =>
+    http.get<ApiResponse<any>>('/analytics/control-tower/', { params }),
+
+  getIntelligenceMemory: (params?: any) =>
+    http.get<ApiResponse<any>>('/analytics/intelligence-memory/', { params }),
+
   recruiterIntelligence: () =>
     http.get<ApiResponse<any>>('/analytics/recruiter-intelligence/'),
 }

@@ -22,6 +22,7 @@ import { pipelineApi } from '@/api/pipeline'
 import { interviewsApi } from '@/api/interviews'
 import { agenciesApi } from '@/api/agencies'
 import { candidatesApi } from '@/api/candidates'
+import { organisationApi } from '@/api/organisation'
 import type { 
   JobRequisition, RequisitionStatus, Application, Candidate, 
   PlacementStatus, CommissionStatus, CommissionBasisType 
@@ -31,6 +32,7 @@ import JobTrackingView from './JobTrackingView'
 import JobInterviewsTab from './JobInterviewsTab'
 import { MetricCard, JobCommandCenterView } from './JobCommandCenterView'
 import { useAuthStore } from '@/store/authStore'
+import WorkflowStatusPanel from '@/components/workflow/WorkflowStatusPanel'
 
 const { Text, Paragraph, Title } = Typography
 
@@ -665,12 +667,46 @@ export default function JobDetail() {
 
   const { data, isLoading } = useApiQuery(['requisition', id], () => requisitionsApi.get(id!))
   const { data: pipelineData, refetch: refetchPipeline } = useApiQuery(['job-pipeline-summary', id], () => pipelineApi.listApplications({ requisition_id: id }))
+  const { data: intelligenceData, isLoading: intelligenceLoading } = useApiQuery(['job-intelligence', id], () => requisitionsApi.getHiringBrain(id!))
+  const { data: departmentsData } = useApiQuery(['org-departments', 'job-detail'], () => organisationApi.listDepartments())
+  const { data: locationsData } = useApiQuery(['org-locations', 'job-detail'], () => organisationApi.listLocations())
+  const { data: usersData } = useApiQuery(['org-users', 'job-detail'], () => organisationApi.listUsers())
 
   const requisition = (data as any)?.requisition as JobRequisition
   const applications = (pipelineData as any)?.applications || []
+  const intelligence = (intelligenceData as any)?.intelligence
   const isOwner = requisition?.created_by === user?.id
+  const departments = ((departmentsData as any)?.departments || []) as Array<any>
+  const locations = ((locationsData as any)?.locations || []) as Array<any>
+  const users = ((usersData as any)?.users || []) as Array<any>
 
-  if (isLoading) return <div className="flex items-center justify-center min-h-[400px]"><Spin size="large" /></div>
+  const departmentRecord = requisition?.department_id
+    ? departments.find((d: any) => d.id === requisition.department_id)
+    : null
+  const locationRecord = requisition?.location_id
+    ? locations.find((l: any) => l.id === requisition.location_id)
+    : null
+  const departmentName = !requisition?.department_id
+    ? 'General'
+    : (departmentRecord?.name || requisition.department_id)
+  const locationName = !requisition?.location_id
+    ? 'Remote'
+    : (locationRecord?.name || locationRecord?.location_name || requisition.location_id)
+
+  const metadata = (requisition?.metadata || {}) as Record<string, any>
+  const ownerId = metadata.job_owner_id || metadata.hiring_manager_id || null
+  const ownerUser = ownerId ? users.find((u: any) => u.id === ownerId) : null
+  const hiringManagerName = ownerId
+    ? (ownerUser?.full_name || ownerUser?.name || ownerUser?.email || 'Unassigned')
+    : 'Unassigned'
+  const hiringManagerInitials = String(hiringManagerName || '')
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() || '')
+    .join('') || 'HM'
+
+  if (isLoading || intelligenceLoading) return <div className="flex items-center justify-center min-h-[400px]"><Spin size="large" /></div>
   if (!requisition) return <Empty description="Job not found" />
 
   const config = STATUS_CONFIG[requisition.status] || STATUS_CONFIG.draft
@@ -725,11 +761,11 @@ export default function JobDetail() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-x-8 gap-y-3">
                   <div className="flex flex-col">
                     <Text className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('fields.department')}</Text>
-                    <Text className="text-xs font-black text-slate-700 truncate">{requisition.department_id || 'General'}</Text>
+                    <Text className="text-xs font-black text-slate-700 truncate">{departmentName}</Text>
                   </div>
                   <div className="flex flex-col">
                     <Text className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('fields.location')}</Text>
-                    <Text className="text-xs font-black text-slate-700 truncate">{requisition.location_id || 'Remote'}</Text>
+                    <Text className="text-xs font-black text-slate-700 truncate">{locationName}</Text>
                   </div>
                   <div className="flex flex-col">
                     <Text className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('command_center.open_positions')}</Text>
@@ -738,8 +774,8 @@ export default function JobDetail() {
                   <div className="flex flex-col">
                     <Text className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('fields.hiring_manager')}</Text>
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <Avatar size={14} className="bg-amber-100 text-amber-600 text-[7px] font-black">HM</Avatar>
-                      <Text className="text-xs font-black text-slate-700 truncate">Manager Name</Text>
+                      <Avatar size={14} className="bg-amber-100 text-amber-600 text-[7px] font-black">{hiringManagerInitials}</Avatar>
+                      <Text className="text-xs font-black text-slate-700 truncate">{hiringManagerName}</Text>
                     </div>
                   </div>
                 </div>
@@ -749,7 +785,12 @@ export default function JobDetail() {
             {/* Right: Live Metrics */}
             <div className="flex flex-col items-end gap-4">
               <div className="flex gap-2">
-                <Button type="primary" icon={<Edit className="h-4 w-4" />} className="h-9 flex items-center gap-2 font-black text-[10px] uppercase shadow-indigo-200 shadow-lg rounded-xl">
+                <Button
+                  type="primary"
+                  icon={<Edit className="h-4 w-4" />}
+                  className="h-9 flex items-center gap-2 font-black text-[10px] uppercase shadow-indigo-200 shadow-lg rounded-xl"
+                  onClick={() => navigate(`/jobs/${id}/setup`)}
+                >
                   {t('actions.edit_job')}
                 </Button>
                 <Button className="h-9 w-9 p-0 flex items-center justify-center text-slate-400 rounded-xl">
@@ -770,6 +811,11 @@ export default function JobDetail() {
         </div>
       </div>
 
+      <WorkflowStatusPanel
+        entityId={requisition.id}
+        title="Workflow Status"
+      />
+
       {/* Tabs / Command Center Toggle */}
       <Tabs
         activeKey={activeTab}
@@ -779,7 +825,7 @@ export default function JobDetail() {
           {
             key: 'command_center',
             label: <div className="flex items-center gap-2 font-black text-[10px] uppercase tracking-wider"><Zap size={14} /> {t('command_center.title')}</div>,
-            children: <JobCommandCenterView requisition={requisition} applications={applications} onAssignAgency={() => setAssignAgencyModalOpen(true)} />
+            children: <JobCommandCenterView requisition={requisition} applications={applications} intelligence={intelligence} onAssignAgency={() => setAssignAgencyModalOpen(true)} />
           },
           {
             key: 'overview',

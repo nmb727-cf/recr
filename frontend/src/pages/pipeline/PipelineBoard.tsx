@@ -42,13 +42,17 @@ import {
   ShieldCheck,
   BrainCircuit,
   Workflow,
-  UserCheck
+  UserCheck,
+  Gavel
 } from 'lucide-react'
 import dayjs from 'dayjs'
 import isToday from 'dayjs/plugin/isToday'
 import relativeTime from 'dayjs/plugin/relativeTime'
 import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/store/authStore'
+
+import { CustomizeView } from '@/components/common/CustomizeView'
+import { useUserPreferences } from '@/hooks/useUserPreferences'
 
 dayjs.extend(relativeTime)
 dayjs.extend(isToday)
@@ -65,15 +69,16 @@ import { pipelineApi } from '@/api/pipeline'
 import { requisitionsApi } from '@/api/jobs'
 import { candidatesApi } from '@/api/candidates'
 import { interviewsApi } from '@/api/interviews'
+import { agenciesApi } from '@/api/agencies'
 import { isJobOwner } from '@/utils/permissions'
 import type {
   PipelineData, PipelineStageData as PipelineStageRecord, Application,
   JobRequisition, Candidate, CandidateDetail
 } from '@/types'
 import { cn } from '@/utils/cn'
-import http from '@/utils/http'
 import { formatStatusLabel, getStatusStyle } from '@/utils/status'
 import { HiringAIBrainDashboard } from '../jobs/JobCommandCenterView'
+import WorkflowStatusPanel from '@/components/workflow/WorkflowStatusPanel'
 
 const { Text, Title } = Typography
 const { TextArea } = AntInput
@@ -181,7 +186,13 @@ const MakeOfferModal = ({
   const queryClient = useQueryClient()
 
   const mutation = useMutation({
-    mutationFn: (values: any) => http.post(`/pipeline/applications/${applicationId}/make-offer/`, values),
+    mutationFn: (values: any) =>
+      pipelineApi.makeOffer(applicationId, {
+        offer_amount: Number(values.offer_amount || 0),
+        currency: values.currency || 'INR',
+        joining_date: values.joining_date?.format('YYYY-MM-DD'),
+        notes: values.notes || '',
+      }),
     onSuccess: () => {
       message.success(t('pipeline:messages.offer_created', 'Offer created and sent'))
       queryClient.invalidateQueries({ queryKey: ['application', 'full', applicationId] })
@@ -233,6 +244,7 @@ const MakeOfferModal = ({
 
 const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisitionStages, isOwner }: { applicationId: string, onClose: () => void, onRefresh: () => void, requisitionStages: any[], isOwner: boolean }) => {
   const { t } = useTranslation(['pipeline', 'common'])
+  const navigate = useNavigate()
   const [interviewModalVisible, setInterviewModalVisible] = useState(false)
   const [offerModalVisible, setOfferModalVisible] = useState(false)
   const [stageModalOpen, setStageModalOpen] = useState(false)
@@ -406,9 +418,18 @@ const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisition
                 </div>
               </div>
               <div className="flex gap-2">
+                <Button 
+                  block 
+                  type="primary"
+                  className="h-9 rounded-xl font-black text-[10px] uppercase tracking-widest bg-blue-600 border-none shadow-sm shadow-blue-100" 
+                  icon={<Gavel size={14} />}
+                  onClick={() => navigate(`/hiring-decisions?applicationId=${applicationId}`)}
+                >
+                  Hiring Decision
+                </Button>
                 <Button block className="h-9 rounded-xl font-black text-[10px] uppercase tracking-widest border-slate-200 text-slate-600" onClick={handleHold}>Place on Hold</Button>
-                <Button block icon={<FileText size={14} />} className="h-9 rounded-xl font-black text-[10px] uppercase tracking-widest border-slate-200 text-slate-600" onClick={handleAddNote}>Record Note</Button>
               </div>
+              <Button block icon={<FileText size={14} />} className="h-9 rounded-xl font-black text-[10px] uppercase tracking-widest border-slate-200 text-slate-600" onClick={handleAddNote}>Record Note</Button>
             </div>
           </Card>
 
@@ -451,6 +472,13 @@ const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisition
               </div>
             </Card>
           </div>
+
+          <WorkflowStatusPanel
+            entityId={application.id}
+            entityType="application"
+            title="Workflow Status"
+            maxTimelineItems={6}
+          />
 
           {/* ── 4. Interview Section ────────────────────────────────────── */}
           <Card size="small" className="rounded-2xl border-slate-100 shadow-soft-sm overflow-hidden" styles={{ body: { padding: 0 } }}>
@@ -651,6 +679,14 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   
+  const { pages } = useUserPreferences()
+  const pagePrefs = pages['pipeline'] || { hiddenColumns: [], hiddenSections: [], density: 'comfortable' }
+  const isCompact = pagePrefs.density === 'compact'
+  
+  const isStatsHidden = pagePrefs.hiddenSections.includes('stats')
+  const isBrainHidden = pagePrefs.hiddenSections.includes('brain')
+  const isSwitcherHidden = pagePrefs.hiddenSections.includes('switcher')
+
   // Workspace Context State
   const [pipelineContext, setPipelineContext] = useState<PipelineContext>('single')
   const [selectedJobId, setSelectedJobId] = useState<string>(externalJobId || searchParams.get('job') || '')
@@ -669,7 +705,7 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
   
   // Operational State
   const [candidateSearch, setCandidateSearch] = useState('')
-  const [viewDensity, setViewDensity] = useState<'comfortable' | 'compact'>('compact')
+  const viewDensity = pagePrefs.density as 'comfortable' | 'compact'
   const [sortBy, setSortBy] = useState<'match' | 'recent' | 'aging'>('match')
 
   const [boardStageModalOpen, setBoardStageModalOpen] = useState(false)
@@ -713,6 +749,12 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
     },
     { enabled: pipelineContext !== 'single' || !!selectedJobId }
   )
+  const { data: agencyDashboardData } = useApiQuery(
+    ['agency-intelligence-pipeline'],
+    () => agenciesApi.getDashboardIntelligence(),
+    { retry: false, refetchOnWindowFocus: false, staleTime: 60_000 }
+  )
+  const pipelineAgencyIntelligence = (agencyDashboardData as any)?.intelligence?.pipeline ?? (agencyDashboardData as any)?.data?.intelligence?.pipeline
 
   // Fetch all candidates for name lookup
   const { data: candidatesData } = useApiQuery(
@@ -729,7 +771,7 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
   const processedStages = useMemo(() => {
     if (pipelineContext === 'single' && (appsData as any)?.pipeline) {
       const board = (appsData as any).pipeline as Record<string, PipelineStageRecord>
-      return Object.values(board).sort((a, b) => a.stage.stage_order - b.stage.stage_order).map(s => {
+      return Object.values(board).filter(s => s && s.stage).sort((a, b) => a.stage.stage_order - b.stage.stage_order).map(s => {
         let apps = s.applications || []
         if (candidateSearch) {
           apps = apps.filter(app => {
@@ -805,6 +847,7 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
     let slaEscalated = 0
 
     processedStages.forEach((s: any) => {
+      if (!s || !s.stage) return
       total += s.stats.count
       if (s.stats.count > maxCount) {
         maxCount = s.stats.count
@@ -930,7 +973,7 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
                  <h1 className="text-sm font-black text-slate-900 uppercase tracking-widest leading-none">
                    {isSubView ? 'Pipeline View' : 'Pipeline Action Center'}
                  </h1>
-                 {selectedJobId && (
+                 {selectedJobId && !isBrainHidden && (
                    <button 
                      onClick={() => setShowBrainDashboard(!showBrainDashboard)}
                      className={cn(
@@ -943,27 +986,48 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
                    </button>
                  )}
                </div>
-               {pipelineContext === 'single' && requisition && (
-                 <div className="flex items-center gap-2 mt-1.5">
-                    <span className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.12em] bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100/50">{requisition.job_ref_id || 'REF-ID'}</span>
-                    <div className="h-1 w-1 rounded-full bg-slate-300" />
-                    <span className="text-[11px] font-bold text-slate-500 uppercase truncate max-w-[250px]">{requisition.title}</span>
-                    <Tag className="m-0 border-none bg-slate-100 text-slate-500 font-black text-[9px] uppercase rounded-full px-2">
-                       {requisition.status || 'Active'}
-                    </Tag>
-                 </div>
-               )}
-               {pipelineContext !== 'single' && !isSubView && (
-                 <div className="flex items-center gap-2 mt-1.5">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                       {pipelineContext === 'my_live' ? 'My Live Pipeline' : 'Team Live Pipeline'}
-                    </span>
-                 </div>
+               {!isSwitcherHidden && (
+                 <>
+                   {pipelineContext === 'single' && requisition && (
+                     <div className="flex items-center gap-2 mt-1.5">
+                        <span className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.12em] bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100/50">{requisition.job_ref_id || 'REF-ID'}</span>
+                        <div className="h-1 w-1 rounded-full bg-slate-300" />
+                        <span className="text-[11px] font-bold text-slate-500 uppercase truncate max-w-[250px]">{requisition.title}</span>
+                        {requisition.workflow_enabled && (
+                          <>
+                            <div className="h-1 w-1 rounded-full bg-slate-300" />
+                            <Tag color="purple" className="m-0 border-none font-black text-[9px] uppercase px-2 rounded-md leading-relaxed">
+                              Workflow Master Governing
+                            </Tag>
+                          </>
+                        )}
+                        <Tag className="m-0 border-none bg-slate-100 text-slate-500 font-black text-[9px] uppercase rounded-full px-2 ml-1">
+                           {requisition.status || 'Active'}
+                        </Tag>
+                     </div>
+                   )}
+                   {pipelineContext !== 'single' && !isSubView && (
+                     <div className="flex items-center gap-2 mt-1.5">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                           {pipelineContext === 'my_live' ? 'My Live Pipeline' : 'Team Live Pipeline'}
+                        </span>
+                     </div>
+                   )}
+                 </>
                )}
             </div>
           </div>
 
           <div className="flex items-center gap-3">
+             <CustomizeView 
+               pageId="pipeline"
+               columns={[]}
+               sections={[
+                 { id: 'switcher', label: 'Context Switcher' },
+                 { id: 'stats', label: 'Pipeline Metrics' },
+                 { id: 'brain', label: 'Hiring Brain Dashboard' },
+               ]}
+             />
              <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1 border border-slate-200/50">
                <button 
                  onClick={() => setViewMode('board')}
@@ -991,23 +1055,25 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
         </div>
 
         {/* Top Strip: Metrics */}
-        <div className="grid grid-cols-6 gap-3 pt-1">
-           {[
-             { label: 'Total Active', value: workspaceStats.total, color: 'slate' },
-             { label: 'Needs Review', value: workspaceStats.needsReview, color: 'blue' },
-             { label: 'Interviewing', value: workspaceStats.interviewPending, color: 'purple' },
-             { label: 'Active Offers', value: workspaceStats.offerPending, color: 'amber' },
-             { label: 'Overdue > 48h', value: workspaceStats.overdue, color: 'rose' },
-             { label: 'Bottleneck', value: workspaceStats.bottleneck || 'None', color: 'indigo', isText: true },
-           ].map((stat, i) => (
-             <div key={i} className="px-3 py-2 bg-slate-50/50 rounded-xl border border-slate-100 flex flex-col justify-center">
-                <Text className="text-[8px] font-black text-slate-400 uppercase tracking-tighter mb-1">{stat.label}</Text>
-                <Text className={cn("text-base font-black leading-none", stat.isText ? "text-[10px] truncate uppercase" : `text-${stat.color}-600`)}>
-                  {stat.value}
-                </Text>
-             </div>
-           ))}
-        </div>
+        {!isStatsHidden && (
+          <div className="grid grid-cols-6 gap-3 pt-1">
+             {[
+               { label: 'Total Active', value: workspaceStats.total, color: 'slate' },
+               { label: 'Needs Review', value: workspaceStats.needsReview, color: 'blue' },
+               { label: 'Interviewing', value: workspaceStats.interviewPending, color: 'purple' },
+               { label: 'Active Offers', value: workspaceStats.offerPending, color: 'amber' },
+               { label: 'Overdue > 48h', value: workspaceStats.overdue, color: 'rose' },
+               { label: 'Bottleneck', value: workspaceStats.bottleneck || 'None', color: 'indigo', isText: true },
+             ].map((stat, i) => (
+               <div key={i} className="px-3 py-2 bg-slate-50/50 rounded-xl border border-slate-100 flex flex-col justify-center">
+                  <Text className="text-[8px] font-black text-slate-400 uppercase tracking-tighter mb-1">{stat.label}</Text>
+                  <Text className={cn("text-base font-black leading-none", stat.isText ? "text-[10px] truncate uppercase" : `text-${stat.color}-600`)}>
+                    {stat.value}
+                  </Text>
+               </div>
+             ))}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 flex flex-col overflow-hidden">
@@ -1018,7 +1084,7 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
         )}
 
         {/* ── Intelligence Row ────────────────────────────────────────────────── */}
-        <div className="px-6 py-4 grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0 bg-[#F8FAFC]">
+        <div className="px-6 py-4 grid grid-cols-1 md:grid-cols-5 gap-4 shrink-0 bg-[#F8FAFC]">
           <div className="bg-white rounded-2xl border border-slate-200/60 p-4 shadow-soft-sm hover:border-indigo-200 transition-colors">
              <div className="flex items-center gap-2 mb-3">
                 <Zap size={14} className="text-amber-500 fill-amber-500" />
@@ -1106,6 +1172,30 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
                       <Text className="text-[11px] font-black text-emerald-600 uppercase tracking-tighter">Active</Text>
                    </div>
                    <Text className="text-[9px] font-black text-slate-400 uppercase block mt-0.5">Decision Engine</Text>
+                </div>
+             </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200/60 p-4 shadow-soft-sm hover:border-blue-200 transition-colors">
+             <div className="flex items-center gap-2 mb-3">
+                <Users size={14} className="text-blue-600" />
+                <div className="flex-1">
+                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-[0.15em]">Agency Intelligence</Text>
+                </div>
+                <Badge status="processing" />
+             </div>
+             <div className="space-y-2">
+                <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
+                   <span>Agency Share</span>
+                   <span className="text-blue-600">{Number(pipelineAgencyIntelligence?.candidate_source_intelligence?.agency_share || 0).toFixed(0)}%</span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
+                   <span>Success Rate</span>
+                   <span className="text-emerald-600">{Number(pipelineAgencyIntelligence?.agency_contribution?.[0]?.success_rate || 0).toFixed(0)}%</span>
+                </div>
+                <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase">
+                   <span>Top Agency</span>
+                   <span className="truncate pl-2 text-slate-700">{pipelineAgencyIntelligence?.agency_contribution?.[0]?.agency_name || 'None'}</span>
                 </div>
              </div>
           </div>

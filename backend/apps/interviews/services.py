@@ -97,6 +97,81 @@ class InterviewTemplateService:
 
 
 class InterviewService:
+    @staticmethod
+    def trigger_next_round(*, tenant_id, application_id, job_id, candidate_id, current_round: int = 0):
+        """
+        Starts the next interview round for an application based on Job's InterviewPackageBinding.
+        """
+        from apps.interviews.models import InterviewPackageBinding, Interview, InterviewTemplate, InterviewScorecardTemplate, InterviewQuestion
+        
+        binding = InterviewPackageBinding.objects.filter(
+            tenant_id=tenant_id,
+            job_id=job_id,
+            is_deleted=False
+        ).first()
+        
+        if not binding:
+            return None, "No interview package bound to this job."
+            
+        next_round_num = current_round + 1
+        round_config = binding.get_round_config(next_round_num)
+        
+        if not round_config:
+            return None, f"No configuration found for round {next_round_num}."
+            
+        # Create Interview
+        interview_type = round_config.get('type')
+        if isinstance(interview_type, dict):
+            interview_type = interview_type.get('code')
+            
+        template_id = round_config.get('template_id')
+        scorecard_template_id = None
+        
+        if interview_type:
+            default_scorecard = InterviewScorecardTemplate.objects.filter(
+                tenant_id=tenant_id,
+                interview_type=interview_type,
+                is_active=True,
+                is_deleted=False,
+            ).order_by('-updated_at').first()
+            if default_scorecard:
+                scorecard_template_id = default_scorecard.id
+
+        interview = Interview.objects.create(
+            tenant_id=tenant_id,
+            application_id=application_id,
+            candidate_id=candidate_id,
+            requisition_id=job_id,
+            interview_type=interview_type or 'ai_screening',
+            interview_round=next_round_num,
+            title=round_config.get('name', f"Round {next_round_num}"),
+            status='scheduled',
+            template_id=template_id,
+            scorecard_template_id=scorecard_template_id,
+            execution_mode='native', # Default to native
+        )
+        
+        # If template provided, copy questions
+        if template_id:
+            try:
+                template = InterviewTemplate.objects.get(id=template_id, is_deleted=False)
+                questions_to_create = []
+                for i, q in enumerate(template.questions):
+                    questions_to_create.append(InterviewQuestion(
+                        tenant_id=tenant_id,
+                        interview_id=interview.id,
+                        question_text=q.get('text', ''),
+                        question_type=q.get('type', 'text'),
+                        options=q.get('options', []),
+                        expected_duration_seconds=q.get('duration', None),
+                        order_index=i,
+                    ))
+                if questions_to_create:
+                    InterviewQuestion.objects.bulk_create(questions_to_create)
+            except InterviewTemplate.DoesNotExist:
+                pass
+                
+        return interview, "Interview scheduled."
 
     @staticmethod
     def create(*, tenant_id, candidate_id, application_id, requisition_id,
@@ -262,6 +337,49 @@ class InterviewService:
         )
         return panelist
 
+    @staticmethod
+    def get_job_interview_snapshot(*, tenant_id, job_id):
+        """
+        Returns aggregate interview stats for a specific job.
+        Used by the Job Command Center.
+        """
+        from apps.interviews.models import Interview, InterviewPackageBinding
+        from apps.pipeline.models import Application
+
+        binding = InterviewPackageBinding.objects.filter(
+            tenant_id=tenant_id,
+            job_id=job_id,
+            is_deleted=False
+        ).first()
+
+        interviews = Interview.objects.filter(
+            tenant_id=tenant_id,
+            requisition_id=job_id,
+            is_deleted=False
+        )
+
+        candidates_in_interview = Application.objects.filter(
+            tenant_id=tenant_id,
+            requisition_id=job_id,
+            status='interview',
+            is_deleted=False
+        ).count()
+
+        pending_interviews = interviews.filter(status__in=['scheduled', 'rescheduled']).count()
+        completed_interviews = interviews.filter(status='completed').count()
+        cancelled_interviews = interviews.filter(status='cancelled').count()
+
+        return {
+            'binding_active': binding is not None,
+            'package_name': binding.package.title if binding else None,
+            'automation_enabled': binding.automation_enabled if binding else False,
+            'candidates_in_interview': candidates_in_interview,
+            'pending_interviews': pending_interviews,
+            'completed_interviews': completed_interviews,
+            'cancelled_interviews': cancelled_interviews,
+            'rounds_summary': binding.get_rounds() if binding else [],
+        }
+
 
 class InterviewFeedbackService:
 
@@ -419,6 +537,57 @@ class InterviewDecisionService:
         cfg = thresholds or {}
         upper = float(cfg.get('next_round_min', 80))
         lower = float(cfg.get('reject_max', 50))
+
+        score = payload.get('score')
+        if score is None:
+            score = interview.human_score if interview.human_score is not None else interview.overall_score
+        try:
+            numeric_score = float(score) if score is not None else None
+        except Exception:
+            numeric_score = None
+
+        panel = InterviewDecisionService.multi_interviewer_recommendation(interview=interview)
+        if payload.get('hiring_manager_override'):
+            return {
+                'decision': payload.get('hiring_manager_override'),
+                'decision_source': 'manual',
+                'decision_mode': 'manual',
+                'rationale': 'hiring manager override',
+                'panel': panel,
+            }
+        if numeric_score is not None and numeric_score > upper:
+            return {
+                'decision': 'next_round',
+                'decision_source': 'automation_rules',
+                'decision_mode': 'conditional',
+                'rationale': f'score {numeric_score} > {upper}',
+                'panel': panel,
+            }
+        if numeric_score is not None and numeric_score < lower:
+            return {
+                'decision': 'reject',
+                'decision_source': 'automation_rules',
+                'decision_mode': 'conditional',
+                'rationale': f'score {numeric_score} < {lower}',
+                'panel': panel,
+            }
+
+        recommended = panel.get('weighted_decision') or panel.get('majority_vote')
+        if recommended:
+            return {
+                'decision': recommended,
+                'decision_source': 'interviewer_feedback',
+                'decision_mode': 'auto',
+                'rationale': 'derived from panel feedback aggregation',
+                'panel': panel,
+            }
+        return {
+            'decision': 'manual_review',
+            'decision_source': 'manual',
+            'decision_mode': 'manual',
+            'rationale': 'insufficient signals; manual review required',
+            'panel': panel,
+        }
 
 
 class InterviewReviewTaskService:
@@ -735,54 +904,3 @@ class InterviewReviewTaskService:
         if not task:
             raise ValueError('Interview review task not found for assignment.')
         return task
-
-        score = payload.get('score')
-        if score is None:
-            score = interview.human_score if interview.human_score is not None else interview.overall_score
-        try:
-            numeric_score = float(score) if score is not None else None
-        except Exception:
-            numeric_score = None
-
-        panel = InterviewDecisionService.multi_interviewer_recommendation(interview=interview)
-        if payload.get('hiring_manager_override'):
-            return {
-                'decision': payload.get('hiring_manager_override'),
-                'decision_source': 'manual',
-                'decision_mode': 'manual',
-                'rationale': 'hiring manager override',
-                'panel': panel,
-            }
-        if numeric_score is not None and numeric_score > upper:
-            return {
-                'decision': 'next_round',
-                'decision_source': 'automation_rules',
-                'decision_mode': 'conditional',
-                'rationale': f'score {numeric_score} > {upper}',
-                'panel': panel,
-            }
-        if numeric_score is not None and numeric_score < lower:
-            return {
-                'decision': 'reject',
-                'decision_source': 'automation_rules',
-                'decision_mode': 'conditional',
-                'rationale': f'score {numeric_score} < {lower}',
-                'panel': panel,
-            }
-
-        recommended = panel.get('weighted_decision') or panel.get('majority_vote')
-        if recommended:
-            return {
-                'decision': recommended,
-                'decision_source': 'interviewer_feedback',
-                'decision_mode': 'auto',
-                'rationale': 'derived from panel feedback aggregation',
-                'panel': panel,
-            }
-        return {
-            'decision': 'manual_review',
-            'decision_source': 'manual',
-            'decision_mode': 'manual',
-            'rationale': 'insufficient signals; manual review required',
-            'panel': panel,
-        }

@@ -7,18 +7,30 @@ class CandidatePipelineStatus(models.Model):
     tenant_id = models.UUIDField(db_index=True)
     candidate_id = models.UUIDField(db_index=True)
     status = models.CharField(
-        max_length=20,
+        max_length=30,
         choices=[
             ('new_lead','New Lead'),
-            ('nurturing','Nurturing'),
-            ('in_process','In Process'),
-            ('ready_to_submit', 'Ready to Submit'),
+            ('contacted','Contacted'),
+            ('interested', 'Interested'),
+            ('follow_up', 'Follow-up'),
+            ('qualified', 'Qualified'),
+            ('ready_for_job', 'Ready for Job'),
             ('submitted', 'Submitted'),
-            ('offer_stage','Offer Stage'),
-            ('placed','Placed'),
-            ('lost','Lost'),
+            ('future_talent', 'Future Talent'),
+            ('not_interested', 'Not Interested'),
+            ('archive', 'Archive'),
         ],
         default='new_lead'
+    )
+    intent = models.CharField(
+        max_length=50,
+        choices=[
+            ('specific_job', 'For Specific Job'),
+            ('future_jobs', 'For Future Jobs'),
+            ('looking_for_job', 'Candidate Looking for Job'),
+            ('just_lead', 'Just Lead / Not Sure'),
+        ],
+        default='just_lead'
     )
     assigned_to = models.UUIDField(null=True, blank=True)
     next_action = models.CharField(max_length=255, blank=True)
@@ -32,6 +44,8 @@ class CandidatePipelineStatus(models.Model):
     )
     source_job_id = models.UUIDField(null=True, blank=True)
     notes = models.TextField(blank=True)
+    is_pinned = models.BooleanField(default=False)
+    tags = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_by = models.UUIDField(null=True, blank=True)

@@ -125,14 +125,21 @@ class SuggestionCategory(models.TextChoices):
     RISK_FLAG_RECOMMENDATION = 'risk_flag_recommendation', 'Risk Flag Recommendation'
     DEADLINE_RECOMMENDATION = 'deadline_recommendation', 'Deadline Recommendation'
     INSIGHT_SUMMARY = 'insight_summary', 'Insight Summary'
+    # Learning engine output categories
+    POLICY_IMPROVEMENT = 'policy_improvement', 'Policy Improvement'
+    AUTOMATION_RECOMMENDATION = 'automation_recommendation', 'Automation Recommendation'
 
 
 class SuggestionStatus(models.TextChoices):
     DRAFT = 'draft', 'Draft'
+    PENDING = 'pending', 'Pending'
     PENDING_REVIEW = 'pending_review', 'Pending Review'
     PENDING_APPROVAL = 'pending_approval', 'Pending Approval'
     APPROVED = 'approved', 'Approved'
     REJECTED = 'rejected', 'Rejected'
+    DISMISSED = 'dismissed', 'Dismissed'
+    APPLIED = 'applied', 'Applied'
+    APPLY_FAILED = 'apply_failed', 'Apply Failed'
     CONVERTED = 'converted', 'Converted'
     EXPIRED = 'expired', 'Expired'
     SUPERSEDED = 'superseded', 'Superseded'

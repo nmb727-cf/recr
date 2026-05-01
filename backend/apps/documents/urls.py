@@ -10,8 +10,10 @@ urlpatterns = [
     # Offer letters
     path('offers/', views.OfferLetterListView.as_view(), name='offer-list'),
     path('offers/<uuid:pk>/', views.OfferLetterDetailView.as_view(), name='offer-detail'),
+    path('offers/<uuid:pk>/submit-approval/', views.OfferLetterSubmitApprovalView.as_view(), name='offer-submit-approval'),
     path('offers/<uuid:pk>/send/', views.OfferLetterSendView.as_view(), name='offer-send'),
     path('offers/<uuid:pk>/approve/', views.OfferLetterApproveView.as_view(), name='offer-approve'),
+    path('offers/<uuid:pk>/negotiate/', views.OfferLetterNegotiateView.as_view(), name='offer-negotiate'),
     path('offers/<uuid:pk>/revoke/', views.OfferLetterRevokeView.as_view(), name='offer-revoke'),
 
     # Candidate offer actions

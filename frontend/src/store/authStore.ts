@@ -9,6 +9,7 @@ interface AuthState {
   refreshToken: string | null
   isAuthenticated: boolean
   isLoading: boolean
+  hasHydrated: boolean
   pendingVerificationEmail: string | null
 
   // Actions
@@ -19,6 +20,7 @@ interface AuthState {
   clearAuth: () => void
   fetchMe: () => Promise<void>
   setPendingVerificationEmail: (email: string | null) => void
+  setHasHydrated: (hydrated: boolean) => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -29,11 +31,13 @@ export const useAuthStore = create<AuthState>()(
       refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
+      hasHydrated: false,
       pendingVerificationEmail: null,
 
       setUser: (user) => set({ user }),
 
       setPendingVerificationEmail: (email) => set({ pendingVerificationEmail: email }),
+      setHasHydrated: (hydrated) => set({ hasHydrated: hydrated }),
 
       setTokens: (access, refresh) => {
         localStorage.setItem('access_token', access)
@@ -78,7 +82,8 @@ export const useAuthStore = create<AuthState>()(
 
       logout: async () => {
         try {
-          await authApi.logout()
+          const token = get().refreshToken ?? localStorage.getItem('refresh_token') ?? ''
+          if (token) await authApi.logout(token)
         } catch {
           // ignore errors — still clear local state
         }
@@ -106,6 +111,11 @@ export const useAuthStore = create<AuthState>()(
         user: state.user,
         pendingVerificationEmail: state.pendingVerificationEmail,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state.setHasHydrated(true)
+        }
+      },
     }
   )
 )

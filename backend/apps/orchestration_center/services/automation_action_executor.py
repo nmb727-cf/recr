@@ -23,6 +23,13 @@ class AutomationActionExecutor:
         'create_review_task': '_execute_create_review_task',
         'enqueue_communication': '_execute_enqueue_communication',
         'mark_flag': '_execute_mark_flag',
+        # ── Notification Orchestration actions ────────────────────────────────
+        'send_email':       '_execute_send_orchestrated_notification',
+        'send_whatsapp':    '_execute_send_orchestrated_notification',
+        'notify_user':      '_execute_send_orchestrated_notification',
+        'send_notification':'_execute_send_orchestrated_notification',
+        # ── Task Orchestration actions ─────────────────────────────────────────
+        'create_task':      '_execute_create_orchestrated_task',
     }
 
     @staticmethod
@@ -561,4 +568,149 @@ class AutomationActionExecutor:
             'status': 'stubbed_unbound',
             'reason': 'flag_owner_contract_not_available',
             'flag_key': flag_key,
+        }
+
+    # ── Notification Orchestration handler ────────────────────────────────────
+
+    @staticmethod
+    def _execute_send_orchestrated_notification(*, run, action):
+        """
+        Routes send_email / send_whatsapp / notify_user / send_notification
+        through the WorkflowNotificationOrchestrator.
+
+        Config keys (all optional):
+          notification_rule_id  — UUID of a WorkflowNotificationRule to use
+          channel               — override channel (email | whatsapp | in_app)
+          recipient_type        — override recipient type
+          notification_event    — event key for ad-hoc rules
+          recipient_email       — direct recipient email
+          recipient_phone       — direct recipient phone
+          recipient_user_id     — direct recipient user_id
+        """
+        from apps.automation_notifications.models import (
+            NotificationChannel,
+            WorkflowNotificationRule,
+        )
+        from apps.automation_notifications.services.workflow_notification_orchestrator import (
+            WorkflowNotificationOrchestrator,
+        )
+
+        config = action.action_config_json or {}
+
+        # Derive channel from action type if not explicitly set
+        channel_map = {
+            'send_email':       NotificationChannel.EMAIL,
+            'send_whatsapp':    NotificationChannel.WHATSAPP,
+            'notify_user':      NotificationChannel.IN_APP,
+            'send_notification':NotificationChannel.IN_APP,
+        }
+        channel = config.get('channel') or channel_map.get(action.action_type, NotificationChannel.IN_APP)
+
+        # Try to load an explicit rule
+        rule = None
+        rule_id = config.get('notification_rule_id')
+        if rule_id:
+            rule = WorkflowNotificationRule.objects.filter(
+                id=rule_id, tenant_id=run.tenant_id, is_deleted=False, is_active=True,
+            ).first()
+
+        # Synthesise an ad-hoc rule from config if none found
+        if rule is None:
+            rule = WorkflowNotificationRule(
+                tenant_id=run.tenant_id,
+                workflow_id=run.rule_id,
+                notification_event=config.get('notification_event', run.source_event),
+                recipient_type=config.get('recipient_type', 'workflow_owner'),
+                channel=channel,
+                fallback_channels=config.get('fallback_channels', [NotificationChannel.IN_APP]),
+                throttle_window_minutes=int(config.get('throttle_window_minutes', 0)),
+                dedupe_key_template=config.get('dedupe_key_template', ''),
+            )
+
+        # Build recipient override from explicit addresses in config
+        recipient_override = None
+        if config.get('recipient_email') or config.get('recipient_user_id'):
+            recipient_override = {
+                'user_id': config.get('recipient_user_id'),
+                'email':   config.get('recipient_email', ''),
+                'phone':   config.get('recipient_phone', ''),
+            }
+
+        result = WorkflowNotificationOrchestrator.dispatch(
+            tenant_id=run.tenant_id,
+            execution_id=run.id,
+            workflow_id=run.rule_id,
+            rule=rule,
+            context=run.trigger_payload_json or {},
+            recipient_override=recipient_override,
+        )
+        return {
+            'action_type': action.action_type,
+            'status': result.get('status', 'dispatched'),
+            'orchestrator_result': result,
+        }
+
+    # ── Task Orchestration handler ─────────────────────────────────────────────
+
+    @staticmethod
+    def _execute_create_orchestrated_task(*, run, action):
+        """
+        Routes create_task action through the WorkflowTaskOrchestrator.
+
+        Config keys:
+          task_rule_id          — UUID of an existing WorkflowTaskRule (optional)
+          task_title_template   — inline title if no rule_id given
+          task_description_template — inline description
+          assignee_type         — assigned_recruiter | hiring_manager | ...
+          assignee_field        — dot-path for dynamic_field assignee type
+          priority              — low | medium | high | urgent
+          due_in_minutes        — SLA in minutes (default 1440)
+          escalate_after_minutes— escalation threshold (default 2880)
+          depends_on_task_id    — UUID of task this one depends on
+        """
+        from apps.automation_tasks.models import WorkflowTaskRule
+        from apps.automation_tasks.services.workflow_task_orchestrator import (
+            WorkflowTaskOrchestrator,
+        )
+
+        config = action.action_config_json or {}
+
+        # Try to load an explicit rule
+        rule = None
+        rule_id = config.get('task_rule_id')
+        if rule_id:
+            rule = WorkflowTaskRule.objects.filter(
+                id=rule_id, tenant_id=run.tenant_id, is_deleted=False, is_active=True,
+            ).first()
+
+        # Synthesise an ad-hoc rule from config if none found
+        if rule is None:
+            rule = WorkflowTaskRule(
+                tenant_id=run.tenant_id,
+                workflow_id=run.rule_id,
+                task_title_template=config.get('task_title_template', 'Workflow task'),
+                task_description_template=config.get('task_description_template', ''),
+                assignee_type=config.get('assignee_type', 'workflow_owner'),
+                assignee_field=config.get('assignee_field', ''),
+                priority=config.get('priority', 'medium'),
+                due_in_minutes=int(config.get('due_in_minutes', 1440)),
+                escalate_after_minutes=int(config.get('escalate_after_minutes', 2880)),
+            )
+
+        task = WorkflowTaskOrchestrator.create_task_from_workflow(
+            tenant_id=run.tenant_id,
+            workflow_id=run.rule_id,
+            execution_id=run.id,
+            rule=rule,
+            context=run.trigger_payload_json or {},
+            depends_on_task_id=config.get('depends_on_task_id'),
+        )
+
+        return {
+            'action_type': action.action_type,
+            'status': 'task_created',
+            'task_id': str(task.id),
+            'task_title': task.task_title,
+            'assignee_user_id': str(task.assignee_user_id) if task.assignee_user_id else None,
+            'due_at': task.due_at.isoformat() if task.due_at else None,
         }

@@ -3,6 +3,10 @@ from decimal import Decimal
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
+from apps.candidates.models import Candidate
+from apps.communications.email_dispatch.types import EmailSendRequest
+from apps.communications.models import EmailTemplateDefinition
+from apps.communications.services import CommunicationDispatchService
 from apps.orchestration_center.constants.execution_statuses import (
     ApprovalStatus,
     ConfidenceBand,
@@ -10,19 +14,21 @@ from apps.orchestration_center.constants.execution_statuses import (
     SuggestionConversionStatus,
     SuggestionStatus,
 )
-from apps.orchestration_center.models import (
-    AIExecutionRequest,
-    AISuggestion,
-    AISuggestionConversion,
-    ApprovalQueueItem,
-)
+from apps.orchestration_center.models import AIExecutionRequest, AISuggestion, AISuggestionConversion, ApprovalQueueItem
 from apps.orchestration_center.services.approval_service import ApprovalService
 from apps.orchestration_center.services.audit_service import AuditService
+from apps.pipeline.models import Application
+from apps.pipeline.services import PipelineDeadlineService
+from shared.owner_contracts import OwnerActionContext, OwnerContractError
 
 
 class SuggestionService:
+    GOVERNABLE_PENDING_STATUSES = {SuggestionStatus.PENDING}
     TERMINAL_STATUSES = {
         SuggestionStatus.REJECTED,
+        SuggestionStatus.DISMISSED,
+        SuggestionStatus.APPLIED,
+        SuggestionStatus.APPLY_FAILED,
         SuggestionStatus.CONVERTED,
         SuggestionStatus.EXPIRED,
         SuggestionStatus.SUPERSEDED,
@@ -33,6 +39,18 @@ class SuggestionService:
         ('communications', 'email_draft'): 'communication_draft',
         ('communications', 'followup_recommendation'): 'followup_recommendation',
     }
+
+    @staticmethod
+    def _schedule_automation_intelligence_evaluation(*, suggestion_id):
+        def _dispatch():
+            from apps.orchestration_center.tasks.automation_intelligence_tasks import evaluate_suggestion_policy_task
+
+            try:
+                evaluate_suggestion_policy_task.delay(str(suggestion_id))
+            except Exception:
+                evaluate_suggestion_policy_task(str(suggestion_id))
+
+        transaction.on_commit(_dispatch)
 
     @staticmethod
     def _derive_confidence_band(confidence_score):
@@ -73,6 +91,179 @@ class SuggestionService:
         return None
 
     @staticmethod
+    def _base_requested_payload(*, suggestion, payload):
+        return {
+            'suggestion_id': str(suggestion.id),
+            'category': suggestion.category,
+            'status': suggestion.status,
+            'owner_module': suggestion.owner_module,
+            'proposed_action_family': suggestion.proposed_action_family,
+            'source_entity_type': suggestion.source_entity_type,
+            'source_entity_id': suggestion.source_entity_id,
+            'title': suggestion.title,
+            'summary': suggestion.summary,
+            'payload': SuggestionService._sanitize_json(payload),
+        }
+
+    @staticmethod
+    def _build_owner_context(*, suggestion, user_id, action_payload):
+        return OwnerActionContext(
+            tenant_id=suggestion.tenant_id,
+            actor_id=user_id,
+            external_reference=f'ai-suggestion:{suggestion.id}:apply',
+            audit_metadata={
+                'suggestion_id': str(suggestion.id),
+                'source_module': suggestion.source_module,
+                'source_entity_type': suggestion.source_entity_type,
+                'source_entity_id': suggestion.source_entity_id,
+                'owner_module': suggestion.owner_module,
+                'proposed_action_family': suggestion.proposed_action_family,
+                'applied_payload': SuggestionService._sanitize_json(action_payload),
+            },
+        )
+
+    @staticmethod
+    def _resolve_candidate_email(*, suggestion, payload):
+        direct = []
+        for key in ('recipient_email', 'email'):
+            value = payload.get(key)
+            if isinstance(value, str) and value.strip():
+                direct.append(value.strip())
+        for key in ('recipient_emails', 'emails'):
+            values = payload.get(key)
+            if isinstance(values, list):
+                direct.extend(str(item).strip() for item in values if str(item).strip())
+        if direct:
+            return sorted(set(direct))
+
+        entity_type = str(suggestion.source_entity_type or '').lower()
+        entity_id = suggestion.source_entity_id
+        if entity_type == 'candidate':
+            candidate = Candidate.objects.filter(id=entity_id, tenant_id=suggestion.tenant_id).only('email').first()
+            if candidate and candidate.email:
+                return [candidate.email]
+        if entity_type == 'application':
+            application = Application.objects.filter(id=entity_id, tenant_id=suggestion.tenant_id).only('candidate_id').first()
+            if application:
+                candidate = Candidate.objects.filter(id=application.candidate_id, tenant_id=suggestion.tenant_id).only('email').first()
+                if candidate and candidate.email:
+                    return [candidate.email]
+        raise OwnerContractError.validation('Suggestion apply contract could not resolve a recipient email.')
+
+    @staticmethod
+    def _resolve_email_template(*, tenant_id, template_key):
+        if not template_key:
+            return None
+        return (
+            EmailTemplateDefinition.objects.filter(
+                slug=template_key,
+                tenant_id__in=[tenant_id, None],
+                is_active=True,
+            )
+            .order_by('-tenant_id', '-version')
+            .first()
+        )
+
+    @staticmethod
+    def _apply_enqueue_communication(*, suggestion, user_id, payload):
+        recipients = SuggestionService._resolve_candidate_email(suggestion=suggestion, payload=payload)
+        template = SuggestionService._resolve_email_template(
+            tenant_id=suggestion.tenant_id,
+            template_key=payload.get('template_key') or payload.get('template_slug') or '',
+        )
+        subject = str(payload.get('subject') or '').strip()
+        body = str(payload.get('body') or payload.get('body_text') or '').strip()
+        body_html = str(payload.get('body_html') or '').strip()
+        if not template and not (subject or body or body_html):
+            raise OwnerContractError.validation('Suggestion apply contract requires a template or explicit email content.')
+
+        request = EmailSendRequest(
+            tenant_id=str(suggestion.tenant_id),
+            actor_user_id=str(user_id) if user_id else None,
+            email_type='business',
+            message_purpose=str(payload.get('message_purpose') or 'suggestion_apply'),
+            recipients=recipients,
+            related_object_type=suggestion.source_entity_type,
+            related_object_id=str(suggestion.source_entity_id),
+            workflow_context_type='ai_suggestion',
+            workflow_context_id=str(suggestion.id),
+            subject=subject,
+            body_html=body_html,
+            body_text=body,
+            template_id=str(template.id) if template else None,
+            preferred_sender_account_id=payload.get('preferred_sender_account_id'),
+            variables=SuggestionService._sanitize_json(payload.get('variables', {})),
+            allow_fallback=True,
+            track_delivery=True,
+            cc_emails=[str(item) for item in payload.get('cc_emails', []) if str(item).strip()],
+            bcc_emails=[str(item) for item in payload.get('bcc_emails', []) if str(item).strip()],
+            reply_to_email=str(payload.get('reply_to_email') or ''),
+            trigger_source='ai_suggestion',
+            triggered_by_event_id=str(suggestion.source_event or ''),
+            metadata={
+                'suggestion_id': str(suggestion.id),
+                'template_key': payload.get('template_key') or payload.get('template_slug') or '',
+            },
+        )
+        context = SuggestionService._build_owner_context(suggestion=suggestion, user_id=user_id, action_payload=payload)
+        return CommunicationDispatchService.enqueue_email_from_orchestration(
+            context=context,
+            request=request,
+            dedupe_key=f'ai-suggestion:{suggestion.id}:apply:enqueue_communication',
+        )
+
+    @staticmethod
+    def _apply_create_deadline(*, suggestion, user_id, payload):
+        context = SuggestionService._build_owner_context(suggestion=suggestion, user_id=user_id, action_payload=payload)
+        return PipelineDeadlineService.create_from_orchestration(
+            context=context,
+            entity_type=str(payload.get('entity_type') or suggestion.source_entity_type),
+            entity_id=payload.get('entity_id') or suggestion.source_entity_id,
+            action_required=str(payload.get('action_required') or payload.get('deadline_type') or suggestion.title or 'followup'),
+            due_in_hours=int(payload.get('due_in_hours', 24)),
+            assigned_to=payload.get('assigned_to'),
+            escalate_to=payload.get('escalate_to'),
+            deadline_type=str(payload.get('deadline_type') or 'followup'),
+            owner_role=str(payload.get('owner_role') or 'recruiter'),
+        )
+
+    @staticmethod
+    def _execute_apply(*, suggestion, user_id, payload):
+        owner_module = str(suggestion.owner_module or '').lower()
+        action_family = str(suggestion.proposed_action_family or '').lower()
+        if owner_module == 'communications' and action_family == 'enqueue_communication':
+            return SuggestionService._apply_enqueue_communication(suggestion=suggestion, user_id=user_id, payload=payload)
+        if owner_module == 'pipeline' and action_family == 'create_deadline':
+            return SuggestionService._apply_create_deadline(suggestion=suggestion, user_id=user_id, payload=payload)
+        raise OwnerContractError.unsupported(
+            f'No owner-module apply contract exists for {suggestion.owner_module or "unknown"}:{suggestion.proposed_action_family or "unknown"}.'
+        )
+
+    @staticmethod
+    def _create_apply_conversion(*, suggestion, user_id, payload, idempotency_key=''):
+        effective_idempotency_key = idempotency_key or f'ai-suggestion:{suggestion.id}:apply'
+        existing = AISuggestionConversion.objects.filter(
+            tenant_id=suggestion.tenant_id,
+            idempotency_key=effective_idempotency_key,
+        ).first()
+        if existing:
+            return existing, False
+        conversion = AISuggestionConversion.objects.create(
+            tenant_id=suggestion.tenant_id,
+            created_by=user_id,
+            suggestion=suggestion,
+            conversion_type='apply',
+            idempotency_key=effective_idempotency_key,
+            requested_by_id=user_id,
+            requested_action_payload_json=SuggestionService._base_requested_payload(
+                suggestion=suggestion,
+                payload=payload,
+            ),
+            retry_safe=True,
+        )
+        return conversion, True
+
+    @staticmethod
     @transaction.atomic
     def create_suggestion(
         *,
@@ -104,11 +295,7 @@ class SuggestionService:
             'confidence_band',
             SuggestionService._derive_confidence_band(suggestion_data.get('confidence_score')),
         )
-        requires_approval = suggestion_data.get('requires_approval', False)
-        suggestion_data['status'] = suggestion_data.get(
-            'status',
-            SuggestionStatus.PENDING_APPROVAL if requires_approval else SuggestionStatus.PENDING_REVIEW,
-        )
+        suggestion_data['status'] = suggestion_data.get('status', SuggestionStatus.PENDING)
         suggestion_data['payload_json'] = SuggestionService._sanitize_json(suggestion_data.get('payload_json', {}))
         suggestion_data['rationale_json'] = SuggestionService._sanitize_json(suggestion_data.get('rationale_json', {}))
         suggestion_data['audit_metadata_json'] = SuggestionService._sanitize_json(suggestion_data.get('audit_metadata_json', {}))
@@ -166,6 +353,7 @@ class SuggestionService:
                 },
                 metadata_json={'source_entity_type': suggestion.source_entity_type, 'source_entity_id': suggestion.source_entity_id},
             )
+            SuggestionService._schedule_automation_intelligence_evaluation(suggestion_id=suggestion.id)
         return suggestion, created
 
     @staticmethod
@@ -357,21 +545,17 @@ class SuggestionService:
 
     @staticmethod
     def review_suggestion(*, suggestion, user_id, status_value, comment=''):
+        if status_value == SuggestionStatus.REJECTED:
+            return SuggestionService.reject_suggestion(suggestion=suggestion, user_id=user_id, comment=comment)
+        if status_value not in {SuggestionStatus.PENDING, SuggestionStatus.PENDING_REVIEW}:
+            raise ValueError('Unsupported review status.')
         if suggestion.status in SuggestionService.TERMINAL_STATUSES:
             raise ValueError('Terminal suggestions cannot be reviewed.')
-        if status_value not in {SuggestionStatus.PENDING_REVIEW, SuggestionStatus.REJECTED}:
-            raise ValueError('Unsupported review status.')
-        suggestion.status = status_value
+        suggestion.status = SuggestionStatus.PENDING
         suggestion.review_comment = comment
         suggestion.reviewed_by_id = user_id
         suggestion.reviewed_at = timezone.now()
-        update_fields = ['status', 'review_comment', 'reviewed_by_id', 'reviewed_at', 'updated_at']
-        if status_value == SuggestionStatus.REJECTED:
-            suggestion.rejection_reason = comment
-            suggestion.rejected_by_id = user_id
-            suggestion.rejected_at = suggestion.reviewed_at
-            update_fields.extend(['rejection_reason', 'rejected_by_id', 'rejected_at'])
-        suggestion.save(update_fields=update_fields)
+        suggestion.save(update_fields=['status', 'review_comment', 'reviewed_by_id', 'reviewed_at', 'updated_at'])
         AuditService.log(
             tenant_id=suggestion.tenant_id,
             actor_id=user_id,
@@ -385,15 +569,27 @@ class SuggestionService:
 
     @staticmethod
     def approve_suggestion(*, suggestion, user_id, comment=''):
-        if suggestion.status in SuggestionService.TERMINAL_STATUSES:
-            raise ValueError('Terminal suggestions cannot be approved.')
+        if suggestion.status not in SuggestionService.GOVERNABLE_PENDING_STATUSES:
+            raise ValueError('Only pending suggestions can be approved.')
         if suggestion.approval_item_id and suggestion.approval_item.status == ApprovalStatus.PENDING:
             ApprovalService.approve(suggestion.approval_item, user_id, comment, apply_now=False)
         suggestion.status = SuggestionStatus.APPROVED
         suggestion.approval_comment = comment
         suggestion.approved_by_id = user_id
         suggestion.approved_at = timezone.now()
-        suggestion.save(update_fields=['status', 'approval_comment', 'approved_by_id', 'approved_at', 'updated_at'])
+        suggestion.reviewed_by_id = user_id
+        suggestion.reviewed_at = suggestion.approved_at
+        suggestion.save(
+            update_fields=[
+                'status',
+                'approval_comment',
+                'approved_by_id',
+                'approved_at',
+                'reviewed_by_id',
+                'reviewed_at',
+                'updated_at',
+            ]
+        )
         AuditService.log(
             tenant_id=suggestion.tenant_id,
             actor_id=user_id,
@@ -406,6 +602,214 @@ class SuggestionService:
         return suggestion
 
     @staticmethod
+    def reject_suggestion(*, suggestion, user_id, comment=''):
+        if suggestion.status not in SuggestionService.GOVERNABLE_PENDING_STATUSES:
+            raise ValueError('Only pending suggestions can be rejected.')
+        if suggestion.approval_item_id and suggestion.approval_item.status == ApprovalStatus.PENDING:
+            ApprovalService.reject(suggestion.approval_item, user_id, comment)
+        now = timezone.now()
+        suggestion.status = SuggestionStatus.REJECTED
+        suggestion.review_comment = comment
+        suggestion.rejection_reason = comment
+        suggestion.reviewed_by_id = user_id
+        suggestion.reviewed_at = now
+        suggestion.rejected_by_id = user_id
+        suggestion.rejected_at = now
+        suggestion.save(
+            update_fields=[
+                'status',
+                'review_comment',
+                'rejection_reason',
+                'reviewed_by_id',
+                'reviewed_at',
+                'rejected_by_id',
+                'rejected_at',
+                'updated_at',
+            ]
+        )
+        AuditService.log(
+            tenant_id=suggestion.tenant_id,
+            actor_id=user_id,
+            action_type='ai_suggestion.rejected',
+            target_type='ai_suggestion',
+            target_id=suggestion.id,
+            after_state_json={'status': suggestion.status},
+            metadata_json={'comment': comment},
+        )
+        return suggestion
+
+    @staticmethod
+    def dismiss_suggestion(*, suggestion, user_id, comment=''):
+        if suggestion.status not in SuggestionService.GOVERNABLE_PENDING_STATUSES:
+            raise ValueError('Only pending suggestions can be dismissed.')
+        now = timezone.now()
+        suggestion.status = SuggestionStatus.DISMISSED
+        suggestion.dismissal_comment = comment
+        suggestion.dismissed_by_id = user_id
+        suggestion.dismissed_at = now
+        suggestion.save(
+            update_fields=['status', 'dismissal_comment', 'dismissed_by_id', 'dismissed_at', 'updated_at']
+        )
+        AuditService.log(
+            tenant_id=suggestion.tenant_id,
+            actor_id=user_id,
+            action_type='ai_suggestion.dismissed',
+            target_type='ai_suggestion',
+            target_id=suggestion.id,
+            after_state_json={'status': suggestion.status},
+            metadata_json={'comment': comment},
+        )
+        return suggestion
+
+    @staticmethod
+    @transaction.atomic
+    def apply_suggestion(*, suggestion, user_id, comment='', override_payload_json=None, idempotency_key=''):
+        if suggestion.status != SuggestionStatus.APPROVED:
+            raise ValueError('Suggestion must be approved before apply.')
+        if override_payload_json is not None and not suggestion.manual_override_allowed:
+            raise ValueError('Manual override is not allowed for this suggestion.')
+
+        payload = SuggestionService._sanitize_json(override_payload_json if override_payload_json is not None else suggestion.payload_json)
+        conversion, created = SuggestionService._create_apply_conversion(
+            suggestion=suggestion,
+            user_id=user_id,
+            payload=payload,
+            idempotency_key=idempotency_key,
+        )
+        if not created:
+            return conversion, conversion.status == SuggestionConversionStatus.CONVERTED
+
+        try:
+            result = SuggestionService._execute_apply(suggestion=suggestion, user_id=user_id, payload=payload)
+            now = timezone.now()
+            contract_payload = result.as_contract_payload()
+            conversion.status = SuggestionConversionStatus.CONVERTED
+            conversion.retry_safe = result.retry_safe
+            conversion.result_payload_json = contract_payload
+            conversion.save(update_fields=['status', 'retry_safe', 'result_payload_json', 'updated_at'])
+
+            suggestion.status = SuggestionStatus.APPLIED
+            suggestion.apply_comment = comment
+            suggestion.applied_by_id = user_id
+            suggestion.applied_at = now
+            suggestion.last_apply_status = result.execution_status()
+            suggestion.last_apply_error_message = ''
+            suggestion.last_apply_result_json = {
+                'owner_module': suggestion.owner_module,
+                'proposed_action_family': suggestion.proposed_action_family,
+                'target_type': result.target_type,
+                'target_id': str(result.target_id) if result.target_id else '',
+                'retry_safe': result.retry_safe,
+                'result': contract_payload,
+            }
+            suggestion.converted_artifact_type = result.target_type
+            suggestion.converted_artifact_id = result.target_id or None
+            suggestion.converted_by_id = user_id
+            suggestion.converted_at = now
+            suggestion.save(
+                update_fields=[
+                    'status',
+                    'apply_comment',
+                    'applied_by_id',
+                    'applied_at',
+                    'last_apply_status',
+                    'last_apply_error_message',
+                    'last_apply_result_json',
+                    'converted_artifact_type',
+                    'converted_artifact_id',
+                    'converted_by_id',
+                    'converted_at',
+                    'updated_at',
+                ]
+            )
+            AuditService.log(
+                tenant_id=suggestion.tenant_id,
+                actor_id=user_id,
+                action_type='ai_suggestion.applied',
+                target_type='ai_suggestion',
+                target_id=suggestion.id,
+                after_state_json={'status': suggestion.status, 'apply_status': suggestion.last_apply_status},
+                metadata_json={'conversion_id': str(conversion.id), 'comment': comment},
+            )
+            return conversion, True
+        except OwnerContractError as exc:
+            conversion.status = SuggestionConversionStatus.FAILED
+            conversion.error_category = exc.error_category
+            conversion.error_message = str(exc)
+            conversion.retry_safe = exc.retry_safe
+            conversion.save(
+                update_fields=['status', 'error_category', 'error_message', 'retry_safe', 'updated_at']
+            )
+            suggestion.apply_comment = comment
+            suggestion.status = SuggestionStatus.APPLY_FAILED
+            suggestion.last_apply_status = SuggestionStatus.APPLY_FAILED
+            suggestion.last_apply_error_message = str(exc)
+            suggestion.last_apply_result_json = {
+                'owner_module': suggestion.owner_module,
+                'proposed_action_family': suggestion.proposed_action_family,
+                'error_category': exc.error_category,
+                'retry_safe': exc.retry_safe,
+            }
+            suggestion.save(
+                update_fields=[
+                    'status',
+                    'apply_comment',
+                    'last_apply_status',
+                    'last_apply_error_message',
+                    'last_apply_result_json',
+                    'updated_at',
+                ]
+            )
+            AuditService.log(
+                tenant_id=suggestion.tenant_id,
+                actor_id=user_id,
+                action_type='ai_suggestion.apply_failed',
+                target_type='ai_suggestion',
+                target_id=suggestion.id,
+                after_state_json={'status': suggestion.status, 'apply_status': suggestion.last_apply_status},
+                metadata_json={'conversion_id': str(conversion.id), 'error_category': exc.error_category},
+            )
+            return conversion, False
+        except Exception as exc:
+            conversion.status = SuggestionConversionStatus.FAILED
+            conversion.error_category = 'owner_contract_unhandled'
+            conversion.error_message = str(exc)
+            conversion.retry_safe = True
+            conversion.save(
+                update_fields=['status', 'error_category', 'error_message', 'retry_safe', 'updated_at']
+            )
+            suggestion.status = SuggestionStatus.APPLY_FAILED
+            suggestion.apply_comment = comment
+            suggestion.last_apply_status = SuggestionStatus.APPLY_FAILED
+            suggestion.last_apply_error_message = str(exc)
+            suggestion.last_apply_result_json = {
+                'owner_module': suggestion.owner_module,
+                'proposed_action_family': suggestion.proposed_action_family,
+                'error_category': 'owner_contract_unhandled',
+                'retry_safe': True,
+            }
+            suggestion.save(
+                update_fields=[
+                    'status',
+                    'apply_comment',
+                    'last_apply_status',
+                    'last_apply_error_message',
+                    'last_apply_result_json',
+                    'updated_at',
+                ]
+            )
+            AuditService.log(
+                tenant_id=suggestion.tenant_id,
+                actor_id=user_id,
+                action_type='ai_suggestion.apply_failed',
+                target_type='ai_suggestion',
+                target_id=suggestion.id,
+                after_state_json={'status': suggestion.status, 'apply_status': suggestion.last_apply_status},
+                metadata_json={'conversion_id': str(conversion.id), 'error_category': 'owner_contract_unhandled'},
+            )
+            return conversion, False
+
+    @staticmethod
     @transaction.atomic
     def convert_suggestion(
         *,
@@ -415,7 +819,15 @@ class SuggestionService:
         override_payload_json=None,
         idempotency_key='',
     ):
-        if suggestion.status in {SuggestionStatus.REJECTED, SuggestionStatus.EXPIRED, SuggestionStatus.SUPERSEDED, SuggestionStatus.FAILED}:
+        if conversion_type == 'apply':
+            return SuggestionService.apply_suggestion(
+                suggestion=suggestion,
+                user_id=user_id,
+                override_payload_json=override_payload_json,
+                idempotency_key=idempotency_key,
+            )
+
+        if suggestion.status in {SuggestionStatus.REJECTED, SuggestionStatus.DISMISSED, SuggestionStatus.EXPIRED, SuggestionStatus.SUPERSEDED, SuggestionStatus.FAILED}:
             raise ValueError('Suggestion cannot be converted from its current status.')
         if suggestion.requires_approval and suggestion.status != SuggestionStatus.APPROVED:
             raise ValueError('Suggestion approval is required before conversion.')
@@ -436,17 +848,10 @@ class SuggestionService:
         if existing:
             return existing, False
 
-        requested_payload = {
-            'suggestion_id': str(suggestion.id),
-            'category': suggestion.category,
-            'owner_module': suggestion.owner_module,
-            'proposed_action_family': suggestion.proposed_action_family,
-            'source_entity_type': suggestion.source_entity_type,
-            'source_entity_id': suggestion.source_entity_id,
-            'title': suggestion.title,
-            'summary': suggestion.summary,
-            'payload': SuggestionService._sanitize_json(override_payload_json if override_payload_json is not None else suggestion.payload_json),
-        }
+        requested_payload = SuggestionService._base_requested_payload(
+            suggestion=suggestion,
+            payload=override_payload_json if override_payload_json is not None else suggestion.payload_json,
+        )
         conversion = AISuggestionConversion.objects.create(
             tenant_id=suggestion.tenant_id,
             created_by=user_id,

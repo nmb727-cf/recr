@@ -3,9 +3,11 @@
 export type UserRole =
   | 'super_admin'
   | 'tenant_admin'
+  | 'hr_manager'
   | 'recruiter'
   | 'hiring_manager'
   | 'interviewer'
+  | 'viewer'
   | 'candidate'
   | 'agency_owner'
   | 'agency_admin'
@@ -22,6 +24,9 @@ export interface User {
   phone_number?: string
   avatar_url: string
   role: UserRole
+  is_super_admin?: boolean
+  is_superuser?: boolean
+  is_staff?: boolean
   is_active: boolean
   email_verified: boolean
   mfa_enabled: boolean
@@ -579,7 +584,8 @@ export interface ThresholdRule {
 export interface InterviewRoundConfig {
   id: string
   name: string
-  type: InterviewType
+  type: InterviewType | string
+  template_id?: string
   order: number
   evaluator_type: 'hiring_manager' | 'recruiter' | 'interviewer' | 'external_agency' | 'ai'
   threshold_score: number
@@ -608,7 +614,12 @@ export interface InterviewPackageBinding {
   package_id: string
   package_title: string
   rounds_summary: InterviewRoundConfig[]
+  effective_rounds: InterviewRoundConfig[]
+  rounds_override: InterviewRoundConfig[]
   automation_enabled: boolean
+  auto_pass_enabled: boolean
+  auto_reject_enabled: boolean
+  manual_review_required: boolean
   created_at: string
   updated_at: string
 }

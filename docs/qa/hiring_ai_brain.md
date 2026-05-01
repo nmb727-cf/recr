@@ -1,57 +1,38 @@
 # QA Document: Hiring AI Brain
 
-## 1. Feature Overview
-The Hiring AI Brain is the high-level intelligence orchestration layer that sits above all existing recruitment engines (Job Automation, Interview Automation, Pipeline Decision, SLA, etc.). It synthesizes multiple data signals into a unified health index, risk assessment, and set of actionable recommendations.
+## Overview
+Hiring AI Brain provides a top-layer intelligence dashboard (`/hiring-ai`) orchestrating job, candidate, recruiter, and agency intelligence to provide actionable insights, mitigate risks, and recommend smart actions.
 
-## 2. Data Inputs Used
-- **Pipeline Data**: Candidate counts and stage distribution.
-- **Velocity**: Rate of movement through the hiring funnel.
-- **SLA Metrics**: Real-time tracking of overdue actions and impending breaches.
-- **Interview Signal**: Feedbacks and conversion rates per round.
-- **Team Stats**: Recruiter workload and historical performance scores.
-- **Agency Signal**: Historical submission quality and conversion from assigned agencies.
+## Key Features
+1. **Top-Level Dashboard**: `/hiring-ai` provides a bird's-eye view of active hiring metrics.
+2. **Risk Detection**: Automated detection of bottlenecks and stalled candidates in the pipeline.
+3. **Opportunities**: Identification of strategic improvements (e.g., engaging more agencies).
+4. **Smart Actions**: AI-driven recommendations prioritized by impact.
+5. **Job Orchestration**: Job-specific intelligence for stuck requisitions.
 
-## 3. Scoring / Recommendation Logic
-- **Hiring Health Score (0-100)**: 
-    - 30% Pipeline Fill (Current vs Target Headcount x 10).
-    - 30% Conversion Velocity (Success rate of moving to Interview or beyond).
-    - 20% SLA Health (Penalty for overdue actions).
-    - 20% Activity Multiplier (Bonus for recent candidate movement).
-- **Health Labels**:
-    - **Healthy (70-100)**: Process moving optimally.
-    - **Watch (40-69)**: Slow velocity or high volume of stalled leads.
-    - **At Risk (< 40)**: Critical shortage of candidates or significant SLA breaches.
+## Test Scenarios
 
-## 4. Intelligence Blocks
-- **Hiring Health Dashboard**: Unified index showing the current state of the job.
-- **Risk Alerts**: Specific operational risks (e.g., "Insufficient candidate volume").
-- **Next Best Actions**: Prioritized tasks (e.g., "Review 5 new applications", "Schedule 3 interviews").
-- **Smart Suggestions**: Recommends the best internal recruiter or external agency for the job based on historical performance.
+### 1. View Dashboard
+- **Scenario**: Navigate to `/hiring-ai` as a Hiring Manager or Admin.
+- **Expected Result**: Dashboard renders successfully with 4 key metric cards: Actionable Insights, Critical Risks, Opportunities, and System Health Score. Smart Action Center, Active Risks, Opportunities, and Job Orchestration sections should populate accurately based on current tenant data.
 
-## 5. Behavior
-- **Job Command Center**: Blocks appear at the top of the Overview tab for immediate scanning.
-- **Pipeline Action Center**: Brain dashboard is accessible via a high-visibility toggle in the header.
-- **Real-time Synthesis**: Intelligence refreshes whenever job-level or application-level data is updated.
+### 2. Candidate Bottleneck Risk
+- **Scenario**: Have 6+ candidates stuck in 'applied', 'screening', or 'interview' statuses without movement for 10+ days.
+- **Expected Result**: "Active Risks" section displays "Candidate Bottleneck Detected" with high severity. "Smart Action Center" suggests clearing the pipeline.
 
-## 6. Edge Cases
-- **No Data**: Jobs without applications show a baseline score of 50 ("Watch") with recommendations to increase sourcing.
-- **Headcount Fulfillment**: Health score increases as joined count approaches target headcount.
-- **Overloaded Recruiter**: Recommendations logic will bypass overloaded recruiters even if they have high raw scores.
+### 3. Agency Network Opportunity
+- **Scenario**: Active job count > 5, but connected active agencies < 2.
+- **Expected Result**: "Opportunities" section displays "Expand Agency Network" highlighting the potential to reduce time-to-fill by ~15%.
 
-## 7. Test Scenarios
-- **Scenario 1: Health Score Sensitivity**
-    - Action: Move multiple candidates to "Rejected" in early stages.
-    - Expected: Health Index decreases due to lower conversion velocity.
-- **Scenario 2: Risk Trigger (Stalled)**
-    - Setup: Leave 5 candidates in "Screening" for > 4 days.
-    - Expected: "Risk Detection" block flags "Stalled Pipeline".
-- **Scenario 3: Recommendation Quality**
-    - Setup: Recruiter A has 100% hire rate on 1 candidate. Recruiter B has 80% hire rate on 50 candidates.
-    - Expected: Recruiter B is recommended due to higher statistical confidence and proven capacity.
-- **Scenario 4: Pipeline Integration**
-    - Action: Toggle "Hiring Brain" in Pipeline Action Center.
-    - Expected: Dashboard slides down, displaying the same intelligence as the Job Command Center.
+### 4. Job Sourcing Recommendation
+- **Scenario**: A job has been open for 7+ days with fewer than 3 applications.
+- **Expected Result**: "Job Orchestration" lists the specific job title with suggestions to boost sourcing efforts or assign to a top-performing agency.
 
-## 8. Graceful Degradation
-- If the backend service fails, the UI hides the brain dashboard and falls back to standard metric strips.
-- If specific data (e.g., Agency performance) is missing, that factor is omitted from the health calculation without breaking the overall index.
+### 5. RBAC Enforcement
+- **Scenario**: Login as a `candidate`. Navigate to `/hiring-ai`.
+- **Expected Result**: System redirects to the Unauthorized view (or returns 403 API response), preventing access to the intelligence dashboard.
+
+## Technical Implementation Details
+- **Frontend**: `HiringAIBrainDashboard.tsx` fetches data from `/analytics/hiring-ai-brain/` and visualizes using responsive Ant Design components.
+- **Backend**: `HiringAIBrainService` handles all aggregation logic.
+- **Menu**: Accessible under Intelligence / Hiring AI Brain.

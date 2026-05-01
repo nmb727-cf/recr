@@ -1,8 +1,12 @@
+import logging
+
 from django.db import DatabaseError, ProgrammingError
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from rest_framework import serializers
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.communications.email_dispatch.dispatch import EmailDispatchService
@@ -13,6 +17,8 @@ from apps.communications.email_templates.services import EmailTemplateService
 from apps.communications.models import EmailMessage, EmailTemplateDefinition
 from apps.communications.permissions import can_send_email
 from apps.core.responses import error_response, success_response
+
+logger = logging.getLogger(__name__)
 
 
 def _build_template_context(
@@ -351,3 +357,177 @@ class EmailMessageDetailView(APIView):
         except (ProgrammingError, DatabaseError):
             return email_not_ready_response(empty_data={'email_message': None})
         return success_response(data={'email_message': EmailMessageSerializer(message).data})
+
+
+# ---------------------------------------------------------------------------
+# Automation delivery observability views
+# ---------------------------------------------------------------------------
+
+class _EmailDeliverySerializer(serializers.Serializer):
+    id                  = serializers.UUIDField()
+    tenant_id           = serializers.UUIDField()
+    notification_id     = serializers.UUIDField(allow_null=True)
+    recipient_email     = serializers.EmailField()
+    subject             = serializers.CharField()
+    template_used       = serializers.CharField()
+    provider            = serializers.CharField()
+    status              = serializers.CharField()
+    priority            = serializers.CharField()
+    error_message       = serializers.CharField()
+    retry_count         = serializers.IntegerField()
+    max_retries         = serializers.IntegerField()
+    provider_message_id = serializers.CharField()
+    sent_at             = serializers.DateTimeField(allow_null=True)
+    delivered_at        = serializers.DateTimeField(allow_null=True)
+    next_retry_at       = serializers.DateTimeField(allow_null=True)
+    created_at          = serializers.DateTimeField()
+    updated_at          = serializers.DateTimeField()
+
+
+def _require_admin(request) -> bool:
+    return (
+        request.user
+        and request.user.is_authenticated
+        and getattr(request.user, 'role', '') in ('super_admin', 'tenant_admin')
+    )
+
+
+class EmailDeliveryListView(APIView):
+    """
+    GET /api/v1/communications/email/deliveries/
+
+    List automation EmailDelivery records for the current tenant.
+    Supports query filters: status, priority, notification_id.
+    Capped at 100 records; ordered newest first.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not _require_admin(request):
+            return Response({'detail': 'Admin access required.'}, status=403)
+
+        from apps.communications.email_delivery_models import EmailDelivery
+
+        tenant_id = getattr(request.user, 'tenant_id', None)
+        qs = EmailDelivery.objects.filter(tenant_id=tenant_id).order_by('-created_at')
+
+        # Optional filters
+        filter_status   = request.query_params.get('status')
+        filter_priority = request.query_params.get('priority')
+        filter_notif    = request.query_params.get('notification_id')
+
+        if filter_status:
+            qs = qs.filter(status=filter_status)
+        if filter_priority:
+            qs = qs.filter(priority=filter_priority)
+        if filter_notif:
+            qs = qs.filter(notification_id=filter_notif)
+
+        qs = qs[:100]
+        data = _EmailDeliverySerializer(qs, many=True).data
+        return Response({'count': len(data), 'results': data})
+
+
+class EmailDeliveryDetailView(APIView):
+    """
+    GET /api/v1/communications/email/deliveries/<delivery_id>/
+
+    Retrieve a single EmailDelivery record.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, delivery_id):
+        if not _require_admin(request):
+            return Response({'detail': 'Admin access required.'}, status=403)
+
+        from apps.communications.email_delivery_models import EmailDelivery
+
+        tenant_id = getattr(request.user, 'tenant_id', None)
+        try:
+            delivery = EmailDelivery.objects.get(id=delivery_id, tenant_id=tenant_id)
+        except EmailDelivery.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=404)
+        return Response(_EmailDeliverySerializer(delivery).data)
+
+
+class EmailDeliveryRetryView(APIView):
+    """
+    POST /api/v1/communications/email/deliveries/<delivery_id>/retry/
+
+    Manually re-queue a failed or permanently-failed delivery.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, delivery_id):
+        if not _require_admin(request):
+            return Response({'detail': 'Admin access required.'}, status=403)
+
+        from apps.communications.email_delivery_models import EmailDelivery, EmailDeliveryStatus
+        from apps.communications.email_delivery_service import EmailDeliveryService
+
+        tenant_id = getattr(request.user, 'tenant_id', None)
+        try:
+            delivery = EmailDelivery.objects.get(id=delivery_id, tenant_id=tenant_id)
+        except EmailDelivery.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=404)
+
+        if delivery.status not in (EmailDeliveryStatus.FAILED, EmailDeliveryStatus.BOUNCED):
+            return Response(
+                {'detail': f'Delivery cannot be retried from status "{delivery.status}".'},
+                status=400,
+            )
+
+        # Reset retry count to allow re-queueing
+        delivery.retry_count = 0
+        delivery.status = EmailDeliveryStatus.PENDING
+        delivery.error_message = ''
+        delivery.save(update_fields=['retry_count', 'status', 'error_message', 'updated_at'])
+        EmailDeliveryService._queue_delivery(delivery)
+
+        return Response({'detail': 'Delivery re-queued.', 'delivery_id': str(delivery.id)}, status=202)
+
+
+class EmailHealthView(APIView):
+    """
+    GET /api/v1/communications/email/health/
+
+    Run health checks against all configured providers for this tenant.
+    Returns per-provider status: healthy | degraded | unhealthy | unknown.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not _require_admin(request):
+            return Response({'detail': 'Admin access required.'}, status=403)
+
+        from apps.communications.email_delivery_models import TenantEmailConfig
+        from apps.communications.email_dispatch.providers import get_provider, SMTPAutomationProvider
+
+        tenant_id = getattr(request.user, 'tenant_id', None)
+        config = TenantEmailConfig.get_for_tenant(str(tenant_id)) if tenant_id else None
+
+        # Active tenant provider
+        provider = get_provider(config)
+        tenant_result = provider.health_check()
+
+        # System default (always checked as fallback)
+        system_provider = SMTPAutomationProvider(config=None)
+        system_result = system_provider.health_check()
+
+        overall = 'healthy'
+        if tenant_result['status'] == 'unhealthy' and system_result['status'] == 'unhealthy':
+            overall = 'unhealthy'
+        elif tenant_result['status'] in ('unhealthy', 'degraded') or system_result['status'] in ('unhealthy', 'degraded'):
+            overall = 'degraded'
+
+        return Response({
+            'overall': overall,
+            'tenant_config': {
+                'provider':  config.provider if config else 'system',
+                'is_active': config.is_active if config else False,
+            } if config else None,
+            'checks': {
+                'tenant_provider': tenant_result,
+                'system_fallback': system_result,
+            },
+        })

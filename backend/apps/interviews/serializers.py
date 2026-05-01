@@ -302,15 +302,20 @@ class InterviewPackageSerializer(serializers.ModelSerializer):
 class InterviewPackageBindingSerializer(serializers.ModelSerializer):
     package_title = serializers.CharField(source='package.title', read_only=True)
     rounds_summary = serializers.JSONField(source='package.rounds', read_only=True)
+    effective_rounds = serializers.SerializerMethodField()
 
     class Meta:
         model = InterviewPackageBinding
         fields = [
             'id', 'tenant_id', 'job_id', 'package', 'package_title',
-            'rounds_summary', 'automation_enabled', 'metadata',
-            'created_at', 'updated_at'
+            'rounds_summary', 'effective_rounds', 'rounds_override',
+            'automation_enabled', 'auto_pass_enabled', 'auto_reject_enabled',
+            'manual_review_required', 'metadata', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'tenant_id', 'created_at', 'updated_at']
+
+    def get_effective_rounds(self, obj):
+        return obj.get_rounds()
 
 
 class InterviewCalendarConnectionSerializer(serializers.ModelSerializer):

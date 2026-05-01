@@ -17,6 +17,9 @@ import { analyticsApi } from '@/api/analytics'
 import { candidateApi } from '@/api/candidate'
 import { interviewsApi } from '@/api/interviews'
 import { requisitionsApi } from '@/api/jobs'
+import { hdcApi } from '@/api/hdc'
+import { workflowHumanTasksApi } from '@/api/workflowHumanTasks'
+import { workflowSlaApi } from '@/api/workflowSla'
 import { useAuthStore } from '@/store/authStore'
 import http from '@/utils/http'
 import type { ApiResponse, JobRequisition, CandidateApplication } from '@/types'
@@ -108,6 +111,36 @@ function CompanyDashboard() {
     () => interviewsApi.list({ status: 'pending_feedback' })
   )
 
+  const { data: interviewsScheduledData } = useApiQuery<any>(
+    ['interviews', 'scheduled'],
+    () => interviewsApi.list({ status: 'scheduled' })
+  )
+
+  const { data: joiningCasesData } = useApiQuery<any>(
+    ['hdc', 'joining-cases'],
+    () => hdcApi.listJoiningCases()
+  )
+
+  const { data: workflowTasksData } = useApiQuery<any>(
+    ['workflow-human-tasks', 'dashboard-pending'],
+    () => workflowHumanTasksApi.listHumanTasks({ status: 'pending' })
+  )
+
+  const { data: workflowSlaData } = useApiQuery<any>(
+    ['workflow-sla', 'dashboard-alerts'],
+    () => workflowSlaApi.listSla()
+  )
+
+  const { data: recruitmentAnalytics } = useApiQuery<any>(
+    ['analytics', 'recruitment-metrics'],
+    () => analyticsApi.recruitment()
+  )
+
+  const { data: interviewAnalytics } = useApiQuery<any>(
+    ['analytics', 'interview-metrics'],
+    () => analyticsApi.interviews()
+  )
+
   const { data: reqData, isLoading: reqLoading } = useApiQuery<{ requisitions: JobRequisition[] }>(
     ['jobs', 'recent-active'],
     () => requisitionsApi.list({ status: 'active' })
@@ -149,6 +182,22 @@ function CompanyDashboard() {
   const staleCount = pipelineData?.stale_applications || 0
   const pendingFeedbackCount = (pendingInterviews as any)?.interviews?.length || 0
   const offersPendingCount = analytics?.applications?.by_status?.find(s => s.status === 'offer')?.count || 0
+  const scheduledInterviews = ((interviewsScheduledData as any)?.interviews || []) as Array<any>
+  const interviewsTodayCount = scheduledInterviews.filter((iv) => iv?.scheduled_at && dayjs(iv.scheduled_at).isSame(dayjs(), 'day')).length
+  const joiningCases = ((joiningCasesData as any)?.joining_cases || (joiningCasesData as any)?.results || []) as Array<any>
+  const onboardingInProgressCount = joiningCases.filter((c) =>
+    ['pending', 'in_progress', 'documents_pending'].includes(String(c?.status || '').toLowerCase())
+  ).length
+  const pendingTasksCount = ((workflowTasksData as any) || []).length
+  const slaAlertsCount = (((workflowSlaData as any) || []) as Array<any>).filter((s) =>
+    ['warning', 'breached', 'escalated'].includes(String(s?.status || '').toLowerCase())
+  ).length
+
+  const timeToHire = Number((recruitmentAnalytics as any)?.time_to_hire_days || 0)
+  const stageDuration = Number((pipelineData as any)?.avg_stage_duration_days || 0)
+  const interviewConversion = Number((interviewAnalytics as any)?.interview_to_offer_conversion_rate || 0)
+  const offerAcceptance = Number((recruitmentAnalytics as any)?.offer_acceptance_rate || 0)
+  const onboardingCompletion = Number((recruitmentAnalytics as any)?.onboarding_completion_rate || 0)
 
   return (
     <div className="space-y-6">
@@ -239,6 +288,45 @@ function CompanyDashboard() {
                 <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No pipeline data" />
               )}
             </Card>
+
+            <Card
+              title={<span className="text-lg font-bold text-slate-900">Company Analytics</span>}
+              bordered={false}
+              className="shadow-soft-sm"
+            >
+              <Row gutter={[12, 12]}>
+                <Col xs={24} sm={12} xl={8}>
+                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                    <Text className="text-[10px] uppercase font-bold text-slate-500">Time to Hire</Text>
+                    <Title level={4} className="!m-0">{timeToHire || 0}d</Title>
+                  </div>
+                </Col>
+                <Col xs={24} sm={12} xl={8}>
+                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                    <Text className="text-[10px] uppercase font-bold text-slate-500">Stage Duration</Text>
+                    <Title level={4} className="!m-0">{stageDuration || 0}d</Title>
+                  </div>
+                </Col>
+                <Col xs={24} sm={12} xl={8}>
+                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                    <Text className="text-[10px] uppercase font-bold text-slate-500">Interview Conversion</Text>
+                    <Title level={4} className="!m-0">{interviewConversion || 0}%</Title>
+                  </div>
+                </Col>
+                <Col xs={24} sm={12} xl={8}>
+                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                    <Text className="text-[10px] uppercase font-bold text-slate-500">Offer Acceptance</Text>
+                    <Title level={4} className="!m-0">{offerAcceptance || 0}%</Title>
+                  </div>
+                </Col>
+                <Col xs={24} sm={12} xl={8}>
+                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                    <Text className="text-[10px] uppercase font-bold text-slate-500">Onboarding Completion</Text>
+                    <Title level={4} className="!m-0">{onboardingCompletion || 0}%</Title>
+                  </div>
+                </Col>
+              </Row>
+            </Card>
           </div>
         </Col>
 
@@ -246,6 +334,34 @@ function CompanyDashboard() {
         <Col xs={24} lg={8}>
           <div className="space-y-6">
             <RemindersWidget />
+            <Card
+              title={<span className="text-lg font-bold text-slate-900">Operations Snapshot</span>}
+              bordered={false}
+              className="shadow-soft-sm"
+            >
+              <div className="grid grid-cols-1 gap-2">
+                <div className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                  <Text className="text-xs font-medium text-slate-600">Interviews Today</Text>
+                  <Tag className="m-0 border-none bg-blue-100 text-blue-700 font-semibold">{interviewsTodayCount}</Tag>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                  <Text className="text-xs font-medium text-slate-600">Offers Pending</Text>
+                  <Tag className="m-0 border-none bg-indigo-100 text-indigo-700 font-semibold">{offersPendingCount}</Tag>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                  <Text className="text-xs font-medium text-slate-600">Onboarding In Progress</Text>
+                  <Tag className="m-0 border-none bg-emerald-100 text-emerald-700 font-semibold">{onboardingInProgressCount}</Tag>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                  <Text className="text-xs font-medium text-slate-600">Tasks Pending</Text>
+                  <Tag className="m-0 border-none bg-amber-100 text-amber-700 font-semibold">{pendingTasksCount}</Tag>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
+                  <Text className="text-xs font-medium text-slate-600">SLA Alerts</Text>
+                  <Tag className="m-0 border-none bg-rose-100 text-rose-700 font-semibold">{slaAlertsCount}</Tag>
+                </div>
+              </div>
+            </Card>
             <Card
               title={<span className="text-lg font-bold text-slate-900">Recent Active Jobs</span>}
               bordered={false}
@@ -466,7 +582,7 @@ export default function Dashboard() {
   const { t } = useTranslation('dashboard')
   const navigate = useNavigate()
   const user = useAuthStore((state) => state.user)
-  const isAgency = user?.role === 'agency_owner' || user?.role === 'agency_recruiter'
+  const isAgency = ['agency_owner', 'agency_admin', 'agency_recruiter'].includes(user?.role || '')
 
   // Candidates have their own dedicated portal — avoid duplicating a simplified view here
   if (user?.role === 'candidate') {

@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 import AuthLayout from '@/layouts/AuthLayout'
 import { useAuth } from '@/hooks/useAuth'
 import { useAuthStore } from '@/store/authStore'
+import { canAccessMasterAdmin, resolvePostLoginRoute } from '@/utils/authAccess'
 
 const { Title, Text } = Typography
 
@@ -22,14 +23,24 @@ export default function Login() {
   const location = useLocation()
   const setPendingVerificationEmail = useAuthStore(state => state.setPendingVerificationEmail)
 
-  const from = (location.state as { from?: string })?.from ?? '/dashboard'
+  const from = (location.state as { from?: string })?.from
 
   const handleSubmit = async (values: LoginForm) => {
     setError(null)
     try {
       await login(values.email, values.password)
-      console.log('[Login] Success — navigating to', from)
-      navigate(from, { replace: true })
+      const loggedInUser = useAuthStore.getState().user
+      const normalizedFrom =
+        from && from !== '/login' && from !== '/unauthorized' ? from : null
+      const target = normalizedFrom
+        ? normalizedFrom.startsWith('/admin')
+          ? canAccessMasterAdmin(loggedInUser)
+            ? normalizedFrom
+            : '/unauthorized'
+          : normalizedFrom
+        : resolvePostLoginRoute(loggedInUser)
+      console.log('[Login] Success — navigating to', target)
+      navigate(target, { replace: true })
     } catch (err: unknown) {
       const errData = (err as { response?: { data?: { message?: string; errors?: Record<string, any> } } })?.response?.data
       console.log('[Login] Error response:', errData)

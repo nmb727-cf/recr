@@ -18,6 +18,16 @@ from apps.communications.permissions import (
 from apps.core.responses import error_response, success_response
 
 
+def _scoped_template_queryset(user):
+    return EmailTemplateDefinition.objects.filter(
+        Q(tenant_id=user.tenant_id)
+        | Q(
+            template_scope=EmailTemplateScope.SYSTEM_DEFAULT,
+            tenant_id__isnull=True,
+        )
+    )
+
+
 class EmailTemplateListCreateView(APIView):
     permission_classes = [IsAuthenticated, can_view_email_templates]
 
@@ -113,7 +123,10 @@ class EmailTemplateDuplicateView(APIView):
         if not status_info.feature_ready:
             return email_not_ready_response(empty_data={'email_template': None})
         try:
-            template = get_object_or_404(EmailTemplateDefinition, id=pk)
+            template = get_object_or_404(
+                _scoped_template_queryset(request.user),
+                id=pk,
+            )
             duplicate = EmailTemplateService.duplicate_template(
                 source=template,
                 tenant_id=str(request.user.tenant_id),
@@ -132,7 +145,10 @@ class EmailTemplatePreviewView(APIView):
         if not status_info.feature_ready:
             return email_not_ready_response(empty_data={'preview': {'subject': '', 'body_html': '', 'body_text': ''}})
         try:
-            template = get_object_or_404(EmailTemplateDefinition, id=pk)
+            template = get_object_or_404(
+                _scoped_template_queryset(request.user),
+                id=pk,
+            )
             variables = request.data.get('variables', {})
             rendered = EmailTemplateService.render_template(template, variables)
         except (ProgrammingError, DatabaseError):

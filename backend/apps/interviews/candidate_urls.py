@@ -6,6 +6,7 @@ urlpatterns = [
     path('<uuid:pk>/instructions/', views.CandidateInterviewInstructionsView.as_view(), name='candidate-interview-instructions'),
     path('<uuid:pk>/runtime/', views.CandidateInterviewRuntimeView.as_view(), name='candidate-interview-runtime'),
     path('<uuid:pk>/status/', views.CandidateInterviewStatusView.as_view(), name='candidate-interview-status'),
+    path('results/', views.CandidateInterviewResultsView.as_view(), name='candidate-interview-results'),
     path('<uuid:pk>/security-event/', views.CandidateInterviewSecurityEventView.as_view(), name='candidate-interview-security-event'),
     path('<uuid:pk>/start/', views.CandidateInterviewStartView.as_view(), name='candidate-interview-start'),
     path('<uuid:pk>/submit-answer/', views.CandidateSubmitAnswerView.as_view(), name='candidate-submit-answer'),

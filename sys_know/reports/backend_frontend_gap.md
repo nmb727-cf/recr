@@ -2,72 +2,72 @@
 
 ## pytest
 ```
-E       RuntimeError: Database access not allowed, use the "django_db" mark, or the "db" or "transactional_db" fixtures to enable it.
+configfile: pytest.ini
+testpaths: backend
+plugins: schemathesis-4.14.0, django-4.12.0, base-url-2.1.0, hypothesis-6.151.9, playwright-0.7.2, anyio-4.13.0, cov-7.1.0
+collected 1130 items / 1 error
 
-venv/lib/python3.12/site-packages/django/db/backends/base/base.py:296: RuntimeError
------------------------------ Captured stdout call -----------------------------
-Testing Duplicate Notification Status Codes (Expected 409)...
-================================ tests coverage ================================
-_______________ coverage: platform linux, python 3.12.3-final-0 ________________
-
-Coverage HTML written to dir /home/nirav/projects/SaaS_Project/sys_know/generated/coverage/htmlcov
-Coverage XML written to file /home/nirav/projects/SaaS_Project/sys_know/generated/coverage/coverage.xml
+==================================== ERRORS ====================================
+_____ ERROR collecting backend/apps/pipeline/tests/test_stage_ownership.py _____
+ImportError while importing test module '/home/nirav/projects/SaaS_Project/backend/apps/pipeline/tests/test_stage_ownership.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+backend/apps/pipeline/tests/test_stage_ownership.py:11: in <module>
+    from apps.pipeline.views import (
+E   ImportError: cannot import name 'validate_application_move' from 'apps.pipeline.views' (/home/nirav/projects/SaaS_Project/backend/apps/pipeline/views.py)
 =========================== short test summary info ============================
-FAILED backend/apps/interviews/tests/test_candidate_runtime_engine.py::CandidateRuntimeEngineTests::test_interview_opens
-FAILED backend/apps/interviews/tests/test_candidate_runtime_engine.py::CandidateRuntimeEngineTests::test_join_works_and_status_updates
-FAILED backend/apps/interviews/tests/test_decision_engine.py::InterviewDecisionEngineTests::test_multi_interviewer_evaluation_works
-FAILED backend/apps/interviews/tests/test_security_engine.py::InterviewSecurityEngineTests::test_attempt_tracking_works
-FAILED backend/apps/interviews/tests/test_security_engine.py::InterviewSecurityEngineTests::test_expiry_works
-FAILED backend/apps/interviews/tests/test_security_engine.py::InterviewSecurityEngineTests::test_session_lock_works
-FAILED backend/apps/interviews/tests/test_security_engine.py::InterviewSecurityEngineTests::test_token_validation_works
-FAILED backend/test_duplicates.py::test_duplicate_notifications - RuntimeErro...
-=================== 8 failed, 121 passed in 91.60s (0:01:31) ===================
+ERROR backend/apps/pipeline/tests/test_stage_ownership.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+=============================== 1 error in 1.02s ===============================
 ```
 ## schema
 ```
-Warning: operationId "v1_interviews_scheduling_link_create" has collisions [('/api/v1/interviews/{id}/scheduling-link/', 'post'), ('/api/v1/interviews/scheduling-link/{token}/', 'post')]. resolving with numeral suffixes.
-Warning: operationId "v1_interviews_flows_retrieve" has collisions [('/api/v1/interviews/flows/', 'get'), ('/api/v1/interviews/flows/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_interviews_questions_bank_retrieve" has collisions [('/api/v1/interviews/questions/bank/', 'get'), ('/api/v1/interviews/questions/bank/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_interviews_packages_retrieve" has collisions [('/api/v1/interviews/packages/', 'get'), ('/api/v1/interviews/packages/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_communications_messages_threads_retrieve" has collisions [('/api/v1/communications/messages/threads/', 'get'), ('/api/v1/communications/messages/threads/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_communications_communication_templates_retrieve" has collisions [('/api/v1/communications/communication/templates/', 'get'), ('/api/v1/communications/communication/templates/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_communications_communications_email_messages_retrieve" has collisions [('/api/v1/communications/communications/email-messages/', 'get'), ('/api/v1/communications/communications/email-messages/{id}', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_documents_documents_retrieve" has collisions [('/api/v1/documents/documents/', 'get'), ('/api/v1/documents/documents/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_documents_offers_retrieve" has collisions [('/api/v1/documents/offers/', 'get'), ('/api/v1/documents/offers/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_automation_rules_retrieve" has collisions [('/api/v1/automation/rules/', 'get'), ('/api/v1/automation/rules/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_candidate_applications_retrieve" has collisions [('/api/v1/candidate/applications/', 'get'), ('/api/v1/candidate/applications/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_prequalification_forms_retrieve" has collisions [('/api/v1/prequalification/forms/', 'get'), ('/api/v1/prequalification/forms/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_intelligence_prompts_retrieve" has collisions [('/api/v1/intelligence/prompts/', 'get'), ('/api/v1/intelligence/prompts/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_intelligence_automations_retrieve" has collisions [('/api/v1/intelligence/automations/', 'get'), ('/api/v1/intelligence/automations/{id}/', 'get')]. resolving with numeral suffixes.
-Warning: operationId "v1_intelligence_approvals_retrieve" has collisions [('/api/v1/intelligence/approvals/', 'get'), ('/api/v1/intelligence/approvals/{id}/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_workflow_instances_notifications_retrieve" has collisions [('/api/v1/workflow/instances/{id}/notifications/', 'get'), ('/api/v1/workflow-instances/{id}/notifications/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_workflow_instances_recovery_retrieve" has collisions [('/api/v1/workflow/instances/{id}/recovery/', 'get'), ('/api/v1/workflow-instances/{id}/recovery/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_workflow_instances_retry_create" has collisions [('/api/v1/workflow/instances/{id}/retry/', 'post'), ('/api/v1/workflow-instances/{id}/retry/', 'post')]. resolving with numeral suffixes.
+Warning: operationId "v1_workflow_instances_scheduled_tasks_retrieve" has collisions [('/api/v1/workflow/instances/{id}/scheduled-tasks/', 'get'), ('/api/v1/workflow-instances/{id}/scheduled-tasks/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_workflow_instances_sla_retrieve" has collisions [('/api/v1/workflow/instances/{id}/sla/', 'get'), ('/api/v1/workflow-instances/{id}/sla/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_workflow_instances_stages_retrieve" has collisions [('/api/v1/workflow/instances/{id}/stages/', 'get'), ('/api/v1/workflow-instances/{id}/stages/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_workflow_instances_timeline_retrieve" has collisions [('/api/v1/workflow/instances/{id}/timeline/', 'get'), ('/api/v1/workflow-instances/{id}/timeline/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_workflow_instances_wait_states_retrieve" has collisions [('/api/v1/workflow/instances/{id}/wait-states/', 'get'), ('/api/v1/workflow-instances/{id}/wait-states/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_workflow_scheduler_tasks_retrieve" has collisions [('/api/v1/workflow-scheduler/tasks/', 'get'), ('/api/v1/workflow-scheduler/tasks/{id}/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_workflow_conditions_retrieve" has collisions [('/api/v1/workflow-conditions/', 'get'), ('/api/v1/workflow-conditions/{id}/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_workflow_condition_groups_retrieve" has collisions [('/api/v1/workflow-condition-groups/', 'get'), ('/api/v1/workflow-condition-groups/{id}/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_workflow_actions_retrieve" has collisions [('/api/v1/workflow-actions/', 'get'), ('/api/v1/workflow-actions/{id}/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_workflow_human_tasks_retrieve" has collisions [('/api/v1/workflow-human-tasks/', 'get'), ('/api/v1/workflow-human-tasks/{id}/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_workflow_versions_retrieve" has collisions [('/api/v1/workflow-versions/', 'get'), ('/api/v1/workflow-versions/{id}/', 'get')]. resolving with numeral suffixes.
+Warning: operationId "v1_workflow_templates_retrieve" has collisions [('/api/v1/workflow-templates/', 'get'), ('/api/v1/workflow-templates/{id}/', 'get')]. resolving with numeral suffixes.
 
 Schema generation summary:
-Warnings: 549 (368 unique)
-Errors:   1798 (318 unique)
+Warnings: 1530 (879 unique)
+Errors:   3620 (700 unique)
 
 ```
 ## schemathesis
 ```
-Failures:
   ❌ Server error: 8
   ❌ API accepted schema-violating request: 1
-  ❌ API rejected schema-compliant request: 10
-  ❌ Undocumented HTTP status code: 8
+  ❌ API rejected schema-compliant request: 22
+  ❌ Undocumented HTTP status code: 20
+  ❌ Unsupported methods: 2
 
 Errors:
-  🚫 Network Error: 113
+  🚫 Runtime Error: 1
 
 Warnings:
-  ⚠️ Missing authentication: 236 operations returned only 401/403 responses
-  ⚠️ Missing valid test data: 180 operations repeatedly returned 404 responses
-  ⚠️ Schema validation mismatch: 453 operations mostly rejected generated data
+  ⚠️ Missing authentication: 859 operations returned only 401/403 responses
+  ⚠️ Missing valid test data: 487 operations repeatedly returned 404 responses
+  ⚠️ Schema validation mismatch: 1292 operations mostly rejected generated data
 
 Test cases:
-  30800 generated, 19 found 27 unique failures, 1778 skipped
+  137849 generated, 33 found 53 unique failures
 
-Seed: 88076271192833566827489686104300716352
+Seed: 176149374238302745076848674645232544818
 
-=============== 27 failures, 113 errors, 3 warnings in 2962.96s ================
+================= 53 failures, 1 error, 3 warnings in 8449.79s =================
 ```
 ## vitest
 ```
@@ -95,28 +95,9 @@ SyntaxError: The requested module 'node:util' does not provide an export named '
 Running 1 test using 1 worker
 
 [1A[2K[1/1] tests/smoke.spec.ts:3:1 › app loads
-[1A[2K  1 passed (2.4s)
+[1A[2K  1 passed (2.1s)
 ```
 ## mkdocs
 ```
-[31m │  × [0mAll theme overrides will break – the theming system has been rewritten
-[31m │  × [0mNo migration path exists – existing projects cannot be upgraded
-[31m │  × [0mClosed contribution model – community members can't report bugs
-[31m │  × [0mCurrently unlicensed – unsuitable for production use
-[31m │[0m
-[31m │[0m  Our full analysis:
-[31m │[0m
-[31m │[0m  [4mhttps://squidfunk.github.io/mkdocs-material/blog/2026/02/18/mkdocs-2.0/[0m
-[0m
-INFO    -  Cleaning site directory
-INFO    -  Building documentation to directory: /home/nirav/projects/SaaS_Project/sys_know/site
-INFO    -  The following pages exist in the docs directory, but are not included in the "nav" configuration:
-  - Testing_And_Documentation_Guide.md
-  - reports/backend_frontend_gap.md
-  - reports/nightly_summary.md
-  - test_case/interviews.md
-  - ui_spec/interviews.md
-WARNING -  Doc file 'dashboard/index.md' contains a link '../generated/coverage/htmlcov/index.html', but the target 'generated/coverage/htmlcov/index.html' is not found among documentation files.
-WARNING -  Doc file 'dashboard/index.md' contains a link '../generated/openapi/schema.yaml', but the target 'generated/openapi/schema.yaml' is not found among documentation files.
-INFO    -  Documentation built in 0.17 seconds
+
 ```

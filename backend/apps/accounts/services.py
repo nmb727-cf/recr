@@ -5,6 +5,7 @@ from datetime import timedelta
 from apps.accounts.models import CustomUser
 from apps.pipeline.models import Application, ApplicationStageHistory, ActionDeadline
 from apps.jobs.models import JobRequisition
+from shared.actor_access import COMPANY_OPERATIONAL_ROLES, PLATFORM_ADMIN_ROLES
 
 class RecruiterIntelligenceService:
     @staticmethod
@@ -144,7 +145,7 @@ class RecruiterIntelligenceService:
         """
         recruiters = CustomUser.objects.filter(
             tenant_id=tenant_id,
-            role__in=['recruiter', 'hr_manager', 'tenant_admin', 'super_admin'],
+            role__in=list((COMPANY_OPERATIONAL_ROLES | PLATFORM_ADMIN_ROLES) - {'hiring_manager'}),
             is_active=True,
             is_deleted=False
         )

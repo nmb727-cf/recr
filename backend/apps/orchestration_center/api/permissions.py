@@ -10,6 +10,8 @@ PERMISSION_ROLE_MAP = {
     'prompts.approve': {'super_admin', 'tenant_admin'},
     'automations.view': {'super_admin', 'tenant_admin', 'hr_manager', 'recruiter', 'hiring_manager', 'viewer'},
     'automations.manage': {'super_admin', 'tenant_admin'},
+    'automation_intelligence.view': {'super_admin', 'tenant_admin', 'hr_manager', 'recruiter', 'hiring_manager', 'viewer'},
+    'automation_intelligence.manage': {'super_admin', 'tenant_admin'},
     'suggestions.view': {'super_admin', 'tenant_admin', 'hr_manager', 'recruiter', 'hiring_manager', 'viewer'},
     'suggestions.manage': {'super_admin', 'tenant_admin', 'hr_manager', 'recruiter', 'hiring_manager'},
     'executions.view': {'super_admin', 'tenant_admin', 'hr_manager', 'recruiter', 'hiring_manager', 'viewer'},
@@ -20,6 +22,14 @@ PERMISSION_ROLE_MAP = {
     'approvals.manage': {'super_admin', 'tenant_admin', 'hr_manager'},
     'connectors.view': {'super_admin', 'tenant_admin', 'hr_manager', 'viewer'},
     'settings.manage': {'super_admin', 'tenant_admin'},
+    'governance.view': {'super_admin', 'tenant_admin', 'hr_manager', 'recruiter', 'hiring_manager', 'viewer'},
+    'governance.manage': {'super_admin', 'tenant_admin', 'hr_manager'},
+    'automation_templates.view': {'super_admin', 'tenant_admin', 'hr_manager', 'recruiter', 'hiring_manager', 'viewer'},
+    'automation_templates.manage': {'super_admin', 'tenant_admin', 'hr_manager'},
+    'analytics.view': {'super_admin', 'tenant_admin', 'hr_manager', 'recruiter', 'hiring_manager', 'viewer'},
+    'intelligence.admin': {'super_admin', 'tenant_admin', 'hr_manager', 'recruiter', 'hiring_manager', 'viewer'},
+    'library.view': {'super_admin', 'tenant_admin', 'hr_manager', 'recruiter', 'hiring_manager', 'viewer'},
+    'library.manage': {'super_admin', 'tenant_admin', 'hr_manager'},
 }
 
 

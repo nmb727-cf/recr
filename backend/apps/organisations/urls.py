@@ -13,4 +13,5 @@ urlpatterns = [
     path('teams/<uuid:pk>/', views.TeamDetailView.as_view(), name='team-detail'),
     path('teams/<uuid:team_id>/members/', views.TeamMemberListView.as_view(), name='team-member-list'),
     path('teams/<uuid:team_id>/members/<uuid:user_id>/', views.TeamMemberDetailView.as_view(), name='team-member-detail'),
+    path('search/', views.GlobalSearchView.as_view(), name='global-search'),
 ]

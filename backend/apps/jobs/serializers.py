@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from apps.jobs.models import JobRequisition, JobPosting, JobStage, JobHiringTeamMember
+from apps.jobs.models import JobRequisition, JobPosting, JobStage, JobHiringTeamMember, JobDescriptionTemplate, JobLocation
 
 
 class JobStageSerializer(serializers.ModelSerializer):
@@ -8,8 +8,11 @@ class JobStageSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'tenant_id', 'requisition_id', 'name', 'stage_order',
             'stage_type', 'stage_zone', 'movement_restriction',
-            'is_mandatory', 'is_critical_path', 
-            'action_deadline_hours', 'sla_target_hours', 'auto_actions',
+            'is_mandatory', 'is_critical_path',
+            'action_deadline_hours', 'sla_target_hours',
+            'responsible_user_id', 'responsible_role', 'decision_authority',
+            'trigger_type', 'trigger_config',
+            'auto_actions',
             'is_active', 'created_at', 'updated_at', 'metadata',
         ]
         read_only_fields = ['id', 'tenant_id', 'requisition_id', 'created_at', 'updated_at']
@@ -74,10 +77,13 @@ class JobRequisitionSerializer(serializers.ModelSerializer):
             'auto_followup_after_source',
             'auto_nurture_unqualified_candidates',
             'budget_code',
-            'offer_salary_default', 'offer_currency_default', 'auto_close_on_fulfillment',
+            'offer_salary_default', 'offer_currency_default', 'auto_close_on_headcount_met',
             'agency_commission_model', 'agency_commission_percentage',
             'agency_commission_fixed_fee', 'agency_payment_terms_days',
             'created_at', 'updated_at', 'created_by', 'created_by_name', 'metadata',
+            'prequal_enabled', 'prequal_form_id', 'prequal_threshold_override',
+            'prequal_pass_action', 'prequal_fail_action',
+            'workflow_id', 'workflow_template_id', 'workflow_enabled', 'is_workflow_controlled',
         ]
         read_only_fields = [
             'id', 'job_ref_id', 'tenant_id', 'created_at', 'updated_at',
@@ -183,7 +189,7 @@ class JobRequisitionSerializer(serializers.ModelSerializer):
                 'auto_schedule_interviews', 'sla_automation_enabled',
                 'auto_push_to_recruiter_queue', 'auto_followup_after_source',
                 'auto_nurture_unqualified_candidates', 'override_workflow_mode',
-                'offer_salary_default', 'offer_currency_default', 'auto_close_on_fulfillment',
+                'offer_salary_default', 'offer_currency_default', 'auto_close_on_headcount_met',
                 'agency_commission_model', 'agency_commission_percentage',
                 'agency_commission_fixed_fee', 'agency_payment_terms_days'
             ]
@@ -199,6 +205,25 @@ class JobRequisitionSerializer(serializers.ModelSerializer):
                 data['skills_required'] = []
                 
         return data
+
+
+class JobDescriptionTemplateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = JobDescriptionTemplate
+        fields = [
+            'id', 'tenant_id', 'name', 'category', 'job_type',
+            'description', 'requirements', 'responsibilities',
+            'skills_suggested', 'usage_count', 'is_active',
+            'created_at', 'updated_at', 'created_by',
+        ]
+        read_only_fields = ['id', 'tenant_id', 'usage_count', 'created_at', 'updated_at']
+
+
+class JobLocationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = JobLocation
+        fields = ['id', 'location_id', 'location_name', 'is_primary', 'created_at']
+        read_only_fields = ['id', 'created_at']
 
 
 class JobPostingSerializer(serializers.ModelSerializer):

@@ -12,9 +12,29 @@ from apps.pipeline.models import Application
 from apps.interviews.models import Interview, InterviewFeedback, InterviewDecision
 from apps.agencies.models import AgencyJobAssignment
 from apps.core.responses import success_response, error_response
+from shared.tenant_access import TenantAccessMixin
+from shared.actor_access import (
+    is_candidate,
+    is_company_operational_user,
+    is_tenant_or_platform_admin,
+    PLATFORM_ADMIN_ROLES,
+    TENANT_ADMIN_ROLES,
+    COMPANY_HIRING_ROLES,
+    COMPANY_OPERATIONAL_ROLES,
+)
+from apps.analytics.intelligence_substrate import IntelligenceAggregator
 
 
 from apps.jobs.services import GlobalHiringCommandCenterService
+
+
+def _deny_if_not_company_analytics_actor(request):
+    if is_tenant_or_platform_admin(request.user) or is_company_operational_user(request.user):
+        return None
+    return error_response(
+        "You do not have permission to access analytics.",
+        status_code=status.HTTP_403_FORBIDDEN,
+    )
 
 
 class HiringIntelligenceDashboardView(APIView):
@@ -23,7 +43,7 @@ class HiringIntelligenceDashboardView(APIView):
     def get(self, request):
         # RBAC: Leadership, Admins, Hiring Managers, and Recruiters can see this.
         # Hide from Candidate and Guest roles.
-        allowed_roles = ['super_admin', 'tenant_admin', 'hr_manager', 'hiring_manager', 'recruiter']
+        allowed_roles = COMPANY_OPERATIONAL_ROLES | {'super_admin'}
         if request.user.role not in allowed_roles and not request.user.is_staff:
             return error_response(
                 "You do not have permission to access the Hiring Intelligence Dashboard.",
@@ -42,10 +62,17 @@ class HiringIntelligenceDashboardView(APIView):
             return error_response(str(e))
 
 
-class DashboardView(APIView):
+class DashboardView(TenantAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        denied = self.reject_scope_widening(request)
+        if denied:
+            return denied
+        denied = _deny_if_not_company_analytics_actor(request)
+        if denied:
+            return denied
+
         tenant_id = request.user.tenant_id
         now = timezone.now()
         thirty_days_ago = now - timedelta(days=30)
@@ -109,11 +136,16 @@ class DashboardView(APIView):
         )
 
 
-class RecruitmentAnalyticsView(APIView):
+class RecruitmentAnalyticsView(TenantAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        if request.user.role not in ['super_admin', 'tenant_admin', 'hr_manager'] and not request.user.is_staff:
+        denied = self.reject_scope_widening(request)
+        if denied:
+            return denied
+
+        analytics_roles = PLATFORM_ADMIN_ROLES | TENANT_ADMIN_ROLES | {'hr_manager'}
+        if request.user.role not in analytics_roles and not request.user.is_staff:
             return error_response("You do not have permission to view analytics.", status_code=status.HTTP_403_FORBIDDEN)
 
         tenant_id = request.user.tenant_id
@@ -169,10 +201,17 @@ class RecruitmentAnalyticsView(APIView):
         )
 
 
-class PipelineAnalyticsView(APIView):
+class PipelineAnalyticsView(TenantAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        denied = self.reject_scope_widening(request)
+        if denied:
+            return denied
+        denied = _deny_if_not_company_analytics_actor(request)
+        if denied:
+            return denied
+
         tenant_id = request.user.tenant_id
 
         # Applications by stage across all jobs
@@ -206,10 +245,17 @@ class PipelineAnalyticsView(APIView):
         )
 
 
-class AgencyAnalyticsView(APIView):
+class AgencyAnalyticsView(TenantAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        denied = self.reject_scope_widening(request)
+        if denied:
+            return denied
+        denied = _deny_if_not_company_analytics_actor(request)
+        if denied:
+            return denied
+
         tenant_id = request.user.tenant_id
 
         # Agency submissions breakdown
@@ -229,10 +275,17 @@ class AgencyAnalyticsView(APIView):
         )
 
 
-class CandidateAnalyticsView(APIView):
+class CandidateAnalyticsView(TenantAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        denied = self.reject_scope_widening(request)
+        if denied:
+            return denied
+        denied = _deny_if_not_company_analytics_actor(request)
+        if denied:
+            return denied
+
         tenant_id = request.user.tenant_id
 
         # Candidates by source
@@ -262,10 +315,17 @@ class CandidateAnalyticsView(APIView):
         )
 
 
-class InterviewAnalyticsView(APIView):
+class InterviewAnalyticsView(TenantAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        denied = self.reject_scope_widening(request)
+        if denied:
+            return denied
+        denied = _deny_if_not_company_analytics_actor(request)
+        if denied:
+            return denied
+
         tenant_id = request.user.tenant_id
 
         by_status = Interview.objects.filter(
@@ -293,10 +353,17 @@ class InterviewAnalyticsView(APIView):
         )
 
 
-class InterviewIntelligenceAnalyticsView(APIView):
+class InterviewIntelligenceAnalyticsView(TenantAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        denied = self.reject_scope_widening(request)
+        if denied:
+            return denied
+        denied = _deny_if_not_company_analytics_actor(request)
+        if denied:
+            return denied
+
         tenant_id = request.user.tenant_id
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
@@ -453,7 +520,7 @@ class RecruiterIntelligenceView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        allowed_roles = ['super_admin', 'tenant_admin', 'hr_manager', 'hiring_manager']
+        allowed_roles = (COMPANY_HIRING_ROLES | {'super_admin', 'tenant_admin'}) - {'recruiter'}
         if request.user.role not in allowed_roles and not request.user.is_staff:
             return error_response(
                 "You do not have permission to access Recruiter Intelligence.",
@@ -511,3 +578,206 @@ class RecruiterIntelligenceView(APIView):
             print(traceback.format_exc()) # Log to console for debugging
             return error_response(str(e), status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+class HiringAIBrainView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role not in (COMPANY_OPERATIONAL_ROLES | PLATFORM_ADMIN_ROLES):
+            return error_response("Unauthorized", status_code=status.HTTP_403_FORBIDDEN)
+
+        try:
+            from apps.analytics.ai_brain import HiringAIBrainService
+            brain_data = HiringAIBrainService.generate_brain_intelligence(request.user.tenant_id)
+            return success_response(data={'brain': brain_data}, message="Hiring AI Brain Intelligence retrieved.")
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            return error_response(str(e), status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class IntelligenceJobView(TenantAccessMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, job_id):
+        denied = self.reject_scope_widening(request)
+        if denied:
+            return denied
+        denied = _deny_if_not_company_analytics_actor(request)
+        if denied:
+            return denied
+        try:
+            snapshot = IntelligenceAggregator.build_job_intelligence(
+                tenant_id=request.user.tenant_id,
+                requisition_id=job_id,
+            )
+            return success_response(data={'intelligence': snapshot}, message="Job intelligence retrieved.")
+        except Exception as exc:
+            return error_response(str(exc), status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class IntelligenceCandidateView(TenantAccessMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, candidate_id):
+        denied = self.reject_scope_widening(request)
+        if denied:
+            return denied
+        denied = _deny_if_not_company_analytics_actor(request)
+        if denied:
+            return denied
+        try:
+            snapshot = IntelligenceAggregator.build_candidate_intelligence(
+                tenant_id=request.user.tenant_id,
+                candidate_id=candidate_id,
+            )
+            return success_response(data={'intelligence': snapshot}, message="Candidate intelligence retrieved.")
+        except Exception as exc:
+            return error_response(str(exc), status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class IntelligencePipelineView(TenantAccessMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        denied = self.reject_scope_widening(request)
+        if denied:
+            return denied
+        denied = _deny_if_not_company_analytics_actor(request)
+        if denied:
+            return denied
+        requisition_id = request.query_params.get('requisition_id')
+        try:
+            snapshot = IntelligenceAggregator.build_pipeline_intelligence(
+                tenant_id=request.user.tenant_id,
+                requisition_id=requisition_id,
+            )
+            return success_response(data={'intelligence': snapshot}, message="Pipeline intelligence retrieved.")
+        except Exception as exc:
+            return error_response(str(exc), status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class IntelligenceRecruiterView(TenantAccessMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        denied = self.reject_scope_widening(request)
+        if denied:
+            return denied
+        denied = _deny_if_not_company_analytics_actor(request)
+        if denied:
+            return denied
+        recruiter_id = request.query_params.get('recruiter_id')
+        try:
+            snapshot = IntelligenceAggregator.build_recruiter_intelligence(
+                tenant_id=request.user.tenant_id,
+                recruiter_id=recruiter_id,
+            )
+            return success_response(data={'intelligence': snapshot}, message="Recruiter intelligence retrieved.")
+        except Exception as exc:
+            return error_response(str(exc), status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class UnifiedOperationsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        allowed_roles = (COMPANY_HIRING_ROLES | {'super_admin', 'tenant_admin'}) - {'recruiter'}
+        if request.user.role not in allowed_roles and not request.user.is_staff:
+            return error_response(
+                "You do not have permission to access Unified Operations.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            from apps.analytics.operations import UnifiedOperationsService
+            data = UnifiedOperationsService.get_unified_operations_data(request.user.tenant_id)
+            return success_response(data={'operations': data}, message="Unified Operations data retrieved.")
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            return error_response(str(e), status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ExecutiveDecisionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        allowed_roles = {'super_admin', 'tenant_admin', 'hr_manager'}
+        if request.user.role not in allowed_roles and not request.user.is_staff:
+            return error_response(
+                "You do not have permission to access the Executive Decision Center.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            from apps.analytics.executive import ExecutiveDecisionService
+            data = ExecutiveDecisionService.get_executive_decision_data(request.user.tenant_id)
+            return success_response(data={'executive_decision': data}, message="Executive Decision data retrieved.")
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            return error_response(str(e), status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class GlobalControlTowerView(TenantAccessMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        denied = self.reject_scope_widening(request)
+        if denied:
+            return denied
+
+        allowed_roles = {'super_admin', 'tenant_admin', 'hr_manager'}
+        if request.user.role not in allowed_roles and not request.user.is_staff:
+            return error_response(
+                "You do not have permission to access the Talent Control Tower.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            from apps.analytics.control_tower import ControlTowerService
+            
+            # Extract filters from query parameters
+            filters = {
+                'department_id': request.query_params.get('department_id'),
+                'location': request.query_params.get('location'),
+                'recruiter_id': request.query_params.get('recruiter_id'),
+                'agency_id': request.query_params.get('agency_id'),
+                'job_priority': request.query_params.get('job_priority'),
+                'job_status': request.query_params.get('job_status'),
+                'time_range': request.query_params.get('time_range', 'this_month'),
+                'start_date': request.query_params.get('start_date'),
+            }
+            
+            data = ControlTowerService.get_control_tower_data(request.user.tenant_id, filters=filters)
+            return success_response(data={'control_tower': data}, message="Control Tower data retrieved.")
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            return error_response(str(e), status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class SystemIntelligenceMemoryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        allowed_roles = {'super_admin', 'tenant_admin', 'hr_manager'}
+        if request.user.role not in allowed_roles and not request.user.is_staff:
+            return error_response(
+                "You do not have permission to access System Intelligence Memory.",
+                status_code=status.HTTP_403_FORBIDDEN
+            )
+
+        try:
+            from apps.analytics.memory_service import SystemIntelligenceMemoryService
+            
+            if request.query_params.get('trigger_learning') == 'true':
+                SystemIntelligenceMemoryService.trigger_learning(request.user.tenant_id)
+
+            data = SystemIntelligenceMemoryService.get_intelligence_memory(request.user.tenant_id)
+            return success_response(data={'memories': data}, message="System Intelligence Memory retrieved.")
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+            return error_response(str(e), status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)

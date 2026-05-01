@@ -21,7 +21,7 @@ SHARED_APPS = [
     'apps.tenants',
     'apps.accounts',
 
-    # RBAC foundation (must come before feature apps so permission classes are importable)
+    # RBAC foundation
     'apps.rbac',
 
     # Platform apps
@@ -31,12 +31,13 @@ SHARED_APPS = [
     'apps.pipeline',
     'apps.passport',
     'apps.agencies',
+    'apps.agency_candidates',
     'apps.interviews',
     'apps.documents',
     'apps.analytics',
     'apps.communications',
     'apps.notifications',
-    'apps.automation.apps.AutomationConfig',
+    'apps.automation',
     'apps.cafe',
     'apps.marketplace',
     'apps.translations',
@@ -44,6 +45,28 @@ SHARED_APPS = [
     'apps.prequalification',
     'apps.module_registry',
     'apps.orchestration_center',
+    'apps.integrations',
+    'apps.hdc',
+    'apps.automation_command_center',
+    'apps.automation_permissions',
+    'apps.automation_notifications',
+    'apps.automation_tasks',
+    'apps.automation_sla',
+    'apps.automation_playbooks',
+    'apps.automation_sandbox',
+    'apps.automation_change_impact',
+    'apps.automation_observability',
+    'apps.automation_recovery',
+    'apps.automation_os',
+    'apps.automation_maturity',
+    'apps.executive_automation',
+    'apps.automation_learning',
+    'apps.automation_ai_brain',
+    'apps.automation_system_completion',
+    'apps.recruiter_workspace',
+    'apps.qa',
+    'apps.agency_workflows',
+    'apps.workflow_execution',
 
     # Django built-ins
     'django.contrib.admin',
@@ -119,11 +142,11 @@ WSGI_APPLICATION = 'config.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django_tenants.postgresql_backend',
-        'NAME': 'postgres',
-        'USER': 'postgres',
-        'PASSWORD': 'Admin@123',
-        'HOST': '127.0.0.1',
-        'PORT': '5432',
+        'NAME': os.getenv('DB_NAME', 'postgres'),
+        'USER': os.getenv('DB_USER', 'postgres'),
+        'PASSWORD': os.getenv('DB_PASS', 'Admin@123'),
+        'HOST': os.getenv('DB_HOST', '127.0.0.1'),
+        'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
 

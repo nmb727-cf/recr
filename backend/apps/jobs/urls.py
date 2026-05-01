@@ -15,7 +15,9 @@ urlpatterns = [
     path('requisitions/<uuid:pk>/clone/', views.JobRequisitionCloneView.as_view(), name='requisition-clone'),
     path('requisitions/<uuid:pk>/candidates/', views.JobRequisitionCandidatesView.as_view(), name='requisition-candidates'),
     path('requisitions/<uuid:pk>/hiring-brain/', views.HiringAIBrainView.as_view(), name='requisition-hiring-brain'),
+    path('requisitions/<uuid:pk>/pipeline-snapshot/', views.JobPipelineSnapshotView.as_view(), name='requisition-pipeline-snapshot'),
     path('requisitions/<uuid:requisition_id>/interview-binding/', interview_views.JobInterviewBindingView.as_view(), name='requisition-interview-binding'),
+    path('requisitions/<uuid:requisition_id>/interview-snapshot/', interview_views.JobInterviewSnapshotView.as_view(), name='requisition-interview-snapshot'),
 
     # Stages
     path('requisitions/<uuid:requisition_id>/stages/', views.JobStageListView.as_view(), name='stage-list'),
@@ -27,6 +29,20 @@ urlpatterns = [
     path('postings/<uuid:pk>/', views.JobPostingDetailView.as_view(), name='posting-detail'),
     path('postings/<uuid:pk>/pause/', views.JobPostingPauseView.as_view(), name='posting-pause'),
     path('postings/<uuid:pk>/close/', views.JobPostingCloseView.as_view(), name='posting-close'),
+
+    # JD Templates
+    path('templates/', views.JDTemplateListView.as_view(), name='jd-template-list'),
+    path('templates/<uuid:pk>/', views.JDTemplateDetailView.as_view(), name='jd-template-detail'),
+    path('templates/<uuid:pk>/duplicate/', views.JDTemplateDuplicateView.as_view(), name='jd-template-duplicate'),
+    path('templates/<uuid:pk>/apply/', views.JDTemplateApplyView.as_view(), name='jd-template-apply'),
+
+    # Multiple Locations per Job
+    path('requisitions/<uuid:pk>/locations/', views.JobLocationListView.as_view(), name='job-location-list'),
+    path('requisitions/<uuid:pk>/locations/<uuid:location_id>/', views.JobLocationDeleteView.as_view(), name='job-location-delete'),
+
+    # Prequalification Binding
+    path('requisitions/<uuid:pk>/prequal-snapshot/', views.JobPrequalSnapshotView.as_view(), name='job-prequal-snapshot'),
+    path('requisitions/<uuid:pk>/prequal-evaluate/', views.JobPrequalEvaluateView.as_view(), name='job-prequal-evaluate'),
 
     # Public / Candidate-facing
     path('search/', views.JobSearchView.as_view(), name='job-search'),

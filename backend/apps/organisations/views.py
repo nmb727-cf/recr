@@ -10,9 +10,11 @@ from apps.organisations.serializers import (
 from apps.core.responses import success_response, error_response
 from apps.accounts.models import CustomUser
 from apps.accounts.serializers import UserSerializer
-from django.db.models import Count
+from django.db.models import Count, Q
 from apps.tenants.models import Client
 from apps.tenants.reference_ids import ensure_tenant_prefix, normalize_prefix
+from shared.search_utils import get_search_query, parse_limit_offset, apply_keyword_search
+from shared.tenant_access import scope_candidate_visibility_qs
 
 
 class OrganisationProfileView(APIView):
@@ -523,4 +525,93 @@ class UserDetailView(APIView):
         return success_response(
             message="User deleted.",
             status_code=status.HTTP_204_NO_CONTENT
+        )
+
+
+class GlobalSearchView(APIView):
+    """Tenant-safe quick global search for operational discoverability."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.candidates.models import Candidate, CandidateEngagement
+        from apps.jobs.models import JobRequisition
+        from apps.pipeline.models import Application
+        from apps.agencies.models import AgencyClientRelationship
+
+        query = get_search_query(request.query_params)
+        if not query:
+            return success_response(
+                data={'query': '', 'candidates': [], 'jobs': [], 'agencies': []},
+                message="No query provided.",
+                meta={'total': 0},
+            )
+
+        limit, _ = parse_limit_offset(request.query_params, default_limit=6, max_limit=20)
+
+        candidate_qs = scope_candidate_visibility_qs(
+            candidate_qs=Candidate.objects.filter(is_deleted=False),
+            user=request.user,
+            application_model=Application,
+            engagement_model=CandidateEngagement,
+        )
+        candidate_qs, candidate_mode = apply_keyword_search(
+            candidate_qs,
+            query=query,
+            fields=('first_name', 'last_name', 'email', 'current_title', 'current_company', 'candidate_ref_id', 'skills'),
+            typo_tolerant=True,
+        )
+        candidates = list(candidate_qs.order_by('-last_activity_at', '-updated_at')[:limit].values(
+            'id', 'first_name', 'last_name', 'email', 'current_title', 'current_company'
+        ))
+
+        job_qs = JobRequisition.objects.filter(
+            tenant_id=request.user.tenant_id,
+            is_deleted=False,
+        )
+        job_qs, job_mode = apply_keyword_search(
+            job_qs,
+            query=query,
+            fields=('title', 'job_ref_id', 'description', 'requirements', 'responsibilities', 'skills_required', 'status'),
+            typo_tolerant=True,
+        )
+        jobs = list(job_qs.order_by('-updated_at')[:limit].values(
+            'id', 'title', 'status', 'job_ref_id', 'work_mode'
+        ))
+
+        relationship_qs = AgencyClientRelationship.objects.filter(
+            is_deleted=False,
+        ).filter(
+            Q(company_tenant_id=request.user.tenant_id) | Q(agency_tenant_id=request.user.tenant_id)
+        )
+        relationship_qs, agency_mode = apply_keyword_search(
+            relationship_qs,
+            query=query,
+            fields=('contact_person_name', 'contact_email', 'industry', 'invited_via', 'notes'),
+            typo_tolerant=True,
+        )
+        agencies = list(relationship_qs.order_by('-updated_at')[:limit].values(
+            'id', 'status', 'contact_email', 'contact_person_name', 'agency_tenant_id', 'company_tenant_id'
+        ))
+
+        for row in candidates:
+            full_name = f"{row.pop('first_name', '')} {row.pop('last_name', '')}".strip()
+            row['name'] = full_name
+        for row in agencies:
+            row['name'] = row.get('contact_person_name') or row.get('contact_email') or 'Agency/Client'
+
+        return success_response(
+            data={
+                'query': query,
+                'candidates': candidates,
+                'jobs': jobs,
+                'agencies': agencies,
+            },
+            message="Search results retrieved.",
+            meta={
+                'total': len(candidates) + len(jobs) + len(agencies),
+                'candidate_search_mode': candidate_mode,
+                'job_search_mode': job_mode,
+                'agency_search_mode': agency_mode,
+                'limit': limit,
+            },
         )

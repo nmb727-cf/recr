@@ -11,6 +11,7 @@ from apps.passport.serializers import (
 )
 from apps.core.responses import success_response, error_response
 from drf_spectacular.utils import extend_schema, OpenApiResponse
+from apps.candidates.identity_service import resolve_candidate_identity, merge_candidate_payload
 
 
 class MyPassportView(APIView):
@@ -170,33 +171,35 @@ def _link_passport_to_candidate(passport, user):
     If no Candidate record exists at all (fresh direct-signup), create a minimal
     one so the passport has something to link to.
     """
-    from apps.candidates.models import Candidate, CandidateProfile
-    from apps.candidates.identity_service import match_candidate
-
-    # Fast path
-    candidate = Candidate.objects.filter(user_id=user.id, is_deleted=False).first()
-
-    if not candidate:
-        candidate = match_candidate(email=user.email)
-        if candidate and not candidate.user_id:
-            candidate.user_id = user.id
-            candidate.account_status = 'active'
-            candidate.save(update_fields=['user_id', 'account_status', 'updated_at'])
-
-    if not candidate:
-        candidate = Candidate.objects.create(
-            user_id=user.id,
-            first_name=user.first_name or '',
-            last_name=user.last_name or '',
-            email=user.email,
-            phone=getattr(user, 'phone', '') or '',
-            source='self',
-            source_type='direct',
-            account_status='active',
-            profile_status='partial',
-            initial_entry_type='self',
-        )
-        CandidateProfile.objects.create(candidate_id=candidate.id)
+    resolution = resolve_candidate_identity(
+        email=user.email,
+        phone=getattr(user, 'phone', '') or '',
+        user=user,
+        passport_id=passport.id,
+        tenant_id=getattr(user, 'tenant_id', None),
+        create_if_missing=True,
+        allow_cross_tenant=True,
+        actor_user_id=user.id,
+        ensure_tenant_association_flag=bool(getattr(user, 'tenant_id', None)),
+        ensure_visibility=False,
+        source='passport_self_link',
+        candidate_defaults={
+            'first_name': user.first_name or '',
+            'last_name': user.last_name or '',
+            'email': user.email,
+            'phone': getattr(user, 'phone', '') or '',
+            'source': 'self',
+            'source_type': 'direct',
+            'account_status': 'active',
+            'profile_status': 'partial',
+            'initial_entry_type': 'self',
+            'owner_tenant_id': getattr(user, 'tenant_id', None),
+            'owner_user_id': user.id,
+            'passport_id': passport.id,
+            'passport_linked': True,
+        },
+    )
+    candidate = resolution.candidate
 
     # Sync passport → candidate
     if not passport.candidate_id:
@@ -451,8 +454,7 @@ class PassportImportView(APIView):
 
         # Resolve passport owner details (name, email) from their user account
         from apps.accounts.models import CustomUser
-        from apps.candidates.models import Candidate, CandidateProfile
-        from apps.candidates.identity_service import match_candidate
+        from apps.candidates.models import CandidateProfile
 
         passport_owner = None
         owner_first_name = ''
@@ -465,70 +467,87 @@ class PassportImportView(APIView):
                 owner_last_name = passport_owner.last_name or ''
                 owner_email = passport_owner.email or ''
 
-        # Dedup: try to find existing candidate record for this tenant+passport or
-        # by email so we never create a duplicate under the importing tenant.
-        candidate = None
-        created = False
-
-        # 1. Already imported same passport under this tenant
-        candidate = Candidate.objects.filter(
-            tenant_id=request.user.tenant_id,
+        resolution = resolve_candidate_identity(
+            email=owner_email,
             passport_id=passport.id,
-            is_deleted=False,
-        ).first()
+            tenant_id=request.user.tenant_id,
+            create_if_missing=True,
+            allow_cross_tenant=True,
+            actor_user_id=request.user.id,
+            ensure_tenant_association_flag=True,
+            ensure_visibility=True,
+            source='passport_import',
+            candidate_defaults={
+                'tenant_id': request.user.tenant_id,
+                'first_name': owner_first_name,
+                'last_name': owner_last_name,
+                'email': owner_email,
+                'current_title': passport.current_title,
+                'current_company': passport.current_company,
+                'current_location_city': passport.current_location_city,
+                'experience_years': passport.experience_years,
+                'skills': passport.skills,
+                'languages': passport.languages,
+                'source': 'passport',
+                'source_type': 'passport',
+                'initial_entry_type': 'import_passport',
+                'passport_id': passport.id,
+                'passport_linked': True,
+                'owner_user_id': request.user.id,
+                'owner_tenant_id': request.user.tenant_id,
+                'created_by': request.user.id,
+                'candidate_state': 'NEW_LEAD',
+                'candidate_pool': 'GENERAL',
+                'is_general_pool_used': False,
+            },
+        )
+        candidate = resolution.candidate
+        created = resolution.created
 
-        # 2. Email match under this tenant
-        if not candidate and owner_email:
-            candidate = match_candidate(email=owner_email)
-            if candidate and str(candidate.tenant_id) != str(request.user.tenant_id):
-                candidate = None  # belongs to a different tenant — create new record
-
-        if not candidate:
-            candidate = Candidate.objects.create(
-                tenant_id=request.user.tenant_id,
-                first_name=owner_first_name,
-                last_name=owner_last_name,
-                email=owner_email,
-                current_title=passport.current_title,
-                current_company=passport.current_company,
-                current_location_city=passport.current_location_city,
-                experience_years=passport.experience_years,
-                skills=passport.skills,
-                languages=passport.languages,
-                source='passport',
-                source_type='passport',
-                initial_entry_type='import_passport',
-                passport_id=passport.id,
-                passport_linked=True,
-                owner_user_id=request.user.id,
-                owner_tenant_id=request.user.tenant_id,
-                created_by=request.user.id,
-                candidate_state='NEW_LEAD',
-                candidate_pool='GENERAL',
-                is_general_pool_used=False,
-            )
-            CandidateProfile.objects.create(
-                tenant_id=request.user.tenant_id,
-                candidate_id=candidate.id,
-                summary=passport.summary,
-                work_experience=passport.work_history,
-                education=passport.education,
-                certifications=passport.certifications,
-                created_by=request.user.id,
-            )
-            created = True
-        else:
-            # Update passport link on the existing record if not set
-            update_fields = []
-            if not candidate.passport_id:
-                candidate.passport_id = passport.id
-                update_fields.append('passport_id')
-            if not candidate.passport_linked:
-                candidate.passport_linked = True
-                update_fields.append('passport_linked')
-            if update_fields:
-                update_fields.append('updated_at')
-                candidate.save(update_fields=update_fields)
+        merge_candidate_payload(
+            candidate,
+            {
+                'first_name': owner_first_name,
+                'last_name': owner_last_name,
+                'email': owner_email,
+                'current_title': passport.current_title,
+                'current_company': passport.current_company,
+                'current_location_city': passport.current_location_city,
+                'experience_years': passport.experience_years,
+                'skills': passport.skills,
+                'languages': passport.languages,
+                'passport_id': passport.id,
+                'passport_linked': True,
+            },
+            overwrite=False,
+        )
+        profile, profile_created = CandidateProfile.objects.get_or_create(
+            candidate_id=candidate.id,
+            defaults={
+                'tenant_id': request.user.tenant_id,
+                'created_by': request.user.id,
+                'summary': passport.summary,
+                'work_experience': passport.work_history,
+                'education': passport.education,
+                'certifications': passport.certifications,
+            },
+        )
+        if not profile_created:
+            changed = False
+            if passport.summary and not profile.summary:
+                profile.summary = passport.summary
+                changed = True
+            if passport.work_history and not profile.work_experience:
+                profile.work_experience = passport.work_history
+                changed = True
+            if passport.education and not profile.education:
+                profile.education = passport.education
+                changed = True
+            if passport.certifications and not profile.certifications:
+                profile.certifications = passport.certifications
+                changed = True
+            if changed:
+                profile.save(update_fields=['summary', 'work_experience', 'education', 'certifications', 'updated_at'])
 
         return success_response(
             data={

@@ -12,6 +12,55 @@ _ALLOWED_METHODS = frozenset({
 
 _drf_patched = False
 
+_TENANT_STATUS_EXEMPT_PREFIXES = (
+    '/api/v1/auth/login/',
+    '/api/v1/auth/refresh/',
+    '/api/v1/auth/register/',
+    '/api/v1/auth/forgot-password/',
+    '/api/v1/auth/reset-password/',
+    '/api/v1/auth/verify-email/',
+    '/api/v1/auth/send-otp/',
+    '/api/v1/auth/verify-otp/',
+    '/api/v1/candidates/claim/',
+    '/api/v1/apply/',
+    '/api/v1/admin/',
+    '/api/schema/',
+    '/api/docs/',
+)
+
+
+def _tenant_status_block_response(request):
+    """
+    Enforce tenant lifecycle states centrally across normal API flows.
+    Suspended/terminated tenants are blocked from application actions.
+    """
+    path = getattr(request, 'path', '') or ''
+    if any(path.startswith(prefix) for prefix in _TENANT_STATUS_EXEMPT_PREFIXES):
+        return None
+
+    user = getattr(request, 'user', None)
+    if not user or not getattr(user, 'is_authenticated', False):
+        return None
+    if getattr(user, 'is_staff', False) or getattr(user, 'role', '') == 'super_admin':
+        return None
+
+    tenant_id = getattr(user, 'tenant_id', None)
+    if not tenant_id:
+        return None
+
+    from apps.tenants.models import Client
+    tenant = Client.objects.filter(id=tenant_id, is_deleted=False).first()
+    if tenant and tenant.status in {'suspended', 'terminated'}:
+        return JsonResponse(
+            {
+                'success': False,
+                'data': None,
+                'message': f"Tenant access is {tenant.status}. Contact platform support.",
+            },
+            status=423,
+        )
+    return None
+
 
 def _patch_drf_dispatch():
     """
@@ -59,7 +108,46 @@ def _patch_drf_dispatch():
                 response = self.http_method_not_allowed(request, *args, **kwargs)
             else:
                 # Method is supported — run normal DRF auth + handler flow.
+
                 self.initial(request, *args, **kwargs)
+                
+                # --- Tenant Isolation Enforcement ---
+                user = getattr(request, 'user', None)
+                path = getattr(request, 'path', '')
+                if user and getattr(user, 'is_authenticated', False) and path.startswith('/api/v1/'):
+                    from shared.tenant_access import is_agency_user
+                    is_agency = is_agency_user(user)
+                    
+                    # Define agency paths
+                    is_agency_path = path.startswith('/api/v1/agency-candidates/')
+                    
+                    # Define company paths (strict)
+                    is_company_path = path.startswith('/api/v1/jobs/') or \
+                                      path.startswith('/api/v1/candidates/') or \
+                                      path.startswith('/api/v1/pipeline/') or \
+                                      path.startswith('/api/v1/analytics/')
+                    
+                    # Allow candidates to use public job search
+                    is_public = path.startswith('/api/v1/jobs/public') or path.startswith('/api/v1/jobs/search')
+                    
+                    if is_agency and is_company_path and not is_public:
+                        from apps.core.responses import error_response
+                        response = error_response("Agency users cannot access company modules.", status_code=403)
+                        self.response = self.finalize_response(request, response, *args, **kwargs)
+                        return self.response
+                        
+                    if not is_agency and is_agency_path:
+                        from apps.core.responses import error_response
+                        response = error_response("Company users cannot access agency modules.", status_code=403)
+                        self.response = self.finalize_response(request, response, *args, **kwargs)
+                        return self.response
+                # ------------------------------------
+
+                tenant_block = _tenant_status_block_response(request)
+                if tenant_block is not None:
+                    response = tenant_block
+                    self.response = self.finalize_response(request, response, *args, **kwargs)
+                    return self.response
                 response = handler(request, *args, **kwargs)
 
         except Exception as exc:

@@ -23,12 +23,13 @@ class TenantSerializer(serializers.ModelSerializer):
 class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
+    is_super_admin = serializers.SerializerMethodField()
 
     class Meta:
         model = CustomUser
         fields = [
             'id', 'email', 'first_name', 'last_name', 'full_name',
-            'phone', 'avatar_url', 'role', 'is_active',
+            'phone', 'avatar_url', 'role', 'is_super_admin', 'is_superuser', 'is_staff', 'is_active',
             'email_verified', 'mfa_enabled', 'timezone', 'language',
             'notification_preferences', 'ui_preferences',
             'tenant_id', 'created_at', 'last_login_at',
@@ -41,6 +42,13 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_permissions(self, obj):
         return sorted(get_user_permissions(obj))
+
+    def get_is_super_admin(self, obj):
+        return bool(
+            getattr(obj, 'role', '') == 'super_admin'
+            or getattr(obj, 'is_superuser', False)
+            or getattr(obj, 'is_staff', False)
+        )
 
 
 class RegisterCompanySerializer(serializers.Serializer):

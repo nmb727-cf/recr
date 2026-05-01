@@ -10,143 +10,63 @@ from apps.accounts.services import RecruiterIntelligenceService
 from apps.candidates.models import Candidate
 from apps.candidates.services import CandidateIntelligenceService
 
+from apps.jobs.intelligence_engine import JobIntelligenceEngine
+from apps.analytics.intelligence_substrate import IntelligenceAggregator
+
 class HiringAIBrainService:
     @staticmethod
     def get_job_intelligence(tenant_id, requisition_id):
         """
         Orchestrates intelligence from all engines to provide a unified 'Brain' view.
+        Uses JobIntelligenceEngine for core logic.
         """
         job = JobRequisition.objects.get(id=requisition_id, tenant_id=tenant_id)
         apps = Application.objects.filter(requisition_id=requisition_id, tenant_id=tenant_id, is_deleted=False)
-        total_apps = apps.count()
+        substrate_snapshot = IntelligenceAggregator.build_job_intelligence(
+            tenant_id=tenant_id,
+            requisition_id=requisition_id,
+        )
+        intel = substrate_snapshot.get('engine') or JobIntelligenceEngine.get_job_intelligence(tenant_id, requisition_id)
+        signal_intel = substrate_snapshot.get('signals') or {}
         
-        # 1. Calculate Hiring Health Score (0-100)
-        health_metrics = HiringAIBrainService._calculate_health_metrics(job, apps, total_apps)
+        # 5. Interview Snapshot (Keep as it is specific to the 'Brain' view)
+        from apps.interviews.models import Interview
+        interviews = Interview.objects.filter(requisition_id=requisition_id, tenant_id=tenant_id, is_deleted=False)
+        interview_stats = {
+            'total_conducted': interviews.filter(status='completed').count(),
+            'pending_scheduled': interviews.filter(status='scheduled').count(),
+            'in_progress': interviews.filter(status='in_progress').count(),
+            'candidates_in_interview_stage': apps.filter(status='interview').count(),
+            'upcoming_today': interviews.filter(
+                status='scheduled',
+                scheduled_at__date=timezone.now().date()
+            ).count()
+        }
         
-        # 2. Detect Job Fill Risks
-        risks = HiringAIBrainService._detect_risks(job, apps, total_apps, health_metrics)
-        
-        # 3. Generate Next Best Actions
-        actions = HiringAIBrainService._generate_actions(job, apps, risks, health_metrics)
-        
-        # 4. Get Team/Source Recommendations
-        recommendations = HiringAIBrainService._get_source_recommendations(job, tenant_id)
-        
-        # 5. Top Candidate Recommendations
+        # 6. Top Candidate Recommendations
         best_fit = apps.filter(status__in=['applied', 'screening', 'shortlisted', 'interview']).order_by('-match_score')[:5]
         from apps.pipeline.serializers import ApplicationSerializer
         
+        # Merge new engine intel with existing UI-specific structure
         return {
-            'health_score': health_metrics['overall_score'],
-            'health_label': health_metrics['label'],
-            'health_factors': health_metrics['factors'],
-            'risks': risks,
-            'next_best_actions': actions,
-            'recommendations': recommendations,
+            'health_score': intel['health']['score'],
+            'health_label': intel['health']['label'],
+            'health_factors': intel['health']['factors'],
+            'velocity': intel['velocity'],
+            'bottlenecks': intel['bottlenecks'],
+            'source_intelligence': intel['source_intelligence'],
+            'team_impact': intel['team_impact'],
+            'fill_risk': intel['fill_risk'],
+            'next_best_actions': intel['recommended_actions'],
+            'signal_intelligence': signal_intel,
+            'substrate_insights': substrate_snapshot.get('insights', []),
+            'interview_stats': interview_stats,
             'best_fit_candidates': ApplicationSerializer(best_fit, many=True).data,
             'team': {
                 'hiring_manager_id': str(job.hiring_manager_id) if job.hiring_manager_id else None,
                 'recruiter_id': str(job.recruiter_id) if job.recruiter_id else None,
             },
-            'summary': {
-                'total_candidates': total_apps,
-                'active_candidates': apps.exclude(status__in=['joined', 'rejected', 'withdrawn']).count(),
-                'velocity': health_metrics['velocity_label']
-            }
-        }
-
-    @staticmethod
-    def _calculate_health_metrics(job, apps, total_apps):
-        if total_apps == 0:
-            return {'overall_score': 50, 'label': 'Watch', 'factors': [], 'velocity_label': 'N/A'}
-        
-        # Weighting factors
-        # 1. Pipeline Strength (Target vs Current) - 30%
-        # 2. Conversion Velocity (Shortlist/Interview rates) - 30%
-        # 3. SLA Adherence (Overdue %) - 20%
-        # 4. Recency of movement - 20%
-        
-        # Pipeline factor
-        target_candidates = job.headcount * 10 # Heuristic: need 10 apps per hire
-        pipeline_fill = min((total_apps / target_candidates) * 100, 100)
-        
-        # Velocity factor (Shortlisted or beyond)
-        qualified_apps = apps.filter(status__in=['shortlisted', 'interview', 'assessment', 'offer', 'joined']).count()
-        conversion_rate = (qualified_apps / total_apps) * 100
-        
-        # SLA factor
-        overdue_count = 0
-        now = timezone.now()
-        for app in apps:
-            if (now - app.updated_at).total_seconds() > (48 * 3600):
-                overdue_count += 1
-        sla_health = max(0, 100 - ((overdue_count / total_apps) * 100))
-        
-        # Overall Score
-        score = (pipeline_fill * 0.3) + (conversion_rate * 0.3) + (sla_health * 0.2) + (20 if total_apps > 5 else 0)
-        score = min(score, 100)
-        
-        label = 'Healthy'
-        if score < 40: label = 'At Risk'
-        elif score < 70: label = 'Watch'
-        
-        return {
-            'overall_score': round(score, 1),
-            'label': label,
-            'velocity_label': 'Optimal' if conversion_rate > 20 else 'Slow',
-            'factors': [
-                {'name': 'Pipeline Fill', 'score': pipeline_fill},
-                {'name': 'Conversion', 'score': conversion_rate},
-                {'name': 'SLA Health', 'score': sla_health}
-            ]
-        }
-
-    @staticmethod
-    def _detect_risks(job, apps, total_apps, health):
-        risks = []
-        if total_apps < job.headcount * 3:
-            risks.append({'type': 'low_volume', 'level': 'high', 'message': 'Insufficient candidate volume for headcount target.'})
-        
-        stalled = apps.filter(updated_at__lt=timezone.now() - timedelta(days=4)).exclude(status__in=['joined', 'rejected']).count()
-        if stalled > (total_apps * 0.3):
-            risks.append({'type': 'stalled_pipeline', 'level': 'medium', 'message': f'{stalled} candidates have no activity for > 4 days.'})
-            
-        if health['overall_score'] < 40:
-            risks.append({'type': 'velocity_drop', 'level': 'high', 'message': 'Hiring velocity has dropped below critical threshold.'})
-            
-        return risks
-
-    @staticmethod
-    def _generate_actions(job, apps, risks, health):
-        actions = []
-        
-        # Priority actions based on status
-        new_apps = apps.filter(status='applied').count()
-        if new_apps > 0:
-            actions.append({'text': f'Review {new_apps} new applications', 'type': 'review', 'priority': 'high'})
-            
-        interview_pending = apps.filter(status='shortlisted').count()
-        if interview_pending > 0:
-            actions.append({'text': f'Schedule interviews for {interview_pending} shortlisted candidates', 'type': 'schedule', 'priority': 'medium'})
-            
-        for risk in risks:
-            if risk['type'] == 'low_volume':
-                actions.append({'text': 'Distribute job to more agencies or increase sourcing', 'type': 'sourcing', 'priority': 'high'})
-            if risk['type'] == 'stalled_pipeline':
-                actions.append({'text': 'Nudge interviewers for pending feedback', 'type': 'follow_up', 'priority': 'medium'})
-                
-        return actions
-
-    @staticmethod
-    def _get_source_recommendations(job, tenant_id):
-        # Tie into existing intelligence services
-        recruiters = RecruiterIntelligenceService.get_assignment_recommendations(job.id, tenant_id)
-        agencies = AgencyIntelligenceService.get_job_agency_recommendations(job.id, tenant_id)
-        
-        return {
-            'best_recruiter': recruiters[0] if recruiters else None,
-            'best_agency': agencies[0] if agencies else None,
-            'sourcing_mix': 'Increase External' if job.priority in ('high', 'urgent') else 'Balanced'
+            'summary': intel['summary']
         }
 
 class GlobalHiringCommandCenterService:
@@ -159,6 +79,8 @@ class GlobalHiringCommandCenterService:
         jobs = JobRequisition.objects.filter(tenant_id=tenant_id, is_deleted=False)
         active_jobs = jobs.filter(status='active')
         apps = Application.objects.filter(tenant_id=tenant_id, is_deleted=False)
+        global_snapshot = IntelligenceAggregator.build_global_intelligence(tenant_id=tenant_id)
+        pipeline_snapshot = IntelligenceAggregator.build_pipeline_intelligence(tenant_id=tenant_id)
         
         # 1. Hiring Overview
         total_active_jobs = active_jobs.count()
@@ -173,26 +95,36 @@ class GlobalHiringCommandCenterService:
         hires_this_month = apps.filter(status='joined', joined_at__gte=start_of_month).count()
 
         # 2. Job Health Intelligence
-        stalled_threshold = now - timedelta(days=7)
         jobs_at_risk = []
         for job in active_jobs:
-            job_apps = apps.filter(requisition_id=job.id)
-            # Risk if: headcount not met AND (no apps OR no activity in 7 days OR slow conversion)
-            if job_apps.count() < job.headcount:
-                if not job_apps.exists() or not job_apps.filter(updated_at__gt=stalled_threshold).exists():
+            # Quick check before deep intelligence to keep it performant
+            job_apps_count = Application.objects.filter(requisition_id=job.id, is_deleted=False).count()
+            if job_apps_count < job.headcount * 2: # Thin pipeline
+                intel = JobIntelligenceEngine.get_job_intelligence(tenant_id, job.id)
+                if intel['health']['label'] in ('Critical', 'At Risk'):
                     jobs_at_risk.append({
                         'id': str(job.id),
                         'title': job.title,
-                        'reason': 'No recent activity' if job_apps.exists() else 'No candidates'
+                        'reason': intel['health']['factors'][0]['name'] if intel['health']['factors'] else 'Low Health Score',
+                        'health_score': intel['health']['score'],
+                        'risk_level': intel['fill_risk']['risk_level']
                     })
 
         # 3. Pipeline Intelligence
-        # Bottleneck detection: Stages where candidates spend > 5 days
+        # Aggregate global bottlenecks
         bottlenecks = []
-        # Calculate avg time in stage from ApplicationStageHistory if available
+        for job in active_jobs[:10]: # Limit to top 10 for performance
+            intel = JobIntelligenceEngine.get_job_intelligence(tenant_id, job.id)
+            if intel['bottlenecks']:
+                for b in intel['bottlenecks']:
+                    bottlenecks.append({
+                        'job_title': job.title,
+                        **b
+                    })
+        
         # Simple count of stuck candidates for now
         stuck_candidates = apps.filter(status__in=['applied', 'screening', 'shortlisted'], updated_at__lt=now - timedelta(days=5)).count()
-        
+
         # 4. Performance Intelligence
         recruiters = RecruiterIntelligenceService.get_team_intelligence(tenant_id)
         agencies = AgencyIntelligenceService.get_global_agency_stats(tenant_id)
@@ -218,11 +150,11 @@ class GlobalHiringCommandCenterService:
                 'slow_moving_jobs': active_jobs.filter(updated_at__lt=now - timedelta(days=14)).count()
             },
             'pipeline_intelligence': {
-                'stalled_candidates': stuck_candidates,
+                'stalled_candidates': pipeline_snapshot.get('signals', {}).get('stuck_stage', stuck_candidates),
                 'bottlenecks': bottlenecks,
-                'avg_time_to_hire_days': 24, # Heuristic
+                'avg_time_to_hire_days': 24, # Keep existing contract for phase compatibility
                 'stage_conversion_rates': {
-                    'applied_to_shortlist': 15, # Heuristic
+                    'applied_to_shortlist': 15, # Keep existing contract for phase compatibility
                     'shortlist_to_interview': 40,
                     'interview_to_offer': 20
                 }
@@ -236,6 +168,6 @@ class GlobalHiringCommandCenterService:
                 'fast_hire_potential': fast_hire_candidates,
                 'stalled_candidates': stuck_candidates,
                 'high_potential': candidates.filter(readiness_score__gt=80).count()
-            }
+            },
+            'substrate': global_snapshot.get('signals', {}),
         }
-

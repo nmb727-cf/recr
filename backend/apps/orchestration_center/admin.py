@@ -11,6 +11,7 @@ from apps.orchestration_center.models import (
     AISuggestionConversion,
     ApprovalQueueItem,
     AutomationExecutionRun,
+    AutomationIntelligencePolicy,
     AutomationRule,
     AutomationRuleAction,
     AutomationRuleCondition,
@@ -178,6 +179,22 @@ class AutomationRuleAdmin(admin.ModelAdmin):
     list_filter = ('module_scope', 'mode', 'status', 'is_builtin')
     search_fields = ('rule_title', 'rule_key', 'trigger_event')
     inlines = [RuleConditionInline, RuleActionInline, RuleScopeInline]
+
+
+@admin.register(AutomationIntelligencePolicy)
+class AutomationIntelligencePolicyAdmin(admin.ModelAdmin):
+    list_display = (
+        'suggestion_type',
+        'module_scope',
+        'confidence_threshold',
+        'auto_approve',
+        'auto_apply',
+        'approval_required',
+        'is_enabled',
+        'tenant_id',
+    )
+    list_filter = ('suggestion_type', 'module_scope', 'is_enabled', 'auto_approve', 'auto_apply', 'approval_required')
+    search_fields = ('suggestion_type', 'module_scope', 'notes')
 
 
 @admin.register(AutomationExecutionRun)

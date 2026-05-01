@@ -3,14 +3,28 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.viewsets import ModelViewSet
+from rest_framework.exceptions import PermissionDenied
 
 from apps.communications.models import MessageThread, Message, Notification, EmailTemplate, EmailAccount
 from apps.communications.serializers import (
-    MessageThreadSerializer, MessageSerializer,
-    NotificationSerializer, EmailTemplateSerializer, EmailAccountSerializer
+    MessageThreadSerializer, MessageThreadCreateSerializer,
+    MessageSerializer, NotificationSerializer,
+    EmailTemplateSerializer, EmailAccountSerializer,
+)
+from apps.communications.communication_service import ThreadService
+from apps.communications.notification_service import NotificationService
+from apps.communications.permissions import (
+    can_manage_email_templates,
+    can_view_email_templates,
 )
 from apps.core.responses import success_response, error_response
+from shared.actor_access import is_candidate
 from drf_spectacular.utils import extend_schema, OpenApiResponse
+
+
+def _require_internal_communications_actor(user):
+    if is_candidate(user):
+        raise PermissionDenied("You do not have permission to access communication admin operations.")
 
 
 class EmailAccountViewSet(ModelViewSet):
@@ -18,12 +32,14 @@ class EmailAccountViewSet(ModelViewSet):
     serializer_class = EmailAccountSerializer
 
     def get_queryset(self):
+        _require_internal_communications_actor(self.request.user)
         return EmailAccount.objects.filter(
             user_id=self.request.user.id,
             tenant_id=self.request.user.tenant_id
         )
 
     def perform_create(self, serializer):
+        _require_internal_communications_actor(self.request.user)
         serializer.save(
             user_id=self.request.user.id,
             tenant_id=self.request.user.tenant_id
@@ -78,48 +94,60 @@ class MessageThreadListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        threads = MessageThread.objects.filter(
+        thread_type = request.query_params.get('thread_type')
+        related_entity_type = request.query_params.get('related_entity_type')
+        related_entity_id = request.query_params.get('related_entity_id')
+        include_archived = request.query_params.get('include_archived', '').lower() == 'true'
+
+        threads = ThreadService.get_threads_for_user(
             tenant_id=request.user.tenant_id,
-            is_deleted=False
-        ).order_by('-last_message_at')
+            user_id=request.user.id,
+            thread_type=thread_type,
+            related_entity_type=related_entity_type,
+            related_entity_id=related_entity_id,
+            include_archived=include_archived,
+        )
+        serializer = MessageThreadSerializer(threads, many=True, context={'request': request})
         return success_response(
-            data={'threads': MessageThreadSerializer(threads, many=True).data},
+            data={'threads': serializer.data},
             message="Threads retrieved.",
             meta={'total': threads.count()}
         )
 
     def post(self, request):
-        subject = request.data.get('subject', '')
-        recipient_id = request.data.get('recipient_id')
-        message_text = request.data.get('message', '')
-        related_entity_type = request.data.get('related_entity_type', '')
-        related_entity_id = request.data.get('related_entity_id')
+        serializer = MessageThreadCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return error_response("Validation failed.", errors=serializer.errors)
 
-        if not message_text:
-            return error_response("message is required.")
+        data = serializer.validated_data
+        participant_ids = data.get('participant_user_ids', [])
+        # Always include the creator
+        creator_id = request.user.id
+        if creator_id not in participant_ids:
+            participant_ids = [creator_id] + list(participant_ids)
 
-        thread = MessageThread.objects.create(
+        thread = ThreadService.create_thread(
             tenant_id=request.user.tenant_id,
-            subject=subject,
-            created_by=request.user.id,
-            related_entity_type=related_entity_type,
-            related_entity_id=related_entity_id,
-            participant_ids=[str(request.user.id), str(recipient_id)] if recipient_id else [str(request.user.id)],
-            last_message_at=timezone.now(),
+            created_by_user_id=creator_id,
+            thread_type=data.get('thread_type', 'general'),
+            subject=data.get('subject', ''),
+            is_internal=data.get('is_internal', True),
+            related_entity_type=data.get('related_entity_type', ''),
+            related_entity_id=data.get('related_entity_id'),
+            participant_user_ids=participant_ids,
         )
 
-        message = Message.objects.create(
-            tenant_id=request.user.tenant_id,
+        message = ThreadService.add_message(
             thread_id=thread.id,
-            sender_id=request.user.id,
-            sender_tenant_id=request.user.tenant_id,
-            content=message_text,
+            requesting_tenant_id=request.user.tenant_id,
+            sender_user_id=creator_id,
+            body=data['message'],
         )
 
         return success_response(
             data={
-                'thread': MessageThreadSerializer(thread).data,
-                'message': MessageSerializer(message).data,
+                'thread': MessageThreadSerializer(thread, context={'request': request}).data,
+                'message': MessageSerializer(message, context={'request': request}).data,
             },
             message="Thread created.",
             status_code=status.HTTP_201_CREATED
@@ -131,75 +159,150 @@ class MessageThreadDetailView(APIView):
 
     def get(self, request, pk):
         try:
-            thread = MessageThread.objects.get(
-                id=pk,
-                tenant_id=request.user.tenant_id,
-                is_deleted=False
+            thread = ThreadService.get_thread(
+                thread_id=pk,
+                requesting_tenant_id=request.user.tenant_id,
+                requesting_user_id=request.user.id,
             )
-        except MessageThread.DoesNotExist:
-            return error_response("Thread not found.", status_code=status.HTTP_404_NOT_FOUND)
+        except Exception as exc:
+            return error_response(str(exc), status_code=status.HTTP_404_NOT_FOUND)
 
-        messages = Message.objects.filter(thread_id=pk).order_by('sent_at')
         return success_response(
-            data={
-                'thread': MessageThreadSerializer(thread).data,
-                'messages': MessageSerializer(messages, many=True).data,
-            },
+            data={'thread': MessageThreadSerializer(thread, context={'request': request}).data},
             message="Thread retrieved."
         )
 
 
+class ThreadMessagesView(APIView):
+    """GET messages for a thread / POST to send a message."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            messages = ThreadService.get_messages(
+                thread_id=pk,
+                requesting_tenant_id=request.user.tenant_id,
+                requesting_user_id=request.user.id,
+            )
+        except Exception as exc:
+            return error_response(str(exc), status_code=status.HTTP_403_FORBIDDEN)
+
+        return success_response(
+            data={'messages': MessageSerializer(messages, many=True, context={'request': request}).data},
+            message="Messages retrieved.",
+            meta={'total': messages.count()}
+        )
+
+    def post(self, request, pk):
+        body = request.data.get('message') or request.data.get('body', '')
+        if not body:
+            return error_response("message is required.")
+
+        try:
+            message = ThreadService.add_message(
+                thread_id=pk,
+                requesting_tenant_id=request.user.tenant_id,
+                sender_user_id=request.user.id,
+                sender_tenant_id=request.user.tenant_id,
+                body=body,
+                message_type=request.data.get('message_type', 'text'),
+                attachments=request.data.get('attachments', []),
+            )
+        except Exception as exc:
+            return error_response(str(exc), status_code=status.HTTP_403_FORBIDDEN)
+
+        return success_response(
+            data={'message': MessageSerializer(message, context={'request': request}).data},
+            message="Message sent.",
+            status_code=status.HTTP_201_CREATED
+        )
+
+
 class MessageReplyView(APIView):
+    """Legacy reply endpoint — delegates to ThreadMessagesView logic."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        body = request.data.get('message', '')
+        if not body:
+            return error_response("message is required.")
+
+        try:
+            message = ThreadService.add_message(
+                thread_id=pk,
+                requesting_tenant_id=request.user.tenant_id,
+                sender_user_id=request.user.id,
+                sender_tenant_id=request.user.tenant_id,
+                body=body,
+                attachments=request.data.get('attachments', []),
+            )
+        except Exception as exc:
+            return error_response(str(exc), status_code=status.HTTP_403_FORBIDDEN)
+
+        return success_response(
+            data={'message': MessageSerializer(message, context={'request': request}).data},
+            message="Reply sent.",
+            status_code=status.HTTP_201_CREATED
+        )
+
+
+class ThreadMarkReadView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
         try:
-            thread = MessageThread.objects.get(
-                id=pk,
-                tenant_id=request.user.tenant_id,
-                is_deleted=False
+            ThreadService.mark_thread_read(
+                thread_id=pk,
+                requesting_tenant_id=request.user.tenant_id,
+                user_id=request.user.id,
             )
-        except MessageThread.DoesNotExist:
-            return error_response("Thread not found.", status_code=status.HTTP_404_NOT_FOUND)
-
-        content = request.data.get('message', '')
-        if not content:
-            return error_response("message is required.")
-
-        message = Message.objects.create(
-            tenant_id=request.user.tenant_id,
-            thread_id=thread.id,
-            sender_id=request.user.id,
-            sender_tenant_id=request.user.tenant_id,
-            content=content,
-            attachments=request.data.get('attachments', []),
-        )
-
-        thread.last_message_at = timezone.now()
-        thread.save(update_fields=['last_message_at'])
-
-        return success_response(
-            data={'message': MessageSerializer(message).data},
-            message="Reply sent.",
-            status_code=status.HTTP_201_CREATED
-        )
+        except Exception as exc:
+            return error_response(str(exc), status_code=status.HTTP_404_NOT_FOUND)
+        return success_response(message="Thread marked as read.")
 
 
 class NotificationListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        qs = Notification.objects.filter(user_id=request.user.id)
+        is_read_param = request.query_params.get('is_read')
+        is_read = None
+        if is_read_param is not None:
+            is_read = is_read_param.lower() == 'true'
 
-        is_read = request.query_params.get('is_read')
-        if is_read is not None:
-            qs = qs.filter(is_read=is_read.lower() == 'true')
+        severity = request.query_params.get('severity')
+        notification_type = request.query_params.get('type')
+
+        qs = NotificationService.get_notifications(
+            user_id=request.user.id,
+            tenant_id=getattr(request.user, 'tenant_id', None),
+            is_read=is_read,
+            severity=severity,
+            notification_type=notification_type,
+        )
 
         return success_response(
             data={'notifications': NotificationSerializer(qs, many=True).data},
             message="Notifications retrieved.",
-            meta={'total': qs.count(), 'unread': qs.filter(is_read=False).count()}
+            meta={
+                'total': qs.count(),
+                'unread': NotificationService.get_unread_count(
+                    user_id=request.user.id,
+                    tenant_id=getattr(request.user, 'tenant_id', None),
+                ),
+            }
         )
+
+
+class NotificationUnreadCountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        count = NotificationService.get_unread_count(
+            user_id=request.user.id,
+            tenant_id=getattr(request.user, 'tenant_id', None),
+        )
+        return success_response(data={'unread_count': count})
 
 
 class NotificationReadView(APIView):
@@ -207,16 +310,12 @@ class NotificationReadView(APIView):
 
     def post(self, request, pk):
         try:
-            notification = Notification.objects.get(
-                id=pk,
-                user_id=request.user.id
+            notification = NotificationService.mark_read(
+                notification_id=pk,
+                user_id=request.user.id,
             )
-        except Notification.DoesNotExist:
+        except Exception:
             return error_response("Notification not found.", status_code=status.HTTP_404_NOT_FOUND)
-
-        notification.is_read = True
-        notification.read_at = timezone.now()
-        notification.save(update_fields=['is_read', 'read_at'])
 
         return success_response(
             data={'notification': NotificationSerializer(notification).data},
@@ -228,18 +327,21 @@ class NotificationReadAllView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        Notification.objects.filter(
+        count = NotificationService.mark_all_read(
             user_id=request.user.id,
-            is_read=False
-        ).update(is_read=True, read_at=timezone.now())
-
-        return success_response(message="All notifications marked as read.")
+            tenant_id=getattr(request.user, 'tenant_id', None),
+        )
+        return success_response(
+            message=f"All notifications marked as read.",
+            data={'updated_count': count},
+        )
 
 
 class EmailTemplateListView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, can_view_email_templates]
 
     def get(self, request):
+        _require_internal_communications_actor(request.user)
         templates = EmailTemplate.objects.filter(
             tenant_id=request.user.tenant_id,
             is_deleted=False,
@@ -251,6 +353,9 @@ class EmailTemplateListView(APIView):
         )
 
     def post(self, request):
+        _require_internal_communications_actor(request.user)
+        if not can_manage_email_templates().has_permission(request, self):
+            return error_response('Permission denied', status_code=status.HTTP_403_FORBIDDEN)
         serializer = EmailTemplateSerializer(data=request.data)
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors)
@@ -267,7 +372,7 @@ class EmailTemplateListView(APIView):
 
 
 class EmailTemplateDetailView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, can_view_email_templates]
 
     def get_object(self, request, pk):
         try:
@@ -280,6 +385,7 @@ class EmailTemplateDetailView(APIView):
             return None
 
     def get(self, request, pk):
+        _require_internal_communications_actor(request.user)
         template = self.get_object(request, pk)
         if not template:
             return error_response("Template not found.", status_code=status.HTTP_404_NOT_FOUND)
@@ -289,6 +395,9 @@ class EmailTemplateDetailView(APIView):
         )
 
     def put(self, request, pk):
+        _require_internal_communications_actor(request.user)
+        if not can_manage_email_templates().has_permission(request, self):
+            return error_response('Permission denied', status_code=status.HTTP_403_FORBIDDEN)
         template = self.get_object(request, pk)
         if not template:
             return error_response("Template not found.", status_code=status.HTTP_404_NOT_FOUND)
@@ -304,6 +413,9 @@ class EmailTemplateDetailView(APIView):
         )
 
     def delete(self, request, pk):
+        _require_internal_communications_actor(request.user)
+        if not can_manage_email_templates().has_permission(request, self):
+            return error_response('Permission denied', status_code=status.HTTP_403_FORBIDDEN)
         template = self.get_object(request, pk)
         if not template:
             return error_response("Template not found.", status_code=status.HTTP_404_NOT_FOUND)

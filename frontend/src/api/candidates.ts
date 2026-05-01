@@ -96,7 +96,22 @@ export const candidatesApi = {
     http.delete(`/candidates/${candidateId}/notes/${noteId}/`),
 
   crmPipeline: () =>
-    http.get<ApiResponse<Record<string, unknown[]>>>('/candidates/crm/pipeline/'),
+    http.get<ApiResponse<{ pipeline: Record<string, any[]> }>>('/candidates/crm/pipeline/'),
+
+  addToCRMPipeline: (data: { candidate_id: string; status?: string; intent?: string }) =>
+    http.post<ApiResponse<any>>('/candidates/crm/pipeline/add/', data),
+
+  moveCRMPipeline: (id: string, data: { status?: string; note?: string; next_action?: string; next_action_date?: string | null; next_action_time?: string | null; is_pinned?: boolean; tags?: string[] }) =>
+    http.put<ApiResponse<any>>(`/candidates/crm/pipeline/${id}/move/`, data),
+
+  crmReminders: () =>
+    http.get<ApiResponse<{ reminders: any[] }>>('/candidates/crm/reminders/'),
+
+  crmInteractions: (candidateId: string) =>
+    http.get<ApiResponse<{ interactions: any[] }>>(`/candidates/crm/candidates/${candidateId}/interactions/`),
+
+  logCRMInteraction: (candidateId: string, data: any) =>
+    http.post<ApiResponse<any>>(`/candidates/crm/candidates/${candidateId}/interactions/`, data),
 
   searchSkills: (q: string) =>
     http.get(`/candidates/skills/search/?q=${encodeURIComponent(q)}`, {

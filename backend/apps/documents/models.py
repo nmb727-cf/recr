@@ -68,17 +68,27 @@ class OfferLetter(models.Model):
     offered_salary = models.DecimalField(max_digits=15, decimal_places=2, null=True, blank=True)
     currency = models.CharField(max_length=10, default='INR')
     compensation_details = models.JSONField(default=dict, blank=True)
+    version = models.IntegerField(default=1)
+    parent_offer_id = models.UUIDField(null=True, blank=True, db_index=True)
     status = models.CharField(
         max_length=50,
         choices=[
-            ('draft', 'Draft'), ('pending_approval', 'Pending Approval'),
+            ('draft', 'Draft'),
+            ('pending_approval', 'Pending Approval'),
+            ('approval_pending', 'Approval Pending'),
             ('approved', 'Approved'), ('sent', 'Sent'),
-            ('accepted', 'Accepted'), ('rejected', 'Rejected'), ('revoked', 'Revoked'),
+            ('negotiation', 'Negotiation / Counter-Offer'),
+            ('accepted', 'Accepted'),
+            ('rejected', 'Rejected'),
+            ('expired', 'Expired'),
+            ('withdrawn', 'Withdrawn'),
+            ('revoked', 'Revoked'),
         ],
         default='draft'
     )
     document_url = models.TextField(blank=True)
     sent_at = models.DateTimeField(null=True, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
     accepted_at = models.DateTimeField(null=True, blank=True)
     rejected_at = models.DateTimeField(null=True, blank=True)
     rejection_reason = models.TextField(blank=True)

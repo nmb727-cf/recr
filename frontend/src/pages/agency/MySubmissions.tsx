@@ -55,8 +55,13 @@ export default function MySubmissions() {
 
   // Fetch submissions
   const { data: subData, isLoading: subLoading, refetch } = useApiQuery(
-    ['agency', 'my-submissions'], 
-    () => agenciesApi.mySubmissions()
+    ['agency', 'my-submissions', searchText, statusFilter], 
+    () => agenciesApi.mySubmissions({
+      search: searchText || undefined,
+      status: statusFilter || undefined,
+      limit: 200,
+      offset: 0,
+    })
   )
   const submissions = (subData as { submissions: Application[] } | undefined)?.submissions ?? []
 

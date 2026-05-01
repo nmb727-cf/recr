@@ -94,6 +94,10 @@ def on_decision_made(sender, interview, decision, **kwargs):
         'decision_mode': decision.decision_mode,
         'is_override': decision.is_override,
     })
+    
+    # ─── Built-in Job Binding Automation ───
+    bind_interview_to_job_pipeline(interview, decision)
+    
     AutomationEngine.execute_trigger(
         trigger_event='decision.made',
         tenant_id=interview.tenant_id,
@@ -101,6 +105,51 @@ def on_decision_made(sender, interview, decision, **kwargs):
         entity_type='interview',
         entity_id=interview.id,
     )
+
+
+def bind_interview_to_job_pipeline(interview, decision):
+    """
+    Core binding logic: Phase 2 Job-Interview Completion.
+    If binding is active and automation flags allow, move application status.
+    """
+    from apps.interviews.models import InterviewPackageBinding
+    from apps.interviews.services import InterviewService
+    from apps.pipeline.models import Application
+
+    binding = InterviewPackageBinding.objects.filter(
+        job_id=interview.requisition_id,
+        is_deleted=False
+    ).first()
+    
+    if not binding or not binding.automation_enabled:
+        return
+
+    # Check round-specific overrides
+    round_config = binding.get_round_config(interview.interview_round)
+    auto_pass = round_config.get('auto_pass_enabled', binding.auto_pass_enabled)
+    auto_reject = round_config.get('auto_reject_enabled', binding.auto_reject_enabled)
+    
+    if decision.decision == 'next_round' and auto_pass:
+        # Trigger next round
+        InterviewService.trigger_next_round(
+            tenant_id=interview.tenant_id,
+            application_id=interview.application_id,
+            job_id=interview.requisition_id,
+            candidate_id=interview.candidate_id,
+            current_round=interview.interview_round
+        )
+    elif decision.decision == 'reject' and auto_reject:
+        # Reject application
+        Application.objects.filter(id=interview.application_id).update(
+            status='rejected',
+            updated_at=timezone.now()
+        )
+    elif decision.decision == 'hold':
+        # Move to hold
+        Application.objects.filter(id=interview.application_id).update(
+            status='on_hold',
+            updated_at=timezone.now()
+        )
 
 
 events.application.created.connect(on_application_created, dispatch_uid='automation_application_created')

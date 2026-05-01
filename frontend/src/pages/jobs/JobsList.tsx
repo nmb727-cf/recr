@@ -29,7 +29,8 @@ import {
   UserPlus,
   AlertTriangle,
   CheckCircle,
-  Eye
+  Eye,
+  MessageSquare
 } from 'lucide-react'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
@@ -38,6 +39,7 @@ import { useApiQuery } from '@/hooks/useApiQuery'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { requisitionsApi } from '@/api/jobs'
 import { organisationApi } from '@/api/organisation'
+import { agenciesApi } from '@/api/agencies'
 import type { JobRequisition } from '@/types'
 import { cn } from '@/utils/cn'
 import JobCreateForm from '@/components/forms/JobCreateForm'
@@ -50,6 +52,9 @@ import JobMatchSuggestions from '@/components/JobMatchSuggestions'
 import { JobCommandCenterView, MetricCard, UnifiedActivityFeed } from './JobCommandCenterView'
 import { pipelineApi } from '@/api/pipeline'
 
+import { CustomizeView } from '@/components/common/CustomizeView'
+import { useUserPreferences } from '@/hooks/useUserPreferences'
+
 dayjs.extend(relativeTime)
 const { Text, Paragraph, Title } = Typography
 
@@ -59,8 +64,11 @@ const JOB_STATUS_TABS = [
   { label: 'All Jobs', value: 'all' },
   { label: 'Active', value: 'active' },
   { label: 'Draft', value: 'draft' },
-  { label: 'Pending', value: 'pending_approval' },
+  { label: 'Pending Approval', value: 'pending_approval' },
+  { label: 'Approved', value: 'approved' },
+  { label: 'Paused', value: 'paused' },
   { label: 'Closed', value: 'closed' },
+  { label: 'Archived', value: 'cancelled' },
 ]
 
 const PRIORITY_STYLE: Record<string, { color: string; bg: string; label: string }> = {
@@ -93,6 +101,11 @@ export default function JobsList() {
   const queryClient = useQueryClient()
   const user = useAuthStore((s) => s.user)
 
+  const { pages } = useUserPreferences()
+  const pagePrefs = pages['jobs'] || { hiddenColumns: [], hiddenSections: [], density: 'comfortable' }
+  const isCompact = pagePrefs.density === 'compact'
+  const isIntelligenceHidden = pagePrefs.hiddenSections.includes('intelligence')
+
   // State
   const [activeSurface, setActiveSurface] = useState<'jobs' | 'pipeline'>(
     (searchParams.get('tab') as 'jobs' | 'pipeline') || 'jobs'
@@ -107,6 +120,11 @@ export default function JobsList() {
     localStorage.getItem('jobs_left_panel_collapsed') === 'true'
   )
 
+  // Agency Assignment State
+  const [assignAgencyModalOpen, setAssignAgencyModalOpen] = useState(false)
+  const [assigningAgency, setAssigningAgency] = useState(false)
+  const [selectedAgencies, setSelectedAgencies] = useState<string[]>([])
+
   // Queries
   const { data: usersData } = useApiQuery(['organisation-users'], () => organisationApi.listUsers())
   const users = (usersData as any)?.users ?? []
@@ -116,6 +134,9 @@ export default function JobsList() {
 
   const { data: locsData } = useApiQuery(['organisation-locations'], () => organisationApi.listLocations())
   const locations = (locsData as any)?.locations ?? []
+
+  const { data: agencyRelData } = useApiQuery(['agency-relationships'], () => agenciesApi.listRelationships(), { enabled: activeSurface === 'jobs' })
+  const agencyRelationships = (agencyRelData as any)?.relationships ?? []
 
   const { data, isLoading, refetch } = useApiQuery(
     ['jobs', activeStatusTab, search],
@@ -145,13 +166,13 @@ export default function JobsList() {
   const handleArchive = async (id: string) => {
     Modal.confirm({
       title: 'Archive Requisition',
-      content: 'Are you sure you want to archive this job? This action can be undone from the Archived tab.',
+      content: 'Are you sure you want to archive this job? You can restore it from the Archived tab.',
       okText: 'Archive',
       okType: 'danger',
       onOk: async () => {
         try {
-          await requisitionsApi.delete(id)
-          message.success('Job requisition archived')
+          await requisitionsApi.update(id, { status: 'cancelled' })
+          message.success('Job archived')
           if (selectedJobId === id) setSelectedJobId(null)
           refetch()
         } catch (err) {
@@ -159,6 +180,42 @@ export default function JobsList() {
         }
       }
     })
+  }
+
+  const handleRestore = async (id: string) => {
+    Modal.confirm({
+      title: 'Restore Job',
+      content: 'Restore this job to Draft status so it can be worked on again?',
+      okText: 'Restore',
+      onOk: async () => {
+        try {
+          await requisitionsApi.update(id, { status: 'draft' })
+          message.success('Job restored to Draft')
+          refetch()
+        } catch (err) {
+          message.error('Failed to restore job')
+        }
+      }
+    })
+  }
+
+  const handleAssignAgencies = async () => {
+    if (!selectedJobId || selectedAgencies.length === 0) return
+    setAssigningAgency(true)
+    try {
+      await Promise.all(selectedAgencies.map(agencyId => 
+        agenciesApi.assignJob(selectedJobId, agencyId, { notes: 'Assigned from Job Command Center' })
+      ))
+      message.success(`Successfully assigned ${selectedAgencies.length} agencies`)
+      setAssignAgencyModalOpen(false)
+      setSelectedAgencies([])
+      queryClient.invalidateQueries({ queryKey: ['job-agency-intelligence', selectedJobId] })
+      queryClient.invalidateQueries({ queryKey: ['requisition-full', selectedJobId] })
+    } catch (err) {
+      message.error('Failed to assign agencies')
+    } finally {
+      setAssigningAgency(false)
+    }
   }
 
   // Default selection
@@ -225,6 +282,13 @@ export default function JobsList() {
         </div>
 
         <div className="flex items-center gap-3">
+          <CustomizeView 
+            pageId="jobs"
+            columns={[]}
+            sections={[
+              { id: 'intelligence', label: 'Job Intelligence Panel' },
+            ]}
+          />
           <button 
             onClick={() => navigate('/jobs/create')}
             className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white hover:bg-indigo-700 transition shadow-soft-lg"
@@ -283,6 +347,8 @@ export default function JobsList() {
                   collapsed={leftPanelCollapsed}
                   onDuplicate={handleDuplicate}
                   onArchive={handleArchive}
+                  onRestore={handleRestore}
+                  density={pagePrefs.density}
                 />
               ))
             )}
@@ -306,6 +372,7 @@ export default function JobsList() {
                   onRefresh={refetch}
                   onDuplicate={handleDuplicate}
                   onArchive={handleArchive}
+                  onAssignAgency={() => setAssignAgencyModalOpen(true)}
                 />
               )
             ) : (
@@ -319,7 +386,7 @@ export default function JobsList() {
           </div>
 
           {/* COLUMN 3: Intelligence Panel (Right) - Hidden when Pipeline surface is active for max width */}
-          {selectedJob && activeSurface !== 'pipeline' && activeTab !== 'pipeline' && (
+          {selectedJob && activeSurface !== 'pipeline' && activeTab !== 'pipeline' && !isIntelligenceHidden && (
             <div className="flex w-[300px] flex-none flex-col overflow-hidden border-l border-slate-200 bg-[#f8fafc] animate-in slide-in-from-right duration-300">
               <JobIntelligencePanel job={selectedJob} />
             </div>
@@ -327,18 +394,94 @@ export default function JobsList() {
         </div>
       </div>
 
+      {/* Agency Assignment Modal */}
+      <Modal
+        title={
+          <div className="flex items-center gap-2">
+            <div className="p-2 bg-blue-50 text-blue-600 rounded-xl"><UserPlus size={18} /></div>
+            <div>
+              <Text className="block text-sm font-black uppercase tracking-tight">Assign Agencies</Text>
+              <Text className="text-[10px] text-slate-400 font-bold uppercase">{selectedJob?.title}</Text>
+            </div>
+          </div>
+        }
+        open={assignAgencyModalOpen}
+        onCancel={() => setAssignAgencyModalOpen(false)}
+        onOk={handleAssignAgencies}
+        okText="Assign Selected"
+        confirmLoading={assigningAgency}
+        okButtonProps={{ className: "bg-blue-600 border-none rounded-xl h-10 font-black uppercase text-[10px] tracking-widest" }}
+        cancelButtonProps={{ className: "rounded-xl h-10 font-black uppercase text-[10px] tracking-widest" }}
+        className="modern-modal"
+        width={440}
+      >
+        <div className="py-4">
+          <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-3">Select agencies to invite</Text>
+          <div className="space-y-4">
+            <div className="p-1 rounded-2xl bg-slate-50 border border-slate-100">
+               <div className="max-h-[200px] overflow-y-auto p-2 space-y-1">
+                 {agencyRelationships.map((rel: any) => {
+                   const agencyId = rel.agency_tenant_id
+                   const isSelected = selectedAgencies.includes(agencyId)
+                   return (
+                     <div 
+                       key={agencyId}
+                       onClick={() => {
+                         if (isSelected) {
+                           setSelectedAgencies(prev => prev.filter(id => id !== agencyId))
+                         } else {
+                           setSelectedAgencies(prev => [...prev, agencyId])
+                         }
+                       }}
+                       className={cn(
+                         "flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all border",
+                         isSelected ? "bg-white border-blue-200 shadow-sm" : "hover:bg-white hover:border-slate-200 border-transparent"
+                       )}
+                     >
+                       <div className="flex items-center gap-3">
+                         <Avatar size="small" className="bg-slate-200 text-slate-600 font-black border-none text-[8px]">
+                           {rel.agency_name?.charAt(0) || 'A'}
+                         </Avatar>
+                         <Text className={cn("text-xs font-bold", isSelected ? "text-blue-600" : "text-slate-700")}>
+                           {rel.agency_name || `Agency ${agencyId.slice(0, 8)}`}
+                         </Text>
+                       </div>
+                       {isSelected && <div className="h-5 w-5 bg-blue-600 rounded-full flex items-center justify-center text-white"><CheckCircle size={12} /></div>}
+                     </div>
+                   )
+                 })}
+                 {agencyRelationships.length === 0 && <div className="py-8 text-center"><Text className="text-[10px] font-bold text-slate-400 uppercase">No connected agencies</Text></div>}
+               </div>
+            </div>
+          </div>
+          <div className="mt-6 p-4 bg-amber-50 rounded-2xl border border-amber-100">
+            <div className="flex items-start gap-3">
+              <Zap size={14} className="text-amber-500 mt-1" />
+              <Text className="text-[11px] text-amber-800 font-medium leading-relaxed">
+                Selected agencies will receive an immediate invitation to submit candidates for this role.
+              </Text>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
     </div>
   )
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function JobOperationalCard({ job, selected, onSelect, users, departments, locations, collapsed, onDuplicate, onArchive }: any) {
+function JobOperationalCard({ job, selected, onSelect, users, departments, locations, collapsed, onDuplicate, onArchive, onRestore, density }: any) {
+  const isCompact = density === 'compact'
   const navigate = useNavigate()
   const statusStyle = getStatusStyle(job.status, 'job')
   const priority = PRIORITY_STYLE[job.priority || 'medium']
   const metadata = (job.metadata || {}) as Record<string, any>
   const owner = users?.find((u: any) => u.id === job.created_by)
+  // Expiry badge
+  const expiryDate = metadata.expiry_date || job.target_date
+  const isExpired = expiryDate && dayjs(expiryDate).isBefore(dayjs(), 'day')
+  const isExpiringSoon = !isExpired && expiryDate && dayjs(expiryDate).diff(dayjs(), 'day') <= 7
   const ownerName = owner ? `${owner.first_name} ${owner.last_name}` : 'Unknown'
   
   const deptName = departments?.find((d: any) => d.id === job.department_id)?.name || 'General'
@@ -373,7 +516,8 @@ function JobOperationalCard({ job, selected, onSelect, users, departments, locat
     <button
       onClick={onSelect}
       className={cn(
-        "w-full rounded-xl border p-3.5 text-left transition-all relative overflow-hidden group mb-1",
+        "w-full rounded-xl border text-left transition-all relative overflow-hidden group mb-1",
+        isCompact ? "p-2.5" : "p-3.5",
         selected
           ? "border-indigo-400 bg-white shadow-sm ring-2 ring-indigo-100"
           : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm"
@@ -381,22 +525,25 @@ function JobOperationalCard({ job, selected, onSelect, users, departments, locat
     >
       {selected && <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-600" />}
       
-      <div className="flex items-start justify-between gap-2 mb-2.5">
+      <div className={cn("flex items-start justify-between gap-2", isCompact ? "mb-1.5" : "mb-2.5")}>
         <div className="min-w-0 flex-1">
           <div className={cn(
-            "truncate text-xs font-bold leading-tight mb-1",
+            "truncate font-bold leading-tight",
+            isCompact ? "text-[11px] mb-0.5" : "text-xs mb-1",
             selected ? "text-slate-900" : "text-slate-800"
           )}>
             {job.title || 'Untitled Role'}
           </div>
-          <div className="text-[9px] text-indigo-600 font-bold uppercase tracking-wider mb-1 truncate">
+          <div className={cn("text-indigo-600 font-bold uppercase tracking-wider truncate", isCompact ? "text-[8px] mb-0.5" : "text-[9px] mb-1")}>
             {job.job_ref_id || '—'}
           </div>
-          <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium">
-            <span className="truncate">{job.work_mode?.replace('_', ' ')}</span>
-            <span className="text-slate-300">•</span>
-            <span className="truncate">{deptName}</span>
-          </div>
+          {!isCompact && (
+            <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium">
+              <span className="truncate">{job.work_mode?.replace('_', ' ')}</span>
+              <span className="text-slate-300">•</span>
+              <span className="truncate">{deptName}</span>
+            </div>
+          )}
         </div>
         <div className="shrink-0 flex items-center gap-2">
           <Dropdown
@@ -404,8 +551,11 @@ function JobOperationalCard({ job, selected, onSelect, users, departments, locat
               items: [
                 { key: 'edit', label: 'Edit Setup', icon: <Edit size={12} />, onClick: (e) => { e.domEvent.stopPropagation(); navigate(`/jobs/${job.id}/setup`) } },
                 { key: 'duplicate', label: 'Duplicate Job', icon: <Copy size={12} />, onClick: (e) => { e.domEvent.stopPropagation(); onDuplicate(job.id) } },
+                { key: 'map_relations', label: 'Map to Relations', icon: <MessageSquare size={12} />, onClick: (e) => { e.domEvent.stopPropagation(); message.success('Job mapped to Candidate Relations for sourcing') } },
                 { type: 'divider' },
-                { key: 'archive', label: 'Archive Job', icon: <Trash2 size={12} />, danger: true, onClick: (e) => { e.domEvent.stopPropagation(); onArchive(job.id) } },
+                job.status === 'cancelled'
+                  ? { key: 'restore', label: 'Restore Job', icon: <Trash2 size={12} />, onClick: (e) => { e.domEvent.stopPropagation(); onRestore?.(job.id) } }
+                  : { key: 'archive', label: 'Archive Job', icon: <Trash2 size={12} />, danger: true, onClick: (e) => { e.domEvent.stopPropagation(); onArchive(job.id) } },
               ]
             }}
             placement="bottomRight"
@@ -429,12 +579,29 @@ function JobOperationalCard({ job, selected, onSelect, users, departments, locat
       </div>
 
       <div className="flex items-center justify-between gap-2 mb-3">
-        <div className={cn(
-          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide border",
-          statusStyle.softClass
-        )}>
-          <span className={cn("h-1 w-1 rounded-full", statusStyle.dotClass)} />
-          {formatStatusLabel(job.status)}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <div className={cn(
+            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide border",
+            statusStyle.softClass
+          )}>
+            <span className={cn("h-1 w-1 rounded-full", statusStyle.dotClass)} />
+            {formatStatusLabel(job.status)}
+          </div>
+          {isExpired && (
+            <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase bg-red-50 text-red-600 border border-red-200">
+              Expired
+            </span>
+          )}
+          {isExpiringSoon && (
+            <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase bg-amber-50 text-amber-600 border border-amber-200">
+              Expiring {dayjs(expiryDate).fromNow()}
+            </span>
+          )}
+          {job.is_confidential && (
+            <span className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase bg-slate-100 text-slate-500 border border-slate-200">
+              Conf.
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1.5 opacity-80">
           <Avatar size={16} style={{ backgroundColor: avatarColor(ownerName), fontSize: '7px' }} className="font-bold">
@@ -467,7 +634,7 @@ function JobOperationalCard({ job, selected, onSelect, users, departments, locat
   )
 }
 
-function JobCommandCenter({ job: jobSummary, activeTab, setActiveTab, onEdit, onRefresh, onDuplicate, onArchive }: any) {
+function JobCommandCenter({ job: jobSummary, activeTab, setActiveTab, onEdit, onRefresh, onDuplicate, onArchive, onAssignAgency }: any) {
   const { t } = useTranslation('jobs')
   const navigate = useNavigate()
   const statusStyle = getStatusStyle(jobSummary.status, 'job')
@@ -623,7 +790,7 @@ function JobCommandCenter({ job: jobSummary, activeTab, setActiveTab, onEdit, on
           {(jobLoading || pipelineLoading) && <div className="absolute inset-0 flex items-center justify-center bg-white/50 z-10"><Spin /></div>}
           {activeTab === 'overview' && (
             <div className="overflow-y-auto h-full custom-scrollbar p-6">
-              <JobCommandCenterView requisition={job} applications={applications} />
+              <JobCommandCenterView requisition={job} applications={applications} onAssignAgency={onAssignAgency} />
             </div>
           )}
           {activeTab === 'job_info' && (

@@ -31,6 +31,10 @@ import { formatStatusLabel, getStatusStyle } from '@/utils/status'
 import { useAuthStore } from '@/store/authStore'
 import TalentPoolsList from '../talent-pools/TalentPoolsList'
 import CandidateWorkbench from './CandidateWorkbench'
+import CandidateRelations from './CandidateRelations'
+
+import { CustomizeView } from '@/components/common/CustomizeView'
+import { useUserPreferences } from '@/hooks/useUserPreferences'
 
 dayjs.extend(relativeTime)
 const { Title, Text, Paragraph } = Typography
@@ -487,13 +491,20 @@ export default function CandidateDatabase() {
   const queryClient = useQueryClient()
   const canCreate = usePermission('candidates.candidate.create')
   
-  const initialView = useMemo(() => {
-    if (location.pathname.includes('/active')) return 'active'
-    if (location.pathname.includes('/pools')) return 'pools'
-    return 'database'
-  }, [location.pathname])
+  const { pages } = useUserPreferences()
+  const pagePrefs = pages['candidate-db'] || { hiddenColumns: [], hiddenSections: [], density: 'comfortable' }
+  const isCompact = pagePrefs.density === 'compact'
+  const isSummaryHidden = pagePrefs.hiddenSections.includes('summary')
 
-  const [mainView, setMainView] = useState<'database' | 'active' | 'pools'>(initialView)
+  const initialView = useMemo(() => {
+    const p = location.pathname
+    if (p.includes('/active')) return 'active'
+    if (p.includes('/pools')) return 'pools'
+    if (p.includes('/leads')) return 'leads'
+    return 'database'
+  }, [location.pathname]);
+
+  const [mainView, setMainView] = useState<'database' | 'active' | 'pools' | 'leads'>(initialView);
   const [searchMode, setSearchMode] = useState<SearchMode>('all')
   const [searchText, setSearchText] = useState('')
   const [searchInputType, setSearchInputType] = useState<'keyword' | 'semantic'>('keyword')
@@ -597,14 +608,24 @@ export default function CandidateDatabase() {
           trigger={['click']} 
           menu={{ 
             items: [
-              { 
-                key: 'active', 
-                icon: <Zap size={14} />, 
-                label: <span className="text-[11px] font-black uppercase tracking-widest">Active Work</span>, 
+              {
+                key: 'active',
+                icon: <Zap size={14} />,
+                label: <span className="text-[11px] font-black uppercase tracking-widest">Active Work</span>,
                 onClick: () => handleAddToActive(row.id),
                 disabled: (row.open_engagements || 0) > 0
-              }, 
-              { key: 'match', icon: <Target size={14} />, label: <span className="text-[11px] font-black uppercase tracking-widest">Match to Job</span>, onClick: () => { setSubmitTargetId(row.id); setSubmitToJobOpen(true) } }, 
+              },
+              {
+                key: 'relations',
+                icon: <MessageSquare size={14} />,
+                label: <span className="text-[11px] font-black uppercase tracking-widest text-indigo-600">Send to Relations</span>,
+                onClick: () => {
+                   candidatesApi.addToCRMPipeline({ candidate_id: row.id, intent: 'just_lead', status: 'new_lead' })
+                      .then(() => message.success('Added to Relations'))
+                      .catch(() => message.error('Failed or already exists'))
+                }
+              },
+              { key: 'match', icon: <Target size={14} />, label: <span className="text-[11px] font-black uppercase tracking-widest">Match to Job</span>, onClick: () => { setSubmitTargetId(row.id); setSubmitToJobOpen(true) } },
               { key: 'pool', icon: <Users size={14} />, label: <span className="text-[11px] font-black uppercase tracking-widest">Add to Pool</span>, onClick: () => { setPoolTargetId(row.id); setAddToPoolOpen(true) } }
             ]
           }}
@@ -620,7 +641,11 @@ export default function CandidateDatabase() {
   const { data: usersData } = useApiQuery(['organisation-users'], () => organisationApi.listUsers())
   const memberOptions = (usersData as any)?.users?.map((u: any) => ({ value: u.id, label: `${u.first_name} ${u.last_name}` })) ?? []
 
-  const handleViewChange = (view: 'database' | 'active' | 'pools') => { setMainView(view); navigate(view === 'database' ? '/candidates' : `/candidates/${view}`) }
+  const handleViewChange = (view: 'database' | 'active' | 'pools' | 'leads') => { 
+    setMainView(view)
+    const path = view === 'database' ? '/candidates/database' : `/candidates/${view}`
+    navigate(path)
+  }
   const selectedRow = useMemo(() => apiRows.find(r => r.id === selectedCandidateId) || null, [apiRows, selectedCandidateId])
 
   const columnDropdown = (
@@ -708,6 +733,15 @@ export default function CandidateDatabase() {
               <Activity size={12} /> ACTIVE WORK
             </button>
             <button 
+              onClick={() => handleViewChange('leads')} 
+              className={cn(
+                "flex items-center gap-2 rounded-lg px-4 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all", 
+                mainView === 'leads' ? "bg-white text-indigo-700 shadow-sm border border-indigo-100" : "text-slate-500 hover:text-slate-700"
+              )}
+            >
+              <Target size={12} /> RELATIONS
+            </button>
+            <button 
               onClick={() => handleViewChange('pools')} 
               className={cn(
                 "flex items-center gap-2 rounded-lg px-4 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all", 
@@ -719,16 +753,44 @@ export default function CandidateDatabase() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Dropdown dropdownRender={() => columnDropdown} trigger={['click']} placement="bottomRight">
-            <button className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-600 hover:bg-slate-50 transition shadow-soft-sm active:scale-95">
-              <Settings2 size={14} /> Columns
+          <CustomizeView 
+            pageId="candidate-db"
+            columns={COLUMN_GROUPS.flatMap(g => g.options.map(o => ({ id: o.key, label: o.label })))}
+            sections={[
+              { id: 'summary', label: 'Intelligence Cards' },
+            ]}
+          />
+          {canCreate && (
+            <button 
+              onClick={() => setAddOpen(true)} 
+              className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white hover:bg-indigo-700 transition shadow-soft-lg active:scale-95"
+            >
+              <Plus size={14} /> Add Candidate
             </button>
-          </Dropdown>
-          {canCreate && (<button onClick={() => setAddOpen(true)} className="flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-white hover:bg-indigo-700 transition shadow-soft-lg active:scale-95"><Plus size={14} /> Add Candidate</button>)}<button onClick={() => dbQ.refetch()} className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 shadow-soft-sm transition-all"><RefreshCw size={16} className={cn(dbQ.isLoading && "animate-spin")} /></button></div>
+          )}
+          <button 
+            onClick={() => dbQ.refetch()} 
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 shadow-soft-sm transition-all"
+          >
+            <RefreshCw size={16} className={cn(dbQ.isLoading && "animate-spin")} />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-hidden flex flex-col relative">
-        {mainView === 'pools' ? (<div className="flex-1 overflow-auto bg-white animate-in fade-in duration-300"><TalentPoolsList /></div>) : mainView === 'active' ? (<div className="flex-1 overflow-hidden animate-in fade-in duration-300"><CandidateWorkbench initialSurface="active_work" /></div>) : (
+        {mainView === 'pools' ? (
+          <div className="flex-1 overflow-auto bg-white animate-in fade-in duration-300">
+            <TalentPoolsList />
+          </div>
+        ) : mainView === 'leads' ? (
+          <div className="flex-1 overflow-hidden animate-in fade-in duration-300">
+            <CandidateRelations />
+          </div>
+        ) : mainView === 'active' ? (
+          <div className="flex-1 overflow-hidden animate-in fade-in duration-300">
+            <CandidateWorkbench initialSurface="active_work" />
+          </div>
+        ) : (
           <div className="flex-1 flex flex-col overflow-hidden animate-in fade-in duration-300">
             <div className={cn("flex-1 flex overflow-hidden relative", selectedCandidateId ? "hidden" : "flex")}>
               <div className={cn("flex-none transition-all duration-300 bg-white border-r border-slate-200 z-10", filterRailCollapsed ? "w-0" : "w-[240px]")}>

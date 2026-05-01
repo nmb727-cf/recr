@@ -107,7 +107,7 @@ export default function CandidateInterviewResults() {
   const statusQuery = useQuery({
     queryKey: ['candidate_interview_result_detail', selectedInterviewId],
     enabled: Boolean(selectedInterviewId),
-    queryFn: async () => (await interviewsApi.candidateStatus(selectedInterviewId)).data?.data || {},
+    queryFn: async () => (await interviewsApi.candidateResults({ interview_id: selectedInterviewId })).data?.data || {},
   })
 
   const selectedRow =
@@ -116,7 +116,7 @@ export default function CandidateInterviewResults() {
     null
 
   const detail = statusQuery.data || {}
-  const normalizedResult = normalizeResult(detail.status, detail.decision?.decision || selectedRow?.decision?.decision)
+  const normalizedResult = normalizeResult(detail.status, detail.interview?.decision?.decision || selectedRow?.decision?.decision)
   const nextInterview = useMemo(
     () =>
       upcomingInterviews
@@ -134,7 +134,6 @@ export default function CandidateInterviewResults() {
   )
 
   const feedbackSummary =
-    detail.decision?.notes ||
     detail.feedback_summary ||
     (detail.scores?.overall_score != null ? `Overall score recorded: ${detail.scores.overall_score}` : '')
 

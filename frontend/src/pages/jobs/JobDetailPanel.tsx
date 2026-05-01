@@ -1,6 +1,6 @@
 import {
   Button, Col, Descriptions, Row, Space, Steps, Tag,
-  Typography, Spin, message, Empty, Modal, Input, Divider,
+  Typography, Spin, message, Empty, Modal, Input, Divider, Alert,
 } from 'antd'
 import {
   SendOutlined, CheckOutlined, CloseOutlined,
@@ -166,6 +166,31 @@ export default function JobDetailPanel({ jobId, onActionSuccess }: { jobId: stri
               ]}
             />
           </div>
+
+          {/* Approval chain context */}
+          {requisition.status === 'pending_approval' && (() => {
+            const chain: Array<{ user_id: string; name: string; order: number; is_fallback: boolean }> =
+              Array.isArray((requisition as any).approval_chain) ? (requisition as any).approval_chain : []
+            const currentApproverId = (requisition as any).current_approver_id
+            const currentApprover = chain.find(a => a.user_id === currentApproverId)
+            return chain.length > 0 ? (
+              <Alert
+                type="info"
+                style={{ marginBottom: 16 }}
+                message={
+                  currentApprover
+                    ? `Awaiting approval from: ${currentApprover.name}${currentApprover.is_fallback ? ' (fallback)' : ''}`
+                    : 'Awaiting approval'
+                }
+                description={
+                  chain.length > 1
+                    ? `Approval chain: ${chain.map(a => a.name || 'Unknown').join(' → ')}`
+                    : undefined
+                }
+                showIcon
+              />
+            ) : null
+          })()}
 
           <Descriptions column={1} size="small" labelStyle={{ color: '#8c8c8c', fontWeight: 500, width: 120 }}>
             <Descriptions.Item label="ID">

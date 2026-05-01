@@ -79,6 +79,20 @@ PERMISSION_REGISTRY = [
     {'code': 'communication.email.send', 'module': 'communications', 'resource': 'email', 'action': 'send', 'description': 'Send emails through communication engine'},
     {'code': 'communication.email.send_from_shared_account', 'module': 'communications', 'resource': 'email', 'action': 'send_from_shared_account', 'description': 'Send from shared tenant accounts'},
     {'code': 'communication.email.audit.view', 'module': 'communications', 'resource': 'email_audit', 'action': 'view', 'description': 'View email usage and delivery audit trail'},
+
+    # ── Notification Control Center ───────────────────────────────────────────
+    {'code': 'communication.notification_rules.view',   'module': 'communications', 'resource': 'notification_rules', 'action': 'view',   'description': 'View notification rules and channel settings'},
+    {'code': 'communication.notification_rules.manage', 'module': 'communications', 'resource': 'notification_rules', 'action': 'manage', 'description': 'Create, update and delete notification rules and channel settings'},
+
+    # ── Agency Candidate CRM ──────────────────────────────────────────────────
+    {'code': 'agency_candidates.candidate.view',     'module': 'agency_candidates', 'resource': 'candidate', 'action': 'view',     'description': 'View agency talent pool and candidate profiles'},
+    {'code': 'agency_candidates.candidate.create',   'module': 'agency_candidates', 'resource': 'candidate', 'action': 'create',   'description': 'Add new candidates to agency CRM'},
+    {'code': 'agency_candidates.candidate.edit',     'module': 'agency_candidates', 'resource': 'candidate', 'action': 'edit',     'description': 'Edit agency candidate records'},
+    {'code': 'agency_candidates.candidate.delete',   'module': 'agency_candidates', 'resource': 'candidate', 'action': 'delete',   'description': 'Delete candidates from agency CRM'},
+    {'code': 'agency_candidates.candidate.assign',   'module': 'agency_candidates', 'resource': 'candidate', 'action': 'assign',   'description': 'Assign candidates to recruiters'},
+    {'code': 'agency_candidates.candidate.transfer', 'module': 'agency_candidates', 'resource': 'candidate', 'action': 'transfer', 'description': 'Transfer candidate ownership between recruiters'},
+    {'code': 'agency_candidates.candidate.submit',   'module': 'agency_candidates', 'resource': 'candidate', 'action': 'submit',   'description': 'Submit candidates to client jobs'},
+    {'code': 'agency_candidates.hotlist.manage',     'module': 'agency_candidates', 'resource': 'hotlist',   'action': 'manage',   'description': 'Create and manage candidate hotlists'},
 ]
 
 # Convenience: set of all codes for role assignment helpers below
@@ -97,7 +111,9 @@ ROLE_DEFINITIONS = [
     {'name': 'viewer',            'display_name': 'Viewer',             'description': 'Read-only access to seeded modules'},
     {'name': 'agency_owner',      'display_name': 'Agency Owner',       'description': 'Owner/admin of a recruitment agency tenant'},
     {'name': 'agency_admin',      'display_name': 'Agency Admin',       'description': 'Senior agency staff with management access'},
+    {'name': 'agency_manager',    'display_name': 'Agency Manager',      'description': 'Agency team leader or manager'},
     {'name': 'agency_recruiter',  'display_name': 'Agency Recruiter',   'description': 'Agency-side recruiter working assigned jobs'},
+    {'name': 'agency_sourcer',    'display_name': 'Agency Sourcer',     'description': 'Agency staff focused on sourcing candidates for the pool'},
     {'name': 'candidate',         'display_name': 'Candidate',          'description': 'Self-registered candidate with access to the candidate portal only'},
 ]
 
@@ -214,6 +230,11 @@ ROLE_PERMISSION_MAP = {
         'communication.quick_replies.manage',
         'communication.email.send', 'communication.email.send_from_shared_account',
         'communication.email.audit.view',
+        # Agency CRM
+        'agency_candidates.candidate.view', 'agency_candidates.candidate.create',
+        'agency_candidates.candidate.edit', 'agency_candidates.candidate.delete',
+        'agency_candidates.candidate.assign', 'agency_candidates.candidate.transfer',
+        'agency_candidates.candidate.submit', 'agency_candidates.hotlist.manage',
     ],
 
     'agency_admin': [
@@ -234,6 +255,28 @@ ROLE_PERMISSION_MAP = {
         'communication.quick_replies.manage',
         'communication.email.send', 'communication.email.send_from_shared_account',
         'communication.email.audit.view',
+        # Agency CRM
+        'agency_candidates.candidate.view', 'agency_candidates.candidate.create',
+        'agency_candidates.candidate.edit', 'agency_candidates.candidate.delete',
+        'agency_candidates.candidate.assign', 'agency_candidates.candidate.transfer',
+        'agency_candidates.candidate.submit', 'agency_candidates.hotlist.manage',
+    ],
+
+    'agency_manager': [
+        'jobs.job.view',
+        'candidates.candidate.view', 'candidates.note.view',
+        'pipeline.application.view', 'pipeline.application.move_stage',
+        'interviews.interview.view',
+        'agencies.assignment.view',
+        'organisations.users.view',
+        'analytics.dashboard.view',
+        'communications.email.view', 'communications.email.send',
+        'communication.email_templates.view',
+        # Agency CRM
+        'agency_candidates.candidate.view', 'agency_candidates.candidate.create',
+        'agency_candidates.candidate.edit', 'agency_candidates.candidate.assign',
+        'agency_candidates.candidate.transfer', 'agency_candidates.candidate.submit',
+        'agency_candidates.hotlist.manage',
     ],
 
     'agency_recruiter': [
@@ -248,12 +291,18 @@ ROLE_PERMISSION_MAP = {
         'communication.email_accounts.view',
         'communication.email_templates.view',
         'communication.email.send',
+        # Agency CRM
+        'agency_candidates.candidate.view', 'agency_candidates.candidate.create',
+        'agency_candidates.candidate.edit', 'agency_candidates.candidate.submit',
+        'agency_candidates.hotlist.manage',
     ],
 
-    # Candidates have no back-office permissions; their portal access is
-    # controlled separately via candidate-specific views and serializers.
-    'candidate': [],
-}
+    'agency_sourcer': [
+        'jobs.job.view',
+        'candidates.candidate.view', 'candidates.candidate.create', 'candidates.candidate.edit',
+        'agency_candidates.candidate.view', 'agency_candidates.candidate.create',
+        'agency_candidates.candidate.edit', 'agency_candidates.hotlist.manage',
+    ],
 
 
 def resolve_permission_codes(role_name: str) -> set:

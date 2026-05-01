@@ -26,6 +26,9 @@ export const pipelineApi = {
   withdraw: (id: string, note: string) =>
     http.post<ApiResponse<{ application: Application }>>(`/pipeline/pipeline/applications/${id}/withdraw/`, { note }),
 
+  makeOffer: (id: string, data: { offer_amount: number; currency?: string; joining_date: string; notes: string }) =>
+    http.post<ApiResponse<{ application: Application }>>(`/pipeline/pipeline/applications/${id}/make-offer/`, data),
+
   getPipeline: (requisitionId: string) =>
     http.get<ApiResponse<PipelineData>>(`/pipeline/pipeline/${requisitionId}/`),
 

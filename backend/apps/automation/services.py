@@ -4,7 +4,7 @@ from decimal import Decimal, InvalidOperation
 from django.utils import timezone
 
 from apps.automation.models import AutomationRule, AutomationLog
-from apps.interviews.models import Interview, InterviewPanelist
+from apps.interviews.models import InterviewPanelist
 from apps.pipeline.models import Application, ApplicationStageHistory, ActionDeadline
 
 
@@ -33,6 +33,24 @@ class AutomationEngine:
         entity_id=None,
     ) -> dict:
         context = context or {}
+        
+        # ─── Workflow Master Control ───
+        requisition_id = context.get('requisition_id')
+        if requisition_id:
+            from apps.jobs.models import JobRequisition
+            from apps.jobs.workflow_service import JobWorkflowService
+            
+            requisition = JobRequisition.objects.filter(id=requisition_id).first()
+            if requisition and requisition.workflow_enabled:
+                # If Workflow Master is active, check if we should fallback to module automation
+                # for this specific event or if the workflow handles it.
+                if not JobWorkflowService.handle_fallback(requisition, trigger_event, 'module_automation'):
+                    return {
+                        'trigger_event': trigger_event,
+                        'status': 'skipped',
+                        'reason': 'Workflow Master active for this job'
+                    }
+
         rules = AutomationRule.objects.filter(
             tenant_id=tenant_id,
             trigger_event=trigger_event,
@@ -277,20 +295,20 @@ class AutomationEngine:
             requisition_id = action.get('requisition_id') or context.get('requisition_id')
             if not all([candidate_id, application_id, requisition_id]):
                 return {'type': action_type, 'status': 'skipped', 'reason': 'candidate/application/requisition missing'}
-            interview = Interview.objects.create(
+            
+            from apps.interviews.services import InterviewService
+            current_round = int(context.get('interview_round', 0) or 0)
+            interview, message = InterviewService.trigger_next_round(
                 tenant_id=tenant_id,
-                candidate_id=candidate_id,
                 application_id=application_id,
-                requisition_id=requisition_id,
-                created_by=actor_user_id,
-                interview_type=action.get('interview_type', 'recruiter_screening'),
-                interview_round=int(context.get('interview_round', 1) or 1) + 1,
-                title=action.get('title', 'Auto Scheduled Next Round'),
-                scheduled_at=timezone.now() + timedelta(days=int(action.get('offset_days', 2))),
-                status='scheduled',
-                metadata={'scheduled_by': 'automation', 'automation_rule_id': str(rule_id)},
+                job_id=requisition_id,
+                candidate_id=candidate_id,
+                current_round=current_round
             )
-            return {'type': action_type, 'status': 'executed', 'interview_id': str(interview.id)}
+            if not interview:
+                return {'type': action_type, 'status': 'failed', 'reason': message}
+                
+            return {'type': action_type, 'status': 'executed', 'interview_id': str(interview.id), 'round': interview.interview_round}
 
         if action_type in {'move_stage', 'reject_candidate', 'shortlist_candidate'}:
             application = cls._application_from_context(context)

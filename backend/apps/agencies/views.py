@@ -7,14 +7,41 @@ from django.conf import settings
 from apps.accounts.models import CustomUser
 
 from apps.agencies.models import (
-    AgencyClientRelationship, AgencyJobAssignment, AgencyPerformanceScore
+    AgencyClientRelationship, AgencyJobAssignment, AgencyPerformanceScore, AgencyMembership
 )
 from apps.agencies.serializers import (
     AgencyClientRelationshipSerializer, AgencyJobAssignmentSerializer,
     AgencyPerformanceScoreSerializer,
 )
+from apps.agencies.permissions import AgencyPerformancePermission
+from apps.agencies.emailing import send_agency_invite_email
 from apps.candidates.protection import create_or_update_protection_on_submission
 from apps.core.responses import success_response, error_response
+from apps.orchestration_center.services.audit_service import AuditService
+from apps.rbac.utils import user_has_permission
+from shared.tenant_access import (
+    TenantAccessMixin,
+    is_platform_admin as shared_is_platform_admin,
+    scope_queryset_by_tenant_fields,
+    scope_agency_relationship_qs,
+)
+from shared.actor_access import (
+    role_of,
+    is_candidate,
+    is_tenant_or_platform_admin,
+    is_company_operational_user,
+    is_agency_operational_user,
+    AGENCY_OPERATIONAL_ROLES,
+    COMPANY_OPERATIONAL_ROLES,
+)
+from shared.search_utils import (
+    apply_keyword_search,
+    get_search_query,
+    parse_limit_offset,
+)
+
+AGENCY_INTELLIGENCE_DASHBOARD_ROLES = {'super_admin', 'tenant_admin', 'hr_manager', 'hiring_manager'}
+AGENCY_INTELLIGENCE_OPERATIONAL_ROLES = AGENCY_INTELLIGENCE_DASHBOARD_ROLES | {'recruiter'}
 
 
 def _to_bool(value, default=False):
@@ -27,10 +54,97 @@ def _to_bool(value, default=False):
     return str(value).strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
+def _require_agency_intelligence_access(request, *, include_recruiter=False):
+    allowed_roles = AGENCY_INTELLIGENCE_OPERATIONAL_ROLES if include_recruiter else AGENCY_INTELLIGENCE_DASHBOARD_ROLES
+    if request.user.is_staff or request.user.role in allowed_roles:
+        return None
+    return error_response(
+        "You do not have permission to access Agency Intelligence.",
+        status_code=status.HTTP_403_FORBIDDEN,
+    )
+
+
+def _is_platform_admin(user):
+    return shared_is_platform_admin(user)
+
+
+def _is_company_user(user):
+    return is_company_operational_user(user)
+
+
+def _is_agency_user(user):
+    return is_agency_operational_user(user)
+
+
+def _require_network_lookup_access(request):
+    if is_candidate(request.user):
+        return error_response(
+            "You do not have permission to discover tenant relationships.",
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+    if is_tenant_or_platform_admin(request.user) or _is_company_user(request.user) or _is_agency_user(request.user):
+        return None
+    return error_response(
+        "You do not have permission to discover tenant relationships.",
+        status_code=status.HTTP_403_FORBIDDEN,
+    )
+
+
+def _require_agency_actor(request):
+    if is_tenant_or_platform_admin(request.user) or _is_agency_user(request.user):
+        return None
+    return error_response(
+        "You do not have permission to access agency operations.",
+        status_code=status.HTTP_403_FORBIDDEN,
+    )
+
+
+def _require_company_or_agency_actor(request):
+    if is_tenant_or_platform_admin(request.user) or _is_company_user(request.user) or _is_agency_user(request.user):
+        return None
+    return error_response(
+        "You do not have permission to manage tenant relationships.",
+        status_code=status.HTTP_403_FORBIDDEN,
+    )
+
+
+def _is_agency_member(*, agency_tenant_id, user_id):
+    if AgencyMembership.objects.filter(
+        agency_tenant_id=agency_tenant_id,
+        user_id=user_id,
+        is_active=True,
+    ).exists():
+        return True
+    return CustomUser.objects.filter(
+        id=user_id,
+        tenant_id=agency_tenant_id,
+        role__in=list(AGENCY_OPERATIONAL_ROLES),
+        is_deleted=False,
+    ).exists()
+
+
+def _require_agency_permission(request, permission_code: str, message: str):
+    if is_tenant_or_platform_admin(request.user):
+        return None
+    if user_has_permission(request.user, permission_code):
+        return None
+    return error_response(message, status_code=status.HTTP_403_FORBIDDEN)
+
+
 class AvailableAgencyListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        denied = _require_network_lookup_access(request)
+        if denied:
+            return denied
+        # Available agencies is a company-side discovery endpoint.
+        if not (_is_platform_admin(request.user) or _is_company_user(request.user)):
+            return error_response(
+                "Only company users can list available agencies.",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+
         from apps.tenants.models import Client
         from apps.organisations.models import Organisation
 
@@ -106,6 +220,10 @@ class AgencyLookupView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        denied = _require_network_lookup_access(request)
+        if denied:
+            return denied
+
         q = request.query_params.get('q', '').strip()
         if not q:
             return error_response("Search query required.")
@@ -141,10 +259,14 @@ class AgencyLookupView(APIView):
         )
 
 
-class AgencyRelationshipListView(APIView):
+class AgencyRelationshipListView(TenantAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        denied = self.reject_scope_widening(request)
+        if denied:
+            return denied
+
         # Company sees relationships where they are the company
         # Agency sees relationships where they are the agency
         from apps.organisations.models import Organisation
@@ -160,6 +282,11 @@ class AgencyRelationshipListView(APIView):
                     company_tenant_id=request.user.tenant_id,
                     is_deleted=False
                 )
+            qs = scope_agency_relationship_qs(
+                relationship_qs=qs,
+                user=request.user,
+                allow_platform_admin=True,
+            )
         except Exception:
             qs = AgencyClientRelationship.objects.none()
 
@@ -167,13 +294,40 @@ class AgencyRelationshipListView(APIView):
         if status_filter:
             qs = qs.filter(status=status_filter)
 
+        search = get_search_query(request.query_params)
+        if search:
+            qs, _ = apply_keyword_search(
+                qs,
+                query=search,
+                fields=(
+                    'contact_person_name',
+                    'contact_email',
+                    'contact_phone',
+                    'industry',
+                    'invited_via',
+                    'notes',
+                ),
+                typo_tolerant=True,
+            )
+
+        total = qs.count()
+        limit, offset = parse_limit_offset(request.query_params, default_limit=50, max_limit=200)
+        qs = qs.order_by('-updated_at')[offset:offset + limit]
+
         return success_response(
             data={'relationships': AgencyClientRelationshipSerializer(qs, many=True).data},
             message="Relationships retrieved.",
-            meta={'total': qs.count()}
+            meta={'total': total, 'limit': limit, 'offset': offset}
         )
 
     def post(self, request):
+        denied = _require_agency_permission(
+            request,
+            'agencies.relationship.manage',
+            "You do not have permission to manage agency relationships.",
+        )
+        if denied:
+            return denied
         serializer = AgencyClientRelationshipSerializer(data=request.data)
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors)
@@ -184,7 +338,7 @@ class AgencyRelationshipListView(APIView):
         invited_via = data.get('invited_via')
 
         # Determine if company is inviting agency or vice-versa
-        if request.user.role in ['tenant_admin', 'hr_manager', 'recruiter']:
+        if role_of(request.user) in (COMPANY_OPERATIONAL_ROLES - {'hiring_manager'}):
             invited_by = 'company'
             company_tenant_id = request.user.tenant_id
             
@@ -247,17 +401,16 @@ class AgencyRelationshipListView(APIView):
         )
 
 
-class AgencyRelationshipDetailView(APIView):
+class AgencyRelationshipDetailView(TenantAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get_object(self, request, pk):
-        try:
-            return AgencyClientRelationship.objects.get(
-                id=pk,
-                is_deleted=False
-            )
-        except AgencyClientRelationship.DoesNotExist:
-            return None
+        qs = AgencyClientRelationship.objects.filter(
+            id=pk,
+            is_deleted=False,
+        )
+        qs = self.relationship_scope(qs, request=request, allow_platform_admin=True)
+        return qs.first()
 
     def get(self, request, pk):
         rel = self.get_object(request, pk)
@@ -270,6 +423,13 @@ class AgencyRelationshipDetailView(APIView):
         )
 
     def put(self, request, pk):
+        denied = _require_agency_permission(
+            request,
+            'agencies.relationship.manage',
+            "You do not have permission to manage agency relationships.",
+        )
+        if denied:
+            return denied
         rel = self.get_object(request, pk)
         if not rel:
             return error_response("Relationship not found.", status_code=status.HTTP_404_NOT_FOUND)
@@ -285,6 +445,13 @@ class AgencyRelationshipDetailView(APIView):
         )
 
     def delete(self, request, pk):
+        denied = _require_agency_permission(
+            request,
+            'agencies.relationship.manage',
+            "You do not have permission to manage agency relationships.",
+        )
+        if denied:
+            return denied
         rel = self.get_object(request, pk)
         if not rel:
             return error_response("Relationship not found.", status_code=status.HTTP_404_NOT_FOUND)
@@ -296,13 +463,23 @@ class AgencyRelationshipDetailView(APIView):
         )
 
 
-class AgencyRelationshipInviteView(APIView):
+class AgencyRelationshipInviteView(TenantAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
-        try:
-            rel = AgencyClientRelationship.objects.get(id=pk, is_deleted=False)
-        except AgencyClientRelationship.DoesNotExist:
+        denied = _require_agency_permission(
+            request,
+            'agencies.relationship.manage',
+            "You do not have permission to manage agency relationships.",
+        )
+        if denied:
+            return denied
+        rel = self.relationship_scope(
+            AgencyClientRelationship.objects.filter(id=pk, is_deleted=False),
+            request=request,
+            allow_platform_admin=True,
+        ).first()
+        if not rel:
             return error_response("Relationship not found.", status_code=status.HTTP_404_NOT_FOUND)
 
         if rel.status != 'pending':
@@ -332,13 +509,23 @@ class AgencyRelationshipInviteView(APIView):
         )
 
 
-class AgencyRelationshipAcceptView(APIView):
+class AgencyRelationshipAcceptView(TenantAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
-        try:
-            rel = AgencyClientRelationship.objects.get(id=pk, is_deleted=False)
-        except AgencyClientRelationship.DoesNotExist:
+        denied = _require_agency_permission(
+            request,
+            'agencies.relationship.manage',
+            "You do not have permission to manage agency relationships.",
+        )
+        if denied:
+            return denied
+        rel = self.relationship_scope(
+            AgencyClientRelationship.objects.filter(id=pk, is_deleted=False),
+            request=request,
+            allow_platform_admin=True,
+        ).first()
+        if not rel:
             return error_response("Relationship not found.", status_code=status.HTTP_404_NOT_FOUND)
 
         if rel.status != 'pending':
@@ -353,13 +540,23 @@ class AgencyRelationshipAcceptView(APIView):
         )
 
 
-class AgencyRelationshipSuspendView(APIView):
+class AgencyRelationshipSuspendView(TenantAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
-        try:
-            rel = AgencyClientRelationship.objects.get(id=pk, is_deleted=False)
-        except AgencyClientRelationship.DoesNotExist:
+        denied = _require_agency_permission(
+            request,
+            'agencies.relationship.manage',
+            "You do not have permission to manage agency relationships.",
+        )
+        if denied:
+            return denied
+        rel = self.relationship_scope(
+            AgencyClientRelationship.objects.filter(id=pk, is_deleted=False),
+            request=request,
+            allow_platform_admin=True,
+        ).first()
+        if not rel:
             return error_response("Relationship not found.", status_code=status.HTTP_404_NOT_FOUND)
 
         reason = request.data.get('reason', '')
@@ -373,13 +570,72 @@ class AgencyRelationshipSuspendView(APIView):
         )
 
 
-class AgencyJobAssignmentListView(APIView):
+class AgencyRelationshipReactivateView(TenantAccessMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        denied = _require_agency_permission(
+            request,
+            'agencies.relationship.manage',
+            "You do not have permission to manage agency relationships.",
+        )
+        if denied:
+            return denied
+        rel = self.relationship_scope(
+            AgencyClientRelationship.objects.filter(id=pk, is_deleted=False),
+            request=request,
+            allow_platform_admin=True,
+        ).first()
+        if not rel:
+            return error_response("Relationship not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        allowed = _is_platform_admin(request.user) or request.user.tenant_id in {rel.company_tenant_id, rel.agency_tenant_id}
+        if not allowed:
+            return error_response("You do not have permission to reactivate this relationship.", status_code=status.HTTP_403_FORBIDDEN)
+
+        before_state = {'status': rel.status}
+        rel.status = 'active'
+        rel.save(update_fields=['status', 'updated_at'])
+
+        AuditService.log(
+            tenant_id=request.user.tenant_id,
+            actor_id=request.user.id,
+            action_type='agency_relationship_reactivated',
+            target_type='agency_relationship',
+            target_id=rel.id,
+            before_state_json=before_state,
+            after_state_json={'status': rel.status},
+            metadata_json={'company_tenant_id': str(rel.company_tenant_id), 'agency_tenant_id': str(rel.agency_tenant_id)},
+        )
+
+        from apps.core import events
+        events.agency.relationship_reactivated.send(
+            sender=self.__class__,
+            relationship_id=rel.id,
+            company_tenant_id=rel.company_tenant_id,
+            agency_tenant_id=rel.agency_tenant_id,
+            actor_id=request.user.id,
+        )
+
+        return success_response(
+            data={'relationship': AgencyClientRelationshipSerializer(rel).data},
+            message="Relationship reactivated."
+        )
+
+
+class AgencyJobAssignmentListView(TenantAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        qs = AgencyJobAssignment.objects.filter(
-            tenant_id=request.user.tenant_id,
-            is_deleted=False
+        denied = self.reject_scope_widening(request)
+        if denied:
+            return denied
+
+        qs = scope_queryset_by_tenant_fields(
+            AgencyJobAssignment.objects.filter(is_deleted=False),
+            user=request.user,
+            tenant_fields=('tenant_id', 'agency_tenant_id'),
+            allow_platform_admin=True,
         )
 
         status_filter = request.query_params.get('status')
@@ -401,6 +657,13 @@ class AgencyJobAssignmentListView(APIView):
         )
 
     def post(self, request):
+        denied = _require_agency_permission(
+            request,
+            'agencies.assignment.create',
+            "You do not have permission to manage agency assignments.",
+        )
+        if denied:
+            return denied
         serializer = AgencyJobAssignmentSerializer(data=request.data)
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors)
@@ -432,18 +695,20 @@ class AgencyJobAssignmentListView(APIView):
         )
 
 
-class AgencyJobAssignmentDetailView(APIView):
+class AgencyJobAssignmentDetailView(TenantAccessMixin, APIView):
     permission_classes = [IsAuthenticated]
 
     def get_object(self, request, pk):
-        try:
-            return AgencyJobAssignment.objects.get(
+        qs = scope_queryset_by_tenant_fields(
+            AgencyJobAssignment.objects.filter(
                 id=pk,
-                tenant_id=request.user.tenant_id,
-                is_deleted=False
-            )
-        except AgencyJobAssignment.DoesNotExist:
-            return None
+                is_deleted=False,
+            ),
+            user=request.user,
+            tenant_fields=('tenant_id', 'agency_tenant_id'),
+            allow_platform_admin=True,
+        )
+        return qs.first()
 
     def get(self, request, pk):
         assignment = self.get_object(request, pk)
@@ -456,6 +721,13 @@ class AgencyJobAssignmentDetailView(APIView):
         )
 
     def put(self, request, pk):
+        denied = _require_agency_permission(
+            request,
+            'agencies.assignment.create',
+            "You do not have permission to manage agency assignments.",
+        )
+        if denied:
+            return denied
         assignment = self.get_object(request, pk)
         if not assignment:
             return error_response("Assignment not found.", status_code=status.HTTP_404_NOT_FOUND)
@@ -471,6 +743,13 @@ class AgencyJobAssignmentDetailView(APIView):
         )
 
     def delete(self, request, pk):
+        denied = _require_agency_permission(
+            request,
+            'agencies.assignment.create',
+            "You do not have permission to manage agency assignments.",
+        )
+        if denied:
+            return denied
         assignment = self.get_object(request, pk)
         if not assignment:
             return error_response("Assignment not found.", status_code=status.HTTP_404_NOT_FOUND)
@@ -482,50 +761,202 @@ class AgencyJobAssignmentDetailView(APIView):
         )
 
 
+class AgencyJobAssignRecruiterView(TenantAccessMixin, APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        denied = _require_agency_permission(
+            request,
+            'agencies.assignment.create',
+            "You do not have permission to manage agency assignments.",
+        )
+        if denied:
+            return denied
+        recruiter_id = request.data.get('recruiter_id')
+        if not recruiter_id:
+            return error_response("recruiter_id is required.", status_code=status.HTTP_400_BAD_REQUEST)
+
+        assignment = scope_queryset_by_tenant_fields(
+            AgencyJobAssignment.objects.filter(id=pk, is_deleted=False),
+            user=request.user,
+            tenant_fields=('tenant_id', 'agency_tenant_id'),
+            allow_platform_admin=True,
+        ).first()
+        if not assignment:
+            return error_response("Assignment not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        # Allow platform admin or tenant users tied to this assignment's agency/company
+        allowed = _is_platform_admin(request.user) or request.user.tenant_id in {assignment.tenant_id, assignment.agency_tenant_id}
+        if not allowed:
+            return error_response("You do not have permission to assign recruiter for this job.", status_code=status.HTTP_403_FORBIDDEN)
+
+        try:
+            recruiter_uuid = uuid.UUID(str(recruiter_id))
+        except (ValueError, TypeError):
+            return error_response("recruiter_id must be a valid UUID.", status_code=status.HTTP_400_BAD_REQUEST)
+
+        if not _is_agency_member(agency_tenant_id=assignment.agency_tenant_id, user_id=recruiter_uuid):
+            return error_response("Recruiter does not belong to the assigned agency.", status_code=status.HTTP_403_FORBIDDEN)
+
+        before_state = {'internal_recruiter_id': str(assignment.internal_recruiter_id) if assignment.internal_recruiter_id else None}
+        assignment.internal_recruiter_id = recruiter_uuid
+        assignment.save(update_fields=['internal_recruiter_id', 'updated_at'])
+
+        AuditService.log(
+            tenant_id=request.user.tenant_id,
+            actor_id=request.user.id,
+            action_type='agency_assignment_recruiter_assigned',
+            target_type='agency_job_assignment',
+            target_id=assignment.id,
+            before_state_json=before_state,
+            after_state_json={'internal_recruiter_id': str(recruiter_uuid)},
+            metadata_json={'agency_tenant_id': str(assignment.agency_tenant_id), 'requisition_id': str(assignment.requisition_id)},
+        )
+
+        from apps.core import events
+        events.agency.recruiter_assigned.send(
+            sender=self.__class__,
+            assignment_id=assignment.id,
+            requisition_id=assignment.requisition_id,
+            agency_tenant_id=assignment.agency_tenant_id,
+            recruiter_id=recruiter_uuid,
+            actor_id=request.user.id,
+        )
+
+        return success_response(
+            data={'assignment': AgencyJobAssignmentSerializer(assignment).data},
+            message="Internal recruiter assigned."
+        )
+
+
+class AgencyJobSubmissionGovernanceView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        policy = request.data.get('policy')
+        if not policy:
+            return error_response("policy is required.", status_code=status.HTTP_400_BAD_REQUEST)
+
+        from apps.jobs.models import JobRequisition
+        valid_policies = {'direct', 'approval_required', 'draft_only'}
+        if policy not in valid_policies:
+            return error_response(f"policy must be one of: {', '.join(sorted(valid_policies))}.", status_code=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            requisition = JobRequisition.objects.get(id=pk, is_deleted=False)
+        except JobRequisition.DoesNotExist:
+            return error_response("Job not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        allowed = _is_platform_admin(request.user) or (_is_company_user(request.user) and request.user.tenant_id == requisition.tenant_id)
+        if not allowed:
+            return error_response("You do not have permission to update submission governance for this job.", status_code=status.HTTP_403_FORBIDDEN)
+
+        before_state = {'agency_submission_governance': requisition.agency_submission_governance}
+        requisition.agency_submission_governance = policy
+        requisition.save(update_fields=['agency_submission_governance', 'updated_at'])
+
+        AuditService.log(
+            tenant_id=request.user.tenant_id,
+            actor_id=request.user.id,
+            action_type='agency_submission_governance_updated',
+            target_type='job_requisition',
+            target_id=requisition.id,
+            before_state_json=before_state,
+            after_state_json={'agency_submission_governance': policy},
+            metadata_json={'requisition_id': str(requisition.id)},
+        )
+
+        from apps.core import events
+        events.agency.submission_governance_updated.send(
+            sender=self.__class__,
+            requisition_id=requisition.id,
+            tenant_id=requisition.tenant_id,
+            policy=policy,
+            actor_id=request.user.id,
+        )
+
+        return success_response(
+            data={'requisition_id': str(requisition.id), 'submission_policy': policy},
+            message="Submission governance updated."
+        )
+
+
 from apps.agencies.services import AgencyIntelligenceService
 
-class AgencyPerformanceListView(APIView):
+class AgencyIntelligenceDashboardView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        agency_id = request.query_params.get('agency_id')
-        
-        if agency_id:
-            metrics = AgencyIntelligenceService.calculate_agency_metrics(
-                tenant_id=request.user.tenant_id,
-                agency_tenant_id=agency_id
-            )
-            risks = AgencyIntelligenceService.detect_agency_risks(
-                tenant_id=request.user.tenant_id,
-                agency_tenant_id=agency_id
-            )
-            return success_response(
-                data={
-                    'metrics': metrics,
-                    'risks': risks
-                },
-                message="Agency performance retrieved."
-            )
+        denied = _require_agency_intelligence_access(request)
+        if denied:
+            return denied
 
-        # List all relationships with summary scores
-        relationships = AgencyClientRelationship.objects.filter(
-            company_tenant_id=request.user.tenant_id,
-            is_deleted=False
+        return success_response(
+            data={'intelligence': AgencyIntelligenceService.build_dashboard(request.user.tenant_id)},
+            message="Agency intelligence dashboard retrieved.",
         )
-        
+
+
+class AgencyPerformanceListView(APIView):
+    permission_classes = [IsAuthenticated, AgencyPerformancePermission]
+
+    def get(self, request):
+        # Query parameter-based filtering is intentionally ignored to avoid
+        # unauthorized data access across agencies.
+        user = request.user
         result = []
-        for rel in relationships:
-            metrics = AgencyIntelligenceService.calculate_agency_metrics(
-                tenant_id=request.user.tenant_id,
-                agency_tenant_id=rel.agency_tenant_id
+
+        if _is_platform_admin(user):
+            perf_rows = AgencyPerformanceScore.objects.filter().order_by('-updated_at')[:200]
+            for row in perf_rows:
+                metrics = AgencyIntelligenceService.calculate_agency_metrics(
+                    tenant_id=row.tenant_id,
+                    agency_tenant_id=row.agency_tenant_id,
+                )
+                result.append({
+                    'agency_tenant_id': str(row.agency_tenant_id) if row.agency_tenant_id else None,
+                    'company_tenant_id': str(row.company_tenant_id) if row.company_tenant_id else None,
+                    'tier': row.metadata.get('tier', 'standard') if isinstance(row.metadata, dict) else 'standard',
+                    'score': metrics['overall_score'],
+                    'metrics': metrics,
+                })
+        elif _is_company_user(user):
+            relationships = AgencyClientRelationship.objects.filter(
+                company_tenant_id=user.tenant_id,
+                is_deleted=False
             )
-            result.append({
-                'agency_tenant_id': str(rel.agency_tenant_id),
-                'agency_name': rel.metadata.get('agency_name', 'Unknown Agency'),
-                'tier': rel.tier,
-                'score': metrics['overall_score'],
-                'metrics': metrics
-            })
+            for rel in relationships:
+                metrics = AgencyIntelligenceService.calculate_agency_metrics(
+                    tenant_id=user.tenant_id,
+                    agency_tenant_id=rel.agency_tenant_id
+                )
+                result.append({
+                    'agency_tenant_id': str(rel.agency_tenant_id),
+                    'agency_name': rel.metadata.get('agency_name', 'Unknown Agency'),
+                    'tier': rel.tier,
+                    'score': metrics['overall_score'],
+                    'metrics': metrics
+                })
+        elif _is_agency_user(user):
+            # Agency can only view its own agency performance across linked companies.
+            relationships = AgencyClientRelationship.objects.filter(
+                agency_tenant_id=user.tenant_id,
+                is_deleted=False
+            )
+            company_ids = list({rel.company_tenant_id for rel in relationships if rel.company_tenant_id})
+            for company_tenant_id in company_ids:
+                metrics = AgencyIntelligenceService.calculate_agency_metrics(
+                    tenant_id=company_tenant_id,
+                    agency_tenant_id=user.tenant_id
+                )
+                result.append({
+                    'agency_tenant_id': str(user.tenant_id),
+                    'company_tenant_id': str(company_tenant_id),
+                    'score': metrics['overall_score'],
+                    'metrics': metrics,
+                })
+        else:
+            return error_response("You do not have permission to view agency performance.", status_code=status.HTTP_403_FORBIDDEN)
 
         return success_response(
             data={'performance': result},
@@ -538,79 +969,79 @@ class JobAgencyIntelligenceView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, requisition_id):
-        tenant_id = request.user.tenant_id
-        
-        # 1. Get currently assigned agencies performance
-        assignments = AgencyJobAssignment.objects.filter(
-            requisition_id=requisition_id,
-            tenant_id=tenant_id,
-            is_deleted=False
-        )
-        
-        assigned_stats = []
-        for ass in assignments:
-            metrics = AgencyIntelligenceService.calculate_agency_metrics(
-                tenant_id=tenant_id,
-                agency_tenant_id=ass.agency_tenant_id
-            )
-            assigned_stats.append({
-                'agency_tenant_id': str(ass.agency_tenant_id),
-                'score': metrics['overall_score'],
-                'submission_count': ass.submission_count,
-                'status': ass.status
-            })
+        denied = _require_agency_intelligence_access(request, include_recruiter=True)
+        if denied:
+            return denied
 
-        # 2. Get recommendations
-        recommendations = AgencyIntelligenceService.get_job_agency_recommendations(
+        intelligence = AgencyIntelligenceService.build_job_agency_intelligence(
+            tenant_id=request.user.tenant_id,
             requisition_id=requisition_id,
-            tenant_id=tenant_id
         )
 
         return success_response(
-            data={
-                'assigned_performance': assigned_stats,
-                'recommendations': recommendations
-            },
+            data=intelligence,
             message="Job agency intelligence retrieved."
         )
 class AgencyMyJobsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        denied = _require_agency_actor(request)
+        if denied:
+            return denied
+        from apps.jobs.models import JobRequisition
+
         assignments = AgencyJobAssignment.objects.filter(
             agency_tenant_id=request.user.tenant_id,
             is_deleted=False,
             status='active'
         )
+        search = get_search_query(request.query_params)
+        requisitions_qs = JobRequisition.objects.filter(
+            id__in=assignments.values('requisition_id'),
+            is_deleted=False,
+        )
+        if search:
+            requisitions_qs, _ = apply_keyword_search(
+                requisitions_qs,
+                query=search,
+                fields=('title', 'job_ref_id', 'description', 'requirements', 'skills_required', 'status'),
+                typo_tolerant=True,
+            )
+        assignments = assignments.filter(requisition_id__in=requisitions_qs.values('id'))
+        total = assignments.count()
+        limit, offset = parse_limit_offset(request.query_params, default_limit=50, max_limit=200)
+        assignments = assignments.order_by('-updated_at')[offset:offset + limit]
 
+        requisition_map = {
+            str(req.id): req for req in JobRequisition.objects.filter(
+                id__in=assignments.values('requisition_id'),
+                is_deleted=False,
+            )
+        }
         result = []
         for assignment in assignments:
-            try:
-                from apps.jobs.models import JobRequisition
-                req = JobRequisition.objects.get(
-                    id=assignment.requisition_id,
-                    is_deleted=False
-                )
-                result.append({
-                    'assignment': AgencyJobAssignmentSerializer(assignment).data,
-                    'requisition': {
-                        'id': str(req.id),
-                        'title': req.title,
-                        'job_type': req.job_type,
-                        'work_mode': req.work_mode,
-                        'experience_min': req.experience_min,
-                        'experience_max': req.experience_max,
-                        'skills_required': req.skills_required,
-                        'status': req.status,
-                    }
-                })
-            except Exception:
-                pass
+            req = requisition_map.get(str(assignment.requisition_id))
+            if not req:
+                continue
+            result.append({
+                'assignment': AgencyJobAssignmentSerializer(assignment).data,
+                'requisition': {
+                    'id': str(req.id),
+                    'title': req.title,
+                    'job_type': req.job_type,
+                    'work_mode': req.work_mode,
+                    'experience_min': req.experience_min,
+                    'experience_max': req.experience_max,
+                    'skills_required': req.skills_required,
+                    'status': req.status,
+                }
+            })
 
         return success_response(
             data={'jobs': result},
             message="Assigned jobs retrieved.",
-            meta={'total': len(result)}
+            meta={'total': total, 'limit': limit, 'offset': offset}
         )
 
 
@@ -618,8 +1049,19 @@ class AgencySubmitCandidateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        denied = _require_agency_actor(request)
+        if denied:
+            return denied
+        denied = _require_agency_permission(
+            request,
+            'agency_candidates.candidate.submit',
+            "You do not have permission to submit candidates.",
+        )
+        if denied:
+            return denied
         from apps.pipeline.models import Application, ApplicationStageHistory
         from apps.candidates.models import Candidate, CandidateProfile
+        from apps.candidates.identity_service import resolve_candidate_identity, merge_candidate_payload
         from apps.core import events
 
         candidate_id = request.data.get('candidate_id')
@@ -663,61 +1105,118 @@ class AgencySubmitCandidateView(APIView):
 
         company_id = assignment.tenant_id
 
-        # 1. Candidate Deduplication / Creation in Company Pool
-        target_candidate = Candidate.objects.filter(
-            global_hash=agency_candidate.global_hash,
+        # 1. Candidate canonical identity resolution in company context.
+        resolution = resolve_candidate_identity(
+            email=agency_candidate.email,
+            phone=agency_candidate.phone or agency_candidate.phone_number,
+            passport_id=agency_candidate.passport_id,
             tenant_id=company_id,
-            is_deleted=False
-        ).first()
-
-        if not target_candidate:
-            # Create a company-side copy of the candidate
-            target_candidate = Candidate.objects.create(
-                tenant_id=company_id,
-                first_name=agency_candidate.first_name,
-                last_name=agency_candidate.last_name,
-                email=agency_candidate.email,
-                phone=agency_candidate.phone,
-                whatsapp=agency_candidate.whatsapp,
-                linkedin_url=agency_candidate.linkedin_url,
-                current_title=agency_candidate.current_title,
-                current_company=agency_candidate.current_company,
-                current_location_city=agency_candidate.current_location_city,
-                current_location_country=agency_candidate.current_location_country,
-                experience_years=agency_candidate.experience_years,
-                skills=agency_candidate.skills,
-                languages=agency_candidate.languages,
-                source='agency',
-                source_detail=f"Submitted by Agency (Tenant ID: {request.user.tenant_id})",
-                owner_tenant_id=request.user.tenant_id,
-                owner_user_id=request.user.id,
-                created_by=request.user.id,
-                candidate_state='NEW_LEAD',
-                candidate_pool='GENERAL',
-                is_general_pool_used=False,
+            create_if_missing=True,
+            allow_cross_tenant=True,
+            actor_user_id=request.user.id,
+            ensure_tenant_association_flag=True,
+            ensure_visibility=True,
+            source='agency_submission',
+            candidate_defaults={
+                'tenant_id': company_id,
+                'first_name': agency_candidate.first_name,
+                'last_name': agency_candidate.last_name,
+                'email': agency_candidate.email,
+                'phone': agency_candidate.phone,
+                'whatsapp': agency_candidate.whatsapp,
+                'linkedin_url': agency_candidate.linkedin_url,
+                'current_title': agency_candidate.current_title,
+                'current_company': agency_candidate.current_company,
+                'current_location_city': agency_candidate.current_location_city,
+                'current_location_country': agency_candidate.current_location_country,
+                'experience_years': agency_candidate.experience_years,
+                'skills': agency_candidate.skills,
+                'languages': agency_candidate.languages,
+                'source': 'agency',
+                'source_type': 'agency',
+                'source_detail': f"Submitted by Agency (Tenant ID: {request.user.tenant_id})",
+                'owner_tenant_id': request.user.tenant_id,
+                'owner_user_id': request.user.id,
+                'created_by': request.user.id,
+                'candidate_state': 'NEW_LEAD',
+                'candidate_pool': 'GENERAL',
+                'is_general_pool_used': False,
+            },
+        )
+        target_candidate = resolution.candidate
+        merge_candidate_payload(
+            target_candidate,
+            {
+                'first_name': agency_candidate.first_name,
+                'last_name': agency_candidate.last_name,
+                'email': agency_candidate.email,
+                'phone': agency_candidate.phone,
+                'whatsapp': agency_candidate.whatsapp,
+                'linkedin_url': agency_candidate.linkedin_url,
+                'current_title': agency_candidate.current_title,
+                'current_company': agency_candidate.current_company,
+                'current_location_city': agency_candidate.current_location_city,
+                'current_location_country': agency_candidate.current_location_country,
+                'experience_years': agency_candidate.experience_years,
+                'skills': agency_candidate.skills,
+                'languages': agency_candidate.languages,
+                'source': 'agency',
+                'source_type': 'agency',
+            },
+            overwrite=False,
+        )
+        try:
+            agency_profile = CandidateProfile.objects.get(candidate_id=agency_candidate.id)
+            target_profile, target_profile_created = CandidateProfile.objects.get_or_create(
+                candidate_id=target_candidate.id,
+                defaults={
+                    'tenant_id': company_id,
+                    'summary': agency_profile.summary,
+                    'work_experience': agency_profile.work_experience,
+                    'education': agency_profile.education,
+                    'certifications': agency_profile.certifications,
+                    'projects': agency_profile.projects,
+                    'cv_url': agency_profile.cv_url,
+                    'cv_parsed_data': agency_profile.cv_parsed_data,
+                    'created_by': request.user.id,
+                },
             )
-            
-            # Copy profile if exists
-            try:
-                agency_profile = CandidateProfile.objects.get(candidate_id=agency_candidate.id)
-                CandidateProfile.objects.create(
-                    tenant_id=company_id,
-                    candidate_id=target_candidate.id,
-                    summary=agency_profile.summary,
-                    work_experience=agency_profile.work_experience,
-                    education=agency_profile.education,
-                    certifications=agency_profile.certifications,
-                    projects=agency_profile.projects,
-                    cv_url=agency_profile.cv_url,
-                    cv_parsed_data=agency_profile.cv_parsed_data,
-                    created_by=request.user.id
-                )
-            except CandidateProfile.DoesNotExist:
-                CandidateProfile.objects.create(
-                    tenant_id=company_id,
-                    candidate_id=target_candidate.id,
-                    created_by=request.user.id
-                )
+            if not target_profile_created:
+                changed = False
+                if agency_profile.summary and not target_profile.summary:
+                    target_profile.summary = agency_profile.summary
+                    changed = True
+                if agency_profile.work_experience and not target_profile.work_experience:
+                    target_profile.work_experience = agency_profile.work_experience
+                    changed = True
+                if agency_profile.education and not target_profile.education:
+                    target_profile.education = agency_profile.education
+                    changed = True
+                if agency_profile.certifications and not target_profile.certifications:
+                    target_profile.certifications = agency_profile.certifications
+                    changed = True
+                if agency_profile.projects and not target_profile.projects:
+                    target_profile.projects = agency_profile.projects
+                    changed = True
+                if agency_profile.cv_url and not target_profile.cv_url:
+                    target_profile.cv_url = agency_profile.cv_url
+                    changed = True
+                if agency_profile.cv_parsed_data and not target_profile.cv_parsed_data:
+                    target_profile.cv_parsed_data = agency_profile.cv_parsed_data
+                    changed = True
+                if changed:
+                    target_profile.save(update_fields=[
+                        'summary', 'work_experience', 'education', 'certifications',
+                        'projects', 'cv_url', 'cv_parsed_data', 'updated_at',
+                    ])
+        except CandidateProfile.DoesNotExist:
+            CandidateProfile.objects.get_or_create(
+                candidate_id=target_candidate.id,
+                defaults={
+                    'tenant_id': company_id,
+                    'created_by': request.user.id,
+                },
+            )
 
         # Check if candidate already has an application for this job in company pool
         existing_app = Application.objects.filter(
@@ -816,6 +1315,9 @@ class AgencyMySubmissionsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        denied = _require_agency_actor(request)
+        if denied:
+            return denied
         from apps.pipeline.models import Application
         from apps.pipeline.serializers import ApplicationSerializer
 
@@ -832,10 +1334,44 @@ class AgencyMySubmissionsView(APIView):
         if requisition_id:
             applications = applications.filter(requisition_id=requisition_id)
 
+        search = get_search_query(request.query_params)
+        if search:
+            from apps.candidates.models import Candidate
+            from apps.jobs.models import JobRequisition
+
+            candidate_ids = Candidate.objects.filter(
+                tenant_id=request.user.tenant_id,
+                is_deleted=False,
+            )
+            candidate_ids, _ = apply_keyword_search(
+                candidate_ids,
+                query=search,
+                fields=('first_name', 'last_name', 'email', 'current_title', 'candidate_ref_id', 'skills'),
+                typo_tolerant=True,
+            )
+            requisition_ids = JobRequisition.objects.filter(
+                id__in=applications.values('requisition_id'),
+                is_deleted=False,
+            )
+            requisition_ids, _ = apply_keyword_search(
+                requisition_ids,
+                query=search,
+                fields=('title', 'job_ref_id', 'description', 'requirements', 'skills_required'),
+                typo_tolerant=True,
+            )
+            applications = applications.filter(
+                Q(candidate_id__in=candidate_ids.values('id')) |
+                Q(requisition_id__in=requisition_ids.values('id'))
+            )
+
+        total = applications.count()
+        limit, offset = parse_limit_offset(request.query_params, default_limit=50, max_limit=200)
+        applications = applications[offset:offset + limit]
+
         return success_response(
             data={'submissions': ApplicationSerializer(applications, many=True).data},
             message="Submissions retrieved.",
-            meta={'total': applications.count()}
+            meta={'total': total, 'limit': limit, 'offset': offset}
         )
 
 
@@ -843,6 +1379,9 @@ class AgencyMyClientsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        denied = _require_agency_actor(request)
+        if denied:
+            return denied
         relationships = AgencyClientRelationship.objects.filter(
             agency_tenant_id=request.user.tenant_id,
             is_deleted=False
@@ -852,10 +1391,29 @@ class AgencyMyClientsView(APIView):
         if status_filter:
             relationships = relationships.filter(status=status_filter)
 
+        search = get_search_query(request.query_params)
+        if search:
+            relationships, _ = apply_keyword_search(
+                relationships,
+                query=search,
+                fields=(
+                    'contact_person_name',
+                    'contact_email',
+                    'contact_phone',
+                    'industry',
+                    'invited_via',
+                    'notes',
+                ),
+                typo_tolerant=True,
+            )
+        total = relationships.count()
+        limit, offset = parse_limit_offset(request.query_params, default_limit=50, max_limit=200)
+        relationships = relationships.order_by('-updated_at')[offset:offset + limit]
+
         return success_response(
             data={'clients': AgencyClientRelationshipSerializer(relationships, many=True).data},
             message="Clients retrieved.",
-            meta={'total': relationships.count()}
+            meta={'total': total, 'limit': limit, 'offset': offset}
         )
 
 
@@ -874,6 +1432,10 @@ class TenantLookupView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        denied = _require_network_lookup_access(request)
+        if denied:
+            return denied
+
         q = request.query_params.get('q', '').strip()
         if not q:
             return error_response("Search query required.")
@@ -892,6 +1454,20 @@ class TenantLookupView(APIView):
         if user and user.tenant_id:
             org = Organisation.objects.filter(tenant_id=user.tenant_id).first()
             if org:
+                # Discovery is limited to opposite-side entity types unless platform admin.
+                requester_is_company = _is_company_user(request.user)
+                requester_is_agency = _is_agency_user(request.user)
+                if not _is_platform_admin(request.user):
+                    if requester_is_company and org.org_type != 'agency':
+                        return success_response(
+                            data={'found': False, 'email': q, 'suggested_slug': slugify(q.split('@')[-1].split('.')[0]) if '@' in q else ''},
+                            message="Not found in system."
+                        )
+                    if requester_is_agency and org.org_type != 'company':
+                        return success_response(
+                            data={'found': False, 'email': q, 'suggested_slug': slugify(q.split('@')[-1].split('.')[0]) if '@' in q else ''},
+                            message="Not found in system."
+                        )
                 return success_response(
                     data={
                         'found': True,
@@ -913,6 +1489,19 @@ class TenantLookupView(APIView):
         ).first()
 
         if portal:
+            if not _is_platform_admin(request.user):
+                requester_is_company = _is_company_user(request.user)
+                requester_is_agency = _is_agency_user(request.user)
+                if requester_is_company and portal.portal_type != 'agency':
+                    return success_response(
+                        data={'found': False, 'email': q, 'suggested_slug': slugify(q.split('@')[-1].split('.')[0]) if '@' in q else ''},
+                        message="Not found in system."
+                    )
+                if requester_is_agency and portal.portal_type != 'company':
+                    return success_response(
+                        data={'found': False, 'email': q, 'suggested_slug': slugify(q.split('@')[-1].split('.')[0]) if '@' in q else ''},
+                        message="Not found in system."
+                    )
             return success_response(
                 data={
                     'found': True,
@@ -949,6 +1538,9 @@ class GuestPortalCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        denied = _require_company_or_agency_actor(request)
+        if denied:
+            return denied
         from apps.agencies.models import GuestPortal, AgencyClientRelationship
         from django.utils.text import slugify
 
@@ -965,6 +1557,12 @@ class GuestPortalCreateView(APIView):
 
         if portal_type not in ['agency_guest', 'client_guest']:
             return error_response("portal_type must be agency_guest or client_guest.")
+
+        if not _is_platform_admin(request.user):
+            if _is_company_user(request.user) and portal_type != 'agency_guest':
+                return error_response("Company users can only create agency_guest portals.", status_code=status.HTTP_403_FORBIDDEN)
+            if _is_agency_user(request.user) and portal_type != 'client_guest':
+                return error_response("Agency users can only create client_guest portals.", status_code=status.HTTP_403_FORBIDDEN)
 
         # Generate unique slug
         base_slug = slugify(name)
@@ -1111,6 +1709,9 @@ class EmailTrackingCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        denied = _require_agency_actor(request)
+        if denied:
+            return denied
         from apps.agencies.models import EmailTrackingConfig, AgencyClientRelationship
 
         client_name = request.data.get('client_name', '').strip()
@@ -1193,6 +1794,9 @@ class OfflineClientCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        denied = _require_agency_actor(request)
+        if denied:
+            return denied
         from apps.agencies.models import AgencyClientRelationship
 
         client_name = request.data.get('client_name', '').strip()
@@ -1261,6 +1865,9 @@ class GuestPortalResendInviteView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        denied = _require_company_or_agency_actor(request)
+        if denied:
+            return denied
         from apps.agencies.models import GuestPortal
 
         try:
@@ -1278,7 +1885,28 @@ class GuestPortalResendInviteView(APIView):
         portal.status = 'pending'
         portal.save()
 
-        # TODO: Send invite email again
+        if not portal.contact_email:
+            return error_response("Portal contact email is missing.", status_code=status.HTTP_400_BAD_REQUEST)
+
+        invite_link = f"{settings.FRONTEND_URL}/portal/accept/{portal.invite_token}"
+        send_agency_invite_email(
+            recipient_email=portal.contact_email,
+            sender_name=request.user.first_name or 'Someone',
+            portal_name=portal.name,
+            portal_type=portal.portal_type,
+            invite_link=invite_link,
+            user_id=request.user.id,
+            tenant_id=request.user.tenant_id,
+        )
+
+        AuditService.log(
+            tenant_id=request.user.tenant_id,
+            actor_id=request.user.id,
+            action_type='agency_guest_portal_invite_resent',
+            target_type='agency_guest_portal',
+            target_id=portal.id,
+            metadata_json={'portal_type': portal.portal_type, 'contact_email': portal.contact_email},
+        )
 
         return success_response(
             data={'portal_id': str(portal.id), 'status': portal.status},

@@ -183,6 +183,7 @@ class AgencyJobAssignment(models.Model):
     tenant_id = models.UUIDField(null=True, blank=True, db_index=True)
     requisition_id = models.UUIDField(db_index=True)
     agency_tenant_id = models.UUIDField(null=True, blank=True, db_index=True)
+    internal_recruiter_id = models.UUIDField(null=True, blank=True, db_index=True)
     assigned_by = models.UUIDField(null=True, blank=True)
     deadline = models.DateField(null=True, blank=True)
     max_submissions = models.IntegerField(null=True, blank=True)
@@ -215,6 +216,25 @@ class AgencyJobAssignment(models.Model):
     class Meta:
         db_table = 'agencies_job_assignment'
         unique_together = ['tenant_id', 'requisition_id', 'agency_tenant_id']
+
+
+class AgencyMembership(models.Model):
+    ROLE_CHOICES = [
+        ('admin', 'Admin'),
+        ('recruiter', 'Recruiter'),
+        ('sourcer', 'Sourcer'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    agency_tenant_id = models.UUIDField(db_index=True)
+    user = models.ForeignKey('accounts.CustomUser', on_delete=models.CASCADE, related_name='agency_memberships')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='recruiter')
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'agencies_membership'
+        unique_together = ['agency_tenant_id', 'user']
 
 
 class AgencyPerformanceScore(models.Model):

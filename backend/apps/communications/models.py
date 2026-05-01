@@ -3,15 +3,72 @@ from django.db import models
 from django.utils import timezone
 
 
+# ---------------------------------------------------------------------------
+# Thread type choices
+# ---------------------------------------------------------------------------
+
+class ThreadType(models.TextChoices):
+    INTERNAL = 'internal', 'Internal'
+    COMPANY_AGENCY = 'company_agency', 'Company ↔ Agency'
+    RECRUITER_CANDIDATE = 'recruiter_candidate', 'Recruiter ↔ Candidate'
+    COMPANY_CANDIDATE = 'company_candidate', 'Company ↔ Candidate'
+    AGENCY_CANDIDATE = 'agency_candidate', 'Agency ↔ Candidate'
+    INTERVIEW_COORDINATION = 'interview_coordination', 'Interview Coordination'
+    SUBMISSION_CONTEXT = 'submission_context', 'Submission / Application Context'
+    AI_CHAT = 'ai_chat', 'AI Assistant Chat'
+    BROADCAST = 'broadcast', 'Broadcast / Announcement'
+    GENERAL = 'general', 'General'
+
+
+class ChannelType(models.TextChoices):
+    IN_APP = 'in_app', 'In-App'
+    EMAIL = 'email', 'Email'
+    WHATSAPP = 'whatsapp', 'WhatsApp'
+    SMS = 'sms', 'SMS'
+
+
+class NotificationSeverity(models.TextChoices):
+    INFO = 'info', 'Info'
+    MEDIUM = 'medium', 'Medium'
+    HIGH = 'high', 'High'
+    CRITICAL = 'critical', 'Critical / SLA'
+
+
+class ParticipantType(models.TextChoices):
+    OWNER = 'owner', 'Owner'
+    MEMBER = 'member', 'Member'
+    OBSERVER = 'observer', 'Observer'
+    EXTERNAL = 'external', 'External Tenant'
+
+
+# ---------------------------------------------------------------------------
+# MessageThread
+# ---------------------------------------------------------------------------
+
 class MessageThread(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant_id = models.UUIDField(db_index=True)
+    thread_type = models.CharField(
+        max_length=40,
+        choices=ThreadType.choices,
+        default=ThreadType.GENERAL,
+        db_index=True,
+    )
     subject = models.CharField(max_length=500, blank=True)
+    is_internal = models.BooleanField(default=True, db_index=True)
+    is_archived = models.BooleanField(default=False, db_index=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    archived_by = models.UUIDField(null=True, blank=True)
+    retention_category = models.CharField(max_length=50, blank=True, db_index=True)
+    purge_eligible_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    legal_hold = models.BooleanField(default=False, db_index=True)
     created_by = models.UUIDField(null=True, blank=True)
-    related_entity_type = models.CharField(max_length=50, blank=True)
-    related_entity_id = models.UUIDField(null=True, blank=True)
+    related_entity_type = models.CharField(max_length=80, blank=True, db_index=True)
+    related_entity_id = models.UUIDField(null=True, blank=True, db_index=True)
+    # Legacy JSON participant list — kept for backward compat; prefer ThreadParticipant rows
     participant_ids = models.JSONField(default=list, blank=True)
-    last_message_at = models.DateTimeField(null=True, blank=True)
+    last_message_at = models.DateTimeField(null=True, blank=True, db_index=True)
+    last_message_preview = models.CharField(max_length=255, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_deleted = models.BooleanField(default=False, db_index=True)
@@ -26,54 +83,232 @@ class MessageThread(models.Model):
     class Meta:
         db_table = 'communications_thread'
         ordering = ['-last_message_at']
+        indexes = [
+            models.Index(fields=['tenant_id', 'thread_type', 'is_deleted']),
+            models.Index(fields=['tenant_id', 'related_entity_type', 'related_entity_id']),
+            models.Index(fields=['tenant_id', 'last_message_at']),
+        ]
 
 
-class Message(models.Model):
+# ---------------------------------------------------------------------------
+# ThreadParticipant
+# ---------------------------------------------------------------------------
+
+class ThreadParticipant(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant_id = models.UUIDField(db_index=True)
-    thread_id = models.UUIDField(db_index=True)
+    thread = models.ForeignKey(
+        MessageThread,
+        on_delete=models.CASCADE,
+        related_name='participants',
+        db_column='thread_id',
+    )
+    user_id = models.UUIDField(db_index=True)
+    participant_type = models.CharField(
+        max_length=20,
+        choices=ParticipantType.choices,
+        default=ParticipantType.MEMBER,
+    )
+    # For cross-tenant participants (e.g. agency user in company thread)
+    external_tenant_id = models.UUIDField(null=True, blank=True)
+    last_read_at = models.DateTimeField(null=True, blank=True)
+    is_muted = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = 'communications_thread_participant'
+        unique_together = ('thread', 'user_id')
+        indexes = [
+            models.Index(fields=['tenant_id', 'user_id', 'is_active']),
+            models.Index(fields=['thread_id', 'user_id']),
+        ]
+
+
+# ---------------------------------------------------------------------------
+# Message
+# ---------------------------------------------------------------------------
+
+class Message(models.Model):
+    MESSAGE_TYPE_CHOICES = [
+        ('text', 'Text'),
+        ('system_event', 'System Event'),
+        ('note', 'Note'),
+        ('attachment', 'Attachment'),
+        ('template_log', 'Template Generated'),
+        ('file', 'File'),
+        ('template', 'Template'),
+        ('whatsapp', 'WhatsApp'),
+        ('email', 'Email'),
+        ('sms', 'SMS'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_id = models.UUIDField(db_index=True)
+    thread = models.ForeignKey(
+        MessageThread,
+        on_delete=models.CASCADE,
+        related_name='messages',
+        db_column='thread_id',
+        null=True,
+        blank=True,
+    )
     sender_id = models.UUIDField(db_index=True)
     sender_tenant_id = models.UUIDField(null=True, blank=True)
-    message_type = models.CharField(
-        max_length=50,
-        choices=[
-            ('text', 'Text'), ('file', 'File'), ('template', 'Template'),
-            ('system', 'System'), ('whatsapp', 'WhatsApp'),
-            ('email', 'Email'), ('sms', 'SMS'),
-        ],
-        default='text'
+    message_type = models.CharField(max_length=50, choices=MESSAGE_TYPE_CHOICES, default='text')
+    channel_type = models.CharField(
+        max_length=20,
+        choices=ChannelType.choices,
+        default=ChannelType.IN_APP,
     )
-    content = models.TextField(blank=True)
-    attachments = models.JSONField(default=list, blank=True)
+    # `body` is the canonical field; `content` preserved for backward compat
+    body = models.TextField(blank=True)
+    content = models.TextField(blank=True)  # legacy alias
+    attachments_json = models.JSONField(default=list, blank=True)
+    attachments = models.JSONField(default=list, blank=True)  # legacy alias
+    related_entity_type = models.CharField(max_length=80, blank=True)
+    related_entity_id = models.UUIDField(null=True, blank=True)
+    sent_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
     is_read = models.BooleanField(default=False)
     read_at = models.DateTimeField(null=True, blank=True)
-    sent_at = models.DateTimeField(auto_now_add=True)
+    is_system_generated = models.BooleanField(default=False, db_index=True)
+    is_deleted = models.BooleanField(default=False, db_index=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
     metadata = models.JSONField(default=dict, blank=True)
+
+    def get_body(self):
+        return self.body or self.content
+
+    def soft_delete(self):
+        self.is_deleted = True
+        self.deleted_at = timezone.now()
+        self.save(update_fields=['is_deleted', 'deleted_at'])
 
     class Meta:
         db_table = 'communications_message'
         ordering = ['sent_at']
+        indexes = [
+            models.Index(fields=['tenant_id', 'sent_at']),
+            models.Index(fields=['tenant_id', 'is_system_generated']),
+        ]
 
+
+# ---------------------------------------------------------------------------
+# MessageAttachment (future-ready)
+# ---------------------------------------------------------------------------
+
+class MessageAttachment(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    message = models.ForeignKey(
+        Message,
+        on_delete=models.CASCADE,
+        related_name='message_attachments',
+    )
+    file = models.FileField(upload_to='messaging/attachments/%Y/%m/%d/', null=True, blank=True)
+    file_id = models.UUIDField(null=True, blank=True)  # link to central documents app if used
+    filename = models.CharField(max_length=255)
+    file_type = models.CharField(max_length=100, blank=True)
+    size = models.BigIntegerField(default=0)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'communications_message_attachment'
+
+
+# ---------------------------------------------------------------------------
+# Notification
+# ---------------------------------------------------------------------------
 
 class Notification(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant_id = models.UUIDField(null=True, blank=True, db_index=True)
     user_id = models.UUIDField(db_index=True)
+    type = models.CharField(max_length=100, blank=True)  # preferred field
+    notification_type = models.CharField(max_length=100, blank=True)  # legacy alias
     title = models.CharField(max_length=255)
     body = models.TextField(blank=True)
-    notification_type = models.CharField(max_length=100)
+    severity = models.CharField(
+        max_length=20,
+        choices=NotificationSeverity.choices,
+        default=NotificationSeverity.INFO,
+        db_index=True,
+    )
     action_url = models.TextField(blank=True)
-    is_read = models.BooleanField(default=False)
+    is_read = models.BooleanField(default=False, db_index=True)
     read_at = models.DateTimeField(null=True, blank=True)
-    related_entity_type = models.CharField(max_length=50, blank=True)
+    is_archived = models.BooleanField(default=False, db_index=True)
+    archived_at = models.DateTimeField(null=True, blank=True)
+    related_entity_type = models.CharField(max_length=80, blank=True)
     related_entity_id = models.UUIDField(null=True, blank=True)
+    # Fallback tracking
+    fallback_email_sent_at = models.DateTimeField(null=True, blank=True)
+    fallback_whatsapp_sent_at = models.DateTimeField(null=True, blank=True)
+    escalation_level = models.PositiveSmallIntegerField(default=0)
+    # Expiry
     expires_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     metadata = models.JSONField(default=dict, blank=True)
+
+    def get_type(self):
+        return self.type or self.notification_type
 
     class Meta:
         db_table = 'communications_notification'
         ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user_id', 'is_read', 'created_at']),
+            models.Index(fields=['tenant_id', 'is_read']),
+            models.Index(fields=['user_id', 'expires_at']),
+        ]
+
+
+# ---------------------------------------------------------------------------
+# NotificationDelivery
+# ---------------------------------------------------------------------------
+
+class NotificationDelivery(models.Model):
+    CHANNEL_CHOICES = [
+        ('in_app', 'In-App'),
+        ('email', 'Email'),
+        ('whatsapp', 'WhatsApp'),
+        ('sms', 'SMS'),
+        ('push', 'Push'),
+    ]
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('sent', 'Sent'),
+        ('delivered', 'Delivered'),
+        ('failed', 'Failed'),
+        ('skipped', 'Skipped'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    tenant_id = models.UUIDField(null=True, blank=True, db_index=True)
+    notification = models.ForeignKey(
+        Notification,
+        on_delete=models.CASCADE,
+        related_name='deliveries',
+    )
+    channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES, db_index=True)
+    provider = models.CharField(max_length=80, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending', db_index=True)
+    attempted_at = models.DateTimeField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    failed_at = models.DateTimeField(null=True, blank=True)
+    external_message_id = models.CharField(max_length=255, blank=True)
+    error_message = models.TextField(blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        db_table = 'communications_notification_delivery'
+        indexes = [
+            models.Index(fields=['notification_id', 'channel']),
+            models.Index(fields=['tenant_id', 'status', 'channel']),
+        ]
 
 
 # Legacy model kept for backward compatibility.
@@ -453,3 +688,49 @@ class EmailUsageAudit(models.Model):
     class Meta:
         db_table = 'communications_email_usage_audit'
         indexes = [models.Index(fields=['tenant_id', 'action', 'created_at'])]
+
+
+
+# ---------------------------------------------------------------------------
+# Notification Control Center models (imported so Django's migration
+# engine discovers them under the communications app label)
+# ---------------------------------------------------------------------------
+from apps.communications.notification_control_models import (  # noqa: E402, F401
+    NotificationRule,
+    NotificationChannelSetting,
+    TenantNotificationPreferenceDefaults,
+    NotificationRuleCategory,
+    EscalationTargetType,
+)
+
+from apps.communications.notification_orchestration_models import (  # noqa: E402, F401
+    NotificationAutomationJob,
+    NotificationAutomationJobType,
+    NotificationAutomationJobStatus,
+    NotificationEscalationLog,
+    NotificationEscalationLogStatus,
+)
+
+from apps.communications.email_delivery_models import (  # noqa: E402, F401
+    TenantEmailConfig,
+    TenantEmailProvider,
+    EmailDelivery,
+    EmailDeliveryStatus,
+    EmailDeliveryPriority,
+)
+
+from apps.communications.channel_config_models import (  # noqa: E402, F401
+    TenantChannelConfig,
+    CommunicationDelivery,
+    CommunicationDeliveryStatus,
+    CommunicationDeliveryPriority,
+    ChannelType as MultiChannelType,
+    WhatsAppProvider,
+    SMSProvider,
+    PushProvider,
+)
+
+from apps.communications.notification_preference_models import (  # noqa: E402, F401
+    UserNotificationPreference,
+    UserNotificationSetting,
+)

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import {
   Button, Card, Descriptions, Tag,
   Typography, Spin, Empty, Tabs, Avatar,
-  Popconfirm, message, Skeleton
+  Popconfirm, message, Skeleton, Modal, Form, Input, Select
 } from 'antd'
 import {
   ArrowLeft, Edit, Mail, Phone,
@@ -15,6 +15,7 @@ import relativeTime from 'dayjs/plugin/relativeTime'
 import { useApiQuery } from '@/hooks/useApiQuery'
 import { candidatesApi } from '@/api/candidates'
 import type { CandidateDetail, CandidateNote, TimelineEvent } from '@/types'
+import WorkflowStatusPanel from '@/components/workflow/WorkflowStatusPanel'
 
 dayjs.extend(relativeTime)
 const { Text, Paragraph } = Typography
@@ -22,13 +23,17 @@ const { Text, Paragraph } = Typography
 // ─── Tabs ───────────────────────────────────────────────────────────────────
 
 function ProfileTab({ candidate }: { candidate: CandidateDetail }) {
+  const experienceYears = Number(candidate.experience_years)
+  const displayExperience = Number.isFinite(experienceYears) ? `${experienceYears} years` : 'Not specified'
+  const displayNotice = candidate.notice_period_days != null ? `${candidate.notice_period_days} days` : 'Not specified'
+
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card title="Quick Stats" bordered={false} className="shadow-soft-sm">
           <Descriptions column={1} size="small">
-            <Descriptions.Item label="Experience">{parseFloat(candidate.experience_years)} years</Descriptions.Item>
-            <Descriptions.Item label="Notice Period">{candidate.notice_period_days} days</Descriptions.Item>
+            <Descriptions.Item label="Experience">{displayExperience}</Descriptions.Item>
+            <Descriptions.Item label="Notice Period">{displayNotice}</Descriptions.Item>
             <Descriptions.Item label="Source">{candidate.source || 'Direct'}</Descriptions.Item>
             <Descriptions.Item label="Added">{dayjs(candidate.created_at).format('MMM D, YYYY')}</Descriptions.Item>
           </Descriptions>
@@ -85,10 +90,33 @@ function ProfileTab({ candidate }: { candidate: CandidateDetail }) {
 }
 
 function NotesTab({ candidateId }: { candidateId: string }) {
+  const [createOpen, setCreateOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [form] = Form.useForm()
   const { data, isLoading, refetch } = useApiQuery(['candidate-notes-full', candidateId], () =>
     candidatesApi.listNotes(candidateId)
   )
   const notes = (data as any)?.notes ?? []
+
+  const handleCreate = async () => {
+    try {
+      const values = await form.validateFields()
+      setSubmitting(true)
+      await candidatesApi.addNote(candidateId, {
+        note_text: values.note_text,
+        note_type: values.note_type || 'general',
+      })
+      message.success('Note added')
+      setCreateOpen(false)
+      form.resetFields()
+      refetch()
+    } catch (err: any) {
+      if (err?.errorFields) return
+      message.error(err?.response?.data?.message || 'Failed to add note')
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   const handleDelete = async (noteId: string) => {
     try {
@@ -104,7 +132,16 @@ function NotesTab({ candidateId }: { candidateId: string }) {
     <div className="space-y-6">
       <Card 
         title={<span className="text-lg font-bold text-slate-900">Team Notes</span>} 
-        extra={<Button type="primary" size="small" icon={<Plus className="h-3 w-3" />}>Add Note</Button>}
+        extra={
+          <Button
+            type="primary"
+            size="small"
+            icon={<Plus className="h-3 w-3" />}
+            onClick={() => setCreateOpen(true)}
+          >
+            Add Note
+          </Button>
+        }
         bordered={false} 
         className="shadow-soft-sm"
       >
@@ -133,6 +170,40 @@ function NotesTab({ candidateId }: { candidateId: string }) {
           )}
         />
       </Card>
+
+      <Modal
+        title="Add Note"
+        open={createOpen}
+        onCancel={() => setCreateOpen(false)}
+        onOk={handleCreate}
+        confirmLoading={submitting}
+        destroyOnClose
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          initialValues={{ note_type: 'general' }}
+        >
+          <Form.Item name="note_type" label="Type">
+            <Select
+              options={[
+                { value: 'general', label: 'General' },
+                { value: 'interview', label: 'Interview' },
+                { value: 'screening', label: 'Screening' },
+                { value: 'offer', label: 'Offer' },
+                { value: 'feedback', label: 'Feedback' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item
+            name="note_text"
+            label="Note"
+            rules={[{ required: true, message: 'Please enter a note' }]}
+          >
+            <Input.TextArea rows={4} placeholder="Write a note..." />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   )
 }
@@ -240,6 +311,11 @@ export default function CandidateDetail() {
           </div>
         </div>
       </div>
+
+      <WorkflowStatusPanel
+        entityId={candidate.id}
+        title="Workflow Status"
+      />
 
       {/* Tabs */}
       <Tabs

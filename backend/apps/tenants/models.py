@@ -66,3 +66,21 @@ class TenantReferenceSequence(models.Model):
 class Domain(DomainMixin):
     def __str__(self):
         return self.domain
+
+
+class PlatformSetting(models.Model):
+    key = models.CharField(max_length=120, unique=True, db_index=True)
+    category = models.CharField(max_length=80, default='general', db_index=True)
+    value_json = models.JSONField(default=dict, blank=True)
+    description = models.TextField(blank=True)
+    is_editable = models.BooleanField(default=True)
+    updated_by = models.UUIDField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'tenants_platform_setting'
+        ordering = ['category', 'key']
+
+    def __str__(self):
+        return self.key

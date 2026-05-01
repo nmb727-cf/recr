@@ -57,9 +57,26 @@ from apps.jobs.models import JobRequisition
 from apps.core.responses import success_response, error_response
 from apps.core import events
 from apps.interviews.scheduling import compute_common_slots
+from shared.actor_access import require_candidate, require_non_candidate, require_tenant_or_platform_admin
 
 
-class InterviewPackageListView(APIView):
+def _require_candidate_role(user):
+    require_candidate(user, "This endpoint is available only for candidate users.")
+
+
+def _require_internal_interview_actor(user):
+    require_non_candidate(user, "You do not have permission to access internal interview operations.")
+
+
+class InternalInterviewOpsAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        _require_internal_interview_actor(request.user)
+
+
+class InterviewPackageListView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -92,7 +109,7 @@ class InterviewPackageListView(APIView):
         )
 
 
-class InterviewPackageDetailView(APIView):
+class InterviewPackageDetailView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_object(self, request, pk):
@@ -141,7 +158,7 @@ class InterviewPackageDetailView(APIView):
         )
 
 
-class JobInterviewBindingView(APIView):
+class JobInterviewBindingView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, requisition_id):
@@ -182,6 +199,10 @@ class JobInterviewBindingView(APIView):
                 'tenant_id': request.user.tenant_id,
                 'package': package,
                 'automation_enabled': request.data.get('automation_enabled', True),
+                'auto_pass_enabled': request.data.get('auto_pass_enabled', True),
+                'auto_reject_enabled': request.data.get('auto_reject_enabled', True),
+                'manual_review_required': request.data.get('manual_review_required', False),
+                'rounds_override': request.data.get('rounds_override', []),
                 'metadata': request.data.get('metadata', {}),
                 'is_deleted': False
             }
@@ -228,6 +249,23 @@ class JobInterviewBindingView(APIView):
             message="Interview package unbound from job.",
             status_code=status.HTTP_204_NO_CONTENT
         )
+
+
+class JobInterviewSnapshotView(InternalInterviewOpsAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, requisition_id):
+        try:
+            snapshot = InterviewService.get_job_interview_snapshot(
+                tenant_id=request.user.tenant_id,
+                job_id=requisition_id
+            )
+            return success_response(
+                data={'snapshot': snapshot},
+                message="Interview snapshot retrieved."
+            )
+        except Exception as e:
+            return error_response(str(e))
 
 
 INTEGRATION_PROVIDER_DEFAULTS = [
@@ -511,7 +549,7 @@ def _panel_decision_payload(interview_id):
     return payload
 
 
-class InterviewTemplateListView(APIView):
+class InterviewTemplateListView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -526,6 +564,8 @@ class InterviewTemplateListView(APIView):
         )
 
     def post(self, request):
+        if not can_create_templates().has_permission(request, self):
+            return error_response("You do not have permission to create interview templates.", status_code=status.HTTP_403_FORBIDDEN)
         serializer = InterviewTemplateSerializer(data=request.data)
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors)
@@ -541,7 +581,7 @@ class InterviewTemplateListView(APIView):
         )
 
 
-class InterviewTemplateDetailView(APIView):
+class InterviewTemplateDetailView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_object(self, request, pk):
@@ -564,6 +604,8 @@ class InterviewTemplateDetailView(APIView):
         )
 
     def put(self, request, pk):
+        if not can_edit_templates().has_permission(request, self):
+            return error_response("You do not have permission to edit interview templates.", status_code=status.HTTP_403_FORBIDDEN)
         template = self.get_object(request, pk)
         if not template:
             return error_response("Template not found.", status_code=status.HTTP_404_NOT_FOUND)
@@ -579,6 +621,8 @@ class InterviewTemplateDetailView(APIView):
         )
 
     def delete(self, request, pk):
+        if not can_delete_templates().has_permission(request, self):
+            return error_response("You do not have permission to delete interview templates.", status_code=status.HTTP_403_FORBIDDEN)
         template = self.get_object(request, pk)
         if not template:
             return error_response("Template not found.", status_code=status.HTTP_404_NOT_FOUND)
@@ -590,7 +634,7 @@ class InterviewTemplateDetailView(APIView):
         )
 
 
-class InterviewScorecardTemplateListView(APIView):
+class InterviewScorecardTemplateListView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -608,6 +652,8 @@ class InterviewScorecardTemplateListView(APIView):
         )
 
     def post(self, request):
+        if not can_create_templates().has_permission(request, self):
+            return error_response("You do not have permission to create scorecard templates.", status_code=status.HTTP_403_FORBIDDEN)
         serializer = InterviewScorecardTemplateSerializer(data=request.data)
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors)
@@ -623,7 +669,7 @@ class InterviewScorecardTemplateListView(APIView):
         )
 
 
-class InterviewScorecardTemplateDetailView(APIView):
+class InterviewScorecardTemplateDetailView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_object(self, request, pk):
@@ -643,6 +689,8 @@ class InterviewScorecardTemplateDetailView(APIView):
         )
 
     def put(self, request, pk):
+        if not can_edit_templates().has_permission(request, self):
+            return error_response("You do not have permission to edit scorecard templates.", status_code=status.HTTP_403_FORBIDDEN)
         obj = self.get_object(request, pk)
         if not obj:
             return error_response("Scorecard template not found.", status_code=status.HTTP_404_NOT_FOUND)
@@ -657,6 +705,8 @@ class InterviewScorecardTemplateDetailView(APIView):
         )
 
     def delete(self, request, pk):
+        if not can_delete_templates().has_permission(request, self):
+            return error_response("You do not have permission to delete scorecard templates.", status_code=status.HTTP_403_FORBIDDEN)
         obj = self.get_object(request, pk)
         if not obj:
             return error_response("Scorecard template not found.", status_code=status.HTTP_404_NOT_FOUND)
@@ -667,7 +717,7 @@ class InterviewScorecardTemplateDetailView(APIView):
         )
 
 
-class InterviewListView(APIView):
+class InterviewListView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -699,6 +749,8 @@ class InterviewListView(APIView):
         )
 
     def post(self, request):
+        if not can_create_interviews().has_permission(request, self):
+            return error_response("You do not have permission to create interviews.", status_code=status.HTTP_403_FORBIDDEN)
         serializer = InterviewSerializer(data=request.data)
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors)
@@ -783,7 +835,7 @@ class InterviewListView(APIView):
         )
 
 
-class InterviewDetailView(APIView):
+class InterviewDetailView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_object(self, request, pk):
@@ -814,6 +866,8 @@ class InterviewDetailView(APIView):
         )
 
     def put(self, request, pk):
+        if not can_edit_interviews().has_permission(request, self):
+            return error_response("You do not have permission to edit interviews.", status_code=status.HTTP_403_FORBIDDEN)
         interview = self.get_object(request, pk)
         if not interview:
             return error_response("Interview not found.", status_code=status.HTTP_404_NOT_FOUND)
@@ -833,10 +887,12 @@ class InterviewDetailView(APIView):
         )
 
 
-class InterviewStartView(APIView):
+class InterviewStartView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        if not can_start_interview().has_permission(request, self):
+            return error_response("You do not have permission to start interviews.", status_code=status.HTTP_403_FORBIDDEN)
         try:
             interview = Interview.objects.get(
                 id=pk,
@@ -859,10 +915,12 @@ class InterviewStartView(APIView):
         )
 
 
-class InterviewCompleteView(APIView):
+class InterviewCompleteView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        if not can_complete_interview().has_permission(request, self):
+            return error_response("You do not have permission to complete interviews.", status_code=status.HTTP_403_FORBIDDEN)
         try:
             interview = Interview.objects.get(
                 id=pk,
@@ -889,6 +947,8 @@ class InterviewCompleteView(APIView):
             'recommendation', 'feedback_summary', 'updated_at'
         ])
 
+        events.interview.completed.send(sender=self.__class__, interview=interview)
+
         # Emit Event
         try:
             application = Application.objects.get(id=interview.application_id)
@@ -907,10 +967,12 @@ class InterviewCompleteView(APIView):
         )
 
 
-class InterviewCancelView(APIView):
+class InterviewCancelView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        if not can_cancel_interview().has_permission(request, self):
+            return error_response("You do not have permission to cancel interviews.", status_code=status.HTTP_403_FORBIDDEN)
         try:
             interview = Interview.objects.get(
                 id=pk,
@@ -927,6 +989,7 @@ class InterviewCancelView(APIView):
         interview.status = 'cancelled'
         interview.feedback_summary = f"Cancelled: {reason}"
         interview.save(update_fields=['status', 'feedback_summary', 'updated_at'])
+        events.interview.cancelled.send(sender=self.__class__, interview=interview)
 
         return success_response(
             data={'interview': InterviewSerializer(interview).data},
@@ -934,7 +997,7 @@ class InterviewCancelView(APIView):
         )
 
 
-class InterviewRescheduleView(APIView):
+class InterviewRescheduleView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
@@ -954,6 +1017,7 @@ class InterviewRescheduleView(APIView):
         interview.scheduled_at = scheduled_at
         interview.status = 'rescheduled'
         interview.save(update_fields=['scheduled_at', 'status', 'updated_at'])
+        events.interview.scheduled.send(sender=self.__class__, interview=interview)
 
         return success_response(
             data={'interview': InterviewSerializer(interview).data},
@@ -972,7 +1036,7 @@ def _parse_schedule_dt(raw_value, field_name='datetime'):
     return dt, None
 
 
-class InterviewAvailabilityProfileView(APIView):
+class InterviewAvailabilityProfileView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1004,7 +1068,7 @@ class InterviewAvailabilityProfileView(APIView):
         )
 
 
-class InterviewAvailabilityBlockListView(APIView):
+class InterviewAvailabilityBlockListView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1043,7 +1107,7 @@ class InterviewAvailabilityBlockListView(APIView):
         )
 
 
-class InterviewPanelSlotsView(APIView):
+class InterviewPanelSlotsView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -1085,7 +1149,7 @@ class InterviewPanelSlotsView(APIView):
         )
 
 
-class InterviewManualSchedulingView(APIView):
+class InterviewManualSchedulingView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -1184,10 +1248,12 @@ class InterviewManualSchedulingView(APIView):
         )
 
 
-class InterviewScheduleActionView(APIView):
+class InterviewScheduleActionView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        if not can_edit_interviews().has_permission(request, self):
+            return error_response("You do not have permission to edit interview schedules.", status_code=status.HTTP_403_FORBIDDEN)
         interview = Interview.objects.filter(
             id=pk,
             tenant_id=request.user.tenant_id,
@@ -1222,10 +1288,12 @@ class InterviewScheduleActionView(APIView):
         )
 
 
-class InterviewCancelActionView(APIView):
+class InterviewCancelActionView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        if not can_cancel_interview().has_permission(request, self):
+            return error_response("You do not have permission to cancel interviews.", status_code=status.HTTP_403_FORBIDDEN)
         interview = Interview.objects.filter(
             id=pk,
             tenant_id=request.user.tenant_id,
@@ -1248,7 +1316,7 @@ class InterviewCancelActionView(APIView):
         )
 
 
-class InterviewCalendarConnectionView(APIView):
+class InterviewCalendarConnectionView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1279,7 +1347,7 @@ class InterviewCalendarConnectionView(APIView):
         )
 
 
-class InterviewIntegrationProviderListView(APIView):
+class InterviewIntegrationProviderListView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1297,10 +1365,14 @@ class InterviewIntegrationProviderListView(APIView):
         )
 
 
-class InterviewIntegrationProviderDetailView(APIView):
+class InterviewIntegrationProviderDetailView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def put(self, request, pk):
+        require_tenant_or_platform_admin(
+            request.user,
+            "Admin access required to modify integration providers.",
+        )
         _ensure_integration_provider_registry()
         obj = InterviewIntegrationProvider.objects.filter(id=pk, is_deleted=False).first()
         if not obj:
@@ -1315,7 +1387,7 @@ class InterviewIntegrationProviderDetailView(APIView):
         )
 
 
-class InterviewTenantProviderConnectionListView(APIView):
+class InterviewTenantProviderConnectionListView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1363,7 +1435,7 @@ class InterviewTenantProviderConnectionListView(APIView):
         )
 
 
-class InterviewTenantProviderConnectionDetailView(APIView):
+class InterviewTenantProviderConnectionDetailView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def put(self, request, pk):
@@ -1395,7 +1467,7 @@ class InterviewTenantProviderConnectionDetailView(APIView):
         )
 
 
-class InterviewExecutionMappingListView(APIView):
+class InterviewExecutionMappingListView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1427,7 +1499,7 @@ class InterviewExecutionMappingListView(APIView):
         )
 
 
-class InterviewExecutionMappingDetailView(APIView):
+class InterviewExecutionMappingDetailView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def put(self, request, pk):
@@ -1448,7 +1520,7 @@ class InterviewExecutionMappingDetailView(APIView):
         )
 
 
-class InterviewQuestionBankListView(APIView):
+class InterviewQuestionBankListView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1468,6 +1540,8 @@ class InterviewQuestionBankListView(APIView):
         )
 
     def post(self, request):
+        if not can_create_templates().has_permission(request, self):
+            return error_response("You do not have permission to manage question banks.", status_code=status.HTTP_403_FORBIDDEN)
         serializer = InterviewQuestionBankSerializer(data=request.data)
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors)
@@ -1484,7 +1558,7 @@ class InterviewQuestionBankListView(APIView):
         )
 
 
-class InterviewQuestionBankDetailView(APIView):
+class InterviewQuestionBankDetailView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def _get(self, request, pk):
@@ -1505,6 +1579,8 @@ class InterviewQuestionBankDetailView(APIView):
         )
 
     def put(self, request, pk):
+        if not can_edit_templates().has_permission(request, self):
+            return error_response("You do not have permission to edit question banks.", status_code=status.HTTP_403_FORBIDDEN)
         obj = self._get(request, pk)
         if not obj:
             return error_response("Question not found.", status_code=status.HTTP_404_NOT_FOUND)
@@ -1518,6 +1594,8 @@ class InterviewQuestionBankDetailView(APIView):
         )
 
     def delete(self, request, pk):
+        if not can_delete_templates().has_permission(request, self):
+            return error_response("You do not have permission to delete question banks.", status_code=status.HTTP_403_FORBIDDEN)
         obj = self._get(request, pk)
         if not obj:
             return error_response("Question not found.", status_code=status.HTTP_404_NOT_FOUND)
@@ -1527,7 +1605,7 @@ class InterviewQuestionBankDetailView(APIView):
         return success_response(message="Question deleted.", status_code=status.HTTP_204_NO_CONTENT)
 
 
-class InterviewQuestionAttachmentListView(APIView):
+class InterviewQuestionAttachmentListView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1551,6 +1629,8 @@ class InterviewQuestionAttachmentListView(APIView):
         )
 
     def post(self, request):
+        if not can_edit_templates().has_permission(request, self):
+            return error_response("You do not have permission to manage question attachments.", status_code=status.HTTP_403_FORBIDDEN)
         serializer = InterviewQuestionAttachmentSerializer(data=request.data)
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors)
@@ -1584,10 +1664,12 @@ class InterviewQuestionAttachmentListView(APIView):
         )
 
 
-class InterviewQuestionAttachmentDetailView(APIView):
+class InterviewQuestionAttachmentDetailView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def put(self, request, pk):
+        if not can_edit_templates().has_permission(request, self):
+            return error_response("You do not have permission to edit question attachments.", status_code=status.HTTP_403_FORBIDDEN)
         obj = InterviewQuestionAttachment.objects.filter(
             id=pk,
             tenant_id=request.user.tenant_id,
@@ -1606,6 +1688,8 @@ class InterviewQuestionAttachmentDetailView(APIView):
         )
 
     def delete(self, request, pk):
+        if not can_delete_templates().has_permission(request, self):
+            return error_response("You do not have permission to delete question attachments.", status_code=status.HTTP_403_FORBIDDEN)
         obj = InterviewQuestionAttachment.objects.filter(
             id=pk,
             tenant_id=request.user.tenant_id,
@@ -1619,7 +1703,7 @@ class InterviewQuestionAttachmentDetailView(APIView):
         return success_response(message="Question attachment deleted.", status_code=status.HTTP_204_NO_CONTENT)
 
 
-class InterviewQuestionGroupListView(APIView):
+class InterviewQuestionGroupListView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1640,6 +1724,8 @@ class InterviewQuestionGroupListView(APIView):
         )
 
     def post(self, request):
+        if not can_create_templates().has_permission(request, self):
+            return error_response("You do not have permission to create question groups.", status_code=status.HTTP_403_FORBIDDEN)
         serializer = InterviewQuestionGroupSerializer(data=request.data)
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors)
@@ -1656,7 +1742,7 @@ class InterviewQuestionGroupListView(APIView):
         )
 
 
-class InterviewQuestionGroupDetailView(APIView):
+class InterviewQuestionGroupDetailView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def _get(self, request, pk):
@@ -1668,6 +1754,8 @@ class InterviewQuestionGroupDetailView(APIView):
         ).prefetch_related('items__question').first()
 
     def put(self, request, pk):
+        if not can_edit_templates().has_permission(request, self):
+            return error_response("You do not have permission to edit question groups.", status_code=status.HTTP_403_FORBIDDEN)
         obj = self._get(request, pk)
         if not obj:
             return error_response("Question group not found.", status_code=status.HTTP_404_NOT_FOUND)
@@ -1681,6 +1769,8 @@ class InterviewQuestionGroupDetailView(APIView):
         )
 
     def delete(self, request, pk):
+        if not can_delete_templates().has_permission(request, self):
+            return error_response("You do not have permission to delete question groups.", status_code=status.HTTP_403_FORBIDDEN)
         obj = self._get(request, pk)
         if not obj:
             return error_response("Question group not found.", status_code=status.HTTP_404_NOT_FOUND)
@@ -1690,7 +1780,7 @@ class InterviewQuestionGroupDetailView(APIView):
         return success_response(message="Question group deleted.", status_code=status.HTTP_204_NO_CONTENT)
 
 
-class InterviewSchedulingLinkView(APIView):
+class InterviewSchedulingLinkView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
@@ -1801,7 +1891,7 @@ class InterviewSchedulingLinkPublicView(APIView):
         )
 
 
-class InterviewFeedbackView(APIView):
+class InterviewFeedbackView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -1821,6 +1911,8 @@ class InterviewFeedbackView(APIView):
         )
 
     def post(self, request, pk):
+        if not can_submit_feedback().has_permission(request, self):
+            return error_response("You do not have permission to submit interview feedback.", status_code=status.HTTP_403_FORBIDDEN)
         try:
             interview = Interview.objects.get(
                 id=pk,
@@ -1987,6 +2079,7 @@ class CandidateInterviewListView(APIView):
         return runtime, (session_id or active_session_id or uuid4().hex), None
 
     def get(self, request):
+        _require_candidate_role(request.user)
         candidate_id = _get_candidate_id_for_user(request.user)
         interviews = Interview.objects.filter(
             candidate_id=candidate_id,
@@ -1999,6 +2092,7 @@ class CandidateInterviewListView(APIView):
             'pending': [],
             'completed': [],
             'missed': [],
+            'cancelled': [],
         }
         rows = []
         for interview in interviews:
@@ -2010,6 +2104,8 @@ class CandidateInterviewListView(APIView):
             rows.append(row)
             if interview.status == 'completed':
                 buckets['completed'].append(row)
+            elif interview.status == 'cancelled':
+                buckets['cancelled'].append(row)
             elif interview.status == 'no_show':
                 buckets['missed'].append(row)
             elif interview.status in {'scheduled', 'rescheduled'}:
@@ -2027,6 +2123,7 @@ class CandidateInterviewListView(APIView):
                 'pending_interviews': buckets['pending'],
                 'completed_interviews': buckets['completed'],
                 'missed_interviews': buckets['missed'],
+                'cancelled_interviews': buckets['cancelled'],
             },
             message="Your interviews retrieved."
         )
@@ -2036,6 +2133,7 @@ class CandidateInterviewInstructionsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        _require_candidate_role(request.user)
         candidate_id = _get_candidate_id_for_user(request.user)
         interview = Interview.objects.filter(
             id=pk,
@@ -2069,6 +2167,7 @@ class CandidateInterviewRuntimeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        _require_candidate_role(request.user)
         candidate_id = _get_candidate_id_for_user(request.user)
         interview = Interview.objects.filter(
             id=pk,
@@ -2106,6 +2205,7 @@ class CandidateInterviewStatusView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
+        _require_candidate_role(request.user)
         candidate_id = _get_candidate_id_for_user(request.user)
         interview = Interview.objects.filter(
             id=pk,
@@ -2131,10 +2231,53 @@ class CandidateInterviewStatusView(APIView):
         )
 
 
+class CandidateInterviewResultsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        _require_candidate_role(request.user)
+        candidate_id = _get_candidate_id_for_user(request.user)
+        interview_id = request.query_params.get('interview_id')
+        
+        if not interview_id:
+            return error_response("interview_id is required.")
+            
+        interview = Interview.objects.filter(
+            id=interview_id,
+            candidate_id=candidate_id,
+            is_deleted=False,
+        ).first()
+        
+        if not interview:
+            return error_response("Interview not found.", status_code=status.HTTP_404_NOT_FOUND)
+            
+        # Check if feedback is visible to candidate
+        feedback_visible = (interview.metadata or {}).get('feedback_visible', False)
+        
+        data = {
+            'interview': InterviewSerializer(interview).data,
+            'feedback_visible': feedback_visible,
+            'status': 'missed' if interview.status == 'no_show' else interview.status,
+        }
+        
+        if feedback_visible:
+            data['feedback_summary'] = interview.feedback_summary
+            data['scores'] = {
+                'overall_score': interview.overall_score,
+                'ai_score': interview.ai_score,
+                'human_score': interview.human_score,
+            }
+        else:
+            data['feedback_summary'] = "Feedback for this round is being processed by the hiring team."
+            
+        return success_response(data=data, message="Interview results retrieved.")
+
+
 class CandidateInterviewStartView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        _require_candidate_role(request.user)
         candidate_id = _get_candidate_id_for_user(request.user)
         if not candidate_id:
             return error_response("Interview not found.", status_code=status.HTTP_404_NOT_FOUND)
@@ -2216,6 +2359,7 @@ class CandidateSubmitAnswerView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        _require_candidate_role(request.user)
         candidate_id = _get_candidate_id_for_user(request.user)
         if not candidate_id:
             return error_response("Interview not found or not in progress.", status_code=status.HTTP_404_NOT_FOUND)
@@ -2260,6 +2404,7 @@ class CandidateCompleteInterviewView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        _require_candidate_role(request.user)
         candidate_id = _get_candidate_id_for_user(request.user)
         if not candidate_id:
             return error_response("Interview not found or not in progress.", status_code=status.HTTP_404_NOT_FOUND)
@@ -2306,6 +2451,7 @@ class CandidateInterviewSecurityEventView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
+        _require_candidate_role(request.user)
         candidate_id = _get_candidate_id_for_user(request.user)
         interview = Interview.objects.filter(
             id=pk,
@@ -2342,7 +2488,7 @@ class CandidateInterviewSecurityEventView(APIView):
 
 # ─── Interview Types ───────────────────────────────────────────────────────────
 
-class InterviewTypeListView(APIView):
+class InterviewTypeListView(InternalInterviewOpsAPIView):
     """GET /interviews/types/ — list active types (all authenticated users)."""
     permission_classes = [IsAuthenticated, can_view_interview_types]
 
@@ -2392,7 +2538,7 @@ class InterviewTypeListView(APIView):
         )
 
 
-class InterviewTypeDetailView(APIView):
+class InterviewTypeDetailView(InternalInterviewOpsAPIView):
     """GET/PUT /interviews/types/<uuid:pk>/"""
     permission_classes = [IsAuthenticated, can_view_interview_types]
 
@@ -2458,7 +2604,7 @@ class InterviewTypeDetailView(APIView):
         return success_response(message="Interview type deleted.", status_code=status.HTTP_204_NO_CONTENT)
 
 
-class InterviewTypeConfigView(APIView):
+class InterviewTypeConfigView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated, can_view_interview_types]
 
     def _get(self, pk):
@@ -2510,7 +2656,7 @@ class InterviewTypeConfigView(APIView):
 
 # ─── Structured Feedback ───────────────────────────────────────────────────────
 
-class InterviewStructuredFeedbackView(APIView):
+class InterviewStructuredFeedbackView(InternalInterviewOpsAPIView):
     """
     GET  /interviews/<uuid:pk>/structured-feedback/  — list all feedback for an interview
     POST /interviews/<uuid:pk>/structured-feedback/  — submit / update feedback (current user)
@@ -2603,7 +2749,7 @@ class InterviewStructuredFeedbackView(APIView):
         )
 
 
-class InterviewKitView(APIView):
+class InterviewKitView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -2671,7 +2817,7 @@ class InterviewKitView(APIView):
         )
 
 
-class InterviewPanelDecisionView(APIView):
+class InterviewPanelDecisionView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -2692,7 +2838,7 @@ class InterviewPanelDecisionView(APIView):
 
 # ─── Interview Decision ────────────────────────────────────────────────────────
 
-class InterviewDecisionView(APIView):
+class InterviewDecisionView(InternalInterviewOpsAPIView):
     """
     GET  /interviews/<uuid:pk>/decision/  — retrieve the final decision
     POST /interviews/<uuid:pk>/decision/  — record / update the final decision
@@ -2778,7 +2924,7 @@ class InterviewDecisionView(APIView):
         )
 
 
-class InterviewDecisionHistoryView(APIView):
+class InterviewDecisionHistoryView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated, can_view_decision]
 
     def get(self, request, pk):
@@ -2800,7 +2946,7 @@ class InterviewDecisionHistoryView(APIView):
         )
 
 
-class InterviewDecisionEvaluateView(APIView):
+class InterviewDecisionEvaluateView(InternalInterviewOpsAPIView):
     permission_classes = [IsAuthenticated, can_record_decision]
 
     def post(self, request, pk):
@@ -2852,7 +2998,7 @@ class InterviewDecisionEvaluateView(APIView):
 
 # ─── Interview Flows ───────────────────────────────────────────────────────────
 
-class InterviewFlowListView(APIView):
+class InterviewFlowListView(InternalInterviewOpsAPIView):
     """
     GET  /interviews/flows/  — list all active flows for the tenant
     POST /interviews/flows/  — create a new flow
@@ -2871,6 +3017,8 @@ class InterviewFlowListView(APIView):
         )
 
     def post(self, request):
+        if not can_create_interviews().has_permission(request, self):
+            return error_response("You do not have permission to create interview flows.", status_code=status.HTTP_403_FORBIDDEN)
         serializer = InterviewFlowSerializer(data=request.data)
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors)
@@ -2886,7 +3034,7 @@ class InterviewFlowListView(APIView):
         )
 
 
-class InterviewFlowDetailView(APIView):
+class InterviewFlowDetailView(InternalInterviewOpsAPIView):
     """
     GET    /interviews/flows/<uuid:pk>/  — retrieve flow
     PUT    /interviews/flows/<uuid:pk>/  — update flow
@@ -2911,6 +3059,8 @@ class InterviewFlowDetailView(APIView):
         )
 
     def put(self, request, pk):
+        if not can_edit_interviews().has_permission(request, self):
+            return error_response("You do not have permission to edit interview flows.", status_code=status.HTTP_403_FORBIDDEN)
         flow = self.get_object(request, pk)
         if not flow:
             return error_response("Flow not found.", status_code=status.HTTP_404_NOT_FOUND)
@@ -2926,6 +3076,8 @@ class InterviewFlowDetailView(APIView):
         )
 
     def delete(self, request, pk):
+        if not can_delete_interviews().has_permission(request, self):
+            return error_response("You do not have permission to delete interview flows.", status_code=status.HTTP_403_FORBIDDEN)
         flow = self.get_object(request, pk)
         if not flow:
             return error_response("Flow not found.", status_code=status.HTTP_404_NOT_FOUND)

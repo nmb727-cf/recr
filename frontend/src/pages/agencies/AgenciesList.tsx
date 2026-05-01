@@ -624,7 +624,7 @@ export default function AgenciesList() {
   const [viewTab, setViewTab] = useState('agencies')
   const [inviteModalOpen, setInviteModalOpen] = useState(false)
 
-  const { data, isLoading, refetch } = useApiQuery(['agencies'], () => agenciesApi.listRelationships())
+  const { data, isLoading, refetch } = useApiQuery(['agencies', search], () => agenciesApi.listRelationships({ search: search || undefined }))
   const relationships = (
     (data as any)?.relationships ??
     (data as any)?.data?.relationships ??

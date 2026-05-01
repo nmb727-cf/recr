@@ -373,7 +373,7 @@ class RegisterCandidateView(APIView):
         # ── Source 3: Check if a user account already exists ───────────────
         # If yes, do not create a duplicate — tell the frontend to redirect
         # to login / forgot-password.
-        from apps.candidates.identity_service import match_user, match_candidate, link_user_to_candidate
+        from apps.candidates.identity_service import match_user, resolve_candidate_identity
         existing_user = match_user(email=email, phone=phone)
         if existing_user:
             return success_response(
@@ -396,13 +396,28 @@ class RegisterCandidateView(APIView):
             tenant_id=public_tenant.id,
         )
 
-        # ── Source 3: Link to existing candidate record if one exists ───────
-        # A recruiter may have already added this candidate (Source 1) before
-        # they signed up.  Link the new account so the candidate can see their
-        # pre-populated profile without any duplicate being created.
-        existing_candidate = match_candidate(email=email, phone=phone)
-        if existing_candidate:
-            link_user_to_candidate(user, existing_candidate)
+        resolution = resolve_candidate_identity(
+            email=email,
+            phone=phone,
+            user=user,
+            tenant_id=public_tenant.id,
+            create_if_missing=True,
+            allow_cross_tenant=True,
+            actor_user_id=user.id,
+            ensure_tenant_association_flag=False,
+            ensure_visibility=False,
+            source='candidate_self_signup',
+            candidate_defaults={
+                'source': 'self',
+                'source_type': 'direct',
+                'initial_entry_type': 'self',
+                'profile_status': 'partial',
+                'account_status': 'active',
+                'owner_tenant_id': public_tenant.id,
+                'owner_user_id': user.id,
+            },
+        )
+        resolved_candidate = resolution.candidate
 
         # Send email verification OTP
         otp_code = _issue_otp(user.email)
@@ -417,8 +432,8 @@ class RegisterCandidateView(APIView):
             response_data['otp_code'] = otp_code
             response_data['is_development_mode'] = True
 
-        if existing_candidate:
-            response_data['linked_candidate_id'] = str(existing_candidate.id)
+        if resolved_candidate:
+            response_data['linked_candidate_id'] = str(resolved_candidate.id)
 
         return success_response(
             data=response_data,

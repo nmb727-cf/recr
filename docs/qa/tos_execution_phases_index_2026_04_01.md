@@ -72,3 +72,18 @@ Purpose: QA reference index for cross-system architecture and governance docs.
 17. Phase 55: Candidate-Owned Assignment Contract Binding  
     File: `docs/qa/tos_phase_55_candidate_assignment_contract_011.md`  
     Prompt: `Proceed with the next safe owner-module binding for assign`
+
+18. WF Phase 002: Workflow Trigger Registry + Event Mapping  
+    File: `docs/qa/tos_wf_trigger_registry_event_mapping_002.md`  
+    Prompt: `TOS-WF-TRIGGER-REGISTRY-EVENT-MAPPING-002`  
+    Summary: Registry of 39 trigger events, subscription mappings with filter operators, event listener pipeline, 15 real signal connections, wait/resume event mapping, full API layer. 12/12 tests pass.
+
+19. WF Phase 003: Workflow Stage Transition + Wait/Resume Engine  
+    File: `docs/qa/tos_wf_stage_transition_wait_resume_003.md`  
+    Prompt: `TOS-WF-STAGE-TRANSITION-WAIT-RESUME-003`  
+    Summary: WorkflowStageTransition (typed routing), WorkflowWaitState (persistent wait records), WorkflowTransitionLog (structured audit), WorkflowStageEngine with AND/OR decision logic (10 operators), skip/fail/resume API actions. 32/32 tests pass.
+
+20. WF Phase 004: Cross-Entity Routing Engine  
+    File: `docs/qa/tos_wf_cross_entity_routing_004.md`  
+    Prompt: `TOS-WF-CROSS-ENTITY-ROUTING-004`  
+    Summary: 5 routing models (EntityRoute, ActorAssignment, HandoffCheckpoint, RoutingRule, RouteTimelineLog), routing engine with 12 methods, ALLOWED_ROUTE_PAIRS tenant-safety validation, route_to_onboarding/route_to_hrms shortcuts, 5 new ViewSets + instance sub-actions, 24 tests across 5 test classes.

@@ -979,13 +979,23 @@ class InterviewPackage(models.Model):
 class InterviewPackageBinding(models.Model):
     """
     Links a specific InterviewPackage to a JobRequisition.
-    Allows for job-specific automation overrides.
+    Allows for job-specific automation overrides and round configuration.
     """
     id                 = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant_id          = models.UUIDField(db_index=True)
     job_id             = models.UUIDField(db_index=True, unique=True)
     package            = models.ForeignKey(InterviewPackage, on_delete=models.CASCADE, related_name='job_bindings')
+    
+    # Global Job-level Automation Overrides
     automation_enabled = models.BooleanField(default=True)
+    auto_pass_enabled  = models.BooleanField(default=True)
+    auto_reject_enabled = models.BooleanField(default=True)
+    manual_review_required = models.BooleanField(default=False)
+    
+    # Per-round configuration overrides
+    # If present, this list replaces package.rounds
+    rounds_override    = models.JSONField(default=list, blank=True, help_text="Override the rounds defined in the package.")
+    
     metadata           = models.JSONField(default=dict, blank=True)
     created_at         = models.DateTimeField(auto_now_add=True)
     updated_at         = models.DateTimeField(auto_now=True)
@@ -997,11 +1007,19 @@ class InterviewPackageBinding(models.Model):
         self.deleted_at = timezone.now()
         self.save()
 
+    def get_rounds(self):
+        """Returns the effective rounds (overridden or from package)."""
+        if self.rounds_override and isinstance(self.rounds_override, list) and len(self.rounds_override) > 0:
+            return self.rounds_override
+        if self.package and not self.package.is_deleted:
+            return self.package.rounds
+        return []
+
     def get_round_config(self, round_number: int):
         """Returns the configuration for a specific round (1-based)."""
-        if self.is_deleted or not self.package or self.package.is_deleted:
+        if self.is_deleted:
             return None
-        rounds = self.package.rounds
+        rounds = self.get_rounds()
         if not isinstance(rounds, list) or round_number < 1 or round_number > len(rounds):
             return None
         return rounds[round_number - 1]

@@ -21,6 +21,9 @@ from apps.orchestration_center.models import (
     AISuggestionConversion,
     ApprovalQueueItem,
     AutomationExecutionRun,
+    AutomationIntelligencePolicy,
+    AutomationTemplate,
+    AutomationLibraryTemplate,
     AutomationRule,
     AutomationRuleAction,
     AutomationRuleCondition,
@@ -35,6 +38,28 @@ from apps.orchestration_center.models import (
     PromptVersion,
     ProviderConfig,
     TenantIntelligenceSettings,
+    IntelligenceAuditLog,
+    AutomationLearningSignal,
+    AIGovernanceRule,
+    AIGovernanceApproval,
+    Workflow,
+    WorkflowNode,
+    WorkflowEdge,
+    WorkflowExecution,
+    WorkflowExecutionLog,
+    WorkflowTemplate,
+    WorkflowVersion,
+    WorkflowApproval,
+    WorkflowSafetyRule,
+    WorkflowRollbackLog,
+    WorkflowAuditLog,
+    AutomationInsight,
+    AutomationRecommendation,
+    AutomationOptimizationRecommendation,
+    WorkflowEventDefinition,
+    WorkflowEventSubscription,
+    WorkflowEventLog,
+    WorkflowEventDebugTrace,
 )
 
 
@@ -252,12 +277,68 @@ class AISuggestionCreateSerializer(serializers.Serializer):
 
 
 class AISuggestionReviewSerializer(serializers.Serializer):
-    status = serializers.ChoiceField(choices=[SuggestionStatus.PENDING_REVIEW, SuggestionStatus.REJECTED])
+    status = serializers.ChoiceField(choices=[SuggestionStatus.PENDING, SuggestionStatus.PENDING_REVIEW, SuggestionStatus.REJECTED])
     comment = serializers.CharField(required=False, allow_blank=True)
 
 
 class AISuggestionApproveSerializer(serializers.Serializer):
     comment = serializers.CharField(required=False, allow_blank=True)
+
+
+class AISuggestionRejectSerializer(serializers.Serializer):
+    comment = serializers.CharField(required=False, allow_blank=True)
+
+
+class AISuggestionDismissSerializer(serializers.Serializer):
+    comment = serializers.CharField(required=False, allow_blank=True)
+
+
+class AISuggestionApplySerializer(serializers.Serializer):
+    comment = serializers.CharField(required=False, allow_blank=True)
+    override_payload_json = serializers.JSONField(required=False)
+    idempotency_key = serializers.CharField(max_length=255, required=False, allow_blank=True)
+
+
+class AutomationTemplateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AutomationTemplate
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'updated_at', 'tenant_id', 'is_system_template')
+
+    def validate_recommended_confidence_threshold(self, value):
+        if value < 0 or value > 1:
+            raise serializers.ValidationError('recommended_confidence_threshold must be between 0.00 and 1.00.')
+        return value
+
+
+class AutomationIntelligencePolicySerializer(serializers.ModelSerializer):
+    automation_level = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AutomationIntelligencePolicy
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'updated_at', 'created_by', 'last_triggered_at', 'last_triggered_suggestion_id', 'last_outcome')
+
+    def get_automation_level(self, obj):
+        if obj.auto_apply:
+            return 'auto_apply'
+        if obj.auto_approve:
+            return 'auto_approve'
+        return 'suggest_only'
+
+    def validate(self, attrs):
+        confidence_threshold = attrs.get('confidence_threshold', getattr(self.instance, 'confidence_threshold', 0))
+        if confidence_threshold < 0 or confidence_threshold > 1:
+            raise serializers.ValidationError({'confidence_threshold': 'confidence_threshold must be between 0.00 and 1.00.'})
+
+        auto_approve = attrs.get('auto_approve', getattr(self.instance, 'auto_approve', False))
+        auto_apply = attrs.get('auto_apply', getattr(self.instance, 'auto_apply', False))
+        approval_required = attrs.get('approval_required', getattr(self.instance, 'approval_required', True))
+        if auto_apply and not auto_approve:
+            raise serializers.ValidationError({'auto_apply': 'auto_apply requires auto_approve.'})
+        if auto_apply and approval_required:
+            raise serializers.ValidationError({'approval_required': 'auto_apply requires approval_required=false.'})
+        return attrs
 
 
 class AISuggestionConvertSerializer(serializers.Serializer):
@@ -462,8 +543,175 @@ class TenantIntelligenceSettingsSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class IntelligenceAuditLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = IntelligenceAuditLog
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'tenant_id')
+
+
 class IntelligenceConnectorSerializer(serializers.ModelSerializer):
     class Meta:
         model = IntelligenceConnector
         fields = '__all__'
         read_only_fields = ('id', 'created_at', 'updated_at', 'created_by')
+
+
+class AutomationLearningSignalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AutomationLearningSignal
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'tenant_id')
+
+
+class AIGovernanceRuleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AIGovernanceRule
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'tenant_id')
+
+
+class AIGovernanceApprovalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AIGovernanceApproval
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'tenant_id', 'approved_by', 'rejected_by', 'approval_status')
+
+class AutomationLibraryTemplateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AutomationLibraryTemplate
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'tenant_id', 'is_system_template')
+
+
+class WorkflowNodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkflowNode
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at')
+
+
+class WorkflowEdgeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkflowEdge
+        fields = '__all__'
+        read_only_fields = ('id',)
+
+
+class WorkflowSerializer(serializers.ModelSerializer):
+    nodes = WorkflowNodeSerializer(many=True, read_only=True)
+    edges = WorkflowEdgeSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Workflow
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'updated_at', 'tenant_id', 'created_by')
+
+
+class WorkflowExecutionLogSerializer(serializers.ModelSerializer):
+    node_type = serializers.CharField(source='node.node_type', read_only=True)
+
+    class Meta:
+        model = WorkflowExecutionLog
+        fields = '__all__'
+        read_only_fields = ('id', 'executed_at')
+
+
+class WorkflowExecutionSerializer(serializers.ModelSerializer):
+    logs = WorkflowExecutionLogSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = WorkflowExecution
+        fields = '__all__'
+        read_only_fields = ('id', 'started_at', 'completed_at', 'tenant_id')
+
+
+class WorkflowTemplateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkflowTemplate
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at')
+
+class WorkflowVersionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkflowVersion
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'tenant_id', 'created_by')
+
+class WorkflowApprovalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkflowApproval
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'tenant_id', 'requested_by', 'decided_at')
+
+class WorkflowSafetyRuleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkflowSafetyRule
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'tenant_id')
+
+class WorkflowRollbackLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkflowRollbackLog
+        fields = '__all__'
+        read_only_fields = ('id', 'rollback_time', 'tenant_id')
+
+class WorkflowAuditLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkflowAuditLog
+        fields = '__all__'
+        read_only_fields = ('id', 'timestamp', 'tenant_id')
+
+class AutomationInsightSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AutomationInsight
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'tenant_id')
+
+class AutomationRecommendationSerializer(serializers.ModelSerializer):
+    workflow_template_name = serializers.CharField(source='workflow_template.name', read_only=True)
+    workflow_template_category = serializers.CharField(source='workflow_template.category', read_only=True)
+
+    class Meta:
+        model = AutomationRecommendation
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'tenant_id')
+
+class AutomationOptimizationRecommendationSerializer(serializers.ModelSerializer):
+    suggestion_type = serializers.CharField(source='policy.suggestion_type', read_only=True)
+    module_scope = serializers.CharField(source='policy.module_scope', read_only=True)
+
+    class Meta:
+        model = AutomationOptimizationRecommendation
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'tenant_id', 'applied_at')
+
+class WorkflowEventDefinitionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkflowEventDefinition
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at')
+
+class WorkflowEventSubscriptionSerializer(serializers.ModelSerializer):
+    event_definition_name = serializers.CharField(source='event_definition.event_name', read_only=True)
+    event_definition_key = serializers.CharField(source='event_definition.event_key', read_only=True)
+    workflow_name = serializers.CharField(source='workflow.name', read_only=True)
+
+    class Meta:
+        model = WorkflowEventSubscription
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'tenant_id', 'created_by')
+
+class WorkflowEventLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkflowEventLog
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'tenant_id')
+
+class WorkflowEventDebugTraceSerializer(serializers.ModelSerializer):
+    workflow_name = serializers.CharField(source='workflow.name', read_only=True)
+
+    class Meta:
+        model = WorkflowEventDebugTrace
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'tenant_id')

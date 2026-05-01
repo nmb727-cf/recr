@@ -80,6 +80,8 @@ export default function JobCreateForm({ onSuccess, initialValues }: JobCreateFor
       use_agencies: assignedAgencies.length > 0,
       agency_max_submissions: 10,
       agency_deadline: dayjs().add(30, 'day'),
+      auto_distribute_to_agencies: Boolean((initialValues as any).auto_distribute_to_agencies),
+      agency_distribution_policy: (initialValues as any).agency_distribution_policy || 'manual',
     })
     setSelectedAgencyIds(assignedAgencies)
     setUseAgencies(assignedAgencies.length > 0)
@@ -171,6 +173,8 @@ export default function JobCreateForm({ onSuccess, initialValues }: JobCreateFor
         salary_currency: 'USD',
         agency_max_submissions: 10,
         agency_deadline: dayjs().add(30, 'day'),
+        auto_distribute_to_agencies: false,
+        agency_distribution_policy: 'manual',
       }}
     >
       <Form.Item name="title" label={t('jobs:form.job_title', 'Job Title')} rules={[{ required: true }]}>
@@ -330,6 +334,22 @@ export default function JobCreateForm({ onSuccess, initialValues }: JobCreateFor
             <Col span={12}>
               <Form.Item name="agency_deadline" label={t('jobs:form.agency_deadline', 'Agency submission deadline')}>
                 <DatePicker style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="auto_distribute_to_agencies" valuePropName="checked" className="mb-0">
+                <Checkbox>{t('jobs:form.auto_distribute_to_agencies', 'Auto distribute to agencies')}</Checkbox>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="agency_distribution_policy" label={t('jobs:form.agency_distribution_policy', 'Agency distribution policy')}>
+                <Select options={[
+                  { value: 'manual', label: 'Manual' },
+                  { value: 'performance_ranked', label: 'Performance ranked' },
+                  { value: 'all', label: 'All preferred agencies' },
+                ]} />
               </Form.Item>
             </Col>
           </Row>

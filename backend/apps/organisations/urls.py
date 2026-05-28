@@ -2,7 +2,8 @@ from django.urls import path
 from apps.organisations import views
 
 urlpatterns = [
-        path('profile/', views.OrganisationProfileView.as_view(), name='org-profile'),
+    path('profile/', views.OrganisationProfileView.as_view(), name='org-profile'),
+    path('setup-hierarchy/', views.HierarchySetupView.as_view(), name='org-setup-hierarchy'),
     path('users/', views.UserListView.as_view(), name='org-user-list'),
     path('users/<uuid:pk>/', views.UserDetailView.as_view(), name='org-user-detail'),
     path('departments/', views.DepartmentListView.as_view(), name='department-list'),

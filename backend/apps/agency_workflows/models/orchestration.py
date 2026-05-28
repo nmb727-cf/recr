@@ -27,6 +27,7 @@ class AgencyWorkflowProcessInstance(BaseModel):
     completed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
+        app_label = 'agency_workflows'
         db_table = 'agency_workflow_process_instances'
         ordering = ['-started_at']
 
@@ -62,6 +63,7 @@ class AgencyWorkflowStageExecution(BaseModel):
     metadata = models.JSONField(default=dict, blank=True)
 
     class Meta:
+        app_label = 'agency_workflows'
         db_table = 'agency_workflow_stage_executions'
         ordering = ['started_at']
 
@@ -88,6 +90,7 @@ class AgencyInternalApprovalCheckpoint(BaseModel):
     notes = models.TextField(blank=True)
 
     class Meta:
+        app_label = 'agency_workflows'
         db_table = 'agency_internal_approval_checkpoints'
 
 class AgencyClientResponseCheckpoint(BaseModel):
@@ -114,6 +117,7 @@ class AgencyClientResponseCheckpoint(BaseModel):
     status = models.CharField(max_length=32, choices=STATUS_CHOICES, default='pending')
 
     class Meta:
+        app_label = 'agency_workflows'
         db_table = 'agency_client_response_checkpoints'
 
 class AgencyOfferProgressCheckpoint(BaseModel):
@@ -144,6 +148,7 @@ class AgencyOfferProgressCheckpoint(BaseModel):
     status = models.CharField(max_length=32, choices=STATUS_CHOICES, default='active')
 
     class Meta:
+        app_label = 'agency_workflows'
         db_table = 'agency_offer_progress_checkpoints'
 
 class AgencyPlacementGuaranteeRecord(BaseModel):
@@ -170,4 +175,5 @@ class AgencyPlacementGuaranteeRecord(BaseModel):
     guarantee_status = models.CharField(max_length=32, choices=GUARANTEE_STATUS_CHOICES, default='not_started')
 
     class Meta:
+        app_label = 'agency_workflows'
         db_table = 'agency_placement_guarantee_records'

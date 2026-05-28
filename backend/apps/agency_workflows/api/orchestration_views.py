@@ -1,6 +1,8 @@
 from rest_framework import viewsets, status, response
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from ..models.orchestration import (
     AgencyWorkflowProcessInstance,
     AgencyInternalApprovalCheckpoint,
@@ -18,15 +20,26 @@ from .orchestration_serializers import (
 )
 from ..services.agency_workflow_orchestration_engine import AgencyWorkflowOrchestrationEngine
 
+
+def _effective_tenant_id(request):
+    user = request.user
+    if getattr(user, 'role', '') == 'super_admin':
+        requested = request.query_params.get('tenant_id') or request.data.get('tenant_id')
+        if requested:
+            return requested
+    return getattr(user, 'tenant_id', None)
+
+
 class AgencyWorkflowOrchestrationViewSet(viewsets.ModelViewSet):
     queryset = AgencyWorkflowProcessInstance.objects.all()
     serializer_class = AgencyWorkflowProcessInstanceSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id(self.request)
         if tenant_id:
             return self.queryset.filter(tenant_id=tenant_id)
-        return self.queryset
+        return self.queryset.none()
 
     @action(detail=True, methods=['get'])
     def timeline(self, request, pk=None):
@@ -36,7 +49,7 @@ class AgencyWorkflowOrchestrationViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def start(self, request):
-        tenant_id = request.data.get('tenant_id')
+        tenant_id = _effective_tenant_id(request)
         workflow_id = request.data.get('workflow_id')
         entity_type = request.data.get('entity_type')
         entity_id = request.data.get('entity_id')
@@ -79,12 +92,13 @@ class AgencyWorkflowOrchestrationViewSet(viewsets.ModelViewSet):
 class AgencyWorkflowApprovalViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = AgencyInternalApprovalCheckpoint.objects.all()
     serializer_class = AgencyInternalApprovalCheckpointSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id(self.request)
         if tenant_id:
             return self.queryset.filter(tenant_id=tenant_id)
-        return self.queryset
+        return self.queryset.none()
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
@@ -103,12 +117,13 @@ class AgencyWorkflowApprovalViewSet(viewsets.ReadOnlyModelViewSet):
 class AgencyClientResponseViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = AgencyClientResponseCheckpoint.objects.all()
     serializer_class = AgencyClientResponseCheckpointSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id(self.request)
         if tenant_id:
             return self.queryset.filter(tenant_id=tenant_id)
-        return self.queryset
+        return self.queryset.none()
 
     @action(detail=True, methods=['post'])
     def followup(self, request, pk=None):
@@ -136,12 +151,13 @@ class AgencyClientResponseViewSet(viewsets.ReadOnlyModelViewSet):
 class AgencyOfferViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = AgencyOfferProgressCheckpoint.objects.all()
     serializer_class = AgencyOfferProgressCheckpointSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id(self.request)
         if tenant_id:
             return self.queryset.filter(tenant_id=tenant_id)
-        return self.queryset
+        return self.queryset.none()
 
     @action(detail=True, methods=['post'])
     def counter(self, request, pk=None):
@@ -175,20 +191,22 @@ class AgencyOfferViewSet(viewsets.ReadOnlyModelViewSet):
 class AgencyPlacementViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = AgencyPlacementGuaranteeRecord.objects.all()
     serializer_class = AgencyPlacementGuaranteeRecordSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id(self.request)
         if tenant_id:
             return self.queryset.filter(tenant_id=tenant_id)
-        return self.queryset
+        return self.queryset.none()
 
 class AgencyGuaranteeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = AgencyPlacementGuaranteeRecord.objects.all()
     serializer_class = AgencyPlacementGuaranteeRecordSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id(self.request)
         # Here we could specifically filter for guarantee_status in active, breached, completed
         if tenant_id:
             return self.queryset.filter(tenant_id=tenant_id, guarantee_status__in=['active', 'breached', 'completed'])
-        return self.queryset.filter(guarantee_status__in=['active', 'breached', 'completed'])
+        return self.queryset.none()

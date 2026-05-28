@@ -164,7 +164,6 @@ class AISuggestionsView(APIView):
         suggestions = AISuggestion.objects.filter(
             tenant_id=tid,
             status=SuggestionStatus.PENDING,
-            is_deleted=False,
         ).order_by('-created_at')[:20]
 
         results = [
@@ -421,4 +420,3 @@ class CompletionSummaryView(APIView):
             'critical_gaps': AutomationGapItemSerializer(gaps, many=True).data,
             'failed_gates': AutomationProductionGateSerializer(gates, many=True).data
         }, message="System completion summary retrieved.")
-

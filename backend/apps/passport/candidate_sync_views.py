@@ -45,8 +45,8 @@ def _find_linked_candidate(user):
         user=user,
         tenant_id=getattr(user, 'tenant_id', None),
         create_if_missing=False,
-        allow_cross_tenant=True,
-        ensure_tenant_association_flag=False,
+        allow_cross_tenant=False,
+        ensure_tenant_association_flag=bool(getattr(user, 'tenant_id', None)),
         ensure_visibility=False,
         create_profile=False,
         source='passport_my_candidate_lookup',
@@ -62,7 +62,15 @@ class MyCandidateView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
+    def _ensure_candidate_role(self, request):
+        if getattr(request.user, 'role', None) != 'candidate':
+            return error_response("Candidate access only.", status_code=403)
+        return None
+
     def get(self, request):
+        role_error = self._ensure_candidate_role(request)
+        if role_error:
+            return role_error
         candidate = _find_linked_candidate(request.user)
         if not candidate:
             return success_response(
@@ -151,6 +159,9 @@ class MyCandidateView(APIView):
         Append semantics: empty / None values are skipped — existing data is
         never erased.
         """
+        role_error = self._ensure_candidate_role(request)
+        if role_error:
+            return role_error
         candidate = _find_linked_candidate(request.user)
         if not candidate:
             # No candidate record yet — silently succeed.  These fields will

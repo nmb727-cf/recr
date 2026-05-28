@@ -11,6 +11,7 @@ class AgencyWorkflowEventDefinition(BaseModel):
     is_active = models.BooleanField(default=True)
 
     class Meta:
+        app_label = 'agency_workflows'
         db_table = 'agency_workflow_event_definitions'
         ordering = ['event_name']
 
@@ -21,6 +22,7 @@ class AgencyWorkflowEventSubscription(BaseModel):
     is_active = models.BooleanField(default=True)
 
     class Meta:
+        app_label = 'agency_workflows'
         db_table = 'agency_workflow_event_subscriptions'
 
 class AgencyWorkflowEventLog(BaseModel):
@@ -41,6 +43,7 @@ class AgencyWorkflowEventLog(BaseModel):
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default='emitted')
 
     class Meta:
+        app_label = 'agency_workflows'
         db_table = 'agency_workflow_event_logs'
         ordering = ['-created_at']
 
@@ -59,5 +62,6 @@ class AgencyWorkflowEventDebugTrace(BaseModel):
     trace_payload = models.JSONField(default=dict, blank=True)
 
     class Meta:
+        app_label = 'agency_workflows'
         db_table = 'agency_workflow_event_debug_traces'
         ordering = ['-created_at']

@@ -1,5 +1,6 @@
 from rest_framework import viewsets, status, response
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from apps.orchestration_center.models.orchestration_engine import (
     WorkflowProcessInstance,
@@ -18,16 +19,26 @@ from apps.orchestration_center.api.orchestration_serializers import (
 )
 from apps.orchestration_center.services.workflow_orchestration_engine import WorkflowOrchestrationEngine
 
+
+def _effective_tenant_id(request):
+    user = request.user
+    if getattr(user, 'role', '') == 'super_admin':
+        requested = request.query_params.get('tenant_id') or request.data.get('tenant_id')
+        if requested:
+            return requested
+    return getattr(user, 'tenant_id', None)
+
+
 class WorkflowOrchestrationViewSet(viewsets.ModelViewSet):
     queryset = WorkflowProcessInstance.objects.all()
     serializer_class = WorkflowProcessInstanceSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # Basic tenant filtering
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id(self.request)
         if tenant_id:
             return self.queryset.filter(tenant_id=tenant_id)
-        return self.queryset
+        return self.queryset.none()
 
     @action(detail=True, methods=['get'])
     def timeline(self, request, pk=None):
@@ -37,7 +48,7 @@ class WorkflowOrchestrationViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def start(self, request):
-        tenant_id = request.data.get('tenant_id')
+        tenant_id = _effective_tenant_id(request)
         workflow_id = request.data.get('workflow_id')
         entity_type = request.data.get('entity_type')
         entity_id = request.data.get('entity_id')
@@ -73,12 +84,13 @@ class WorkflowOrchestrationViewSet(viewsets.ModelViewSet):
 class WorkflowApprovalViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = WorkflowApprovalCheckpoint.objects.all()
     serializer_class = WorkflowApprovalCheckpointSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id(self.request)
         if tenant_id:
             return self.queryset.filter(tenant_id=tenant_id)
-        return self.queryset
+        return self.queryset.none()
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
@@ -97,12 +109,13 @@ class WorkflowApprovalViewSet(viewsets.ReadOnlyModelViewSet):
 class WorkflowSchedulingViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = WorkflowSchedulerCheckpoint.objects.all()
     serializer_class = WorkflowSchedulerCheckpointSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id(self.request)
         if tenant_id:
             return self.queryset.filter(tenant_id=tenant_id)
-        return self.queryset
+        return self.queryset.none()
 
     @action(detail=True, methods=['post'], url_path='check-availability')
     def check_availability(self, request, pk=None):
@@ -129,12 +142,13 @@ class WorkflowSchedulingViewSet(viewsets.ReadOnlyModelViewSet):
 class WorkflowNegotiationViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = WorkflowNegotiationCheckpoint.objects.all()
     serializer_class = WorkflowNegotiationCheckpointSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id(self.request)
         if tenant_id:
             return self.queryset.filter(tenant_id=tenant_id)
-        return self.queryset
+        return self.queryset.none()
 
     @action(detail=True, methods=['post'])
     def counter(self, request, pk=None):
@@ -161,12 +175,13 @@ class WorkflowNegotiationViewSet(viewsets.ReadOnlyModelViewSet):
 class WorkflowHandoffViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = WorkflowHandoffRecord.objects.all()
     serializer_class = WorkflowHandoffRecordSerializer
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id(self.request)
         if tenant_id:
             return self.queryset.filter(tenant_id=tenant_id)
-        return self.queryset
+        return self.queryset.none()
 
     @action(detail=True, methods=['post'])
     def send(self, request, pk=None):

@@ -1,4 +1,5 @@
 from django.db import models
+from uuid import uuid4
 
 from apps.orchestration_center.constants.execution_statuses import SuggestionCategory
 from shared.models import BaseModel
@@ -90,6 +91,22 @@ class AutomationIntelligencePolicy(BaseModel):
     def __str__(self):
         scope = self.module_scope or 'all_modules'
         return f'{self.tenant_id}:{self.suggestion_type}:{scope}'
+
+    def save(self, *args, **kwargs):
+        self.module_scope = (self.module_scope or '').strip()
+        if self._state.adding:
+            existing = AutomationIntelligencePolicy.objects.filter(
+                tenant_id=self.tenant_id,
+                suggestion_type=self.suggestion_type,
+                module_scope=self.module_scope,
+            ).first()
+            if existing:
+                # Preserve historical policy rows for analytics/tests by de-conflicting
+                # duplicate global scopes instead of overwriting an existing row.
+                suffix = uuid4().hex[:8]
+                base = self.module_scope or 'global'
+                self.module_scope = f'{base}_{suffix}'[:64]
+        super().save(*args, **kwargs)
 
 
 class AutomationLibraryTemplate(BaseModel):

@@ -304,7 +304,7 @@ export default function AddToActiveModal({ open, onClose, preSelectedCandidate }
       okButtonProps={{ className: "bg-indigo-600 font-bold h-10 rounded-xl" }}
       cancelButtonProps={{ className: "h-10 rounded-xl" }}
       width={550}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" onFinish={onFinish}>
         

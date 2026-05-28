@@ -664,7 +664,7 @@ function PreviewModal({
   onClose: () => void
 }) {
   return (
-    <Modal open={open} onCancel={onClose} footer={null} width={900} destroyOnClose title="AI Interview Preview">
+    <Modal open={open} onCancel={onClose} footer={null} width={900} destroyOnHidden title="AI Interview Preview">
       {!draft ? null : (
         <div className="space-y-6">
           <div className="rounded-2xl border border-slate-200 bg-slate-950 p-6 text-white">

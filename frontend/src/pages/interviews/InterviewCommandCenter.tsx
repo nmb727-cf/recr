@@ -1109,7 +1109,7 @@ function FlowsSection() {
       <Modal
         title={<span className="font-black text-slate-900 uppercase tracking-tight">Create Interview Flow</span>}
         open={createOpen} onCancel={() => setCreateOpen(false)} onOk={saveFlow}
-        okText="Save Flow" confirmLoading={saving} width={820} destroyOnClose
+        okText="Save Flow" confirmLoading={saving} width={820} destroyOnHidden
         styles={{ body: { maxHeight: '78vh', overflowY: 'auto', paddingRight: 8 } }}
       >
         <div className="mt-4 space-y-4">
@@ -1499,7 +1499,7 @@ function TypesRegistrySection() {
       <Modal
         title={<span className="font-black text-slate-900 uppercase tracking-tight">Register Interview Type</span>}
         open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => form.submit()}
-        confirmLoading={submitting} destroyOnClose
+        confirmLoading={submitting} destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={handleCreate} className="mt-6">
           <Form.Item name="name" label="Type Name" rules={[{ required: true }]}>
@@ -1593,7 +1593,7 @@ function TemplatesSection() {
       </div>
       <Modal title={<span className="font-black text-slate-900 uppercase tracking-tight">Create Template</span>}
         open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => form.submit()}
-        confirmLoading={submitting} destroyOnClose width={560}>
+        confirmLoading={submitting} destroyOnHidden width={560}>
         <Form form={form} layout="vertical" onFinish={handleCreate} className="mt-5">
           <div className="grid grid-cols-2 gap-3">
             <Form.Item name="name" label="Template Name" rules={[{ required: true }]}>
@@ -1716,7 +1716,7 @@ function PrequalificationSection() {
 
       <Modal title={<span className="font-black text-slate-900 uppercase tracking-tight">Create Form</span>}
         open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => form.submit()}
-        confirmLoading={submitting} destroyOnClose width={460}>
+        confirmLoading={submitting} destroyOnHidden width={460}>
         <Form form={form} layout="vertical" onFinish={handleCreate} className="mt-5">
           <Form.Item name="name" label="Form Name" rules={[{ required: true }]}>
             <Input placeholder="e.g. Engineering Candidate Screener" className="h-10 rounded-xl" />

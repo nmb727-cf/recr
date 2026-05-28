@@ -4,6 +4,8 @@ from rest_framework.permissions import IsAuthenticated
 import uuid
 from django.db.models import Q
 from django.conf import settings
+from django.db import transaction
+from django.db import connection
 from apps.accounts.models import CustomUser
 
 from apps.agencies.models import (
@@ -19,6 +21,7 @@ from apps.candidates.protection import create_or_update_protection_on_submission
 from apps.core.responses import success_response, error_response
 from apps.orchestration_center.services.audit_service import AuditService
 from apps.rbac.utils import user_has_permission
+from apps.tenants.models import Client
 from shared.tenant_access import (
     TenantAccessMixin,
     is_platform_admin as shared_is_platform_admin,
@@ -294,28 +297,101 @@ class AgencyRelationshipListView(TenantAccessMixin, APIView):
         if status_filter:
             qs = qs.filter(status=status_filter)
 
+        table_name = AgencyClientRelationship._meta.db_table
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT column_name FROM information_schema.columns WHERE table_name = %s AND table_schema = current_schema()",
+                [table_name],
+            )
+            available_columns = {row[0] for row in cursor.fetchall()}
+
         search = get_search_query(request.query_params)
         if search:
-            qs, _ = apply_keyword_search(
-                qs,
-                query=search,
-                fields=(
+            search_fields = [
+                f for f in (
                     'contact_person_name',
                     'contact_email',
                     'contact_phone',
                     'industry',
                     'invited_via',
-                    'notes',
-                ),
-                typo_tolerant=True,
-            )
+                )
+                if f in available_columns
+            ]
+            if search_fields:
+                qs, _ = apply_keyword_search(
+                    qs,
+                    query=search,
+                    fields=tuple(search_fields),
+                    typo_tolerant=True,
+                )
 
         total = qs.count()
         limit, offset = parse_limit_offset(request.query_params, default_limit=50, max_limit=200)
-        qs = qs.order_by('-updated_at')[offset:offset + limit]
+        order_field = '-updated_at' if 'updated_at' in available_columns else ('-created_at' if 'created_at' in available_columns else '-id')
+        qs = qs.order_by(order_field)[offset:offset + limit]
+
+        requested_fields = [
+            'id',
+            'tenant_id',
+            'agency_tenant_id',
+            'company_tenant_id',
+            'status',
+            'sla_submission_hours',
+            'sla_feedback_hours',
+            'commission_percentage',
+            'commission_type',
+            'contact_person_name',
+            'contact_email',
+            'contact_phone',
+            'contact_country_code',
+            'contact_phone_number',
+            'industry',
+            'contract_file_url',
+            'recruitment_policy_url',
+            'payment_terms',
+            'payment_schedule',
+            'connection_type',
+            'guest_portal_id',
+            'email_tracking_id',
+            'their_ats_url',
+            'retention_days',
+            'guarantee_notes',
+            'guarantee_period_days',
+            'refund_percentage',
+            'replacement_attempt_limit',
+            'invited_by',
+            'invited_via',
+            'created_at',
+            'updated_at',
+            'created_by',
+            'metadata',
+        ]
+        selected_fields = [f for f in requested_fields if f in available_columns]
+        rows = list(qs.values(*selected_fields))
+        tenant_ids = {
+            str(r.get('company_tenant_id'))
+            for r in rows
+            if r.get('company_tenant_id')
+        } | {
+            str(r.get('agency_tenant_id'))
+            for r in rows
+            if r.get('agency_tenant_id')
+        }
+        tenant_name_map = {}
+        if tenant_ids:
+            try:
+                tenant_name_map = {
+                    str(c.id): c.name
+                    for c in Client.objects.filter(id__in=tenant_ids).only('id', 'name')
+                }
+            except Exception:
+                tenant_name_map = {}
+        for row in rows:
+            row['company_name'] = tenant_name_map.get(str(row.get('company_tenant_id')), 'Unknown Company')
+            row['agency_name'] = tenant_name_map.get(str(row.get('agency_tenant_id')), 'Unknown Agency')
 
         return success_response(
-            data={'relationships': AgencyClientRelationshipSerializer(qs, many=True).data},
+            data={'relationships': rows},
             message="Relationships retrieved.",
             meta={'total': total, 'limit': limit, 'offset': offset}
         )
@@ -687,6 +763,25 @@ class AgencyJobAssignmentListView(TenantAccessMixin, APIView):
             assigned_by=request.user.id,
             created_by=request.user.id,
         )
+
+        # ERP Auto-Acceptance & Allocation Logic
+        rel = AgencyClientRelationship.objects.filter(
+            agency_tenant_id=assignment.agency_tenant_id,
+            company_tenant_id=assignment.tenant_id,
+            is_deleted=False
+        ).first()
+
+        if rel and rel.auto_accept_jobs:
+            assignment.status = 'active'
+            assignment.accepted_at = timezone.now()
+            assignment.acceptance_mode = 'automatic'
+            # Auto-allot to designated team/user from the relationship
+            assignment.assigned_team = rel.allocated_team
+            assignment.internal_recruiter_id = rel.allocated_user_id
+            assignment.save(update_fields=['status', 'accepted_at', 'acceptance_mode', 'assigned_team', 'internal_recruiter_id'])
+            
+            # Emit ERP signal
+            # events.agency.job_auto_accepted.send(...)
 
         return success_response(
             data={'assignment': AgencyJobAssignmentSerializer(assignment).data},
@@ -1095,6 +1190,16 @@ class AgencySubmitCandidateView(APIView):
                 status_code=status.HTTP_403_FORBIDDEN
             )
 
+        # Ensure relationship is active
+        rel = AgencyClientRelationship.objects.filter(
+            agency_tenant_id=request.user.tenant_id,
+            company_tenant_id=assignment.tenant_id,
+            status='active',
+            is_deleted=False
+        ).exists()
+        if not rel:
+            return error_response("Partnership with this client is not active or has been suspended.", status_code=status.HTTP_403_FORBIDDEN)
+
         # Check max submissions
         if assignment.max_submissions:
             if assignment.submission_count >= assignment.max_submissions:
@@ -1386,41 +1491,87 @@ class AgencyMyClientsView(APIView):
             agency_tenant_id=request.user.tenant_id,
             is_deleted=False
         )
-
         status_filter = request.query_params.get('status')
         if status_filter:
             relationships = relationships.filter(status=status_filter)
 
         search = get_search_query(request.query_params)
         if search:
-            relationships, _ = apply_keyword_search(
-                relationships,
+            from apps.tenants.models import Client
+            client_ids = Client.objects.filter(
+                id__in=relationships.values('company_tenant_id')
+            )
+            client_ids, _ = apply_keyword_search(
+                client_ids,
                 query=search,
-                fields=(
-                    'contact_person_name',
-                    'contact_email',
-                    'contact_phone',
-                    'industry',
-                    'invited_via',
-                    'notes',
-                ),
+                fields=('name', 'slug', 'domain'),
                 typo_tolerant=True,
             )
+            relationships = relationships.filter(company_tenant_id__in=client_ids.values('id'))
+
         total = relationships.count()
         limit, offset = parse_limit_offset(request.query_params, default_limit=50, max_limit=200)
-        relationships = relationships.order_by('-updated_at')[offset:offset + limit]
+        relationships = relationships[offset:offset + limit]
 
         return success_response(
-            data={'clients': AgencyClientRelationshipSerializer(relationships, many=True).data},
+            data={'relationships': AgencyClientRelationshipSerializer(relationships, many=True).data},
             message="Clients retrieved.",
             meta={'total': total, 'limit': limit, 'offset': offset}
         )
 
 
-import re
-from django.utils.text import slugify
-from django.utils import timezone
-from datetime import timedelta
+class JobAssignmentAcceptView(APIView):
+    """
+    Agency-side endpoint to manually accept or decline a job assignment.
+    """
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request, pk):
+        denied = _require_agency_actor(request)
+        if denied:
+            return denied
+            
+        action = request.data.get('action') # 'accept' or 'decline'
+        team_id = request.data.get('team_id') # Optional manual team allotment
+        
+        try:
+            assignment = AgencyJobAssignment.objects.get(
+                pk=pk, 
+                agency_tenant_id=request.user.tenant_id,
+                is_deleted=False
+            )
+        except AgencyJobAssignment.DoesNotExist:
+            return error_response("Assignment not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        if action == 'accept':
+            assignment.status = 'active'
+            assignment.accepted_at = timezone.now()
+            assignment.accepted_by = request.user
+            assignment.acceptance_mode = 'manual'
+            
+            # 1. Manual team allotment if provided
+            if team_id:
+                assignment.assigned_team_id = team_id
+            else:
+                # 2. Fallback to client-level auto-allocation
+                rel = AgencyClientRelationship.objects.filter(
+                    agency_tenant_id=request.user.tenant_id,
+                    company_tenant_id=assignment.tenant_id,
+                    is_deleted=False
+                ).first()
+                if rel and rel.allocated_team_id:
+                    assignment.assigned_team = rel.allocated_team
+            
+            assignment.save()
+            return success_response(message="Job assignment accepted and alloted.")
+            
+        elif action == 'decline':
+            assignment.status = 'declined'
+            assignment.save()
+            return success_response(message="Job assignment declined.")
+            
+        return error_response("Invalid action. Use 'accept' or 'decline'.")
 
 
 class TenantLookupView(APIView):
@@ -1912,3 +2063,69 @@ class GuestPortalResendInviteView(APIView):
             data={'portal_id': str(portal.id), 'status': portal.status},
             message="Invite resent."
         )
+
+class AgencyPortalAcceptView(APIView):
+    """
+    Public endpoint to review and accept a guest portal invite.
+    GET: Returns the terms for review.
+    POST: Accepts the terms and activates the relationship.
+    """
+    permission_classes = [] # Public, token-based
+
+    def get(self, request, token):
+        from apps.agencies.models import GuestPortal, AgencyClientRelationship
+        try:
+            portal = GuestPortal.objects.get(invite_token=token, is_deleted=False)
+        except GuestPortal.DoesNotExist:
+            return error_response("Invalid or expired invitation token.", status_code=status.HTTP_404_NOT_FOUND)
+
+        if portal.invite_expires_at < timezone.now():
+            return error_response("Invitation token has expired.", status_code=status.HTTP_410_GONE)
+
+        relationship = AgencyClientRelationship.objects.get(guest_portal_id=portal.id)
+        
+        return success_response(
+            data={
+                'portal_name': portal.name,
+                'portal_type': portal.portal_type,
+                'inviting_tenant_id': str(portal.created_by_tenant_id),
+                'terms': {
+                    'commission_percentage': relationship.commission_percentage,
+                    'commission_type': relationship.commission_type,
+                    'sla_submission_hours': relationship.sla_submission_hours,
+                    'sla_feedback_hours': relationship.sla_feedback_hours,
+                    'retention_days': relationship.retention_days,
+                    'replacement_guarantee_days': relationship.guarantee_period_days,
+                }
+            }
+        )
+
+    @transaction.atomic
+    def post(self, request, token):
+        from apps.agencies.models import GuestPortal, AgencyClientRelationship
+        try:
+            portal = GuestPortal.objects.get(invite_token=token, is_deleted=False)
+        except GuestPortal.DoesNotExist:
+            return error_response("Invalid invitation token.")
+
+        relationship = AgencyClientRelationship.objects.get(guest_portal_id=portal.id)
+        
+        # Take Snapshot of Terms
+        relationship.contract_snapshot = {
+            'commission_percentage': relationship.commission_percentage,
+            'commission_type': relationship.commission_type,
+            'sla_submission_hours': relationship.sla_submission_hours,
+            'sla_feedback_hours': relationship.sla_feedback_hours,
+            'retention_days': relationship.retention_days,
+            'guarantee_period_days': relationship.guarantee_period_days,
+            'accepted_at': timezone.now().isoformat(),
+            'accepted_by_ip': request.META.get('REMOTE_ADDR')
+        }
+        
+        relationship.status = 'active'
+        relationship.save()
+        
+        portal.status = 'active'
+        portal.save()
+
+        return success_response(message="Partnership successfully activated.")

@@ -1,0 +1,148 @@
+{
+  "backend": [
+    {
+      "module": "automation_notifications",
+      "file": "models.py",
+      "issues": [
+        "Contains empty models ('pass')"
+      ]
+    },
+    {
+      "module": "communications",
+      "file": "models.py",
+      "issues": [
+        "Contains empty models ('pass')"
+      ]
+    },
+    {
+      "module": "automation_system_completion",
+      "file": "models.py",
+      "issues": [
+        "Contains empty models ('pass')"
+      ]
+    },
+    {
+      "module": "interviews",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)"
+      ]
+    },
+    {
+      "module": "interviews",
+      "file": "models.py",
+      "issues": [
+        "Contains empty models ('pass')"
+      ]
+    },
+    {
+      "module": "automation_permissions",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)"
+      ]
+    },
+    {
+      "module": "passport",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)"
+      ]
+    },
+    {
+      "module": "passport",
+      "file": "models.py",
+      "issues": [
+        "Contains empty models ('pass')"
+      ]
+    },
+    {
+      "module": "candidates",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)"
+      ]
+    },
+    {
+      "module": "candidates",
+      "file": "models.py",
+      "issues": [
+        "Contains empty models ('pass')"
+      ]
+    },
+    {
+      "module": "accounts",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)"
+      ]
+    },
+    {
+      "module": "accounts",
+      "file": "models.py",
+      "issues": [
+        "Contains empty models ('pass')"
+      ]
+    },
+    {
+      "module": "pipeline",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)"
+      ]
+    },
+    {
+      "module": "organisations",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)"
+      ]
+    },
+    {
+      "module": "documents",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)",
+        "Contains hardcoded API responses instead of DB logic"
+      ]
+    },
+    {
+      "module": "jobs",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)"
+      ]
+    },
+    {
+      "module": "jobs",
+      "file": "models.py",
+      "issues": [
+        "Contains empty models ('pass')"
+      ]
+    },
+    {
+      "module": "agencies",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)"
+      ]
+    },
+    {
+      "module": "analytics",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)"
+      ]
+    }
+  ],
+  "empty_modules": [
+    "qa",
+    "agency_workflows",
+    "cafe",
+    "workflow_execution",
+    "notifications",
+    "core",
+    "orchestration_center",
+    "marketplace"
+  ]
+}

@@ -171,9 +171,17 @@ export interface JobStage {
   requisition_id: string
   name: string
   stage_order: number
-  stage_type: 'screening' | 'interview' | 'offer' | 'joined'
+  stage_type: string
   action_deadline_hours: number
   is_active: boolean
+  is_mandatory?: boolean
+  is_critical_path?: boolean
+  stage_zone?: string
+  trigger_type?: string
+  responsible_role?: string
+  responsible_user_id?: string | null
+  decision_authority?: string
+  metadata?: Record<string, unknown>
 }
 
 // ─── Candidates ───────────────────────────────────────────────────────────────
@@ -213,7 +221,7 @@ export interface Candidate {
   assigned_to: string | null
   owner_user_id: string
   owner_tenant_id: string
-  created_at: string
+  created_at?: string
   updated_at: string
   created_by: string
   metadata: Record<string, unknown>
@@ -425,24 +433,7 @@ export interface TimelineEvent {
 
 // ─── Pipeline / Applications ──────────────────────────────────────────────────
 
-export type ApplicationStatus =
-  | 'applied'
-  | 'sourcing'
-  | 'screening'
-  | 'shortlisted'
-  | 'in_review'
-  | 'interview'
-  | 'interview_scheduled'
-  | 'assessment'
-  | 'on_hold'
-  | 'offer'
-  | 'offer_extended'
-  | 'offer_accepted'
-  | 'joined'
-  | 'placement_confirmed'
-  | 'placement_cancelled'
-  | 'rejected'
-  | 'withdrawn'
+export type ApplicationStatus = string
 
 export type PlacementStatus =
   | 'not_applicable'
@@ -917,34 +908,58 @@ export interface MessageThread {
   id: string
   tenant_id: string
   subject: string
-  participants: string[] // User IDs
-  last_message_at: string
+  participants: string[] | Array<{ id?: string; user_id?: string }> // legacy + new shape
+  participant_ids?: string[]
+  last_message_at: string | null
   last_message_preview: string
   unread_count: number
   created_at: string
   updated_at: string
+  thread_type?: string
+  is_internal?: boolean
+  is_archived?: boolean
+  metadata?: Record<string, unknown>
 }
 
 export interface Message {
   id: string
-  thread_id: string
+  thread_id?: string
+  tenant_id?: string
   sender_id: string
+  sender_tenant_id?: string
   body: string
+  content?: string
+  message_type?: string
+  channel_type?: string
+  attachments_json?: unknown[]
+  attachments?: unknown[]
   is_read: boolean
-  created_at: string
+  created_at?: string
+  sent_at?: string
+  read_at?: string | null
+  metadata?: Record<string, unknown>
 }
 
 // ─── Notifications ───────────────────────────────────────────────────────────
 
 export interface Notification {
   id: string
-  recipient_id: string
+  recipient_id?: string
+  user_id?: string
+  tenant_id?: string | null
   title: string
   body: string
   type: string
-  link: string
+  notification_type?: string
+  link?: string
+  action_url?: string
+  severity?: 'info' | 'medium' | 'high' | 'critical'
   is_read: boolean
   created_at: string
+  read_at?: string | null
+  related_entity_type?: string
+  related_entity_id?: string | null
+  metadata?: Record<string, unknown>
 }
 
 // ─── Organisation ─────────────────────────────────────────────────────────────

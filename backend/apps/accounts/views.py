@@ -159,7 +159,10 @@ def _auto_configure(user, prefs):
         org.metadata['onboarding_completed'] = True
         org.save(update_fields=['metadata'])
     except Organisation.DoesNotExist:
-        pass
+        logger.warning(
+            "Onboarding metadata save skipped: organisation missing for tenant %s",
+            tenant_id,
+        )
 
     if automation_pref == 'manual':
         return
@@ -839,7 +842,10 @@ class LogoutView(APIView):
             refresh = RefreshToken(serializer.validated_data['refresh_token'])
             refresh.blacklist()
         except TokenError:
-            pass
+            logger.info(
+                "Logout token blacklist skipped: invalid/expired refresh token for user %s",
+                request.user.id,
+            )
 
         return success_response(message="Logged out successfully.")
 

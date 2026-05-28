@@ -7,6 +7,9 @@ export const orchestrationApi = {
     
   listTemplates: () =>
     http.get<ApiResponse<{ templates: any[] }>>('/intelligence/workflows/templates/'),
+
+  getTemplateDetail: (id: string) =>
+    http.get<ApiResponse<{ template: any }>>(`/intelligence/workflows/templates/${id}/`),
     
   getWorkflowDetail: (id: string) =>
     http.get<ApiResponse<{ workflow: any }>>(`/intelligence/workflows/${id}/`),

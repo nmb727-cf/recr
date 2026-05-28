@@ -725,7 +725,7 @@ export default function InterviewSchedulingEngine() {
         onCancel={() => setRescheduleOpen(false)}
         onOk={() => rescheduleForm.submit()}
         confirmLoading={rescheduleMutation.isPending}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={rescheduleForm}
@@ -750,7 +750,7 @@ export default function InterviewSchedulingEngine() {
         onCancel={() => setCancelOpen(false)}
         onOk={() => cancelForm.submit()}
         confirmLoading={cancelMutation.isPending}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={cancelForm}

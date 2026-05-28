@@ -14,6 +14,7 @@ from uuid import UUID
 
 from django.db import transaction
 from django.utils import timezone
+from uuid import UUID
 
 from apps.communications.models import (
     ChannelType,
@@ -32,6 +33,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 class ThreadService:
+    SYSTEM_SENDER_ID = UUID('00000000-0000-0000-0000-000000000000')
     """
     Create and manage message threads.
     Handles tenant isolation and explicit participant access.
@@ -256,7 +258,7 @@ class ThreadService:
         return ThreadService.add_message(
             thread_id=thread_id,
             requesting_tenant_id=tenant_id,
-            sender_user_id='00000000-0000-0000-0000-000000000000',
+            sender_user_id=ThreadService.SYSTEM_SENDER_ID,
             body=body,
             message_type='system_event',
             is_system_generated=True,

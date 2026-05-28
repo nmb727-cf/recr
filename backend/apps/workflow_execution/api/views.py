@@ -1,7 +1,11 @@
 from rest_framework import viewsets, status, response, mixins
 from rest_framework.decorators import action
 from rest_framework.views import APIView
+from django.conf import settings
 import uuid
+import time
+import hmac
+import hashlib
 
 from apps.workflow_execution.models import (
     WorkflowInstance,
@@ -200,6 +204,17 @@ from django.db.models import Count, Avg, Q
 from django.utils import timezone
 
 
+def _effective_tenant_id_from_request(request):
+    user = getattr(request, 'user', None)
+    user_tenant_id = getattr(user, 'tenant_id', None) if user else None
+    user_role = getattr(user, 'role', '') if user else ''
+    if user_role == 'super_admin':
+        requested_tenant_id = request.query_params.get('tenant_id')
+        if requested_tenant_id:
+            return requested_tenant_id
+    return user_tenant_id
+
+
 # ------------------------------------------------------------------ #
 # Workflow Instances                                                    #
 # ------------------------------------------------------------------ #
@@ -227,7 +242,7 @@ class WorkflowInstanceViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = self.queryset
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id_from_request(self.request)
         if tenant_id:
             qs = qs.filter(tenant_id=tenant_id)
         workflow_id = self.request.query_params.get('workflow_id')
@@ -533,6 +548,9 @@ class WorkflowStageTransitionViewSet(
 
     def get_queryset(self):
         qs = self.queryset
+        tenant_id = _effective_tenant_id_from_request(self.request)
+        if tenant_id:
+            qs = qs.filter(tenant_id=tenant_id)
         workflow_id = self.request.query_params.get('workflow_id')
         if workflow_id:
             qs = qs.filter(workflow_id=workflow_id)
@@ -556,7 +574,7 @@ class WorkflowWaitStateViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = self.queryset
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id_from_request(self.request)
         if tenant_id:
             qs = qs.filter(tenant_id=tenant_id)
         ws_status = self.request.query_params.get('status')
@@ -602,7 +620,7 @@ class WorkflowTransitionLogViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = self.queryset
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id_from_request(self.request)
         if tenant_id:
             qs = qs.filter(tenant_id=tenant_id)
         instance_id = self.request.query_params.get('workflow_instance_id')
@@ -621,7 +639,7 @@ class WorkflowFailureLogViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = self.queryset
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id_from_request(self.request)
         if tenant_id:
             qs = qs.filter(tenant_id=tenant_id)
         instance_id = self.request.query_params.get('workflow_instance_id')
@@ -642,6 +660,13 @@ class WorkflowOrchestratorInstanceViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = WorkflowInstance.objects.all()
     serializer_class = WorkflowInstanceSerializer
+
+    def get_queryset(self):
+        qs = self.queryset
+        tenant_id = _effective_tenant_id_from_request(self.request)
+        if tenant_id:
+            qs = qs.filter(tenant_id=tenant_id)
+        return qs
 
     @action(detail=True, methods=['get'])
     def context(self, request, pk=None):
@@ -726,7 +751,7 @@ class WorkflowSLAListView(APIView):
 
     def get(self, request, *args, **kwargs):
         qs = WorkflowSLATracker.objects.select_related('workflow_instance', 'stage_execution', 'stage_sla').all()
-        tenant_id = request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id_from_request(request)
         if tenant_id:
             qs = qs.filter(tenant_id=tenant_id)
         instance_id = request.query_params.get('workflow_instance_id')
@@ -763,7 +788,7 @@ class WorkflowNotificationListView(APIView):
 
     def get(self, request, *args, **kwargs):
         qs = WorkflowNotificationLog.objects.select_related('workflow_instance', 'stage_execution').all()
-        tenant_id = request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id_from_request(request)
         if tenant_id:
             qs = qs.filter(tenant_id=tenant_id)
         workflow_instance_id = request.query_params.get('workflow_instance_id')
@@ -847,7 +872,7 @@ class WorkflowSchedulerTaskListView(APIView):
 
     def get(self, request, *args, **kwargs):
         qs = WorkflowScheduledTask.objects.select_related('workflow_instance', 'stage_execution').all()
-        tenant_id = request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id_from_request(request)
         if tenant_id:
             qs = qs.filter(tenant_id=tenant_id)
         workflow_instance_id = request.query_params.get('workflow_instance_id')
@@ -1005,7 +1030,7 @@ class WorkflowHumanTaskListView(APIView):
 
     def get(self, request, *args, **kwargs):
         qs = WorkflowHumanTask.objects.select_related('workflow_instance', 'stage_execution').all().order_by('due_at', 'created_at')
-        tenant_id = request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id_from_request(request)
         if tenant_id:
             qs = qs.filter(tenant_id=tenant_id)
         workflow_instance_id = request.query_params.get('workflow_instance_id')
@@ -2090,7 +2115,7 @@ class WorkflowTriggerMappingViewSet(
 
     def get_queryset(self):
         qs = self.queryset
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id_from_request(self.request)
         if tenant_id:
             qs = qs.filter(tenant_id=tenant_id)
         workflow_id = self.request.query_params.get('workflow_id')
@@ -2109,7 +2134,7 @@ class WorkflowEventLogViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = self.queryset
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id_from_request(self.request)
         if tenant_id:
             qs = qs.filter(tenant_id=tenant_id)
         event_key = self.request.query_params.get('event_key')
@@ -2138,6 +2163,9 @@ class WorkflowEventDebugTraceViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = self.queryset
+        tenant_id = _effective_tenant_id_from_request(self.request)
+        if tenant_id:
+            qs = qs.filter(tenant_id=tenant_id)
         event_log_id = self.request.query_params.get('event_log_id')
         if event_log_id:
             qs = qs.filter(event_log_id=event_log_id)
@@ -2187,6 +2215,43 @@ class CompanyExternalCallbackBaseView(APIView):
     permission_classes = []
     callback_name = 'external-callback'
     resume_event = ''
+    signature_header_name = 'HTTP_X_TALENTOS_SIGNATURE'
+    timestamp_header_name = 'HTTP_X_TALENTOS_TIMESTAMP'
+
+    def _verify_callback_signature(self, request):
+        timestamp_raw = request.META.get(self.timestamp_header_name)
+        provided_signature = (request.META.get(self.signature_header_name) or '').strip()
+        if not timestamp_raw or not provided_signature:
+            return response.Response(
+                {'error': 'Missing callback signature headers.'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        try:
+            timestamp = int(str(timestamp_raw).strip())
+        except (TypeError, ValueError):
+            return response.Response(
+                {'error': 'Invalid callback timestamp.'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        ttl_seconds = int(getattr(settings, 'WORKFLOW_CALLBACK_SIGNATURE_TTL_SECONDS', 300))
+        now = int(time.time())
+        if abs(now - timestamp) > ttl_seconds:
+            return response.Response(
+                {'error': 'Callback timestamp expired.'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        secret = str(getattr(settings, 'WORKFLOW_CALLBACK_SIGNATURE_SECRET', settings.SECRET_KEY)).encode('utf-8')
+        body_bytes = request.body if isinstance(request.body, (bytes, bytearray)) else bytes(request.body or b'')
+        message = f'{timestamp}.'.encode('utf-8') + body_bytes
+        expected_signature = hmac.new(secret, message, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected_signature, provided_signature):
+            return response.Response(
+                {'error': 'Invalid callback signature.'},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+        return None
 
     def _resolve_event_key(self, data):
         return self.resume_event
@@ -2229,6 +2294,9 @@ class CompanyExternalCallbackBaseView(APIView):
         )
 
     def post(self, request, *args, **kwargs):
+        auth_error = self._verify_callback_signature(request)
+        if auth_error:
+            return auth_error
         serializer = CompanyExternalCallbackSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -2345,6 +2413,9 @@ class CompanyCandidateInterviewConfirmCallbackView(CompanyExternalCallbackBaseVi
     }
 
     def post(self, request, *args, **kwargs):
+        auth_error = self._verify_callback_signature(request)
+        if auth_error:
+            return auth_error
         serializer = CompanyCandidateInterviewConfirmSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -2465,6 +2536,9 @@ class CompanyCandidateOfferResponseCallbackView(CompanyExternalCallbackBaseView)
     }
 
     def post(self, request, *args, **kwargs):
+        auth_error = self._verify_callback_signature(request)
+        if auth_error:
+            return auth_error
         serializer = CompanyCandidateOfferResponseSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -2727,6 +2801,9 @@ class CompanyCandidateDocumentUploadedCallbackView(CompanyExternalCallbackBaseVi
     resume_event = 'document_signed'
 
     def post(self, request, *args, **kwargs):
+        auth_error = self._verify_callback_signature(request)
+        if auth_error:
+            return auth_error
         serializer = CompanyCandidateDocumentUploadedSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -2876,6 +2953,9 @@ class CompanyHRMSHandoffCallbackView(CompanyExternalCallbackBaseView):
         return self.resume_event
 
     def post(self, request, *args, **kwargs):
+        auth_error = self._verify_callback_signature(request)
+        if auth_error:
+            return auth_error
         serializer = CompanyHRMSHandoffSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -3020,7 +3100,7 @@ class WorkflowEntityRouteViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = self.queryset
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id_from_request(self.request)
         if tenant_id:
             qs = qs.filter(tenant_id=tenant_id)
         instance_id = self.request.query_params.get('workflow_instance_id')
@@ -3070,7 +3150,7 @@ class WorkflowActorAssignmentViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = self.queryset
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id_from_request(self.request)
         if tenant_id:
             qs = qs.filter(tenant_id=tenant_id)
         instance_id = self.request.query_params.get('workflow_instance_id')
@@ -3114,7 +3194,7 @@ class WorkflowHandoffCheckpointViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = self.queryset
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id_from_request(self.request)
         if tenant_id:
             qs = qs.filter(tenant_id=tenant_id)
         instance_id = self.request.query_params.get('workflow_instance_id')
@@ -3200,6 +3280,9 @@ class WorkflowRoutingRuleViewSet(
 
     def get_queryset(self):
         qs = self.queryset
+        tenant_id = _effective_tenant_id_from_request(self.request)
+        if tenant_id:
+            qs = qs.filter(tenant_id=tenant_id)
         workflow_id = self.request.query_params.get('workflow_id')
         if workflow_id:
             qs = qs.filter(workflow_id=workflow_id)
@@ -3230,7 +3313,7 @@ class WorkflowRouteTimelineLogViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         qs = self.queryset
-        tenant_id = self.request.query_params.get('tenant_id')
+        tenant_id = _effective_tenant_id_from_request(self.request)
         if tenant_id:
             qs = qs.filter(tenant_id=tenant_id)
         instance_id = self.request.query_params.get('workflow_instance_id')

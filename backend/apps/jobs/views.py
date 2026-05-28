@@ -33,6 +33,14 @@ from shared.search_utils import (
 
 
 from apps.jobs.services import HiringAIBrainService, GlobalHiringCommandCenterService
+from apps.jobs.policy_guardrails import (
+    validate_workflow_toggle,
+    validate_stage_create,
+    validate_stage_update,
+    validate_stage_delete,
+    validate_stage_reorder,
+    get_policy_context,
+)
 
 
 def _require_candidate_role(user):
@@ -52,6 +60,22 @@ def _require_jobs_permission(user, permission_code: str):
     if user_has_permission(user, permission_code):
         return
     raise PermissionDenied("You do not have permission to perform this job operation.")
+
+
+def _policy_error(requisition, message: str):
+    ctx = get_policy_context(requisition)
+    return error_response(
+        message,
+        errors={
+            'code': 'POLICY_GUARDRAIL_BLOCKED',
+            'policy_mode': ctx.mode,
+            'strictness': ctx.strictness,
+            'process_started': ctx.process_started,
+            'active_candidates': ctx.active_candidates,
+            'furthest_stage_order': ctx.furthest_stage_order,
+            'furthest_interview_round': ctx.furthest_interview_round,
+        },
+    )
 
 class GlobalHiringCommandCenterView(APIView):
     permission_classes = [IsAuthenticated]
@@ -386,6 +410,10 @@ class JobRequisitionDetailView(APIView):
         req = self.get_object(request, pk)
         if not req:
             return error_response("Requisition not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        workflow_err = validate_workflow_toggle(req, request.data if isinstance(request.data, dict) else {})
+        if workflow_err:
+            return _policy_error(req, workflow_err)
 
         serializer = JobRequisitionSerializer(req, data=request.data, partial=True)
         if not serializer.is_valid():
@@ -868,6 +896,15 @@ class JobStageListView(APIView):
         except JobRequisition.DoesNotExist:
             return error_response("Requisition not found.", status_code=status.HTTP_404_NOT_FOUND)
 
+        req = JobRequisition.objects.filter(id=requisition_id, tenant_id=request.user.tenant_id, is_deleted=False).first()
+        if not req:
+            return error_response("Requisition not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        stage_order = int(request.data.get('stage_order') or 0)
+        create_err = validate_stage_create(req, stage_order)
+        if create_err:
+            return _policy_error(req, create_err)
+
         serializer = JobStageSerializer(data=request.data)
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors)
@@ -910,6 +947,14 @@ class JobStageDetailView(APIView):
         if not stage:
             return error_response("Stage not found.", status_code=status.HTTP_404_NOT_FOUND)
 
+        req = JobRequisition.objects.filter(id=requisition_id, tenant_id=request.user.tenant_id, is_deleted=False).first()
+        if not req:
+            return error_response("Requisition not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        update_err = validate_stage_update(req, stage, request.data if isinstance(request.data, dict) else {})
+        if update_err:
+            return _policy_error(req, update_err)
+
         serializer = JobStageSerializer(stage, data=request.data, partial=True)
         if not serializer.is_valid():
             return error_response("Validation failed.", serializer.errors)
@@ -933,6 +978,14 @@ class JobStageDetailView(APIView):
         if not stage:
             return error_response("Stage not found.", status_code=status.HTTP_404_NOT_FOUND)
 
+        req = JobRequisition.objects.filter(id=requisition_id, tenant_id=request.user.tenant_id, is_deleted=False).first()
+        if not req:
+            return error_response("Requisition not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        delete_err = validate_stage_delete(req, stage)
+        if delete_err:
+            return _policy_error(req, delete_err)
+
         stage.is_active = False
         stage.save(update_fields=['is_active'])
         return success_response(
@@ -950,6 +1003,14 @@ class JobStageReorderView(APIView):
         stage_ids = request.data.get('stage_ids', [])
         if not stage_ids:
             return error_response("stage_ids is required.")
+
+        req = JobRequisition.objects.filter(id=requisition_id, tenant_id=request.user.tenant_id, is_deleted=False).first()
+        if not req:
+            return error_response("Requisition not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        reorder_err = validate_stage_reorder(req)
+        if reorder_err:
+            return _policy_error(req, reorder_err)
 
         for order, stage_id in enumerate(stage_ids, start=1):
             JobStage.objects.filter(
@@ -977,6 +1038,22 @@ from rest_framework.permissions import AllowAny
 
 class JobSearchView(APIView):
     permission_classes = [AllowAny]
+
+    def _public_posting_payload(self, posting):
+        return {
+            'id': str(posting.id),
+            'title': posting.title,
+            'slug': posting.slug,
+            'description_html': posting.description_html,
+            'requirements': posting.requirements,
+            'responsibilities': posting.responsibilities,
+            'skills_required': posting.skills_required or [],
+            'external_description': posting.external_description,
+            'posted_at': posting.posted_at,
+            'expires_at': posting.expires_at,
+            'posted_on': posting.posted_on,
+            'applications_count': posting.applications_count,
+        }
 
     def get(self, request):
         qs = JobPosting.objects.filter(
@@ -1036,9 +1113,10 @@ class JobSearchView(APIView):
         limit, offset = parse_limit_offset(request.query_params, default_limit=50, max_limit=200)
         total = qs.count()
         qs = qs.order_by('-posted_at', '-created_at')[offset:offset + limit]
+        jobs = [self._public_posting_payload(posting) for posting in qs]
 
         return success_response(
-            data={'jobs': JobPostingSerializer(qs, many=True).data},
+            data={'jobs': jobs},
             message="Jobs retrieved.",
             meta={
                 'total': total,
@@ -1057,6 +1135,45 @@ class JobSearchView(APIView):
 class JobPublicDetailView(APIView):
     permission_classes = [AllowAny]
 
+    def _public_posting_payload(self, posting):
+        return {
+            'id': str(posting.id),
+            'title': posting.title,
+            'slug': posting.slug,
+            'description_html': posting.description_html,
+            'requirements': posting.requirements,
+            'responsibilities': posting.responsibilities,
+            'skills_required': posting.skills_required or [],
+            'external_description': posting.external_description,
+            'posted_at': posting.posted_at,
+            'expires_at': posting.expires_at,
+            'posted_on': posting.posted_on,
+            'applications_count': posting.applications_count,
+        }
+
+    def _public_requisition_payload(self, req):
+        salary_min = req.salary_min if req.salary_visible else None
+        salary_max = req.salary_max if req.salary_visible else None
+        return {
+            'id': str(req.id),
+            'title': req.title,
+            'job_type': req.job_type,
+            'work_mode': req.work_mode,
+            'job_category': req.job_category,
+            'experience_min': req.experience_min,
+            'experience_max': req.experience_max,
+            'salary_min': salary_min,
+            'salary_max': salary_max,
+            'salary_currency': req.salary_currency,
+            'salary_visible': req.salary_visible,
+            'description': req.description,
+            'requirements': req.requirements,
+            'responsibilities': req.responsibilities,
+            'skills_required': req.skills_required or [],
+            'status': req.status,
+            'target_date': req.target_date,
+        }
+
     def get(self, request, pk):
         try:
             posting = JobPosting.objects.get(
@@ -1074,13 +1191,13 @@ class JobPublicDetailView(APIView):
         # Get requisition details
         try:
             req = JobRequisition.objects.get(id=posting.requisition_id)
-            req_data = JobRequisitionSerializer(req).data
+            req_data = self._public_requisition_payload(req)
         except JobRequisition.DoesNotExist:
             req_data = None
 
         return success_response(
             data={
-                'posting': JobPostingSerializer(posting).data,
+                'posting': self._public_posting_payload(posting),
                 'requisition': req_data,
             },
             message="Job retrieved."
@@ -1224,8 +1341,32 @@ class JobSaveView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
-        # TODO: Implement saved jobs with a SavedJob model
-        return success_response(message="Job saved.")
+        _require_candidate_role(request.user)
+        posting = JobPosting.objects.filter(
+            id=pk,
+            is_active=True,
+            is_deleted=False,
+        ).first()
+        if not posting:
+            return error_response("Job not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        user_metadata = dict(getattr(request.user, 'metadata', {}) or {})
+        saved_jobs = list(user_metadata.get('saved_jobs') or [])
+        posting_id = str(posting.id)
+        if posting_id in saved_jobs:
+            saved_jobs = [jid for jid in saved_jobs if jid != posting_id]
+            action = "removed"
+        else:
+            saved_jobs.append(posting_id)
+            action = "saved"
+
+        user_metadata['saved_jobs'] = saved_jobs
+        request.user.metadata = user_metadata
+        request.user.save(update_fields=['metadata', 'updated_at'])
+        return success_response(
+            data={'job_id': posting_id, 'action': action, 'saved_jobs_count': len(saved_jobs)},
+            message=f"Job {action}.",
+        )
 
 
 class CandidateApplicationListView(APIView):

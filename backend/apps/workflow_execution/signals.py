@@ -101,7 +101,10 @@ def _ensure_task(
 # Job signals                                                                  #
 # --------------------------------------------------------------------------- #
 
-def on_job_created(sender, job, **kwargs):
+def on_job_created(sender, job=None, **kwargs):
+    job = job or kwargs.get('requisition')
+    if job is None:
+        return
     _emit(
         tenant_id=job.tenant_id,
         event_key='job_created',
@@ -117,7 +120,10 @@ def on_job_created(sender, job, **kwargs):
     )
 
 
-def on_job_approved(sender, job, **kwargs):
+def on_job_approved(sender, job=None, **kwargs):
+    job = job or kwargs.get('requisition')
+    if job is None:
+        return
     _emit(
         tenant_id=job.tenant_id,
         event_key='job_approved',
@@ -128,7 +134,10 @@ def on_job_approved(sender, job, **kwargs):
     )
 
 
-def on_job_published(sender, job, **kwargs):
+def on_job_published(sender, job=None, **kwargs):
+    job = job or kwargs.get('requisition')
+    if job is None:
+        return
     _emit(
         tenant_id=job.tenant_id,
         event_key='job_published',

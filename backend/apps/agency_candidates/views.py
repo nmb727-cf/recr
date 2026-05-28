@@ -2,6 +2,7 @@ from django.utils import timezone
 from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+import uuid
 try:
     from django_filters.rest_framework import DjangoFilterBackend
 except Exception:
@@ -35,12 +36,28 @@ from apps.agency_candidates.services import AgencyCandidateCRMService
 FILTER_BACKENDS = [DjangoFilterBackend] if DjangoFilterBackend else []
 
 
+def _resolve_effective_tenant_id(request):
+    user_tenant_id = getattr(request.user, 'tenant_id', None)
+    if getattr(request.user, 'role', None) == 'super_admin':
+        requested = request.query_params.get('tenant_id') or request.data.get('tenant_id')
+        if requested:
+            try:
+                return uuid.UUID(str(requested))
+            except (TypeError, ValueError):
+                return user_tenant_id
+    return user_tenant_id
+
+
 class AgencyCandidatePipelineRegistryViewSet(viewsets.ModelViewSet):
     queryset = AgencyCandidatePipelineRegistry.objects.all()
     serializer_class = AgencyCandidatePipelineRegistrySerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = FILTER_BACKENDS
     filterset_fields = ['tenant_id', 'is_active', 'is_system']
+
+    def get_queryset(self):
+        tenant_id = _resolve_effective_tenant_id(self.request)
+        return self.queryset.filter(tenant_id=tenant_id)
 
 
 class AgencyCandidateViewSet(viewsets.ModelViewSet):
@@ -52,9 +69,13 @@ class AgencyCandidateViewSet(viewsets.ModelViewSet):
     search_fields = ['candidate__first_name', 'candidate__last_name', 'candidate__email', 'candidate__current_title']
     ordering_fields = ['created_at', 'updated_at', 'last_contacted_at', 'expected_salary_min']
 
+    def get_queryset(self):
+        tenant_id = _resolve_effective_tenant_id(self.request)
+        return self.queryset.filter(tenant_id=tenant_id)
+
     def create(self, request, *args, **kwargs):
         # Use service for creation to handle core candidate logic
-        tenant_id = request.data.get('tenant_id')
+        tenant_id = _resolve_effective_tenant_id(request)
         if not tenant_id:
             return Response({'error': 'tenant_id is required'}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -140,6 +161,10 @@ class AgencyCandidateNoteViewSet(viewsets.ModelViewSet):
     filter_backends = FILTER_BACKENDS
     filterset_fields = ['agency_candidate', 'note_type']
 
+    def get_queryset(self):
+        tenant_id = _resolve_effective_tenant_id(self.request)
+        return self.queryset.filter(tenant_id=tenant_id)
+
 
 class AgencyCandidateHotlistViewSet(viewsets.ModelViewSet):
     queryset = AgencyCandidateHotlist.objects.all()
@@ -147,6 +172,10 @@ class AgencyCandidateHotlistViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = FILTER_BACKENDS
     filterset_fields = ['tenant_id', 'owner', 'is_private']
+
+    def get_queryset(self):
+        tenant_id = _resolve_effective_tenant_id(self.request)
+        return self.queryset.filter(tenant_id=tenant_id)
 
 
 class AgencyCandidateHotlistMemberViewSet(viewsets.ModelViewSet):
@@ -156,6 +185,10 @@ class AgencyCandidateHotlistMemberViewSet(viewsets.ModelViewSet):
     filter_backends = FILTER_BACKENDS
     filterset_fields = ['hotlist']
 
+    def get_queryset(self):
+        tenant_id = _resolve_effective_tenant_id(self.request)
+        return self.queryset.filter(tenant_id=tenant_id)
+
 
 class AgencyCandidateResumeVersionViewSet(viewsets.ModelViewSet):
     queryset = AgencyCandidateResumeVersion.objects.all()
@@ -164,6 +197,10 @@ class AgencyCandidateResumeVersionViewSet(viewsets.ModelViewSet):
     filter_backends = FILTER_BACKENDS
     filterset_fields = ['agency_candidate']
 
+    def get_queryset(self):
+        tenant_id = _resolve_effective_tenant_id(self.request)
+        return self.queryset.filter(tenant_id=tenant_id)
+
 
 class AgencyCandidateSubmissionViewSet(viewsets.ModelViewSet):
     queryset = AgencyCandidateSubmission.objects.all()
@@ -171,3 +208,7 @@ class AgencyCandidateSubmissionViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = FILTER_BACKENDS
     filterset_fields = ['agency_candidate', 'client_tenant_id', 'status']
+
+    def get_queryset(self):
+        tenant_id = _resolve_effective_tenant_id(self.request)
+        return self.queryset.filter(tenant_id=tenant_id)

@@ -908,7 +908,7 @@ function PresetsModal({
           </div>
         </div>
       }
-      destroyOnClose
+      destroyOnHidden
     >
       <div className="flex gap-4 mt-3" style={{ minHeight: 360 }}>
         <div className="w-40 shrink-0 space-y-1">
@@ -976,7 +976,7 @@ function PreviewModal({ open, onClose, formDetail }: { open: boolean; onClose: (
           <span className="font-black text-slate-900 uppercase tracking-tight text-sm">Form Preview — Candidate View</span>
         </div>
       }
-      destroyOnClose
+      destroyOnHidden
     >
       <div className="mt-2 space-y-4 max-h-[70vh] overflow-y-auto pr-1">
         <div className="rounded-2xl bg-gradient-to-br from-indigo-600 to-indigo-700 p-6 text-white">

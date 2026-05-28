@@ -26,5 +26,6 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "tests/smoke.spec.ts"]
+  "include": ["src", "tests/smoke.spec.ts"],
+  "exclude": ["src/pages/jobs/backup_phase1_reset_20260405/**/*"]
 }

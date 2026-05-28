@@ -1,7 +1,8 @@
 import uuid
 from datetime import timedelta
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
+from django.core.cache import cache
 from django.utils import timezone
 from rest_framework.test import APIRequestFactory, force_authenticate
 
@@ -26,8 +27,14 @@ from apps.jobs.models import JobRequisition
 from apps.pipeline.models import Application
 
 
+@override_settings(
+    INTERVIEW_SCHEDULING_PUBLIC_RATE_WINDOW_SECONDS=60,
+    INTERVIEW_SCHEDULING_PUBLIC_GET_RATE_LIMIT=2,
+    INTERVIEW_SCHEDULING_PUBLIC_POST_RATE_LIMIT=2,
+)
 class InterviewSchedulingEngineTests(TestCase):
     def setUp(self):
+        cache.clear()
         self.factory = APIRequestFactory()
         self.tenant_id = uuid.uuid4()
 
@@ -151,6 +158,10 @@ class InterviewSchedulingEngineTests(TestCase):
         public_get = self.factory.get(f'/api/v1/interviews/scheduling-link/{token}/')
         public_get_response = InterviewSchedulingLinkPublicView.as_view()(public_get, token=token)
         self.assertEqual(public_get_response.status_code, 200)
+        public_interview = public_get_response.data['data']['interview']
+        self.assertNotIn('candidate_id', public_interview)
+        self.assertNotIn('application_id', public_interview)
+        self.assertNotIn('requisition_id', public_interview)
 
         book_request = self.factory.post(
             f'/api/v1/interviews/scheduling-link/{token}/',
@@ -159,6 +170,30 @@ class InterviewSchedulingEngineTests(TestCase):
         )
         book_response = InterviewSchedulingLinkPublicView.as_view()(book_request, token=token)
         self.assertEqual(book_response.status_code, 200)
+        booked_interview = book_response.data['data']['interview']
+        self.assertNotIn('metadata', booked_interview)
+
+    def test_public_scheduling_link_get_rate_limited(self):
+        InterviewPanelist.objects.get_or_create(
+            interview_id=self.interview.id,
+            interviewer_id=self.panelist1.id,
+            defaults={'tenant_id': self.tenant_id, 'role': 'panelist'},
+        )
+        create_request = self.factory.post(
+            f'/api/v1/interviews/{self.interview.id}/scheduling-link/',
+            {'timezone': 'Asia/Kolkata', 'expires_in_days': 3},
+            format='json',
+        )
+        force_authenticate(create_request, user=self.recruiter)
+        create_response = InterviewSchedulingLinkView.as_view()(create_request, pk=self.interview.id)
+        token = create_response.data['data']['link']['token']
+
+        req1 = self.factory.get(f'/api/v1/interviews/scheduling-link/{token}/', REMOTE_ADDR='1.2.3.4')
+        req2 = self.factory.get(f'/api/v1/interviews/scheduling-link/{token}/', REMOTE_ADDR='1.2.3.4')
+        req3 = self.factory.get(f'/api/v1/interviews/scheduling-link/{token}/', REMOTE_ADDR='1.2.3.4')
+        self.assertEqual(InterviewSchedulingLinkPublicView.as_view()(req1, token=token).status_code, 200)
+        self.assertEqual(InterviewSchedulingLinkPublicView.as_view()(req2, token=token).status_code, 200)
+        self.assertEqual(InterviewSchedulingLinkPublicView.as_view()(req3, token=token).status_code, 429)
 
     def test_calendar_integration_optional_ready(self):
         create_request = self.factory.post(

@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react'
 import {
   Button, Typography,
-  Spin, Empty, message, Tag, Modal
+  Spin, Empty, message, Tag
 } from 'antd'
 import {
   Briefcase, Users, ArrowRight,
-  Edit, Calendar,
+  Edit, Calendar, MapPin, Building2,
   TrendingUp, AlertCircle
 } from 'lucide-react'
 import dayjs from 'dayjs'
+import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useApiQuery } from '@/hooks/useApiQuery'
 import { requisitionsApi } from '@/api/jobs'
@@ -16,9 +17,8 @@ import { pipelineApi } from '@/api/pipeline'
 import { candidatesApi } from '@/api/candidates'
 import type { JobRequisition, RequisitionStatus, Application, PipelineData } from '@/types'
 import { cn } from '@/utils/cn'
-import JobCreateForm from '@/components/forms/JobCreateForm'
 
-const { Title } = Typography
+const { Title, Text } = Typography
 
 interface JobQuickViewProps {
   jobId: string
@@ -40,9 +40,9 @@ const STATUS_BANNER: Record<RequisitionStatus, { label: string, color: string }>
 
 export default function JobQuickView({ jobId, onOpenFullView, onClose: _onClose, onRefresh }: JobQuickViewProps) {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [candidateNames, setCandidateNames] = useState<Record<string, string>>({})
-  const [editModalOpen, setEditModalOpen] = useState(false)
 
   const { data, isLoading, refetch } = useApiQuery(
     ['requisition', 'quick', jobId],
@@ -122,9 +122,17 @@ export default function JobQuickView({ jobId, onOpenFullView, onClose: _onClose,
           <p className="text-indigo-600 text-[11px] font-bold uppercase tracking-widest mt-1">
             {requisition.job_ref_id || requisition.id}
           </p>
-          <p className="text-slate-500 mt-1 flex items-center gap-1.5 text-sm font-medium">
-            <Briefcase className="h-3.5 w-3.5" /> {requisition.job_type.replace('_', ' ')} · {requisition.work_mode}
-          </p>
+          <div className="flex flex-col gap-1 mt-3">
+            <p className="text-slate-500 flex items-center gap-1.5 text-xs font-medium">
+              <Briefcase className="h-3 w-3" /> {requisition.job_type.replace('_', ' ')} · {requisition.work_mode}
+            </p>
+            <p className="text-slate-500 flex items-center gap-1.5 text-xs font-medium">
+              <Building2 className="h-3 w-3" /> {(requisition as any).department_name || 'General'}
+            </p>
+            <p className="text-slate-500 flex items-center gap-1.5 text-xs font-medium">
+              <MapPin className="h-3 w-3" /> {(requisition as any).location_name || 'Remote'}
+            </p>
+          </div>
         </div>
 
         {/* SECTION 2: Primary Action */}
@@ -273,7 +281,7 @@ export default function JobQuickView({ jobId, onOpenFullView, onClose: _onClose,
           style={{ flex: 1 }}
           icon={<Edit className="h-4 w-4" />} 
           className="h-12 rounded-xl font-bold flex items-center justify-center gap-2 border-slate-200 text-slate-600"
-          onClick={() => setEditModalOpen(true)}
+          onClick={() => navigate(`/jobs/${jobId}/setup`)}
         >
           Edit Job
         </Button>
@@ -286,28 +294,6 @@ export default function JobQuickView({ jobId, onOpenFullView, onClose: _onClose,
           Open Full View <ArrowRight className="h-4 w-4" />
         </Button>
       </div>
-
-      <Modal
-        open={editModalOpen}
-        onCancel={() => setEditModalOpen(false)}
-        width={720}
-        title={<span className="text-xl font-black tracking-tight text-slate-900 uppercase tracking-widest">Edit Requisition</span>}
-        footer={null}
-        destroyOnClose
-        className="rounded-3xl overflow-hidden"
-      >
-        <div className="pt-4">
-          <JobCreateForm 
-            onSuccess={() => {
-              setEditModalOpen(false)
-              refetch()
-              if (onRefresh) onRefresh()
-              queryClient.invalidateQueries({ queryKey: ['requisition', 'quick', jobId] })
-            }} 
-            initialValues={requisition} 
-          />
-        </div>
-      </Modal>
     </div>
   )
 }

@@ -22,8 +22,22 @@ class JobRequisition(models.Model):
     job_ref_id = models.CharField(max_length=32, blank=True, null=True, unique=True, db_index=True)
     tenant_id = models.UUIDField(db_index=True)
     title = models.CharField(max_length=255)
-    department_id = models.UUIDField(null=True, blank=True)
-    location_id = models.UUIDField(null=True, blank=True)
+    
+    department = models.ForeignKey(
+        'organisations.Department',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='requisitions'
+    )
+    location = models.ForeignKey(
+        'organisations.Location',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='primary_requisitions'
+    )
+    
     job_type = models.CharField(
         max_length=50,
         choices=[
@@ -56,11 +70,43 @@ class JobRequisition(models.Model):
         default='medium'
     )
     is_confidential = models.BooleanField(default=False)
-    job_owner_id = models.UUIDField(null=True, blank=True, db_index=True)
-    hiring_manager_id = models.UUIDField(null=True, blank=True, db_index=True)
-    recruiter_id = models.UUIDField(null=True, blank=True, db_index=True)
-    backup_recruiter_id = models.UUIDField(null=True, blank=True, db_index=True)
-    coordinator_id = models.UUIDField(null=True, blank=True, db_index=True)
+    
+    job_owner = models.ForeignKey(
+        'accounts.CustomUser',
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='owned_jobs'
+    )
+    hiring_manager = models.ForeignKey(
+        'accounts.CustomUser',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='managed_jobs'
+    )
+    recruiter = models.ForeignKey(
+        'accounts.CustomUser',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_jobs'
+    )
+    backup_recruiter = models.ForeignKey(
+        'accounts.CustomUser',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='backup_assigned_jobs'
+    )
+    coordinator = models.ForeignKey(
+        'accounts.CustomUser',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='coordinated_jobs'
+    )
+    
     job_category = models.CharField(max_length=100, blank=True)
     sourcing_mode = models.CharField(
         max_length=30,
@@ -329,7 +375,13 @@ class JobStage(models.Model):
     is_critical_path = models.BooleanField(default=True)
     action_deadline_hours = models.IntegerField(default=48)
     sla_target_hours = models.IntegerField(default=24)
-    responsible_user_id = models.UUIDField(null=True, blank=True, db_index=True)
+    responsible_user = models.ForeignKey(
+        'accounts.CustomUser',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='responsible_stages'
+    )
     responsible_role = models.CharField(
         max_length=50,
         choices=[
@@ -385,7 +437,13 @@ class JobHiringTeamMember(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant_id = models.UUIDField(db_index=True)
     requisition = models.ForeignKey(JobRequisition, on_delete=models.CASCADE, related_name='hiring_team')
-    user_id = models.UUIDField(db_index=True)
+    user = models.ForeignKey(
+        'accounts.CustomUser',
+        on_delete=models.CASCADE,
+        related_name='job_team_memberships',
+        null=True,
+        blank=True
+    )
     role = models.CharField(
         max_length=50,
         choices=[
@@ -403,7 +461,7 @@ class JobHiringTeamMember(models.Model):
 
     class Meta:
         db_table = 'jobs_hiring_team_member'
-        unique_together = ['requisition', 'user_id', 'role']
+        unique_together = ['requisition', 'user', 'role']
 
 
 class CustomFieldDefinition(models.Model):
@@ -519,14 +577,20 @@ class JobLocation(models.Model):
     requisition = models.ForeignKey(
         JobRequisition, on_delete=models.CASCADE, related_name='locations'
     )
-    location_id = models.UUIDField(db_index=True)
+    location = models.ForeignKey(
+        'organisations.Location',
+        on_delete=models.CASCADE,
+        related_name='job_locations',
+        null=True,
+        blank=True
+    )
     location_name = models.CharField(max_length=200, blank=True)  # denormalized for display speed
     is_primary = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'jobs_location'
-        unique_together = ['requisition', 'location_id']
+        unique_together = ['requisition', 'location']
         indexes = [
             models.Index(fields=['tenant_id', 'requisition_id']),
         ]

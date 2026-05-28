@@ -9,6 +9,7 @@ All methods are keyword-only (`*`) to prevent positional argument mistakes.
 from django.utils import timezone
 from django.db.models import Avg
 from collections import Counter
+import logging
 
 from apps.core import events
 from apps.interviews.models import (
@@ -24,6 +25,8 @@ from apps.interviews.models import (
     INTERVIEW_TYPE_REGISTRY_DEFAULTS,
 )
 from shared.owner_contracts import OwnerActionContext, OwnerActionResult, OwnerContractError
+
+logger = logging.getLogger(__name__)
 
 
 class InterviewTypeService:
@@ -169,7 +172,10 @@ class InterviewService:
                 if questions_to_create:
                     InterviewQuestion.objects.bulk_create(questions_to_create)
             except InterviewTemplate.DoesNotExist:
-                pass
+                logger.warning(
+                    "Template not found while triggering next interview round",
+                    extra={'tenant_id': str(tenant_id), 'template_id': str(template_id or ''), 'application_id': str(application_id)},
+                )
                 
         return interview, "Interview scheduled."
 
@@ -212,7 +218,10 @@ class InterviewService:
                     tenant_id=tenant_id,
                 )
             except InterviewTemplate.DoesNotExist:
-                pass
+                logger.warning(
+                    "Template not found while creating interview",
+                    extra={'tenant_id': str(tenant_id), 'template_id': str(template_id or ''), 'application_id': str(application_id)},
+                )
 
         events.interview.scheduled.send(
             sender=InterviewService,
@@ -292,7 +301,10 @@ class InterviewService:
                 interview=interview,
             )
         except Exception:
-            pass
+            logger.exception(
+                "Failed to emit application interviewed event from InterviewService.complete",
+                extra={'interview_id': str(interview.id), 'application_id': str(interview.application_id or '')},
+            )
 
         return interview
 

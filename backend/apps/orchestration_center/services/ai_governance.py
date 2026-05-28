@@ -8,9 +8,62 @@ from apps.orchestration_center.models import (
     AutomationGovernanceAudit,
     AIExecutionRequest,
     AutomationExecutionRun,
+    AIGovernanceApproval,
 )
 
 class AIGovernanceService:
+    @staticmethod
+    def approve_request(tenant_id, approval_id, approved_by_id, reason=''):
+        approval = AIGovernanceApproval.objects.filter(
+            id=approval_id,
+            tenant_id=tenant_id,
+        ).first()
+        if not approval:
+            raise ValueError('Approval request not found.')
+        if approval.approval_status != 'pending':
+            raise ValueError('Approval request is not pending.')
+
+        approval.approval_status = 'approved'
+        approval.approved_by = approved_by_id
+        approval.rejected_by = None
+        approval.reason = reason or ''
+        approval.save(update_fields=['approval_status', 'approved_by', 'rejected_by', 'reason', 'updated_at'])
+
+        AIGovernanceService.log_audit(
+            tenant_id,
+            'manual_override',
+            performed_by=approved_by_id,
+            target_id=approval.id,
+            details={'request_type': approval.request_type, 'decision': 'approved'},
+        )
+        return approval
+
+    @staticmethod
+    def reject_request(tenant_id, approval_id, rejected_by_id, reason=''):
+        approval = AIGovernanceApproval.objects.filter(
+            id=approval_id,
+            tenant_id=tenant_id,
+        ).first()
+        if not approval:
+            raise ValueError('Approval request not found.')
+        if approval.approval_status != 'pending':
+            raise ValueError('Approval request is not pending.')
+
+        approval.approval_status = 'rejected'
+        approval.rejected_by = rejected_by_id
+        approval.approved_by = None
+        approval.reason = reason or ''
+        approval.save(update_fields=['approval_status', 'rejected_by', 'approved_by', 'reason', 'updated_at'])
+
+        AIGovernanceService.log_audit(
+            tenant_id,
+            'manual_override',
+            performed_by=rejected_by_id,
+            target_id=approval.id,
+            details={'request_type': approval.request_type, 'decision': 'rejected'},
+        )
+        return approval
+
     @staticmethod
     def check_governance_rules(tenant_id, policy_id=None, action_type='auto_apply'):
         """

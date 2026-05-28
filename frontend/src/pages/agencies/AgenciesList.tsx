@@ -174,7 +174,7 @@ function InviteAgencyModal({
       onOk={() => form.submit()}
       okText="Link Agency"
       confirmLoading={loading}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" onFinish={onFinish} className="mt-4">
         <Form.Item name="agency_tenant_id" label="Select Agency" rules={[{ required: true, message: 'Select an agency' }]}>
@@ -271,7 +271,7 @@ function AssignJobModal({
       confirmLoading={submitting}
       okButtonProps={{ className: 'bg-blue-600 border-none font-bold' }}
       width={520}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" className="mt-4">
         <Form.Item name="requisition_id" label="Job Requisition" rules={[{ required: true, message: 'Select a job' }]}>

@@ -1,6 +1,7 @@
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
 from apps.qa.models import (
     ModuleReadinessResult,
     ReadinessBlocker,
@@ -15,15 +16,53 @@ from .serializers import (
 class ModuleReadinessResultViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ModuleReadinessResult.objects.all()
     serializer_class = ModuleReadinessResultSerializer
+    permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        # We might want to filter by tenant_id or user. In our setup, often schemas handle this, but let's be safe.
-        return super().get_queryset()
+        qs = super().get_queryset()
+        tenant_id = getattr(self.request.user, 'tenant_id', None)
+        user_role = getattr(self.request.user, 'role', '')
+        if user_role == 'super_admin':
+            requested_tenant_id = self.request.query_params.get('tenant_id')
+            if requested_tenant_id:
+                return qs.filter(tenant_id=requested_tenant_id)
+            return qs
+        if tenant_id:
+            return qs.filter(tenant_id=tenant_id)
+        return qs.none()
 
 class ReadinessBlockerViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ReadinessBlocker.objects.all()
     serializer_class = ReadinessBlockerSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        tenant_id = getattr(self.request.user, 'tenant_id', None)
+        user_role = getattr(self.request.user, 'role', '')
+        if user_role == 'super_admin':
+            requested_tenant_id = self.request.query_params.get('tenant_id')
+            if requested_tenant_id:
+                return qs.filter(tenant_id=requested_tenant_id)
+            return qs
+        if tenant_id:
+            return qs.filter(tenant_id=tenant_id)
+        return qs.none()
 
 class EndToEndScenarioResultViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = EndToEndScenarioResult.objects.all()
     serializer_class = EndToEndScenarioResultSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        tenant_id = getattr(self.request.user, 'tenant_id', None)
+        user_role = getattr(self.request.user, 'role', '')
+        if user_role == 'super_admin':
+            requested_tenant_id = self.request.query_params.get('tenant_id')
+            if requested_tenant_id:
+                return qs.filter(tenant_id=requested_tenant_id)
+            return qs
+        if tenant_id:
+            return qs.filter(tenant_id=tenant_id)
+        return qs.none()

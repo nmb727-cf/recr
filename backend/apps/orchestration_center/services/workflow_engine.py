@@ -3,6 +3,7 @@ import logging
 import uuid
 from datetime import timedelta
 from django.utils import timezone
+from django.db.models import Q
 from apps.orchestration_center.models.workflow import (
     Workflow, WorkflowNode, WorkflowEdge, WorkflowExecution, WorkflowExecutionLog, WorkflowVersion
 )
@@ -17,8 +18,9 @@ class WorkflowEngine:
         workflows = Workflow.objects.filter(
             tenant_id=tenant_id, 
             trigger_event=trigger_event, 
-            status='active',
             is_deleted=False
+        ).filter(
+            Q(status='active') | Q(is_active=True)
         )
         
         executions = []
@@ -97,6 +99,14 @@ class WorkflowEngine:
             if next_node:
                 WorkflowEngine.execute_node(execution, next_node)
             elif node.node_type == 'end':
+                execution.status = 'completed'
+                execution.completed_at = timezone.now()
+                execution.save()
+            elif node.node_type in {'delay', 'approval', 'human_task'}:
+                # Explicit waiting states remain paused by their handlers.
+                return
+            else:
+                # No next edge means this branch finished.
                 execution.status = 'completed'
                 execution.completed_at = timezone.now()
                 execution.save()

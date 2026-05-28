@@ -1,6 +1,9 @@
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+from django.conf import settings
+from django.core.mail import send_mail
+import logging
 
 from apps.organisations.models import Organisation, Department, Location, Team, TeamMembership
 from apps.organisations.serializers import (
@@ -16,6 +19,10 @@ from apps.tenants.reference_ids import ensure_tenant_prefix, normalize_prefix
 from shared.search_utils import get_search_query, parse_limit_offset, apply_keyword_search
 from shared.tenant_access import scope_candidate_visibility_qs
 
+logger = logging.getLogger(__name__)
+
+
+from django.db import transaction
 
 class OrganisationProfileView(APIView):
     permission_classes = [IsAuthenticated]
@@ -82,16 +89,99 @@ class OrganisationProfileView(APIView):
         )
 
 
+class HierarchySetupView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request):
+        """
+        Bulk setup locations, departments, and teams.
+        Expects:
+        {
+          "locations": [{"name": "HQ", "city": "Mumbai", "is_headquarters": true}, ...],
+          "departments": [{"name": "Engineering", "description": "..."}, ...],
+          "teams": [{"name": "Backend", "department_name": "Engineering"}, ...]
+        }
+        """
+        tenant_id = request.user.tenant_id
+        user_id = request.user.id
+        
+        locations_data = request.data.get('locations', [])
+        departments_data = request.data.get('departments', [])
+        teams_data = request.data.get('teams', [])
+
+        created_locations = {}
+        for loc_data in locations_data:
+            loc = Location.objects.create(
+                tenant_id=tenant_id,
+                created_by=user_id,
+                **loc_data
+            )
+            created_locations[loc.name] = loc
+
+        created_departments = {}
+        # Simple one-level for onboarding wizard, can be expanded to multi-level
+        for dept_data in departments_data:
+            parent_name = dept_data.pop('parent_name', None)
+            parent = created_departments.get(parent_name)
+            
+            dept = Department.objects.create(
+                tenant_id=tenant_id,
+                created_by=user_id,
+                parent=parent,
+                **dept_data
+            )
+            created_departments[dept.name] = dept
+
+        created_teams = []
+        for team_data in teams_data:
+            dept_name = team_data.pop('department_name', None)
+            loc_name = team_data.pop('location_name', None)
+            
+            dept = created_departments.get(dept_name)
+            loc = created_locations.get(loc_name)
+            
+            team = Team.objects.create(
+                tenant_id=tenant_id,
+                created_by=user_id,
+                department=dept,
+                location=loc,
+                **team_data
+            )
+            created_teams.append(team)
+
+        return success_response(
+            data={
+                "locations_count": len(created_locations),
+                "departments_count": len(created_departments),
+                "teams_count": len(created_teams)
+            },
+            message="Hierarchy setup completed successfully."
+        )
+
+
 class DepartmentListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        # Compatibility path: some deployed DBs still use legacy UUID columns
+        # (`parent_department_id`, `head_user_id`) and do not have FK columns.
+        # Limit selected fields to avoid ORM selecting non-existent FK columns.
         departments = Department.objects.filter(
             tenant_id=request.user.tenant_id,
             is_deleted=False
-        ).order_by('name')
+        ).order_by('name').values(
+            'id',
+            'tenant_id',
+            'name',
+            'description',
+            'is_active',
+            'created_at',
+            'updated_at',
+            'metadata',
+        )
         return success_response(
-            data={'departments': DepartmentSerializer(departments, many=True).data},
+            data={'departments': list(departments)},
             message="Departments retrieved."
         )
 
@@ -458,7 +548,24 @@ class UserListView(APIView):
             tenant_id=request.user.tenant_id,
         )
 
-        # TODO: Send invite email with temp password
+        try:
+            send_mail(
+                subject="You're invited to TalentOS",
+                message=(
+                    "You have been invited to join your organisation workspace.\n\n"
+                    f"Temporary password: {temp_password}\n"
+                    "Please sign in and change your password immediately."
+                ),
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
+                recipient_list=[email.lower()],
+                fail_silently=False,
+            )
+        except Exception:
+            logger.exception(
+                "User invite email failed for tenant %s user %s",
+                request.user.tenant_id,
+                user.id,
+            )
 
         return success_response(
             data={'user': UserSerializer(user).data},

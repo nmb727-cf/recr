@@ -614,7 +614,7 @@ function ExperienceTab({ passport, onRefresh }: { passport: Passport; onRefresh:
 
       <Modal title={<span className="font-black text-slate-900 uppercase tracking-tight text-sm">{editing ? 'Edit Experience' : 'Add Experience'}</span>}
         open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()}
-        okText={editing ? 'Save Changes' : 'Add Experience'} confirmLoading={saving} destroyOnClose width={560}>
+        okText={editing ? 'Save Changes' : 'Add Experience'} confirmLoading={saving} destroyOnHidden width={560}>
         <Form form={form} layout="vertical" onFinish={handleSave} className="mt-4">
           <div className="grid grid-cols-2 gap-x-4">
             <Form.Item name="title" label="Job Title" rules={[{ required: true }]} className="col-span-2">
@@ -729,7 +729,7 @@ function EducationTab({ passport, onRefresh }: { passport: Passport; onRefresh: 
 
       <Modal title={<span className="font-black text-slate-900 uppercase tracking-tight text-sm">{editing ? 'Edit Education' : 'Add Education'}</span>}
         open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()}
-        okText={editing ? 'Save Changes' : 'Add Education'} confirmLoading={saving} destroyOnClose>
+        okText={editing ? 'Save Changes' : 'Add Education'} confirmLoading={saving} destroyOnHidden>
         <Form form={form} layout="vertical" onFinish={handleSave} className="mt-4">
           <Form.Item name="institution" label="Institution" rules={[{ required: true }]}>
             <Input className="rounded-lg" placeholder="University / School" />
@@ -876,7 +876,7 @@ function SkillsTab({ passport, onRefresh }: { passport: Passport; onRefresh: () 
 
       <Modal title={<span className="font-black text-slate-900 uppercase tracking-tight text-sm">{editingCert ? 'Edit Certification' : 'Add Certification'}</span>}
         open={certOpen} onCancel={() => setCertOpen(false)} onOk={() => certForm.submit()}
-        okText={editingCert ? 'Save' : 'Add'} confirmLoading={certSaving} destroyOnClose>
+        okText={editingCert ? 'Save' : 'Add'} confirmLoading={certSaving} destroyOnHidden>
         <Form form={certForm} layout="vertical" onFinish={saveCert} className="mt-4">
           <Form.Item name="name" label="Certification Name" rules={[{ required: true }]}>
             <Input className="rounded-lg" placeholder="e.g. AWS Solutions Architect" />
@@ -1016,7 +1016,7 @@ function ProjectsTab({ passport, onRefresh }: { passport: Passport; onRefresh: (
       <Modal
         title={<span className="font-black text-slate-900 uppercase tracking-tight text-sm">{editing ? 'Edit Project' : 'Add Project'}</span>}
         open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()}
-        okText={editing ? 'Save Changes' : 'Add Project'} confirmLoading={saving} destroyOnClose width={560}
+        okText={editing ? 'Save Changes' : 'Add Project'} confirmLoading={saving} destroyOnHidden width={560}
       >
         <Form form={form} layout="vertical" onFinish={handleSave} className="mt-4">
           <Form.Item name="name" label="Project Name" rules={[{ required: true, message: 'Enter a project name' }]}>

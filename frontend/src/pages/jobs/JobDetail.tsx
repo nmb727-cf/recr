@@ -672,33 +672,17 @@ export default function JobDetail() {
   const { data: locationsData } = useApiQuery(['org-locations', 'job-detail'], () => organisationApi.listLocations())
   const { data: usersData } = useApiQuery(['org-users', 'job-detail'], () => organisationApi.listUsers())
 
-  const requisition = (data as any)?.requisition as JobRequisition
+  const requisition = (data as any)?.requisition as JobRequisition & { department_name?: string, location_name?: string, hiring_manager_name?: string }
   const applications = (pipelineData as any)?.applications || []
   const intelligence = (intelligenceData as any)?.intelligence
   const isOwner = requisition?.created_by === user?.id
-  const departments = ((departmentsData as any)?.departments || []) as Array<any>
-  const locations = ((locationsData as any)?.locations || []) as Array<any>
-  const users = ((usersData as any)?.users || []) as Array<any>
 
-  const departmentRecord = requisition?.department_id
-    ? departments.find((d: any) => d.id === requisition.department_id)
-    : null
-  const locationRecord = requisition?.location_id
-    ? locations.find((l: any) => l.id === requisition.location_id)
-    : null
-  const departmentName = !requisition?.department_id
-    ? 'General'
-    : (departmentRecord?.name || requisition.department_id)
-  const locationName = !requisition?.location_id
-    ? 'Remote'
-    : (locationRecord?.name || locationRecord?.location_name || requisition.location_id)
+  const departmentName = requisition?.department_name || 'General'
+  const locationName = requisition?.location_name || 'Remote'
+  const hiringManagerName = requisition?.hiring_manager_name || 'Unassigned'
 
   const metadata = (requisition?.metadata || {}) as Record<string, any>
-  const ownerId = metadata.job_owner_id || metadata.hiring_manager_id || null
-  const ownerUser = ownerId ? users.find((u: any) => u.id === ownerId) : null
-  const hiringManagerName = ownerId
-    ? (ownerUser?.full_name || ownerUser?.name || ownerUser?.email || 'Unassigned')
-    : 'Unassigned'
+  
   const hiringManagerInitials = String(hiringManagerName || '')
     .split(' ')
     .filter(Boolean)

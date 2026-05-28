@@ -166,7 +166,7 @@ export default function InviteLinkGenerator({ requisitionId }: { requisitionId?:
         onClose={() => { setDrawerOpen(false); setGeneratedLink(null); form.resetFields(); }}
         width={480}
         styles={{ body: { padding: '32px 24px' } }}
-        destroyOnClose
+        destroyOnHidden
       >
         {!generatedLink ? (
           <Form form={form} layout="vertical" onFinish={handleGenerate} requiredMark={false} initialValues={{ expires_in: 30, max_uses: 0 }}>

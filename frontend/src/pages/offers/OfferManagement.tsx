@@ -132,7 +132,7 @@ export default function OfferManagement() {
         />
       </Card>
 
-      <Modal title="Create Offer" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => createForm.submit()} confirmLoading={createMutation.isPending} destroyOnClose>
+      <Modal title="Create Offer" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => createForm.submit()} confirmLoading={createMutation.isPending} destroyOnHidden>
         <Form
           form={createForm}
           layout="vertical"
@@ -169,7 +169,7 @@ export default function OfferManagement() {
         </Form>
       </Modal>
 
-      <Modal title="Offer Approval Flow" open={approvalOpen} onCancel={() => setApprovalOpen(false)} onOk={() => approvalForm.submit()} confirmLoading={submitApprovalMutation.isPending} destroyOnClose>
+      <Modal title="Offer Approval Flow" open={approvalOpen} onCancel={() => setApprovalOpen(false)} onOk={() => approvalForm.submit()} confirmLoading={submitApprovalMutation.isPending} destroyOnHidden>
         <Form
           form={approvalForm}
           layout="vertical"
@@ -188,7 +188,7 @@ export default function OfferManagement() {
         </Form>
       </Modal>
 
-      <Modal title="Offer Negotiation" open={negotiationOpen} onCancel={() => setNegotiationOpen(false)} onOk={() => negotiationForm.submit()} confirmLoading={negotiateMutation.isPending} destroyOnClose>
+      <Modal title="Offer Negotiation" open={negotiationOpen} onCancel={() => setNegotiationOpen(false)} onOk={() => negotiationForm.submit()} confirmLoading={negotiateMutation.isPending} destroyOnHidden>
         <Form
           form={negotiationForm}
           layout="vertical"

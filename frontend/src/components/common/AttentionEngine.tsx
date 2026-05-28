@@ -111,11 +111,13 @@ export const AttentionEngine: React.FC = () => {
         placement="right"
         onClose={() => setIsModalOpen(false)}
         open={isOpen}
-        width={380}
+        size="default"
         closeIcon={null}
         extra={<Button type="text" onClick={() => setIsModalOpen(false)} icon={<ChevronRight size={20} />} />}
-        headerStyle={{ borderBottom: '1px solid #f1f5f9', padding: '16px 20px' }}
-        bodyStyle={{ padding: '0', background: '#f8fafc' }}
+        styles={{
+          header: { borderBottom: '1px solid #f1f5f9', padding: '16px 20px' },
+          body: { padding: 0, background: '#f8fafc' },
+        }}
       >
         <div className="flex flex-col h-full">
           <div className="flex-1 overflow-y-auto p-5 space-y-8">

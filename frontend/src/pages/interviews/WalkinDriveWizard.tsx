@@ -59,7 +59,7 @@ export default function WalkinDriveWizard({ open, onClose, onSuccess }: WalkinDr
       className="wizard-modal"
       styles={{ body: { padding: 0 } }}
       closable={false}
-      destroyOnClose
+      destroyOnHidden
     >
       <div className="flex h-[700px] overflow-hidden rounded-3xl">
         {/* Sidebar */}

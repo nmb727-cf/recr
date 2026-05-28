@@ -32,4 +32,7 @@ urlpatterns = [
     path('submit-candidate/', views.AgencySubmitCandidateView.as_view(), name='agency-submit-candidate'),
     path('my-submissions/', views.AgencyMySubmissionsView.as_view(), name='agency-my-submissions'),
     path('my-clients/', views.AgencyMyClientsView.as_view(), name='agency-my-clients'),
+
+    # Public portal endpoints
+    path('portal/accept/<str:token>/', views.AgencyPortalAcceptView.as_view(), name='portal-accept'),
 ]

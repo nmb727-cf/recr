@@ -200,19 +200,6 @@ export const intelligenceHubApi = {
   getGovernanceAudit: () =>
     http.get<ApiResponse<any[]>>('/intelligence/governance/audit/'),
 
-  // Automation Library (Phase 60)
-  listLibraryTemplates: () =>
-    http.get<ApiResponse<any[]>>('/intelligence/templates/'),
-
-  cloneLibraryTemplate: (id: string) =>
-    http.post<ApiResponse<any>>(`/intelligence/templates/${id}/clone/`, {}),
-
-  activateLibraryTemplate: (id: string) =>
-    http.post<ApiResponse<any>>(`/intelligence/templates/${id}/activate/`, {}),
-
-  listTenantTemplates: () =>
-    http.get<ApiResponse<any[]>>('/intelligence/templates/tenant/'),
-
   // Optimization Engine (Phase 61)
   getOptimizationOverview: () =>
     http.get<ApiResponse<any>>('/intelligence/optimization/overview/'),
@@ -249,6 +236,10 @@ export const intelligenceHubApi = {
     http.post<ApiResponse<any>>(`/intelligence/library/templates/${id}/activate/`, {}),
 
   listTenantLibraryTemplates: () =>
+    http.get<ApiResponse<any[]>>('/intelligence/library/tenant-templates/'),
+
+  // Legacy compatibility for existing callers.
+  listTenantTemplates: () =>
     http.get<ApiResponse<any[]>>('/intelligence/library/tenant-templates/'),
 
   // Workflows

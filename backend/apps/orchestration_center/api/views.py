@@ -52,6 +52,7 @@ from apps.orchestration_center.api.serializers import (
     WorkflowAuditLogSerializer,
     WorkflowExecutionSerializer,
     WorkflowTemplateSerializer,
+    AIGovernanceApprovalSerializer,
     AutomationInsightSerializer,
     AutomationRecommendationSerializer,
     WorkflowEventDefinitionSerializer,
@@ -120,6 +121,15 @@ def _platform_or_tenant_queryset(queryset, tenant_id):
     if hasattr(queryset.model, 'tenant_id'):
         return queryset.filter(tenant_id__in=[tenant_id, None])
     return queryset
+
+
+def _effective_tenant_id(request):
+    user = request.user
+    if getattr(user, 'role', '') == 'super_admin':
+        requested = request.query_params.get('tenant_id') or request.data.get('tenant_id')
+        if requested:
+            return requested
+    return getattr(user, 'tenant_id', None)
 
 
 def _bad_request(exc):
@@ -1818,6 +1828,12 @@ class GovernanceApproveView(APIView):
         from apps.orchestration_center.services.ai_governance import AIGovernanceService
         approval_id = request.data.get('approval_id')
         reason = request.data.get('reason', '')
+        exists = AIGovernanceApproval.objects.filter(
+            id=approval_id,
+            tenant_id=request.user.tenant_id,
+        ).exists()
+        if not exists:
+            return error_response('Approval request not found.', status_code=status.HTTP_404_NOT_FOUND)
         approval = AIGovernanceService.approve_request(request.user.tenant_id, approval_id, request.user.id, reason)
         return success_response(data=AIGovernanceApprovalSerializer(approval).data, message='Request approved.')
 
@@ -1829,6 +1845,12 @@ class GovernanceRejectView(APIView):
         from apps.orchestration_center.services.ai_governance import AIGovernanceService
         approval_id = request.data.get('approval_id')
         reason = request.data.get('reason', '')
+        exists = AIGovernanceApproval.objects.filter(
+            id=approval_id,
+            tenant_id=request.user.tenant_id,
+        ).exists()
+        if not exists:
+            return error_response('Approval request not found.', status_code=status.HTTP_404_NOT_FOUND)
         approval = AIGovernanceService.reject_request(request.user.tenant_id, approval_id, request.user.id, reason)
         return success_response(data=AIGovernanceApprovalSerializer(approval).data, message='Request rejected.')
 
@@ -1850,6 +1872,10 @@ class LibraryTemplateCloneView(APIView):
     def post(self, request, pk):
         from apps.orchestration_center.services.automation_library import AutomationLibraryService
         from apps.orchestration_center.api.serializers import AutomationLibraryTemplateSerializer
+        from apps.orchestration_center.models import AutomationLibraryTemplate
+        template_exists = AutomationLibraryTemplate.objects.filter(pk=pk, is_system_template=True, is_deleted=False).exists()
+        if not template_exists:
+            return error_response('Library template not found.', status_code=status.HTTP_404_NOT_FOUND)
         clone = AutomationLibraryService.clone_template_to_tenant(pk, request.user.tenant_id, request.user.id)
         return success_response(data=AutomationLibraryTemplateSerializer(clone).data, message='Template cloned to tenant.')
 
@@ -1859,6 +1885,10 @@ class LibraryTemplateActivateView(APIView):
 
     def post(self, request, pk):
         from apps.orchestration_center.services.automation_library import AutomationLibraryService
+        from apps.orchestration_center.models import AutomationLibraryTemplate
+        template_exists = AutomationLibraryTemplate.objects.filter(pk=pk, is_system_template=True, is_deleted=False).exists()
+        if not template_exists:
+            return error_response('Library template not found.', status_code=status.HTTP_404_NOT_FOUND)
         policy = AutomationLibraryService.activate_template(pk, request.user.tenant_id, request.user.id)
         return success_response(message=f'Template activated as policy {policy.id}.')
 
@@ -2219,6 +2249,10 @@ class WorkflowApprovalDecideView(APIView):
         status_val = request.data.get('status')
         if status_val not in ['approved', 'rejected']:
             return error_response('Invalid status')
+        tenant_id = _effective_tenant_id(request)
+        exists = WorkflowApproval.objects.filter(id=pk, tenant_id=tenant_id).exists()
+        if not exists:
+            return error_response('Approval not found', status_code=status.HTTP_404_NOT_FOUND)
         
         approval = WorkflowGovernanceService.decide_approval(
             approval_id=pk,
@@ -2233,15 +2267,21 @@ class WorkflowSafetyRuleView(APIView):
     permission_classes = [IsAuthenticated, require_hub_permission('intelligence.admin')]
 
     def get(self, request, workflow_id):
-        rule = WorkflowSafetyRule.objects.filter(workflow_id=workflow_id).first()
+        tenant_id = _effective_tenant_id(request)
+        rule = WorkflowSafetyRule.objects.filter(workflow_id=workflow_id, tenant_id=tenant_id).first()
         if not rule:
             return error_response('Safety rule not found', status_code=status.HTTP_404_NOT_FOUND)
         return success_response(data=WorkflowSafetyRuleSerializer(rule).data)
 
     def put(self, request, workflow_id):
+        tenant_id = _effective_tenant_id(request)
+        workflow_exists = Workflow.objects.filter(id=workflow_id, tenant_id=tenant_id).exists()
+        if not workflow_exists:
+            return error_response('Workflow not found', status_code=status.HTTP_404_NOT_FOUND)
         rule, _ = WorkflowSafetyRule.objects.get_or_create(
             workflow_id=workflow_id,
-            defaults={'tenant_id': request.user.tenant_id}
+            tenant_id=tenant_id,
+            defaults={'tenant_id': tenant_id}
         )
         serializer = WorkflowSafetyRuleSerializer(rule, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
@@ -2253,6 +2293,10 @@ class WorkflowRollbackView(APIView):
     permission_classes = [IsAuthenticated, require_hub_permission('intelligence.admin')]
 
     def post(self, request, execution_id):
+        tenant_id = _effective_tenant_id(request)
+        execution_exists = WorkflowExecution.objects.filter(id=execution_id, tenant_id=tenant_id).exists()
+        if not execution_exists:
+            return error_response('Execution not found', status_code=status.HTTP_404_NOT_FOUND)
         rollback_log = WorkflowGovernanceService.rollback_execution(
             execution_id=execution_id,
             performed_by_id=request.user.id

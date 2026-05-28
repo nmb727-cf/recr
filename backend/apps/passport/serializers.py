@@ -78,5 +78,4 @@ class TalentPassportPublicSerializer(serializers.ModelSerializer):
             'identity_verified', 'background_verified',
             'heat_score', 'completeness_score',
             'publications', 'awards', 'volunteer_work',
-            'metadata',
         ]

@@ -263,15 +263,6 @@ paths:
           description: Invalid or expired link.
     post:
       operationId: v1_apply_create
-      description: |-
-        Source 2 — Candidate submits the apply form.
-
-        Identity deduplication:
-          1. If a user account already exists with the submitted email/phone →
-             return needs_login=True so the frontend shows the login screen.
-          2. If a candidate record already exists (no user yet) → append the
-             submission data but do NOT create a second candidate row.
-          3. If neither exists → create candidate + optional user account.
       parameters:
       - in: path
         name: token
@@ -307,15 +298,6 @@ paths:
           description: Invalid or expired link.
     post:
       operationId: v1_apply_submit_create
-      description: |-
-        Source 2 — Candidate submits the apply form.
-
-        Identity deduplication:
-          1. If a user account already exists with the submitted email/phone →
-             return needs_login=True so the frontend shows the login screen.
-          2. If a candidate record already exists (no user yet) → append the
-             submission data but do NOT create a second candidate row.
-          3. If neither exists → create candidate + optional user account.
       parameters:
       - in: path
         name: token
@@ -335,8 +317,11 @@ paths:
     get:
       operationId: v1_candidates_claim_retrieve
       description: |-
-        Validate claim token and return prefilled candidate identity data.
-        No authentication required — the candidate may not have an account yet.
+        Source 1 / Source 2 — Claim token verification.
+
+        GET: Confirm the token is valid and unexpired; return prefilled data the
+             frontend needs to populate the signup form.
+        POST: Authenticated candidate submits after signup/login; link account.
       parameters:
       - in: path
         name: token
@@ -355,9 +340,11 @@ paths:
     post:
       operationId: v1_candidates_claim_create
       description: |-
-        Link the authenticated user to the candidate record identified by token.
-        Must be called after the candidate has signed up or logged in.
-        Requires: Authorization header with a valid JWT.
+        Source 1 / Source 2 — Claim token verification.
+
+        GET: Confirm the token is valid and unexpired; return prefilled data the
+             frontend needs to populate the signup form.
+        POST: Authenticated candidate submits after signup/login; link account.
       parameters:
       - in: path
         name: token
@@ -1222,6 +1209,26 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/organisation/setup-hierarchy/:
+    post:
+      operationId: v1_organisation_setup_hierarchy_create
+      description: |-
+        Bulk setup locations, departments, and teams.
+        Expects:
+        {
+          "locations": [{"name": "HQ", "city": "Mumbai", "is_headquarters": true}, ...],
+          "departments": [{"name": "Engineering", "description": "..."}, ...],
+          "teams": [{"name": "Backend", "department_name": "Engineering"}, ...]
+        }
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
   /api/v1/organisation/users/:
     get:
       operationId: v1_organisation_users_retrieve
@@ -1623,6 +1630,26 @@ paths:
           description: Resource not found.
     put:
       operationId: v1_organisations_profile_update
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/organisations/setup-hierarchy/:
+    post:
+      operationId: v1_organisations_setup_hierarchy_create
+      description: |-
+        Bulk setup locations, departments, and teams.
+        Expects:
+        {
+          "locations": [{"name": "HQ", "city": "Mumbai", "is_headquarters": true}, ...],
+          "departments": [{"name": "Engineering", "description": "..."}, ...],
+          "teams": [{"name": "Backend", "department_name": "Engineering"}, ...]
+        }
       tags:
       - v1
       responses:
@@ -3639,6 +3666,24 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    put:
+      operationId: v1_pipeline_pipeline_applications_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     patch:
       operationId: v1_pipeline_pipeline_applications_partial_update
       parameters:
@@ -3739,6 +3784,52 @@ paths:
       parameters:
       - in: path
         name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/pipeline/pipeline/applications/{id}/history/:
+    get:
+      operationId: v1_pipeline_pipeline_applications_history_retrieve
+      description: |-
+        Aggregates all candidate-related events for a specific application:
+        - Stage changes
+        - Interview feedback
+        - Internal notes
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+  /api/v1/pipeline/candidates/{candidate_id}/cross-jobs/:
+    get:
+      operationId: v1_pipeline_candidates_cross_jobs_retrieve
+      description: |-
+        Returns all applications for a specific candidate within the tenant.
+        Used for the 'Suitcase' icon/Cross-job visibility in the profile panel.
+      parameters:
+      - in: path
+        name: candidate_id
         schema:
           type: string
           format: uuid
@@ -4367,7 +4458,68 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/agencies/portal/accept/{token}/:
+    get:
+      operationId: v1_agencies_portal_accept_retrieve
+      description: |-
+        Public endpoint to review and accept a guest portal invite.
+        GET: Returns the terms for review.
+        POST: Accepts the terms and activates the relationship.
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '404':
+          description: Resource not found.
+    post:
+      operationId: v1_agencies_portal_accept_create
+      description: |-
+        Public endpoint to review and accept a guest portal invite.
+        GET: Returns the terms for review.
+        POST: Accepts the terms and activates the relationship.
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          description: No response body
+        '404':
+          description: Resource not found.
   /api/v1/agency-candidates/registry/:
+    get:
+      operationId: v1_agency_candidates_registry_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAgencyCandidatePipelineRegistryList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_agency_candidates_registry_create
       tags:
@@ -4395,15 +4547,17 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/agency-candidates/registry/{id}/:
     get:
-      operationId: v1_agency_candidates_registry_list
+      operationId: v1_agency_candidates_registry_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this agency candidate pipeline registry.
+        required: true
       tags:
       - v1
       responses:
@@ -4411,13 +4565,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedAgencyCandidatePipelineRegistryList'
+                $ref: '#/components/schemas/AgencyCandidatePipelineRegistry'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/agency-candidates/registry/{id}/:
     patch:
       operationId: v1_agency_candidates_registry_partial_update
       parameters:
@@ -4506,57 +4659,7 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-    get:
-      operationId: v1_agency_candidates_registry_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this agency candidate pipeline registry.
-        required: true
-      tags:
-      - v1
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgencyCandidatePipelineRegistry'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
   /api/v1/agency-candidates/candidates/:
-    post:
-      operationId: v1_agency_candidates_candidates_create
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateRequest'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgencyCandidate'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
     get:
       operationId: v1_agency_candidates_candidates_list
       parameters:
@@ -4591,7 +4694,57 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    post:
+      operationId: v1_agency_candidates_candidates_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgencyCandidate'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
   /api/v1/agency-candidates/candidates/{id}/:
+    get:
+      operationId: v1_agency_candidates_candidates_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this agency candidate.
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgencyCandidate'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     patch:
       operationId: v1_agency_candidates_candidates_partial_update
       parameters:
@@ -4669,29 +4822,6 @@ paths:
             schema:
               $ref: '#/components/schemas/AgencyCandidateRequest'
         required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgencyCandidate'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_agency_candidates_candidates_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this agency candidate.
-        required: true
-      tags:
-      - v1
       responses:
         '200':
           content:
@@ -4812,6 +4942,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/agency-candidates/notes/:
+    get:
+      operationId: v1_agency_candidates_notes_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAgencyCandidateNoteList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_agency_candidates_notes_create
       tags:
@@ -4839,15 +4991,17 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/agency-candidates/notes/{id}/:
     get:
-      operationId: v1_agency_candidates_notes_list
+      operationId: v1_agency_candidates_notes_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this agency candidate note.
+        required: true
       tags:
       - v1
       responses:
@@ -4855,13 +5009,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedAgencyCandidateNoteList'
+                $ref: '#/components/schemas/AgencyCandidateNote'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/agency-candidates/notes/{id}/:
     patch:
       operationId: v1_agency_candidates_notes_partial_update
       parameters:
@@ -4950,16 +5103,16 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/agency-candidates/hotlists/:
     get:
-      operationId: v1_agency_candidates_notes_retrieve
+      operationId: v1_agency_candidates_hotlists_list
       parameters:
-      - in: path
-        name: id
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
         schema:
           type: string
-          format: uuid
-        description: A UUID string identifying this agency candidate note.
-        required: true
       tags:
       - v1
       responses:
@@ -4967,13 +5120,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AgencyCandidateNote'
+                $ref: '#/components/schemas/PaginatedAgencyCandidateHotlistList'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/agency-candidates/hotlists/:
     post:
       operationId: v1_agency_candidates_hotlists_create
       tags:
@@ -5001,15 +5153,17 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/agency-candidates/hotlists/{id}/:
     get:
-      operationId: v1_agency_candidates_hotlists_list
+      operationId: v1_agency_candidates_hotlists_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this agency candidate hotlist.
+        required: true
       tags:
       - v1
       responses:
@@ -5017,13 +5171,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedAgencyCandidateHotlistList'
+                $ref: '#/components/schemas/AgencyCandidateHotlist'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/agency-candidates/hotlists/{id}/:
     patch:
       operationId: v1_agency_candidates_hotlists_partial_update
       parameters:
@@ -5112,16 +5265,16 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/agency-candidates/hotlist-members/:
     get:
-      operationId: v1_agency_candidates_hotlists_retrieve
+      operationId: v1_agency_candidates_hotlist_members_list
       parameters:
-      - in: path
-        name: id
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
         schema:
           type: string
-          format: uuid
-        description: A UUID string identifying this agency candidate hotlist.
-        required: true
       tags:
       - v1
       responses:
@@ -5129,13 +5282,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AgencyCandidateHotlist'
+                $ref: '#/components/schemas/PaginatedAgencyCandidateHotlistMemberList'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/agency-candidates/hotlist-members/:
     post:
       operationId: v1_agency_candidates_hotlist_members_create
       tags:
@@ -5163,15 +5315,17 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/agency-candidates/hotlist-members/{id}/:
     get:
-      operationId: v1_agency_candidates_hotlist_members_list
+      operationId: v1_agency_candidates_hotlist_members_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this agency candidate hotlist member.
+        required: true
       tags:
       - v1
       responses:
@@ -5179,13 +5333,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedAgencyCandidateHotlistMemberList'
+                $ref: '#/components/schemas/AgencyCandidateHotlistMember'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/agency-candidates/hotlist-members/{id}/:
     patch:
       operationId: v1_agency_candidates_hotlist_members_partial_update
       parameters:
@@ -5274,16 +5427,16 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/agency-candidates/resumes/:
     get:
-      operationId: v1_agency_candidates_hotlist_members_retrieve
+      operationId: v1_agency_candidates_resumes_list
       parameters:
-      - in: path
-        name: id
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
         schema:
           type: string
-          format: uuid
-        description: A UUID string identifying this agency candidate hotlist member.
-        required: true
       tags:
       - v1
       responses:
@@ -5291,13 +5444,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AgencyCandidateHotlistMember'
+                $ref: '#/components/schemas/PaginatedAgencyCandidateResumeVersionList'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/agency-candidates/resumes/:
     post:
       operationId: v1_agency_candidates_resumes_create
       tags:
@@ -5325,15 +5477,17 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/agency-candidates/resumes/{id}/:
     get:
-      operationId: v1_agency_candidates_resumes_list
+      operationId: v1_agency_candidates_resumes_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this agency candidate resume version.
+        required: true
       tags:
       - v1
       responses:
@@ -5341,13 +5495,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedAgencyCandidateResumeVersionList'
+                $ref: '#/components/schemas/AgencyCandidateResumeVersion'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/agency-candidates/resumes/{id}/:
     patch:
       operationId: v1_agency_candidates_resumes_partial_update
       parameters:
@@ -5436,16 +5589,16 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/agency-candidates/submissions/:
     get:
-      operationId: v1_agency_candidates_resumes_retrieve
+      operationId: v1_agency_candidates_submissions_list
       parameters:
-      - in: path
-        name: id
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
         schema:
           type: string
-          format: uuid
-        description: A UUID string identifying this agency candidate resume version.
-        required: true
       tags:
       - v1
       responses:
@@ -5453,13 +5606,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AgencyCandidateResumeVersion'
+                $ref: '#/components/schemas/PaginatedAgencyCandidateSubmissionList'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/agency-candidates/submissions/:
     post:
       operationId: v1_agency_candidates_submissions_create
       tags:
@@ -5487,15 +5639,17 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/agency-candidates/submissions/{id}/:
     get:
-      operationId: v1_agency_candidates_submissions_list
+      operationId: v1_agency_candidates_submissions_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this agency candidate submission.
+        required: true
       tags:
       - v1
       responses:
@@ -5503,13 +5657,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedAgencyCandidateSubmissionList'
+                $ref: '#/components/schemas/AgencyCandidateSubmission'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/agency-candidates/submissions/{id}/:
     patch:
       operationId: v1_agency_candidates_submissions_partial_update
       parameters:
@@ -5587,29 +5740,6 @@ paths:
             schema:
               $ref: '#/components/schemas/AgencyCandidateSubmissionRequest'
         required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgencyCandidateSubmission'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_agency_candidates_submissions_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this agency candidate submission.
-        required: true
-      tags:
-      - v1
       responses:
         '200':
           content:
@@ -8471,6 +8601,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/communications/communication/email-accounts/:
+    get:
+      operationId: v1_communications_communication_email_accounts_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedEmailAccountList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_communications_communication_email_accounts_create
       tags:
@@ -8498,15 +8650,16 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/communications/communication/email-accounts/{id}/:
     get:
-      operationId: v1_communications_communication_email_accounts_list
+      operationId: v1_communications_communication_email_accounts_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+          format: uuid
+        required: true
       tags:
       - v1
       responses:
@@ -8514,13 +8667,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedEmailAccountList'
+                $ref: '#/components/schemas/EmailAccount'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/communications/communication/email-accounts/{id}/:
     patch:
       operationId: v1_communications_communication_email_accounts_partial_update
       parameters:
@@ -8598,28 +8750,6 @@ paths:
           description: Email account not found
         '401':
           description: Authentication credentials were not provided or are invalid.
-    get:
-      operationId: v1_communications_communication_email_accounts_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        required: true
-      tags:
-      - v1
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EmailAccount'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
   /api/v1/communications/email/feature-status:
     get:
       operationId: v1_communications_email_feature_status_retrieve
@@ -10221,33 +10351,6 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/talent-pools/pools/:
-    post:
-      operationId: v1_talent_pools_pools_create
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TalentPoolRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/TalentPoolRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/TalentPoolRequest'
-        required: true
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TalentPool'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
     get:
       operationId: v1_talent_pools_pools_list
       parameters:
@@ -10282,7 +10385,57 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    post:
+      operationId: v1_talent_pools_pools_create
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+        required: true
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TalentPool'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
   /api/v1/talent-pools/pools/{id}/:
+    get:
+      operationId: v1_talent_pools_pools_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Talent Pool.
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TalentPool'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     patch:
       operationId: v1_talent_pools_pools_partial_update
       parameters:
@@ -10360,29 +10513,6 @@ paths:
             schema:
               $ref: '#/components/schemas/TalentPoolRequest'
         required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TalentPool'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_talent_pools_pools_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this Talent Pool.
-        required: true
-      tags:
-      - v1
       responses:
         '200':
           content:
@@ -10491,6 +10621,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/talent-pools/memberships/:
+    get:
+      operationId: v1_talent_pools_memberships_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCandidateTalentPoolMembershipList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_talent_pools_memberships_create
       tags:
@@ -10518,15 +10670,17 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/talent-pools/memberships/{id}/:
     get:
-      operationId: v1_talent_pools_memberships_list
+      operationId: v1_talent_pools_memberships_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this Candidate Talent Pool Membership.
+        required: true
       tags:
       - v1
       responses:
@@ -10534,13 +10688,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedCandidateTalentPoolMembershipList'
+                $ref: '#/components/schemas/CandidateTalentPoolMembership'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/talent-pools/memberships/{id}/:
     patch:
       operationId: v1_talent_pools_memberships_partial_update
       parameters:
@@ -10618,29 +10771,6 @@ paths:
             schema:
               $ref: '#/components/schemas/CandidateTalentPoolMembershipRequest'
         required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CandidateTalentPoolMembership'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_talent_pools_memberships_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this Candidate Talent Pool Membership.
-        required: true
-      tags:
-      - v1
       responses:
         '200':
           content:
@@ -11582,6 +11712,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/intelligence/workflow-orchestration/processes/:
+    get:
+      operationId: v1_intelligence_workflow_orchestration_processes_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedWorkflowProcessInstanceList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_intelligence_workflow_orchestration_processes_create
       tags:
@@ -11604,28 +11756,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WorkflowProcessInstance'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_intelligence_workflow_orchestration_processes_list
-      parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
-        schema:
-          type: string
-      tags:
-      - v1
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedWorkflowProcessInstanceList'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
@@ -11660,6 +11790,29 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/intelligence/workflow-orchestration/processes/{id}/:
+    get:
+      operationId: v1_intelligence_workflow_orchestration_processes_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this workflow process instance.
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowProcessInstance'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     patch:
       operationId: v1_intelligence_workflow_orchestration_processes_partial_update
       parameters:
@@ -11737,29 +11890,6 @@ paths:
             schema:
               $ref: '#/components/schemas/WorkflowProcessInstanceRequest'
         required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowProcessInstance'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_intelligence_workflow_orchestration_processes_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this workflow process instance.
-        required: true
-      tags:
-      - v1
       responses:
         '200':
           content:
@@ -14542,6 +14672,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/intelligence/workflow-events/subscriptions/:
+    get:
+      operationId: v1_intelligence_workflow_events_subscriptions_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedWorkflowEventSubscriptionList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_intelligence_workflow_events_subscriptions_create
       tags:
@@ -14564,28 +14716,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WorkflowEventSubscription'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_intelligence_workflow_events_subscriptions_list
-      parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
-        schema:
-          type: string
-      tags:
-      - v1
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedWorkflowEventSubscriptionList'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
@@ -14758,6 +14888,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/hdc/committees/:
+    get:
+      operationId: v1_hdc_committees_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedHiringCommitteeList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_hdc_committees_create
       tags:
@@ -14785,15 +14937,15 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/hdc/committees/{id}/:
     get:
-      operationId: v1_hdc_committees_list
+      operationId: v1_hdc_committees_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+        required: true
       tags:
       - v1
       responses:
@@ -14801,13 +14953,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedHiringCommitteeList'
+                $ref: '#/components/schemas/HiringCommittee'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/hdc/committees/{id}/:
     patch:
       operationId: v1_hdc_committees_partial_update
       parameters:
@@ -14890,27 +15041,6 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-    get:
-      operationId: v1_hdc_committees_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HiringCommittee'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
   /api/v1/hdc/committees/{id}/submit_vote/:
     post:
       operationId: v1_hdc_committees_submit_vote_create
@@ -14946,6 +15076,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/hdc/comparisons/:
+    get:
+      operationId: v1_hdc_comparisons_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedComparisonSetList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_hdc_comparisons_create
       tags:
@@ -14973,15 +15125,15 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/hdc/comparisons/{id}/:
     get:
-      operationId: v1_hdc_comparisons_list
+      operationId: v1_hdc_comparisons_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+        required: true
       tags:
       - v1
       responses:
@@ -14989,13 +15141,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedComparisonSetList'
+                $ref: '#/components/schemas/ComparisonSet'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/hdc/comparisons/{id}/:
     patch:
       operationId: v1_hdc_comparisons_partial_update
       parameters:
@@ -15078,27 +15229,6 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-    get:
-      operationId: v1_hdc_comparisons_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ComparisonSet'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
   /api/v1/hdc/comparisons/{id}/freeze/:
     post:
       operationId: v1_hdc_comparisons_freeze_create
@@ -15134,6 +15264,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/hdc/approvals/:
+    get:
+      operationId: v1_hdc_approvals_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedDecisionApprovalList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_hdc_approvals_create
       tags:
@@ -15161,15 +15313,15 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/hdc/approvals/{id}/:
     get:
-      operationId: v1_hdc_approvals_list
+      operationId: v1_hdc_approvals_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+        required: true
       tags:
       - v1
       responses:
@@ -15177,13 +15329,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedDecisionApprovalList'
+                $ref: '#/components/schemas/DecisionApproval'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/hdc/approvals/{id}/:
     patch:
       operationId: v1_hdc_approvals_partial_update
       parameters:
@@ -15255,27 +15406,6 @@ paths:
             schema:
               $ref: '#/components/schemas/DecisionApprovalRequest'
         required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DecisionApproval'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_hdc_approvals_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
       responses:
         '200':
           content:
@@ -15390,6 +15520,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/hdc/offer-recommendations/:
+    get:
+      operationId: v1_hdc_offer_recommendations_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOfferRecommendationList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_hdc_offer_recommendations_create
       tags:
@@ -15417,15 +15569,15 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/hdc/offer-recommendations/{id}/:
     get:
-      operationId: v1_hdc_offer_recommendations_list
+      operationId: v1_hdc_offer_recommendations_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+        required: true
       tags:
       - v1
       responses:
@@ -15433,13 +15585,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedOfferRecommendationList'
+                $ref: '#/components/schemas/OfferRecommendation'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/hdc/offer-recommendations/{id}/:
     patch:
       operationId: v1_hdc_offer_recommendations_partial_update
       parameters:
@@ -15522,27 +15673,6 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-    get:
-      operationId: v1_hdc_offer_recommendations_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OfferRecommendation'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
   /api/v1/hdc/offer-recommendations/{id}/select_scenario/:
     post:
       operationId: v1_hdc_offer_recommendations_select_scenario_create
@@ -15578,6 +15708,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/hdc/negotiations/:
+    get:
+      operationId: v1_hdc_negotiations_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedNegotiationCaseList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_hdc_negotiations_create
       tags:
@@ -15605,15 +15757,15 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/hdc/negotiations/{id}/:
     get:
-      operationId: v1_hdc_negotiations_list
+      operationId: v1_hdc_negotiations_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+        required: true
       tags:
       - v1
       responses:
@@ -15621,13 +15773,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedNegotiationCaseList'
+                $ref: '#/components/schemas/NegotiationCase'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/hdc/negotiations/{id}/:
     patch:
       operationId: v1_hdc_negotiations_partial_update
       parameters:
@@ -15710,27 +15861,6 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-    get:
-      operationId: v1_hdc_negotiations_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NegotiationCase'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
   /api/v1/hdc/negotiations/{id}/add_round/:
     post:
       operationId: v1_hdc_negotiations_add_round_create
@@ -15766,6 +15896,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/hdc/offer-release/:
+    get:
+      operationId: v1_hdc_offer_release_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOfferReleasePacketList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_hdc_offer_release_create
       tags:
@@ -15793,15 +15945,15 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/hdc/offer-release/{id}/:
     get:
-      operationId: v1_hdc_offer_release_list
+      operationId: v1_hdc_offer_release_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+        required: true
       tags:
       - v1
       responses:
@@ -15809,13 +15961,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedOfferReleasePacketList'
+                $ref: '#/components/schemas/OfferReleasePacket'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/hdc/offer-release/{id}/:
     patch:
       operationId: v1_hdc_offer_release_partial_update
       parameters:
@@ -15887,27 +16038,6 @@ paths:
             schema:
               $ref: '#/components/schemas/OfferReleasePacketRequest'
         required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OfferReleasePacket'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_hdc_offer_release_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
       responses:
         '200':
           content:
@@ -16022,6 +16152,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/hdc/joining/:
+    get:
+      operationId: v1_hdc_joining_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedJoiningCaseList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_hdc_joining_create
       tags:
@@ -16049,15 +16201,15 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/hdc/joining/{id}/:
     get:
-      operationId: v1_hdc_joining_list
+      operationId: v1_hdc_joining_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+        required: true
       tags:
       - v1
       responses:
@@ -16065,13 +16217,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedJoiningCaseList'
+                $ref: '#/components/schemas/JoiningCase'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/hdc/joining/{id}/:
     patch:
       operationId: v1_hdc_joining_partial_update
       parameters:
@@ -16143,27 +16294,6 @@ paths:
             schema:
               $ref: '#/components/schemas/JoiningCaseRequest'
         required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JoiningCase'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_hdc_joining_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
       responses:
         '200':
           content:
@@ -17093,6 +17223,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/workflow-sla/policies/:
+    get:
+      operationId: v1_workflow_sla_policies_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedWorkflowSLAPolicyList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_workflow_sla_policies_create
       tags:
@@ -17120,15 +17272,15 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/workflow-sla/policies/{id}/:
     get:
-      operationId: v1_workflow_sla_policies_list
+      operationId: v1_workflow_sla_policies_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+        required: true
       tags:
       - v1
       responses:
@@ -17136,13 +17288,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedWorkflowSLAPolicyList'
+                $ref: '#/components/schemas/WorkflowSLAPolicy'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/workflow-sla/policies/{id}/:
     patch:
       operationId: v1_workflow_sla_policies_partial_update
       parameters:
@@ -17225,14 +17376,16 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/workflow-sla/executions/:
     get:
-      operationId: v1_workflow_sla_policies_retrieve
+      operationId: v1_workflow_sla_executions_list
       parameters:
-      - in: path
-        name: id
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
         schema:
           type: string
-        required: true
       tags:
       - v1
       responses:
@@ -17240,13 +17393,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WorkflowSLAPolicy'
+                $ref: '#/components/schemas/PaginatedWorkflowSLAExecutionList'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/workflow-sla/executions/:
     post:
       operationId: v1_workflow_sla_executions_create
       tags:
@@ -17274,15 +17426,15 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/workflow-sla/executions/{id}/:
     get:
-      operationId: v1_workflow_sla_executions_list
+      operationId: v1_workflow_sla_executions_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+        required: true
       tags:
       - v1
       responses:
@@ -17290,13 +17442,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedWorkflowSLAExecutionList'
+                $ref: '#/components/schemas/WorkflowSLAExecution'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/workflow-sla/executions/{id}/:
     patch:
       operationId: v1_workflow_sla_executions_partial_update
       parameters:
@@ -17379,27 +17530,6 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-    get:
-      operationId: v1_workflow_sla_executions_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowSLAExecution'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
   /api/v1/workflow-sla/executions/{id}/cancel/:
     post:
       operationId: v1_workflow_sla_executions_cancel_create
@@ -17469,6 +17599,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/workflow-sla/escalation-rules/:
+    get:
+      operationId: v1_workflow_sla_escalation_rules_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedWorkflowSLAEscalationRuleList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_workflow_sla_escalation_rules_create
       tags:
@@ -17496,15 +17648,15 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/workflow-sla/escalation-rules/{id}/:
     get:
-      operationId: v1_workflow_sla_escalation_rules_list
+      operationId: v1_workflow_sla_escalation_rules_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+        required: true
       tags:
       - v1
       responses:
@@ -17512,13 +17664,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedWorkflowSLAEscalationRuleList'
+                $ref: '#/components/schemas/WorkflowSLAEscalationRule'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/workflow-sla/escalation-rules/{id}/:
     patch:
       operationId: v1_workflow_sla_escalation_rules_partial_update
       parameters:
@@ -17601,27 +17752,6 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-    get:
-      operationId: v1_workflow_sla_escalation_rules_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowSLAEscalationRule'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
   /api/v1/workflow-sla/reminders/:
     get:
       operationId: v1_workflow_sla_reminders_retrieve
@@ -17670,6 +17800,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/automation-playbooks/playbooks/:
+    get:
+      operationId: v1_automation_playbooks_playbooks_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAutomationPlaybookList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_automation_playbooks_playbooks_create
       tags:
@@ -17692,28 +17844,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AutomationPlaybook'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_automation_playbooks_playbooks_list
-      parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
-        schema:
-          type: string
-      tags:
-      - v1
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedAutomationPlaybookList'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
@@ -17752,6 +17882,27 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/automation-playbooks/playbooks/{id}/:
+    get:
+      operationId: v1_automation_playbooks_playbooks_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationPlaybook'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     patch:
       operationId: v1_automation_playbooks_playbooks_partial_update
       parameters:
@@ -17823,27 +17974,6 @@ paths:
             schema:
               $ref: '#/components/schemas/AutomationPlaybookRequest'
         required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AutomationPlaybook'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_automation_playbooks_playbooks_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
       responses:
         '200':
           content:
@@ -18004,6 +18134,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/workflow-sandbox/runs/:
+    get:
+      operationId: v1_workflow_sandbox_runs_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedWorkflowSandboxRunList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_workflow_sandbox_runs_create
       tags:
@@ -18031,15 +18183,15 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/workflow-sandbox/runs/{id}/:
     get:
-      operationId: v1_workflow_sandbox_runs_list
+      operationId: v1_workflow_sandbox_runs_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+        required: true
       tags:
       - v1
       responses:
@@ -18047,13 +18199,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedWorkflowSandboxRunList'
+                $ref: '#/components/schemas/WorkflowSandboxRun'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/workflow-sandbox/runs/{id}/:
     patch:
       operationId: v1_workflow_sandbox_runs_partial_update
       parameters:
@@ -18125,27 +18276,6 @@ paths:
             schema:
               $ref: '#/components/schemas/WorkflowSandboxRunRequest'
         required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowSandboxRun'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_workflow_sandbox_runs_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
       responses:
         '200':
           content:
@@ -18236,6 +18366,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/workflow-sandbox/scenarios/:
+    get:
+      operationId: v1_workflow_sandbox_scenarios_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedWorkflowSandboxScenarioList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_workflow_sandbox_scenarios_create
       tags:
@@ -18263,15 +18415,15 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/workflow-sandbox/scenarios/{id}/:
     get:
-      operationId: v1_workflow_sandbox_scenarios_list
+      operationId: v1_workflow_sandbox_scenarios_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+        required: true
       tags:
       - v1
       responses:
@@ -18279,13 +18431,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedWorkflowSandboxScenarioList'
+                $ref: '#/components/schemas/WorkflowSandboxScenario'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/workflow-sandbox/scenarios/{id}/:
     patch:
       operationId: v1_workflow_sandbox_scenarios_partial_update
       parameters:
@@ -18368,14 +18519,16 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/workflow-sandbox/approvals/:
     get:
-      operationId: v1_workflow_sandbox_scenarios_retrieve
+      operationId: v1_workflow_sandbox_approvals_list
       parameters:
-      - in: path
-        name: id
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
         schema:
           type: string
-        required: true
       tags:
       - v1
       responses:
@@ -18383,13 +18536,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WorkflowSandboxScenario'
+                $ref: '#/components/schemas/PaginatedWorkflowSandboxApprovalList'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/workflow-sandbox/approvals/:
     post:
       operationId: v1_workflow_sandbox_approvals_create
       tags:
@@ -18417,15 +18569,15 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/workflow-sandbox/approvals/{id}/:
     get:
-      operationId: v1_workflow_sandbox_approvals_list
+      operationId: v1_workflow_sandbox_approvals_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+        required: true
       tags:
       - v1
       responses:
@@ -18433,13 +18585,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedWorkflowSandboxApprovalList'
+                $ref: '#/components/schemas/WorkflowSandboxApproval'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/workflow-sandbox/approvals/{id}/:
     patch:
       operationId: v1_workflow_sandbox_approvals_partial_update
       parameters:
@@ -18511,27 +18662,6 @@ paths:
             schema:
               $ref: '#/components/schemas/WorkflowSandboxApprovalRequest'
         required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowSandboxApproval'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_workflow_sandbox_approvals_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
       responses:
         '200':
           content:
@@ -18728,6 +18858,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/workflow-change/dependencies/:
+    get:
+      operationId: v1_workflow_change_dependencies_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedWorkflowDependencyMapList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_workflow_change_dependencies_create
       tags:
@@ -18755,15 +18907,15 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/workflow-change/dependencies/{id}/:
     get:
-      operationId: v1_workflow_change_dependencies_list
+      operationId: v1_workflow_change_dependencies_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+        required: true
       tags:
       - v1
       responses:
@@ -18771,13 +18923,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedWorkflowDependencyMapList'
+                $ref: '#/components/schemas/WorkflowDependencyMap'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/workflow-change/dependencies/{id}/:
     patch:
       operationId: v1_workflow_change_dependencies_partial_update
       parameters:
@@ -18849,27 +19000,6 @@ paths:
             schema:
               $ref: '#/components/schemas/WorkflowDependencyMapRequest'
         required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowDependencyMap'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_workflow_change_dependencies_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
       responses:
         '200':
           content:
@@ -19266,6 +19396,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/automation-os/engines/:
+    get:
+      operationId: v1_automation_os_engines_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAutomationEngineRegistryList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_automation_os_engines_create
       tags:
@@ -19293,15 +19445,15 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/automation-os/engines/{id}/:
     get:
-      operationId: v1_automation_os_engines_list
+      operationId: v1_automation_os_engines_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+        required: true
       tags:
       - v1
       responses:
@@ -19309,13 +19461,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedAutomationEngineRegistryList'
+                $ref: '#/components/schemas/AutomationEngineRegistry'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/automation-os/engines/{id}/:
     patch:
       operationId: v1_automation_os_engines_partial_update
       parameters:
@@ -19387,27 +19538,6 @@ paths:
             schema:
               $ref: '#/components/schemas/AutomationEngineRegistryRequest'
         required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AutomationEngineRegistry'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_automation_os_engines_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
       responses:
         '200':
           content:
@@ -19522,6 +19652,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/automation-os/policies/:
+    get:
+      operationId: v1_automation_os_policies_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAutomationExecutionPolicyList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_automation_os_policies_create
       tags:
@@ -19549,15 +19701,15 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/automation-os/policies/{id}/:
     get:
-      operationId: v1_automation_os_policies_list
+      operationId: v1_automation_os_policies_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+        required: true
       tags:
       - v1
       responses:
@@ -19565,13 +19717,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedAutomationExecutionPolicyList'
+                $ref: '#/components/schemas/AutomationExecutionPolicy'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/automation-os/policies/{id}/:
     patch:
       operationId: v1_automation_os_policies_partial_update
       parameters:
@@ -19643,27 +19794,6 @@ paths:
             schema:
               $ref: '#/components/schemas/AutomationExecutionPolicyRequest'
         required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AutomationExecutionPolicy'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_automation_os_policies_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
       responses:
         '200':
           content:
@@ -20568,6 +20698,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/agency-workflow/agency-workflow/:
+    get:
+      operationId: v1_agency_workflow_agency_workflow_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAgencyWorkflowDefinitionList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_agency_workflow_agency_workflow_create
       tags:
@@ -20595,15 +20747,17 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/agency-workflow/agency-workflow/{id}/:
     get:
-      operationId: v1_agency_workflow_agency_workflow_list
+      operationId: v1_agency_workflow_agency_workflow_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this agency workflow definition.
+        required: true
       tags:
       - v1
       responses:
@@ -20611,13 +20765,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedAgencyWorkflowDefinitionList'
+                $ref: '#/components/schemas/AgencyWorkflowDefinition'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/agency-workflow/agency-workflow/{id}/:
     patch:
       operationId: v1_agency_workflow_agency_workflow_partial_update
       parameters:
@@ -20695,29 +20848,6 @@ paths:
             schema:
               $ref: '#/components/schemas/AgencyWorkflowDefinitionRequest'
         required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgencyWorkflowDefinition'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_agency_workflow_agency_workflow_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this agency workflow definition.
-        required: true
-      tags:
-      - v1
       responses:
         '200':
           content:
@@ -20814,6 +20944,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/agency-workflow/agency-workflow-events/subscriptions/:
+    get:
+      operationId: v1_agency_workflow_agency_workflow_events_subscriptions_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAgencyWorkflowEventSubscriptionList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_agency_workflow_agency_workflow_events_subscriptions_create
       tags:
@@ -20841,15 +20993,17 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/agency-workflow/agency-workflow-events/subscriptions/{id}/:
     get:
-      operationId: v1_agency_workflow_agency_workflow_events_subscriptions_list
+      operationId: v1_agency_workflow_agency_workflow_events_subscriptions_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this agency workflow event subscription.
+        required: true
       tags:
       - v1
       responses:
@@ -20857,13 +21011,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedAgencyWorkflowEventSubscriptionList'
+                $ref: '#/components/schemas/AgencyWorkflowEventSubscription'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/agency-workflow/agency-workflow-events/subscriptions/{id}/:
     patch:
       operationId: v1_agency_workflow_agency_workflow_events_subscriptions_partial_update
       parameters:
@@ -20941,29 +21094,6 @@ paths:
             schema:
               $ref: '#/components/schemas/AgencyWorkflowEventSubscriptionRequest'
         required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgencyWorkflowEventSubscription'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_agency_workflow_agency_workflow_events_subscriptions_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this agency workflow event subscription.
-        required: true
-      tags:
-      - v1
       responses:
         '200':
           content:
@@ -21059,6 +21189,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/agency-workflow/agency-workflow-orchestration/processes/:
+    get:
+      operationId: v1_agency_workflow_agency_workflow_orchestration_processes_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAgencyWorkflowProcessInstanceList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_agency_workflow_agency_workflow_orchestration_processes_create
       tags:
@@ -21081,28 +21233,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AgencyWorkflowProcessInstance'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_agency_workflow_agency_workflow_orchestration_processes_list
-      parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
-        schema:
-          type: string
-      tags:
-      - v1
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedAgencyWorkflowProcessInstanceList'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
@@ -21137,6 +21267,29 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/agency-workflow/agency-workflow-orchestration/processes/{id}/:
+    get:
+      operationId: v1_agency_workflow_agency_workflow_orchestration_processes_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this agency workflow process instance.
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgencyWorkflowProcessInstance'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     patch:
       operationId: v1_agency_workflow_agency_workflow_orchestration_processes_partial_update
       parameters:
@@ -21214,29 +21367,6 @@ paths:
             schema:
               $ref: '#/components/schemas/AgencyWorkflowProcessInstanceRequest'
         required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgencyWorkflowProcessInstance'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_agency_workflow_agency_workflow_orchestration_processes_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this agency workflow process instance.
-        required: true
-      tags:
-      - v1
       responses:
         '200':
           content:
@@ -22624,6 +22754,35 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/workflow/stage-transitions/:
+    get:
+      operationId: v1_workflow_stage_transitions_list
+      description: |-
+        GET    /api/v1/workflow/stage-transitions/
+        POST   /api/v1/workflow/stage-transitions/
+        GET    /api/v1/workflow/stage-transitions/{id}/
+        PUT    /api/v1/workflow/stage-transitions/{id}/
+        PATCH  /api/v1/workflow/stage-transitions/{id}/
+        DELETE /api/v1/workflow/stage-transitions/{id}/
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedWorkflowStageTransitionList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_workflow_stage_transitions_create
       description: |-
@@ -22658,8 +22817,9 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/workflow/stage-transitions/{id}/:
     get:
-      operationId: v1_workflow_stage_transitions_list
+      operationId: v1_workflow_stage_transitions_retrieve
       description: |-
         GET    /api/v1/workflow/stage-transitions/
         POST   /api/v1/workflow/stage-transitions/
@@ -22668,12 +22828,13 @@ paths:
         PATCH  /api/v1/workflow/stage-transitions/{id}/
         DELETE /api/v1/workflow/stage-transitions/{id}/
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this workflow stage transition.
+        required: true
       tags:
       - v1
       responses:
@@ -22681,13 +22842,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedWorkflowStageTransitionList'
+                $ref: '#/components/schemas/WorkflowStageTransition'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/workflow/stage-transitions/{id}/:
     patch:
       operationId: v1_workflow_stage_transitions_partial_update
       description: |-
@@ -22786,36 +22946,6 @@ paths:
             schema:
               $ref: '#/components/schemas/WorkflowStageTransitionRequest'
         required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowStageTransition'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_workflow_stage_transitions_retrieve
-      description: |-
-        GET    /api/v1/workflow/stage-transitions/
-        POST   /api/v1/workflow/stage-transitions/
-        GET    /api/v1/workflow/stage-transitions/{id}/
-        PUT    /api/v1/workflow/stage-transitions/{id}/
-        PATCH  /api/v1/workflow/stage-transitions/{id}/
-        DELETE /api/v1/workflow/stage-transitions/{id}/
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this workflow stage transition.
-        required: true
-      tags:
-      - v1
       responses:
         '200':
           content:
@@ -23059,6 +23189,28 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/workflow/triggers/mappings/:
+    get:
+      operationId: v1_workflow_triggers_mappings_list
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedWorkflowTriggerMappingList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_workflow_triggers_mappings_create
       tags:
@@ -23086,15 +23238,17 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/workflow/triggers/mappings/{id}/:
     get:
-      operationId: v1_workflow_triggers_mappings_list
+      operationId: v1_workflow_triggers_mappings_retrieve
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this workflow event subscription.
+        required: true
       tags:
       - v1
       responses:
@@ -23102,13 +23256,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedWorkflowTriggerMappingList'
+                $ref: '#/components/schemas/WorkflowTriggerMapping'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/workflow/triggers/mappings/{id}/:
     patch:
       operationId: v1_workflow_triggers_mappings_partial_update
       parameters:
@@ -23192,29 +23345,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WorkflowTriggerMappingWrite'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_workflow_triggers_mappings_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this workflow event subscription.
-        required: true
-      tags:
-      - v1
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowTriggerMapping'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
@@ -23732,6 +23862,35 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/workflow/routing-rules/:
+    get:
+      operationId: v1_workflow_routing_rules_list
+      description: |-
+        GET    /api/v1/workflow/routing-rules/
+        POST   /api/v1/workflow/routing-rules/
+        GET    /api/v1/workflow/routing-rules/{id}/
+        PUT    /api/v1/workflow/routing-rules/{id}/
+        PATCH  /api/v1/workflow/routing-rules/{id}/
+        DELETE /api/v1/workflow/routing-rules/{id}/
+      parameters:
+      - name: cursor
+        required: false
+        in: query
+        description: The pagination cursor value.
+        schema:
+          type: string
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedWorkflowRoutingRuleList'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     post:
       operationId: v1_workflow_routing_rules_create
       description: |-
@@ -23766,8 +23925,9 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+  /api/v1/workflow/routing-rules/{id}/:
     get:
-      operationId: v1_workflow_routing_rules_list
+      operationId: v1_workflow_routing_rules_retrieve
       description: |-
         GET    /api/v1/workflow/routing-rules/
         POST   /api/v1/workflow/routing-rules/
@@ -23776,12 +23936,13 @@ paths:
         PATCH  /api/v1/workflow/routing-rules/{id}/
         DELETE /api/v1/workflow/routing-rules/{id}/
       parameters:
-      - name: cursor
-        required: false
-        in: query
-        description: The pagination cursor value.
+      - in: path
+        name: id
         schema:
           type: string
+          format: uuid
+        description: A UUID string identifying this workflow routing rule.
+        required: true
       tags:
       - v1
       responses:
@@ -23789,13 +23950,12 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PaginatedWorkflowRoutingRuleList'
+                $ref: '#/components/schemas/WorkflowRoutingRule'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
-  /api/v1/workflow/routing-rules/{id}/:
     patch:
       operationId: v1_workflow_routing_rules_partial_update
       description: |-
@@ -23894,36 +24054,6 @@ paths:
             schema:
               $ref: '#/components/schemas/WorkflowRoutingRuleRequest'
         required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowRoutingRule'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    get:
-      operationId: v1_workflow_routing_rules_retrieve
-      description: |-
-        GET    /api/v1/workflow/routing-rules/
-        POST   /api/v1/workflow/routing-rules/
-        GET    /api/v1/workflow/routing-rules/{id}/
-        PUT    /api/v1/workflow/routing-rules/{id}/
-        PATCH  /api/v1/workflow/routing-rules/{id}/
-        DELETE /api/v1/workflow/routing-rules/{id}/
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this workflow routing rule.
-        required: true
-      tags:
-      - v1
       responses:
         '200':
           content:

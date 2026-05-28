@@ -160,7 +160,7 @@ function NotificationDropdown() {
       content={content}
       trigger="click"
       placement="bottomRight"
-      overlayInnerStyle={{ padding: 0 }}
+      styles={{ body: { padding: 0 } }}
       arrow={false}
     >
       <div className="relative">
@@ -303,7 +303,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isCandidate = role === 'candidate'
   const isAgency = isAgencyRole(role)
   const homePath = isCandidate ? '/candidate/dashboard' : '/dashboard'
-  const workspaceLabel = isCandidate ? 'Candidate Workspace' : isAgency ? 'Agency Workspace' : 'Company Workspace'
 
   const systemMenuItems = useMemo(() => getSystemMenuItems(user), [user])
 
@@ -355,7 +354,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-white font-bold text-lg">T</div>
             <div className="hidden sm:block">
               <span className="font-bold text-slate-900 tracking-tight text-lg block leading-tight">TalentOS</span>
-              <span className="text-[10px] uppercase tracking-[0.18em] text-slate-400">{workspaceLabel}</span>
             </div>
           </Link>
           
@@ -717,8 +715,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         title={t('actions.create_job', 'Create New Job')}
         open={jobCreateOpen}
         onClose={() => setJobCreateOpen(false)}
-        width={640}
-        destroyOnClose
+        size="large"
+        destroyOnHidden
       >
         <JobCreateForm onSuccess={() => {
           setJobCreateOpen(false)

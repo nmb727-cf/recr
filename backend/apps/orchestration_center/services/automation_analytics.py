@@ -52,9 +52,38 @@ class AutomationAnalyticsService:
         total_retries = int(ai_retry_sum) + int(auto_retry_sum)
 
         exec_success_rate = round(total_successful / total_executions * 100, 2) if total_executions > 0 else 100.0
+        policies = AutomationIntelligencePolicy.objects.filter(tenant_id=tenant_id, is_enabled=True)
+        auto_approve_enabled = policies.filter(auto_approve=True).count()
+        auto_apply_enabled = policies.filter(auto_apply=True).count()
 
         return {
             'period_days': days,
+            # Legacy shape expected by tests and existing clients
+            'suggestions': {
+                'total': total_s,
+                'approved': approved,
+                'rejected': rejected,
+                'applied': applied,
+                'dismissed': dismissed,
+                'failed': failed_apply,
+                'accuracy_rate': accuracy_rate,
+                'average_confidence': avg_confidence,
+            },
+            'executions': {
+                'total': total_executions,
+                'ai_total': ai_total,
+                'automation_total': auto_total,
+                'successful': total_successful,
+                'failed': total_failed,
+                'retry_count': total_retries,
+                'success_rate': exec_success_rate,
+            },
+            'policies': {
+                'active': policies.count(),
+                'auto_approve_enabled': auto_approve_enabled,
+                'auto_apply_enabled': auto_apply_enabled,
+            },
+            # Newer shape
             'suggestion_metrics': {
                 'suggestions_created': total_s,
                 'suggestions_approved': approved,
@@ -143,9 +172,11 @@ class AutomationAnalyticsService:
                 'module_scope': policy.module_scope or 'Global',
                 'auto_approve': policy.auto_approve,
                 'auto_apply': policy.auto_apply,
+                'trigger_count': total,
                 'policy_trigger_count': total,
                 'auto_approve_count': approved,
                 'auto_apply_count': applied,
+                'failure_count': failed,
                 'policy_failure_count': failed,
                 'success_rate': round(applied / total * 100, 2) if total > 0 else 100.0,
                 'last_triggered_at': policy.last_triggered_at.isoformat() if policy.last_triggered_at else None,

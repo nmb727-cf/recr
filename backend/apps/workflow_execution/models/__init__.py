@@ -1,4 +1,4 @@
-from .execution import (
+from apps.workflow_execution.models.execution import (
     # Constants
     WAIT_REASON_CHOICES,
     WAIT_REASON_RESUME_EVENTS,
@@ -20,7 +20,7 @@ from .execution import (
     WorkflowExecutionDecision,
     WorkflowOrchestratorLog,
 )
-from .routing import (
+from apps.workflow_execution.models.routing import (
     # Choices (re-exported for convenience)
     ENTITY_TYPE_CHOICES,
     ACTOR_TYPE_CHOICES,
@@ -32,65 +32,65 @@ from .routing import (
     WorkflowRoutingRule,
     WorkflowRouteTimelineLog,
 )
-from .sla import (
+from apps.workflow_execution.models.sla import (
     WorkflowStageSLA,
     WorkflowSLATracker,
     WorkflowSLAEvent,
 )
-from .notifications import (
+from apps.workflow_execution.models.notifications import (
     WorkflowNotificationRule,
     WorkflowNotificationLog,
     WorkflowNotificationQueue,
 )
-from .scheduler import (
+from apps.workflow_execution.models.scheduler import (
     WorkflowScheduledTask,
     WorkflowSchedulerLog,
 )
-from .conditions import (
+from apps.workflow_execution.models.conditions import (
     WorkflowConditionRule,
     WorkflowConditionGroup,
     WorkflowConditionEvaluationLog,
 )
-from .actions import (
+from apps.workflow_execution.models.actions import (
     WorkflowActionDefinition,
     WorkflowActionExecutionLog,
     WorkflowActionDependency,
 )
-from .human_tasks import (
+from apps.workflow_execution.models.human_tasks import (
     WorkflowHumanTask,
     WorkflowApprovalRule,
     WorkflowApprovalLog,
 )
-from .versioning import (
+from apps.workflow_execution.models.versioning import (
     WorkflowVersion,
     WorkflowDraft,
     WorkflowVersionChangeLog,
     WorkflowVersionComparison,
 )
-from .templates import (
+from apps.workflow_execution.models.templates import (
     WorkflowTemplate,
     WorkflowTemplateVersion,
     WorkflowTemplateUsage,
     WorkflowTemplateRating,
 )
-from .visual_builder import (
+from apps.workflow_execution.models.visual_builder import (
     WorkflowBuilderNode,
     WorkflowBuilderConnection,
     WorkflowBuilderLayout,
 )
-from .observability import (
+from apps.workflow_execution.models.observability import (
     WorkflowExecutionTimelineEntry,
     WorkflowExecutionTrace,
     WorkflowObservabilitySnapshot,
     WorkflowExecutionMetric,
 )
-from .recovery import (
+from apps.workflow_execution.models.recovery import (
     WorkflowRecoveryCase,
     WorkflowRetryAttempt,
     WorkflowRecoveryActionLog,
     WorkflowRecoveryPolicy,
 )
-from .metrics_analytics import (
+from apps.workflow_execution.models.metrics_analytics import (
     WorkflowMetricSnapshot,
     WorkflowStageMetric,
     WorkflowFailureMetric,

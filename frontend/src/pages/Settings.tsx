@@ -377,7 +377,7 @@ function DepartmentsTab() {
         onCancel={handleCancel}
         onOk={() => form.submit()}
         confirmLoading={loading}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form 
           form={form} 
@@ -531,7 +531,7 @@ function LocationsTab() {
         onCancel={handleCancel}
         onOk={() => form.submit()}
         confirmLoading={loading}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form 
           form={form} 
@@ -747,7 +747,7 @@ function UsersTab() {
         onCancel={() => setInviteOpen(false)}
         onOk={() => inviteForm.submit()}
         confirmLoading={loading}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form 
           form={inviteForm} 
@@ -782,7 +782,7 @@ function UsersTab() {
         onCancel={() => { setEditOpen(false); setEditingRecord(null); }}
         onOk={() => editForm.submit()}
         confirmLoading={loading}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form 
           form={editForm} 
@@ -1004,7 +1004,7 @@ function SmtpModal({
       okText={editAccount ? 'Save Changes' : 'Connect'}
       confirmLoading={saving}
       width={560}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
         <Row gutter={16}>

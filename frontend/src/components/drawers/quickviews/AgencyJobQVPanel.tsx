@@ -80,7 +80,7 @@ export default function AgencyJobQVPanel({ data }: { data: JobWithAssignment }) 
         onClose={() => setSubmitOpen(false)}
         width={440}
         styles={{ body: { padding: '24px' } }}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={onSubmit}>
           <Form.Item name="candidate_id" label="Candidate ID" rules={[{ required: true }]}>

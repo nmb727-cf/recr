@@ -1,5 +1,4 @@
 import axios from 'axios'
-import { message } from 'antd'
 import { readStoredAccessToken, readStoredTenantId } from '@/utils/authSession'
 
 const http = axios.create({
@@ -64,13 +63,14 @@ http.interceptors.response.use(
       localStorage.removeItem('auth-store')
       window.location.href = '/login'
     } else {
-      // Show error toast for other errors, unless explicitly skipped
+      // Show errors without relying on static antd message API
+      // (static API is deprecated under dynamic theming contexts).
       const errData = error.response?.data
       const errorMsg = errData?.message || error.message || 'An unexpected error occurred'
       
       // Check if this request explicitly wants to skip the toast
       if (!(error.config as any)?.hideErrorToast) {
-        message.error(errorMsg)
+        console.error('[http]', errorMsg)
       }
     }
     return Promise.reject(error)

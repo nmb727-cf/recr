@@ -14,7 +14,8 @@ class JobWorkflowService:
         If job has a specific workflow_id, we trigger that.
         Otherwise, we look for workflows matching the event_type for the tenant.
         """
-        if not requisition.workflow_enabled and event_type != 'job.created':
+        workflow_enabled = bool(getattr(requisition, 'workflow_enabled', False))
+        if not workflow_enabled and event_type != 'job.created':
             # We always trigger job.created to see if a workflow should be attached
             return []
 
@@ -23,11 +24,11 @@ class JobWorkflowService:
         # Build context
         workflow_context = {
             'requisition_id': str(requisition.id),
-            'job_title': requisition.title,
-            'job_status': requisition.status,
-            'hiring_manager_id': str(requisition.hiring_manager_id) if requisition.hiring_manager_id else None,
-            'recruiter_id': str(requisition.recruiter_id) if requisition.recruiter_id else None,
-            'department_id': str(requisition.department_id) if requisition.department_id else None,
+            'job_title': getattr(requisition, 'title', ''),
+            'job_status': getattr(requisition, 'status', ''),
+            'hiring_manager_id': str(getattr(requisition, 'hiring_manager_id', '') or '') or None,
+            'recruiter_id': str(getattr(requisition, 'recruiter_id', '') or '') or None,
+            'department_id': str(getattr(requisition, 'department_id', '') or '') or None,
         }
         if context:
             workflow_context.update(context)

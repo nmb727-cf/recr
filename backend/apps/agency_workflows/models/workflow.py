@@ -22,6 +22,7 @@ class AgencyWorkflowDefinition(BaseModel):
     trigger_event = models.CharField(max_length=128, blank=True)
     
     class Meta:
+        app_label = 'agency_workflows'
         db_table = 'agency_workflow_definitions'
         ordering = ['-created_at']
 
@@ -33,6 +34,7 @@ class AgencyWorkflowNode(BaseModel):
     position_y = models.FloatField(default=0)
 
     class Meta:
+        app_label = 'agency_workflows'
         db_table = 'agency_workflow_nodes'
 
 class AgencyWorkflowEdge(BaseModel):
@@ -42,4 +44,5 @@ class AgencyWorkflowEdge(BaseModel):
     condition = models.JSONField(default=dict, blank=True)
 
     class Meta:
+        app_label = 'agency_workflows'
         db_table = 'agency_workflow_edges'

@@ -802,7 +802,7 @@ export default function TalentPoolDetail() {
         confirmLoading={isAddingCandidates}
         okButtonProps={{ disabled: selectedCandidateIds.length === 0, className: 'bg-[#1E40AF]' }}
         width={860}
-        destroyOnClose
+        destroyOnHidden
       >
         <div className="space-y-4 py-2">
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">

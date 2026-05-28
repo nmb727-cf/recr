@@ -2,26 +2,26 @@
 
 ## pytest
 ```
-configfile: pytest.ini
-testpaths: backend
-plugins: schemathesis-4.14.0, django-4.12.0, base-url-2.1.0, hypothesis-6.151.9, playwright-0.7.2, anyio-4.13.0, cov-7.1.0
-collected 1130 items / 1 error
-
-==================================== ERRORS ====================================
-_____ ERROR collecting backend/apps/pipeline/tests/test_stage_ownership.py _____
-ImportError while importing test module '/home/nirav/projects/SaaS_Project/backend/apps/pipeline/tests/test_stage_ownership.py'.
-Hint: make sure your test modules/packages have valid Python names.
-Traceback:
-/usr/lib/python3.12/importlib/__init__.py:90: in import_module
-    return _bootstrap._gcd_import(name[level:], package, level)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-backend/apps/pipeline/tests/test_stage_ownership.py:11: in <module>
-    from apps.pipeline.views import (
-E   ImportError: cannot import name 'validate_application_move' from 'apps.pipeline.views' (/home/nirav/projects/SaaS_Project/backend/apps/pipeline/views.py)
-=========================== short test summary info ============================
-ERROR backend/apps/pipeline/tests/test_stage_ownership.py
-!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
-=============================== 1 error in 1.02s ===============================
+ERROR backend/apps/workflow_execution/tests/test_workflow_sla_engine.py::TestWorkflowSLAEngine::test_3_breach_reached_breach_event
+ERROR backend/apps/workflow_execution/tests/test_workflow_sla_engine.py::TestWorkflowSLAEngine::test_4_escalation_reached_escalation_triggered
+ERROR backend/apps/workflow_execution/tests/test_workflow_sla_engine.py::TestWorkflowSLAEngine::test_5_stage_completes_sla_resolved
+ERROR backend/apps/workflow_execution/tests/test_workflow_template_engine.py::TestWorkflowTemplateEngine::test_1_create_template_saved
+ERROR backend/apps/workflow_execution/tests/test_workflow_template_engine.py::TestWorkflowTemplateEngine::test_2_apply_template_creates_workflow
+ERROR backend/apps/workflow_execution/tests/test_workflow_template_engine.py::TestWorkflowTemplateEngine::test_3_clone_template_creates_new_template
+ERROR backend/apps/workflow_execution/tests/test_workflow_template_engine.py::TestWorkflowTemplateEngine::test_4_import_template_valid_template_created
+ERROR backend/apps/workflow_execution/tests/test_workflow_template_engine.py::TestWorkflowTemplateEngine::test_5_export_template_json_generated
+ERROR backend/apps/workflow_execution/tests/test_workflow_template_engine.py::TestWorkflowTemplateEngine::test_6_system_templates_seeded
+ERROR backend/apps/workflow_execution/tests/test_workflow_versioning_engine.py::TestWorkflowVersioningEngine::test_1_user_edits_published_workflow_creates_draft_live_untouched
+ERROR backend/apps/workflow_execution/tests/test_workflow_versioning_engine.py::TestWorkflowVersioningEngine::test_2_publish_draft_creates_new_published_version
+ERROR backend/apps/workflow_execution/tests/test_workflow_versioning_engine.py::TestWorkflowVersioningEngine::test_3_rollback_to_older_version_logged
+ERROR backend/apps/workflow_execution/tests/test_workflow_versioning_engine.py::TestWorkflowVersioningEngine::test_4_compare_two_versions_generates_diff
+ERROR backend/apps/workflow_execution/tests/test_workflow_versioning_engine.py::TestWorkflowVersioningEngine::test_5_existing_instance_keeps_version_after_new_publish
+ERROR backend/apps/workflow_execution/tests/test_workflow_visual_builder_engine.py::TestWorkflowVisualBuilderEngine::test_1_create_simple_workflow_nodes_saved
+ERROR backend/apps/workflow_execution/tests/test_workflow_visual_builder_engine.py::TestWorkflowVisualBuilderEngine::test_2_connect_nodes_connection_created
+ERROR backend/apps/workflow_execution/tests/test_workflow_visual_builder_engine.py::TestWorkflowVisualBuilderEngine::test_3_decision_node_multiple_paths_valid
+ERROR backend/apps/workflow_execution/tests/test_workflow_visual_builder_engine.py::TestWorkflowVisualBuilderEngine::test_4_invalid_workflow_returns_validation_error
+ERROR backend/apps/workflow_execution/tests/test_workflow_visual_builder_engine.py::TestWorkflowVisualBuilderEngine::test_5_end_to_end_workflow_execution_compatible
+====== 21 failed, 35 passed, 1 warning, 1110 errors in 238.56s (0:03:58) =======
 ```
 ## schema
 ```
@@ -42,32 +42,32 @@ Warning: operationId "v1_workflow_versions_retrieve" has collisions [('/api/v1/w
 Warning: operationId "v1_workflow_templates_retrieve" has collisions [('/api/v1/workflow-templates/', 'get'), ('/api/v1/workflow-templates/{id}/', 'get')]. resolving with numeral suffixes.
 
 Schema generation summary:
-Warnings: 1530 (879 unique)
-Errors:   3620 (700 unique)
+Warnings: 1537 (883 unique)
+Errors:   3648 (704 unique)
 
 ```
 ## schemathesis
 ```
-  ❌ Server error: 8
+  ❌ Server error: 9
   ❌ API accepted schema-violating request: 1
-  ❌ API rejected schema-compliant request: 22
-  ❌ Undocumented HTTP status code: 20
+  ❌ API rejected schema-compliant request: 12
+  ❌ Undocumented HTTP status code: 22
   ❌ Unsupported methods: 2
 
 Errors:
   🚫 Runtime Error: 1
 
 Warnings:
-  ⚠️ Missing authentication: 859 operations returned only 401/403 responses
-  ⚠️ Missing valid test data: 487 operations repeatedly returned 404 responses
-  ⚠️ Schema validation mismatch: 1292 operations mostly rejected generated data
+  ⚠️ Missing authentication: 870 operations returned only 401/403 responses
+  ⚠️ Missing valid test data: 503 operations repeatedly returned 404 responses
+  ⚠️ Schema validation mismatch: 1299 operations mostly rejected generated data
 
 Test cases:
-  137849 generated, 33 found 53 unique failures
+  138697 generated, 33 found 46 unique failures
 
-Seed: 176149374238302745076848674645232544818
+Seed: 198985161985024240562614982152074554599
 
-================= 53 failures, 1 error, 3 warnings in 8449.79s =================
+================ 46 failures, 1 error, 3 warnings in 13397.57s =================
 ```
 ## vitest
 ```
@@ -95,9 +95,28 @@ SyntaxError: The requested module 'node:util' does not provide an export named '
 Running 1 test using 1 worker
 
 [1A[2K[1/1] tests/smoke.spec.ts:3:1 › app loads
-[1A[2K  1 passed (2.1s)
+[1A[2K  1 passed (4.7s)
 ```
 ## mkdocs
 ```
-
+[31m │  × [0mNo migration path exists – existing projects cannot be upgraded
+[31m │  × [0mClosed contribution model – community members can't report bugs
+[31m │  × [0mCurrently unlicensed – unsuitable for production use
+[31m │[0m
+[31m │[0m  Our full analysis:
+[31m │[0m
+[31m │[0m  [4mhttps://squidfunk.github.io/mkdocs-material/blog/2026/02/18/mkdocs-2.0/[0m
+[0m
+INFO    -  Cleaning site directory
+INFO    -  Building documentation to directory: /home/nirav/projects/SaaS_Project/sys_know/site
+INFO    -  The following pages exist in the docs directory, but are not included in the "nav" configuration:
+  - Testing_And_Documentation_Guide.md
+  - reports/backend_frontend_gap.md
+  - reports/nightly_summary.md
+  - test_case/automation_command_center.md
+  - test_case/interviews.md
+  - ui_spec/interviews.md
+WARNING -  Doc file 'dashboard/index.md' contains a link '../generated/coverage/htmlcov/index.html', but the target 'generated/coverage/htmlcov/index.html' is not found among documentation files.
+WARNING -  Doc file 'dashboard/index.md' contains a link '../generated/openapi/schema.yaml', but the target 'generated/openapi/schema.yaml' is not found among documentation files.
+INFO    -  Documentation built in 0.25 seconds
 ```

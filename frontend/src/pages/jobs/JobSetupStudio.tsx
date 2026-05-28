@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Layout, Steps, Button, Card, Typography, Form, Input, Row, Col, Select,
   InputNumber, DatePicker, Checkbox, Tag, message, Spin, Divider, Badge, Alert, List, Radio, Progress, Modal, Switch, Tooltip,
@@ -16,6 +16,7 @@ import { prequalificationApi } from '@/api/prequalification'
 import { organisationApi } from '@/api/organisation'
 import { agenciesApi } from '@/api/agencies'
 import { interviewsApi } from '@/api/interviews'
+import { orchestrationApi } from '@/api/orchestration'
 import { cn } from '@/utils/cn'
 import dayjs from 'dayjs'
 import type { JobRequisition, InterviewPackage, JobStage } from '@/types'
@@ -237,20 +238,27 @@ const { Title, Text, Paragraph } = Typography
 const { TextArea } = Input
 
 // ─── Steps Configuration ───────────────────────────────────────────────────
-const STEPS = [
-  { title: 'Job Info', icon: <Briefcase size={18} /> },
-  { title: 'Hiring Team', icon: <Users size={18} /> },
-  { title: 'Sourcing', icon: <Target size={18} /> },
-  { title: 'Workflow', icon: <Workflow size={18} /> },
-  { title: 'Orchestration', icon: <Layers size={18} /> },
-  { title: 'Prequal', icon: <ShieldCheck size={18} /> },
-  { title: 'Interviews', icon: <Box size={18} /> },
-  { title: 'Automation', icon: <BrainCircuit size={18} /> },
-  { title: 'Offers', icon: <DollarSign size={18} /> },
-  { title: 'Review', icon: <CheckCircle2 size={18} /> },
+const ALL_STEPS = [
+  { id: 'strategy', title: 'Setup Mode', icon: <Zap size={18} /> },
+  { id: 'info', title: 'Job Info', icon: <Briefcase size={18} /> },
+  { id: 'team', title: 'Hiring Team', icon: <Users size={18} /> },
+  { id: 'sourcing', title: 'Sourcing', icon: <Target size={18} /> },
+  { id: 'pipeline', title: 'Pipeline Flow', icon: <Workflow size={18} /> },
+  {
+    id: 'orchestration',
+    title: 'Automation Rules',
+    icon: <Layers size={18} />,
+    cond: (values: any) => Boolean(values.add_automation_now),
+  },
+  {
+    id: 'interviews',
+    title: 'Interviews',
+    icon: <Box size={18} />,
+    cond: (values: any) => Boolean(values.add_interviews_now),
+  },
+  { id: 'offers', title: 'Offers', icon: <DollarSign size={18} /> },
+  { id: 'review', title: 'Review', icon: <CheckCircle2 size={18} /> },
 ]
-
-import { orchestrationApi } from '@/api/orchestration'
 
 // ─── Workflow Master Selector ──────────────────────────────────────────────────
 
@@ -284,7 +292,7 @@ function WorkflowMasterSelector({
               <Layers size={20} />
             </div>
             <div>
-              <Title level={4} className="!m-0 font-black tracking-tight">Workflow Master Orchestration</Title>
+              <Title level={4} className="!m-0 font-black tracking-tight">Automation Workflow Module</Title>
               <Text className="text-slate-400 text-xs font-medium">Toggle end-to-end automation engine for this job</Text>
             </div>
           </div>
@@ -304,7 +312,7 @@ function WorkflowMasterSelector({
                 <Select
                   className="w-full"
                   size="large"
-                  placeholder="Select workflow template"
+                  placeholder="Select automation template"
                   loading={isLoading}
                   value={value?.workflow_template_id}
                   onChange={(v) => {
@@ -337,7 +345,7 @@ function WorkflowMasterSelector({
                     />
                   </div>
                   <p className="text-[11px] text-slate-500 leading-relaxed font-medium m-0">
-                    When enabled, the hiring pipeline stages are derived directly from the workflow template. Manual editing will be disabled.
+                    When enabled, the hiring pipeline stages are derived directly from the automation template. Manual editing will be disabled.
                   </p>
                 </div>
               </div>
@@ -552,7 +560,7 @@ function JobStageBuilder({
 
                 {stage.metadata?.workflow_controlled && (
                   <Tag color="purple" className="rounded-full border-none px-2 font-black text-[8px] uppercase tracking-tighter ml-auto">
-                    Workflow Controlled
+                    Automation Controlled
                   </Tag>
                 )}
 
@@ -599,8 +607,20 @@ export default function JobSetupStudio() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { t } = useTranslation(['jobs', 'common'])
-  const [currentStep, setCurrentStep] = useState(0)
+  const [searchParams] = useSearchParams()
+  const initialStep = parseInt(searchParams.get('step') || '0', 10)
+  const [currentStep, setCurrentStep] = useState(initialStep)
   const [form] = Form.useForm()
+  const setupStrategy = Form.useWatch('setup_strategy', form)
+  const policyStrictness = Form.useWatch('policy_strictness', form) || 'strict'
+  const addInterviewsNow = Form.useWatch('add_interviews_now', form) || false
+  const addAutomationNow = Form.useWatch('add_automation_now', form) || false
+  const activeSteps = useMemo(
+    () => ALL_STEPS.filter((s) => !s.cond || s.cond({ setup_strategy: setupStrategy, add_interviews_now: addInterviewsNow, add_automation_now: addAutomationNow })),
+    [setupStrategy, addInterviewsNow, addAutomationNow]
+  )
+  const currentStepId = activeSteps[currentStep]?.id
+  const allValues = Form.useWatch([], form) || {}
   const [loading, setLoading] = useState(false)
   const [jobData, setJobData] = useState<Partial<JobRequisition> | null>(null)
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false)
@@ -625,6 +645,30 @@ export default function JobSetupStudio() {
   const [editingRoundIndex, setEditingRoundIndex] = useState<number | null>(null)
 
   const isEditMode = !!id
+
+  useEffect(() => {
+    if (currentStep > activeSteps.length - 1) {
+      setCurrentStep(Math.max(activeSteps.length - 1, 0))
+    }
+  }, [activeSteps.length, currentStep])
+
+  useEffect(() => {
+    if (!setupStrategy) {
+      return
+    }
+    if (setupStrategy === 'launch_fast') {
+      form.setFieldsValue({ add_interviews_now: false, add_automation_now: false })
+      return
+    }
+    if (setupStrategy === 'use_existing') {
+      form.setFieldsValue({ add_interviews_now: true, add_automation_now: true })
+      return
+    }
+    form.setFieldsValue({
+      add_interviews_now: form.getFieldValue('add_interviews_now') ?? true,
+      add_automation_now: form.getFieldValue('add_automation_now') ?? false,
+    })
+  }, [form, setupStrategy])
 
   const { data: requisitionData, isLoading: jobLoading } = useApiQuery(
     ['requisition', 'setup', id],
@@ -744,6 +788,10 @@ export default function JobSetupStudio() {
 
   const handleNext = async () => {
     try {
+      if (currentStepId === 'strategy' && !form.getFieldValue('setup_strategy')) {
+        message.error('Select a setup mode to continue.')
+        return
+      }
       await form.validateFields()
       setCurrentStep(prev => prev + 1)
     } catch (err) {
@@ -751,7 +799,84 @@ export default function JobSetupStudio() {
     }
   }
 
+  const handleStepChange = (targetStep: number) => {
+    if (targetStep <= currentStep) {
+      setCurrentStep(targetStep)
+      return
+    }
+    const priorSteps = activeSteps.slice(0, targetStep)
+    const firstBlocked = priorSteps.find((s) => stepState(s.id) === 'blocked')
+    if (firstBlocked) {
+      message.warning(`Complete '${firstBlocked.title}' before moving ahead.`)
+      return
+    }
+    setCurrentStep(targetStep)
+  }
+
   const handleBack = () => setCurrentStep(prev => prev - 1)
+  const handleSaveDraft = () => form.submit()
+
+  type StepState = 'ready' | 'deferred' | 'blocked'
+  const stepState = useCallback((stepId: string): StepState => {
+    const values = allValues || {}
+    const hasCoreInfo = Boolean(values.title && values.department_id && values.job_type && values.work_mode && values.headcount && selectedLocations.length > 0)
+    const hasTeam = Boolean(values.job_owner_id)
+    const hasSourcing = Boolean(values.sourcing_mode)
+    const hasPipeline = jobStages.length > 0
+    const hasOffers = Boolean(values.salary_currency)
+    const hasAutomationTemplate = Boolean(values.workflow_enabled ? values.workflow_template_id : true)
+    const hasInterviewTemplate = Boolean(values.interview_package_id)
+
+    switch (stepId) {
+      case 'strategy':
+        return values.setup_strategy ? 'ready' : 'blocked'
+      case 'info':
+        return hasCoreInfo ? 'ready' : 'blocked'
+      case 'team':
+        return hasTeam ? 'ready' : 'blocked'
+      case 'sourcing':
+        return hasSourcing ? 'ready' : 'blocked'
+      case 'pipeline':
+        if (values.setup_strategy === 'use_existing') {
+          return values.workflow_template_id ? 'ready' : 'blocked'
+        }
+        return hasPipeline ? 'ready' : 'blocked'
+      case 'offers':
+        return hasOffers ? 'ready' : 'blocked'
+      case 'orchestration':
+        return hasAutomationTemplate ? 'ready' : 'blocked'
+      case 'interviews':
+        return hasInterviewTemplate || roundsOverride.length > 0 ? 'ready' : 'blocked'
+      case 'review':
+        return 'ready'
+      default:
+        return 'ready'
+    }
+  }, [allValues, jobStages.length, selectedLocations.length, roundsOverride.length])
+
+  const requiredStepIds = useMemo(() => {
+    const base = ['strategy', 'info', 'team', 'sourcing', 'pipeline', 'offers']
+    const extra: string[] = []
+    if (addInterviewsNow) extra.push('interviews')
+    if (addAutomationNow) extra.push('orchestration')
+    return [...base, ...extra]
+  }, [addInterviewsNow, addAutomationNow])
+
+  const blockedRequiredSteps = useMemo(
+    () => activeSteps
+      .filter((s) => requiredStepIds.includes(s.id))
+      .filter((s) => stepState(s.id) === 'blocked')
+      .map((s) => s.title),
+    [activeSteps, requiredStepIds, stepState]
+  )
+
+  const canPublish = blockedRequiredSteps.length === 0
+  const deferredModules = useMemo(() => {
+    const deferred: string[] = []
+    if (setupStrategy === 'launch_fast' || !addInterviewsNow) deferred.push('Interviews')
+    if (setupStrategy === 'launch_fast' || !addAutomationNow) deferred.push('Automation Rules')
+    return deferred
+  }, [setupStrategy, addInterviewsNow, addAutomationNow])
 
   const onFinish = async (values: any) => {
     setLoading(true)
@@ -762,6 +887,12 @@ export default function JobSetupStudio() {
         automation_enabled: values.automation_enabled,
         agency_tenant_ids: values.agency_tenant_ids || [],
         expiry_date: values.expiry_date ? dayjs(values.expiry_date).format('YYYY-MM-DD') : null,
+        hiring_policy: {
+          mode: values.setup_strategy === 'use_existing' ? 'predefined' : 'on_the_go',
+          strictness: values.setup_strategy === 'use_existing' ? (values.policy_strictness || 'strict') : 'non_strict',
+          include_interviews_now: Boolean(values.add_interviews_now),
+          include_automation_now: Boolean(values.add_automation_now),
+        },
       }
 
       const payload: any = {
@@ -909,7 +1040,7 @@ export default function JobSetupStudio() {
     }
   }
 
-  if (jobLoading) return <div className="h-screen flex items-center justify-center bg-white"><Spin size="large" tip="Initializing Studio..." /></div>
+  if (jobLoading) return <div className="h-screen flex items-center justify-center bg-white"><Spin size="large" description="Initializing Studio..." /></div>
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col">
@@ -917,7 +1048,7 @@ export default function JobSetupStudio() {
       <header className="h-16 bg-white border-b border-slate-200 px-8 flex items-center justify-between sticky top-0 z-50 shadow-soft-sm">
         <div className="flex items-center gap-4">
           <Button icon={<ChevronLeft size={18} />} onClick={() => navigate('/jobs')} className="border-slate-200" />
-          <Divider type="vertical" className="h-8 border-slate-200" />
+          <span className="h-8 border-l border-slate-200" aria-hidden="true" />
           <div>
             <Title level={4} className="!m-0 text-slate-900 font-black tracking-tight uppercase tracking-widest leading-none">
               {isEditMode ? 'Job Setup Studio' : 'Job Creation Engine'}
@@ -928,14 +1059,31 @@ export default function JobSetupStudio() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Button icon={<Save size={16} />} className="font-bold text-[11px] uppercase tracking-widest border-slate-200 h-10 px-6 rounded-xl">Save Draft</Button>
+          <Button 
+            icon={<Save size={16} />} 
+            onClick={handleSaveDraft}
+            loading={loading}
+            className="font-bold text-[11px] uppercase tracking-widest border-slate-200 h-10 px-6 rounded-xl"
+          >
+            Save Draft
+          </Button>
           <Button 
             type="primary" 
-            onClick={() => currentStep === STEPS.length - 1 ? form.submit() : handleNext()} 
+            onClick={() => {
+              if (currentStep === activeSteps.length - 1) {
+                if (!canPublish) {
+                  message.error(`Complete required steps before publish: ${blockedRequiredSteps.join(', ')}`)
+                  return
+                }
+                form.submit()
+                return
+              }
+              handleNext()
+            }} 
             loading={loading}
             className="bg-indigo-600 border-none font-black text-[11px] uppercase tracking-widest h-10 px-8 rounded-xl shadow-indigo-100 shadow-lg"
           >
-            {currentStep === STEPS.length - 1 ? 'Publish & Launch' : 'Save & Continue'}
+            {currentStep === activeSteps.length - 1 ? 'Publish & Launch' : 'Save & Continue'}
           </Button>
         </div>
       </header>
@@ -946,10 +1094,24 @@ export default function JobSetupStudio() {
             <Steps
               direction="vertical"
               current={currentStep}
-              onChange={setCurrentStep}
+              onChange={handleStepChange}
               className="job-setup-steps"
-              items={STEPS.map((step, idx) => ({
-                title: <span className="text-[11px] font-black uppercase tracking-widest">{step.title}</span>,
+              items={activeSteps.map((step, idx) => ({
+                title: (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-black uppercase tracking-widest">{step.title}</span>
+                    <Tag
+                      className={cn(
+                        'm-0 rounded-full border-none text-[8px] font-black uppercase px-2',
+                        stepState(step.id) === 'ready' && 'bg-emerald-50 text-emerald-600',
+                        stepState(step.id) === 'deferred' && 'bg-amber-50 text-amber-600',
+                        stepState(step.id) === 'blocked' && 'bg-rose-50 text-rose-600',
+                      )}
+                    >
+                      {stepState(step.id)}
+                    </Tag>
+                  </div>
+                ),
                 icon: (
                   <div className={cn(
                     "flex h-8 w-8 items-center justify-center rounded-xl transition-all border",
@@ -968,8 +1130,66 @@ export default function JobSetupStudio() {
           <div className="max-w-4xl mx-auto p-12">
             <Form form={form} layout="vertical" onFinish={onFinish} requiredMark="optional">
               
-              {/* STEP 1: Basic Info */}
-              {currentStep === 0 && (
+              {/* STEP: Setup Mode */}
+              {currentStepId === 'strategy' && (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
+                  <div>
+                    <Title level={3} className="font-black text-slate-900 tracking-tight mb-1 text-2xl uppercase">Choose Hiring Setup Mode</Title>
+                    <Paragraph className="text-slate-500 font-medium">Choose how strictly this job should be configured from day one.</Paragraph>
+                  </div>
+                  <Card className="rounded-3xl border-slate-100 shadow-soft-sm bg-white" styles={{ body: { padding: 24 } }}>
+                    <Form.Item name="setup_strategy" noStyle>
+                      <Radio.Group className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+                        <Radio.Button value="launch_fast" className="h-auto p-4 rounded-2xl border-none shadow-soft-sm bg-white hover:shadow-md transition-all">
+                          <Sliders size={20} className="text-indigo-600 mb-2" />
+                          <div className="font-black text-[10px] uppercase tracking-widest">On-the-Go Mode</div>
+                          <div className="text-[9px] text-slate-400 font-medium normal-case tracking-normal mt-1 leading-tight">Complete core hiring setup now; defer optional modules.</div>
+                        </Radio.Button>
+                        <Radio.Button value="use_existing" className="h-auto p-4 rounded-2xl border-none shadow-soft-sm bg-white hover:shadow-md transition-all">
+                          <Layers size={20} className="text-indigo-600 mb-2" />
+                          <div className="font-black text-[10px] uppercase tracking-widest">Predefined Flow Mode</div>
+                          <div className="text-[9px] text-slate-400 font-medium normal-case tracking-normal mt-1 leading-tight">Attach already-defined pipeline, interview and automation assets.</div>
+                        </Radio.Button>
+                      </Radio.Group>
+                    </Form.Item>
+                    {setupStrategy === 'launch_fast' && (
+                      <Alert
+                        type="info"
+                        showIcon
+                        className="mt-6 rounded-2xl"
+                        message={<span className="text-[10px] font-black uppercase">On-the-Go Mode</span>}
+                        description={<span className="text-xs">Interviews and automation are deferred. After candidates progress, only safe append-only changes are allowed.</span>}
+                      />
+                    )}
+                    {setupStrategy === 'use_existing' && (
+                      <div className="mt-6 space-y-4">
+                        <Alert
+                          type="info"
+                          showIcon
+                          className="rounded-2xl"
+                          message={<span className="text-[10px] font-black uppercase">Predefined Flow Requirement</span>}
+                          description={<span className="text-xs">Interview Flow and Automation Rules are required now in this mode and are automatically included.</span>}
+                        />
+                        <Form.Item name="policy_strictness" label="Predefined Policy" initialValue="strict" className="!mb-0">
+                          <Radio.Group className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full">
+                            <Radio.Button value="strict" className="h-auto p-4 rounded-xl">
+                              <div className="font-bold text-xs uppercase">Strict</div>
+                              <div className="text-[11px] text-slate-500">Lock interview/pipeline structure after process starts.</div>
+                            </Radio.Button>
+                            <Radio.Button value="non_strict" className="h-auto p-4 rounded-xl">
+                              <div className="font-bold text-xs uppercase">Non-Strict</div>
+                              <div className="text-[11px] text-slate-500">Allow guarded append-only updates after progress.</div>
+                            </Radio.Button>
+                          </Radio.Group>
+                        </Form.Item>
+                    </div>
+                    )}
+                  </Card>
+                </div>
+              )}
+
+              {/* STEP: Basic Info */}
+              {currentStepId === 'info' && (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
                   <div>
                     <Title level={3} className="font-black text-slate-900 tracking-tight mb-1 text-2xl uppercase">Job Identity & Parameters</Title>
@@ -1171,8 +1391,8 @@ export default function JobSetupStudio() {
                 </div>
               )}
 
-              {/* STEP 2: Hiring Team */}
-              {currentStep === 1 && (
+              {/* STEP: Hiring Team */}
+              {currentStepId === 'team' && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500 space-y-8">
                   <div>
                     <Title level={3} className="font-black text-slate-900 tracking-tight mb-1">Hiring Team & Ownership</Title>
@@ -1262,7 +1482,7 @@ export default function JobSetupStudio() {
               )}
 
               {/* STEP 3: Sourcing Setup */}
-              {currentStep === 2 && (
+              {currentStepId === 'sourcing' && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500 space-y-8">
                   <Title level={3} className="font-black text-slate-900 tracking-tight">Sourcing Configuration</Title>
                   <Card className="rounded-3xl border-slate-100 shadow-soft-sm p-2">
@@ -1296,13 +1516,22 @@ export default function JobSetupStudio() {
                 </div>
               )}
 
-              {/* STEP 4: Workflow & Pipeline */}
-              {currentStep === 3 && (
+              {/* STEP: Pipeline Flow */}
+              {currentStepId === 'pipeline' && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500 space-y-8">
                   <div>
-                    <Title level={3} className="font-black text-slate-900 tracking-tight mb-1">Pipeline & Approval Workflow</Title>
-                    <p className="text-slate-400 text-sm font-medium">Configure your custom hiring pipeline and approval requirements.</p>
+                    <Title level={3} className="font-black text-slate-900 tracking-tight mb-1">Pipeline Flow & Approvals</Title>
+                    <p className="text-slate-400 text-sm font-medium">Configure your hiring pipeline path and approval controls.</p>
                   </div>
+                  {form.getFieldValue('setup_strategy') === 'use_existing' && (
+                    <Alert
+                      type="info"
+                      showIcon
+                      className="rounded-2xl"
+                      message={<span className="text-[10px] font-black uppercase">Use Existing Pipeline</span>}
+                      description={<span className="text-xs">Select an automation template in the next step and enable pipeline control to apply predefined stages.</span>}
+                    />
+                  )}
 
                   {/* Pipeline stages */}
                   <Card className="rounded-3xl border-slate-100 shadow-soft-sm overflow-hidden" styles={{ body: { padding: 0 } }}>
@@ -1314,7 +1543,7 @@ export default function JobSetupStudio() {
                       <div className="flex items-center gap-2">
                         {form.getFieldValue('is_workflow_controlled') && (
                           <Tag color="purple" className="m-0 border-none font-black text-[9px] uppercase px-2 rounded-md">
-                            Workflow Controlled
+                            Automation Controlled
                           </Tag>
                         )}
                         <Tag className="m-0 border-none bg-indigo-50 text-indigo-600 font-black text-[9px] uppercase px-2 rounded-md">
@@ -1327,7 +1556,7 @@ export default function JobSetupStudio() {
                         <div className="mb-6 p-4 bg-purple-50 rounded-2xl border border-purple-100 flex items-start gap-3">
                           <Layers size={18} className="text-purple-600 mt-0.5" />
                           <div>
-                            <p className="text-xs font-bold text-purple-900 uppercase tracking-tight">Controlled by Workflow Master</p>
+                            <p className="text-xs font-bold text-purple-900 uppercase tracking-tight">Controlled by Automation Module</p>
                             <p className="text-[11px] text-purple-700 font-medium mt-0.5 leading-relaxed">
                               This job's pipeline stages are defined by the attached orchestration template. Manual editing is disabled to ensure process integrity.
                             </p>
@@ -1411,26 +1640,45 @@ export default function JobSetupStudio() {
                 </div>
               )}
 
-              {/* STEP 5: Orchestration (Workflow Master) */}
-              {currentStep === 4 && (
+              {/* STEP: Automation Rules */}
+              {currentStepId === 'orchestration' && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500 space-y-8">
                   <div>
-                    <Title level={3} className="font-black text-slate-900 tracking-tight mb-1">Global Orchestration</Title>
-                    <p className="text-slate-400 text-sm font-medium">Bind this job to the Workflow Master for end-to-end automation.</p>
+                    <Title level={3} className="font-black text-slate-900 tracking-tight mb-1">Automation Rules</Title>
+                    <p className="text-slate-400 text-sm font-medium">Attach an existing automation template or keep automation configurable later.</p>
                   </div>
 
                   <WorkflowMasterSelector
-                    value={form.getFieldsValue(['workflow_id', 'workflow_template_id', 'workflow_enabled'])}
+                    value={form.getFieldsValue(['workflow_id', 'workflow_template_id', 'workflow_enabled', 'is_workflow_controlled'])}
                     onChange={(v) => form.setFieldsValue(v)}
-                    onTemplateSelect={(tplId) => {
-                      // Optionally fetch template and update stages
+                    onTemplateSelect={async (tplId) => {
+                      try {
+                        const { data } = await orchestrationApi.getTemplateDetail(tplId)
+                        const template = (data as any)?.template
+                        if (template?.workflow_stages?.length > 0 && form.getFieldValue('is_workflow_controlled')) {
+                          const newStages = template.workflow_stages.map((ts: any, idx: number) => ({
+                            name: ts.name,
+                            stage_type: ts.type || 'screening',
+                            stage_order: idx + 1,
+                            is_mandatory: true,
+                            is_critical_path: true,
+                            stage_zone: ts.zone || 'hiring_flow',
+                            trigger_type: ts.trigger_type || 'none',
+                            metadata: { workflow_controlled: true }
+                          }))
+                          setJobStages(newStages)
+                          message.info(`Pipeline synced with template: ${template.name}`)
+                        }
+                      } catch (err) {
+                        console.error("Failed to sync template stages", err)
+                      }
                     }}
                   />
                 </div>
               )}
 
-              {/* STEP 6: Prequalification Binding */}
-              {currentStep === 5 && (
+              {/* STEP: Prequalification */}
+              {currentStepId === 'prequal' && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500 space-y-8">
                   <div>
                     <Title level={3} className="font-black text-slate-900 tracking-tight mb-1 text-2xl uppercase">Prequalification</Title>
@@ -1567,15 +1815,37 @@ export default function JobSetupStudio() {
                 </div>
               )}
 
-              {/* STEP 7: Interview Setup */}
-              {currentStep === 6 && (
+              {/* STEP: Interview Setup */}
+              {currentStepId === 'interviews' && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500 space-y-8">
                   <div className="flex items-center justify-between">
                     <div>
                       <Title level={3} className="font-black text-slate-900 tracking-tight !m-0 uppercase tracking-widest leading-none">Interview Configuration</Title>
                       <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] block mt-1">Bind hiring process & automation rules</Text>
                     </div>
+                    {!form.getFieldValue('interview_package_id') && (
+                      <Button 
+                        type="dashed" 
+                        onClick={() => {
+                          handleSaveDraft()
+                          const reviewIdx = activeSteps.findIndex(s => s.id === 'review')
+                          if (reviewIdx !== -1) setCurrentStep(reviewIdx)
+                        }}
+                        className="rounded-xl border-slate-200 text-slate-400 font-bold text-[10px] uppercase tracking-widest"
+                      >
+                        Skip for Now (Save as Draft)
+                      </Button>
+                    )}
                   </div>
+                  {form.getFieldValue('add_interviews_now') && !form.getFieldValue('interview_package_id') && (
+                    <Alert
+                      type="warning"
+                      showIcon
+                      className="rounded-2xl"
+                      message={<span className="text-[10px] font-black uppercase">Interview Package Required</span>}
+                      description={<span className="text-xs">This strategy requires attaching an existing interview package before publish.</span>}
+                    />
+                  )}
 
                   <Card className="rounded-3xl border-slate-100 shadow-soft-sm overflow-hidden">
                     <div className="p-6 border-b border-slate-50 bg-slate-50/50">
@@ -1788,8 +2058,8 @@ export default function JobSetupStudio() {
                 </div>
               )}
 
-              {/* STEP 8: Automation Setup */}
-              {currentStep === 7 && (
+              {/* STEP: Hiring Automation */}
+              {currentStepId === 'automation' && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500 space-y-8">
                   <div className="flex items-center justify-between">
                     <div>
@@ -1798,7 +2068,7 @@ export default function JobSetupStudio() {
                     </div>
                     {form.getFieldValue('is_workflow_controlled') && (
                       <Tag color="purple" className="m-0 border-none font-black text-[10px] uppercase px-3 py-1 rounded-lg">
-                        Workflow Controlled
+                        Automation Controlled
                       </Tag>
                     )}
                   </div>
@@ -1809,7 +2079,7 @@ export default function JobSetupStudio() {
                       <div>
                         <p className="text-xs font-bold text-purple-900 uppercase tracking-tight">Orchestration Lock</p>
                         <p className="text-[11px] text-purple-700 font-medium mt-0.5 leading-relaxed">
-                          The active Workflow Master governs automation for this job. Manual overrides are disabled to maintain orchestration integrity.
+                          The active automation workflow module governs automation for this job. Manual overrides are disabled to maintain orchestration integrity.
                         </p>
                       </div>
                     </div>
@@ -1888,8 +2158,8 @@ export default function JobSetupStudio() {
                 </div>
               )}
 
-              {/* STEP 9: Offer & Hiring Completion */}
-              {currentStep === 8 && (
+              {/* STEP: Offer & Hiring Completion */}
+              {currentStepId === 'offers' && (
                 <div className="animate-in fade-in slide-in-from-right-4 duration-500 space-y-8">
                   <div className="flex items-center justify-between">
                     <div>
@@ -1898,7 +2168,7 @@ export default function JobSetupStudio() {
                     </div>
                     {form.getFieldValue('is_workflow_controlled') && (
                       <Tag color="purple" className="m-0 border-none font-black text-[10px] uppercase px-3 py-1 rounded-lg">
-                        Workflow Controlled
+                        Automation Controlled
                       </Tag>
                     )}
                   </div>
@@ -1961,12 +2231,21 @@ export default function JobSetupStudio() {
               )}
 
               {/* STEP 8: Final Review */}
-              {currentStep === STEPS.length - 1 && (
+              {currentStepId === 'review' && (
                 <div className="animate-in fade-in duration-700 space-y-8 text-center py-12">
                   <div className="h-20 w-20 bg-emerald-50 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-soft-lg"><CheckCircle2 size={40} /></div>
                   <Title level={2} className="font-black tracking-tight text-slate-900">Configuration Complete</Title>
                   <Paragraph className="text-slate-500 font-medium">Your job requisition is ready for launch. Review final metrics below.</Paragraph>
                   <Card className="text-left rounded-3xl border-slate-100 bg-slate-50/50 p-8 shadow-soft-sm">
+                    {!canPublish && (
+                      <Alert
+                        type="warning"
+                        showIcon
+                        className="mb-6 rounded-2xl"
+                        message={<span className="text-[10px] font-black uppercase">Publish Blocked</span>}
+                        description={<span className="text-xs">Complete required steps: {blockedRequiredSteps.join(', ')}</span>}
+                      />
+                    )}
                     <Text className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-6">Launch Summary</Text>
                     <div className="grid grid-cols-2 gap-x-12 gap-y-6">
                       <div className="flex flex-col"><Text className="text-[9px] font-black text-slate-400 uppercase mb-1">Title</Text><Text className="font-bold text-slate-800 uppercase text-sm">{form.getFieldValue('title')}</Text></div>
@@ -2002,12 +2281,25 @@ export default function JobSetupStudio() {
                         <Text className="text-[9px] font-black text-slate-400 uppercase mb-1">Orchestration</Text>
                         {form.getFieldValue('workflow_enabled') ? (
                           <div className="flex items-center gap-2">
-                            <Tag color="purple" className="rounded-full font-black">Workflow Master Active</Tag>
+                            <Tag color="purple" className="rounded-full font-black">Automation Module Active</Tag>
                             <Text className="text-xs font-medium text-slate-500 italic">End-to-end automation enabled</Text>
                           </div>
                         ) : (
                           <Tag color="default" className="w-fit rounded-full">Standard module control</Tag>
                         )}
+                      </div>
+                      <div className="flex flex-col col-span-2">
+                        <Text className="text-[9px] font-black text-slate-400 uppercase mb-1">Execution Policy</Text>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Tag color={setupStrategy === 'use_existing' ? 'blue' : 'default'} className="rounded-full font-bold">
+                            {setupStrategy === 'use_existing' ? 'Predefined' : 'On-the-Go'}
+                          </Tag>
+                          {setupStrategy === 'use_existing' && (
+                            <Tag color={policyStrictness === 'strict' ? 'red' : 'gold'} className="rounded-full font-bold">
+                              {policyStrictness === 'strict' ? 'Strict' : 'Non-Strict'}
+                            </Tag>
+                          )}
+                        </div>
                       </div>
                       <div className="flex flex-col col-span-2">
                         <Text className="text-[9px] font-black text-slate-400 uppercase mb-1">Prequalification</Text>
@@ -2029,6 +2321,17 @@ export default function JobSetupStudio() {
                           <Tag color="default" className="w-fit rounded-full">No prequalification gate</Tag>
                         )}
                       </div>
+                      {deferredModules.length > 0 && (
+                        <div className="flex flex-col col-span-2">
+                          <Text className="text-[9px] font-black text-slate-400 uppercase mb-1">Deferred Modules</Text>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {deferredModules.map((m) => (
+                              <Tag key={m} color="gold" className="rounded-full font-bold">{m}</Tag>
+                            ))}
+                            <Text className="text-xs text-slate-500">Configure these after launch from Job Command Center.</Text>
+                          </div>
+                        </div>
+                      )}
                       {form.getFieldValue('is_confidential') && (
                         <div className="flex flex-col col-span-2">
                           <Tag icon={<Lock size={10} className="inline mr-1" />} color="red" className="w-fit rounded-full font-bold">Confidential Job</Tag>
@@ -2039,7 +2342,7 @@ export default function JobSetupStudio() {
                 </div>
               )}
 
-              <div className={cn("mt-12 pt-8 border-t border-slate-200 flex items-center justify-between", currentStep === STEPS.length - 1 ? "hidden" : "")}>
+              <div className={cn("mt-12 pt-8 border-t border-slate-200 flex items-center justify-between", currentStep === activeSteps.length - 1 ? "hidden" : "")}>
                 <Button disabled={currentStep === 0} onClick={handleBack} className="h-12 px-8 rounded-2xl font-black text-[11px] uppercase tracking-widest border-slate-200 text-slate-500 hover:bg-slate-50"><ChevronLeft size={18} className="mr-2" /> Previous</Button>
                 <Button type="primary" onClick={handleNext} className="bg-indigo-600 border-none h-12 px-10 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-indigo-100 shadow-lg">Save & Continue <ChevronRight size={18} className="ml-2" /></Button>
               </div>
@@ -2052,9 +2355,9 @@ export default function JobSetupStudio() {
             <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-soft-sm">
               <div className="flex justify-between items-center mb-2">
                 <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Setup Progress</Text>
-                <Text className="text-[10px] font-black text-indigo-600">{Math.round((currentStep / (STEPS.length - 1)) * 100)}%</Text>
+                <Text className="text-[10px] font-black text-indigo-600">{Math.round((currentStep / (activeSteps.length - 1)) * 100)}%</Text>
               </div>
-              <Progress percent={Math.round((currentStep / (STEPS.length - 1)) * 100)} strokeColor="#4f46e5" showInfo={false} size="small" />
+              <Progress percent={Math.round((currentStep / (activeSteps.length - 1)) * 100)} strokeColor="#4f46e5" showInfo={false} size="small" />
             </div>
             
             <Alert 

@@ -217,7 +217,7 @@ export default function PrequalificationList() {
         onOk={() => form.submit()}
         okText="Create & Open Builder"
         confirmLoading={submitting}
-        destroyOnClose
+        destroyOnHidden
         width={500}
       >
         <Form form={form} layout="vertical" onFinish={handleCreate} className="mt-6">

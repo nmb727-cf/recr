@@ -25,6 +25,8 @@ from apps.candidates.identity_service import (
 )
 from apps.core.responses import success_response, error_response
 from django.utils import timezone
+from django.core.cache import cache
+from django.conf import settings
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 class InviteLinkListView(APIView):
@@ -102,7 +104,30 @@ class InviteLinkDeactivateView(APIView):
 class PublicApplyFormView(APIView):
     permission_classes = [AllowAny]
 
+    def _rate_limit_exceeded(self, request, token):
+        ip_addr = request.META.get('REMOTE_ADDR', '') or 'unknown'
+        method = request.method.upper()
+        ttl_seconds = int(getattr(settings, 'CANDIDATE_PUBLIC_APPLY_RATE_WINDOW_SECONDS', 60))
+        if method == 'POST':
+            limit = int(getattr(settings, 'CANDIDATE_PUBLIC_APPLY_POST_RATE_LIMIT', 20))
+        else:
+            limit = int(getattr(settings, 'CANDIDATE_PUBLIC_APPLY_GET_RATE_LIMIT', 60))
+        key = f'candidate_public_apply:{method}:{token}:{ip_addr}'
+        current = cache.get(key)
+        if current is None:
+            cache.set(key, 1, timeout=ttl_seconds)
+            return False
+        if int(current) >= limit:
+            return True
+        try:
+            cache.incr(key)
+        except ValueError:
+            cache.set(key, int(current) + 1, timeout=ttl_seconds)
+        return False
+
     def get(self, request, token):
+        if self._rate_limit_exceeded(request, token):
+            return error_response("Too many requests. Please retry shortly.", status_code=429)
         try:
             link = CandidateInviteLink.objects.get(
                 token=token, status='active'
@@ -139,6 +164,8 @@ class PublicApplyFormView(APIView):
         }, message="Form config retrieved.")
 
     def post(self, request, token):
+        if self._rate_limit_exceeded(request, token):
+            return error_response("Too many requests. Please retry shortly.", status_code=429)
         """
         Source 2 — Candidate submits the apply form.
 

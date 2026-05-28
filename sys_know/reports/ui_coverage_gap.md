@@ -184,7 +184,9 @@
 - pages/pipeline/ApplicationFullView.tsx
 - pages/pipeline/ApplicationQuickView.tsx
 - pages/pipeline/PipelineBoard.tsx
+- pages/pipeline/PipelineBoardV2.tsx
 - pages/pipeline/PipelinePreview.tsx
+- pages/portal/PortalAcceptPage.tsx
 - pages/prequalification/PrequalificationBuilder.tsx
 - pages/prequalification/PrequalificationList.tsx
 - pages/public/ApplyForm.tsx
@@ -392,7 +394,9 @@
 - pages/pipeline/ApplicationFullView.tsx
 - pages/pipeline/ApplicationQuickView.tsx
 - pages/pipeline/PipelineBoard.tsx
+- pages/pipeline/PipelineBoardV2.tsx
 - pages/pipeline/PipelinePreview.tsx
+- pages/portal/PortalAcceptPage.tsx
 - pages/prequalification/PrequalificationBuilder.tsx
 - pages/prequalification/PrequalificationList.tsx
 - pages/public/ApplyForm.tsx

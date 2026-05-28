@@ -7,7 +7,7 @@ from apps.agencies.models import AgencyClientRelationship
 from apps.candidates.models import Candidate
 from apps.candidates.views import CandidateListView
 from apps.jobs.models import JobPosting, JobRequisition
-from apps.jobs.views import JobRequisitionListView, JobSearchView
+from apps.jobs.views import JobRequisitionListView, JobSearchView, JobPublicDetailView
 from apps.organisations.views import GlobalSearchView
 from apps.tenants.models import Client
 
@@ -136,8 +136,45 @@ class SearchReliabilityTests(TestCase):
         request = self.factory.get('/api/v1/jobs/search/?search=engineer')
         response = JobSearchView.as_view()(request)
         self.assertEqual(response.status_code, 200)
-        ids = {row['id'] for row in response.data['data']['jobs']}
+        jobs = response.data['data']['jobs']
+        ids = {row['id'] for row in jobs}
         self.assertEqual(ids, {str(good.id)})
+        self.assertNotIn('tenant_id', jobs[0])
+        self.assertNotIn('requisition_id', jobs[0])
+        self.assertNotIn('metadata', jobs[0])
+        self.assertNotIn('custom_application_form', jobs[0])
+        self.assertNotIn('views_count', jobs[0])
+
+    def test_3b_public_job_detail_hides_internal_requisition_fields(self):
+        req = JobRequisition.objects.create(
+            tenant_id=self.tenant_a.id,
+            title='Security Engineer',
+            status='active',
+            is_deleted=False,
+            salary_visible=False,
+            budget_code='INTERNAL-BUDGET-1',
+            recruiter_id=self.user_a.id,
+        )
+        posting = JobPosting.objects.create(
+            tenant_id=self.tenant_a.id,
+            requisition_id=req.id,
+            title='Security Engineer Posting',
+            description_html='Role description',
+            is_active=True,
+            is_deleted=False,
+        )
+        request = self.factory.get(f'/api/v1/jobs/public/{posting.id}/')
+        response = JobPublicDetailView.as_view()(request, pk=posting.id)
+        self.assertEqual(response.status_code, 200)
+        posting_data = response.data['data']['posting']
+        requisition_data = response.data['data']['requisition']
+        self.assertNotIn('tenant_id', posting_data)
+        self.assertNotIn('requisition_id', posting_data)
+        self.assertNotIn('metadata', posting_data)
+        self.assertIsNone(requisition_data['salary_min'])
+        self.assertIsNone(requisition_data['salary_max'])
+        self.assertNotIn('budget_code', requisition_data)
+        self.assertNotIn('recruiter_id', requisition_data)
 
     def test_4_scope_widening_query_param_is_rejected(self):
         request = self._authed_request('get', '/api/v1/candidates/?tenant_id=11111111-1111-1111-1111-111111111111')

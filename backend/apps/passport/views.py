@@ -1,5 +1,7 @@
 import secrets
 from django.utils import timezone
+from django.core.cache import cache
+from django.conf import settings
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -385,7 +387,26 @@ def _apply_visibility(data: dict, visibility: dict) -> dict:
 class PublicPassportView(APIView):
     permission_classes = [AllowAny]
 
+    def _rate_limit_exceeded(self, request, token):
+        ip_addr = request.META.get('REMOTE_ADDR', '') or 'unknown'
+        key = f'public_passport:{token}:{ip_addr}'
+        ttl_seconds = int(getattr(settings, 'PUBLIC_PASSPORT_RATE_WINDOW_SECONDS', 60))
+        limit = int(getattr(settings, 'PUBLIC_PASSPORT_RATE_LIMIT', 30))
+        current = cache.get(key)
+        if current is None:
+            cache.set(key, 1, timeout=ttl_seconds)
+            return False
+        if int(current) >= limit:
+            return True
+        try:
+            cache.incr(key)
+        except ValueError:
+            cache.set(key, int(current) + 1, timeout=ttl_seconds)
+        return False
+
     def get(self, request, token):
+        if self._rate_limit_exceeded(request, token):
+            return error_response("Too many requests. Please retry shortly.", status_code=status.HTTP_429_TOO_MANY_REQUESTS)
         try:
             passport = TalentPassport.objects.get(
                 share_link_token=token,
@@ -440,6 +461,14 @@ class PassportImportView(APIView):
             return error_response(
                 "Invalid passport token.",
                 status_code=status.HTTP_404_NOT_FOUND
+            )
+        if PassportRevocation.objects.filter(
+            passport_id=passport.id,
+            revoked_from_tenant_id=request.user.tenant_id,
+        ).exists():
+            return error_response(
+                "This passport has been revoked for your tenant.",
+                status_code=status.HTTP_403_FORBIDDEN,
             )
 
         # Log import access

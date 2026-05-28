@@ -1,6 +1,9 @@
 import uuid
+import time
+import hmac
+import hashlib
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from rest_framework.test import APIRequestFactory
 
 from apps.orchestration_center.models.workflow import Workflow, WorkflowNode, WorkflowEdge
@@ -52,10 +55,31 @@ def make_waiting_instance(*, tenant_id, wait_node_type='approval', wait_node_con
     return instance, wait_state
 
 
+@override_settings(
+    WORKFLOW_CALLBACK_SIGNATURE_SECRET='test-workflow-callback-secret',
+    WORKFLOW_CALLBACK_SIGNATURE_TTL_SECONDS=300,
+)
 class TestCompanyExternalCallbacks(TestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
         self.tenant_id = uuid.uuid4()
+        self.callback_secret = 'test-workflow-callback-secret'
+
+    def _signed_post(self, path, payload, *, timestamp=None, signature=None):
+        ts = int(time.time()) if timestamp is None else int(timestamp)
+        req = self.factory.post(
+            path,
+            payload,
+            format='json',
+        )
+        computed_signature = hmac.new(
+            self.callback_secret.encode('utf-8'),
+            f'{ts}.'.encode('utf-8') + req.body,
+            hashlib.sha256,
+        ).hexdigest()
+        req.META['HTTP_X_TALENTOS_TIMESTAMP'] = str(ts)
+        req.META['HTTP_X_TALENTOS_SIGNATURE'] = signature or computed_signature
+        return req
 
     def test_agency_submission_callback_resumes_waiting_instance(self):
         instance, wait_state = make_waiting_instance(tenant_id=self.tenant_id)
@@ -63,7 +87,7 @@ class TestCompanyExternalCallbacks(TestCase):
         instance.wait_reason = 'waiting_client'
         instance.save(update_fields=['wait_reason', 'updated_at'])
 
-        req = self.factory.post(
+        req = self._signed_post(
             '/api/v1/company/external/agency-submission/',
             {
                 'tenant_id': str(self.tenant_id),
@@ -71,7 +95,6 @@ class TestCompanyExternalCallbacks(TestCase):
                 'callback_reference': 'agency-sub-001',
                 'payload': {'agency_submission_id': str(uuid.uuid4())},
             },
-            format='json',
         )
         response = CompanyAgencySubmissionCallbackView.as_view()(req)
 
@@ -94,7 +117,7 @@ class TestCompanyExternalCallbacks(TestCase):
         instance.wait_reason = 'waiting_candidate'
         instance.save(update_fields=['wait_reason', 'updated_at'])
 
-        req = self.factory.post(
+        req = self._signed_post(
             '/api/v1/company/external/candidate-response/',
             {
                 'tenant_id': str(self.tenant_id),
@@ -102,7 +125,6 @@ class TestCompanyExternalCallbacks(TestCase):
                 'callback_reference': 'offer-resp-001',
                 'payload': {'response': 'accepted'},
             },
-            format='json',
         )
         response = CompanyCandidateResponseCallbackView.as_view()(req)
 
@@ -116,7 +138,7 @@ class TestCompanyExternalCallbacks(TestCase):
         instance.wait_reason = 'waiting_signature'
         instance.save(update_fields=['wait_reason', 'updated_at'])
 
-        req = self.factory.post(
+        req = self._signed_post(
             '/api/v1/company/external/candidate-document-signed/',
             {
                 'tenant_id': str(self.tenant_id),
@@ -124,7 +146,6 @@ class TestCompanyExternalCallbacks(TestCase):
                 'callback_reference': 'doc-sign-001',
                 'payload': {'document_id': str(uuid.uuid4())},
             },
-            format='json',
         )
         response = CompanyCandidateDocumentSignedCallbackView.as_view()(req)
 
@@ -133,13 +154,12 @@ class TestCompanyExternalCallbacks(TestCase):
         self.assertGreaterEqual(response.data['resumed_count'], 1)
 
     def test_candidate_interview_confirm_callback_maps_response_variants(self):
-        missing_req = self.factory.post(
+        missing_req = self._signed_post(
             '/api/v1/company/external/candidate-interview-confirm/',
             {
                 'interview_id': str(uuid.uuid4()),
                 'response': 'accepted',
             },
-            format='json',
         )
         missing_response = CompanyCandidateInterviewConfirmCallbackView.as_view()(missing_req)
         self.assertEqual(missing_response.status_code, 404)
@@ -159,7 +179,7 @@ class TestCompanyExternalCallbacks(TestCase):
         interview_instance.entity_id = interview.id
         interview_instance.save(update_fields=['wait_reason', 'entity_type', 'entity_id', 'updated_at'])
 
-        req = self.factory.post(
+        req = self._signed_post(
             '/api/v1/company/external/candidate-interview-confirm/',
             {
                 'tenant_id': str(self.tenant_id),
@@ -168,7 +188,6 @@ class TestCompanyExternalCallbacks(TestCase):
                 'response': 'reschedule-request',
                 'notes': 'Need evening slot',
             },
-            format='json',
         )
         response_obj = CompanyCandidateInterviewConfirmCallbackView.as_view()(req)
         self.assertEqual(response_obj.status_code, 200)
@@ -177,14 +196,13 @@ class TestCompanyExternalCallbacks(TestCase):
         self.assertGreaterEqual(response_obj.data['resumed_count'], 1)
 
     def test_callback_requires_scope(self):
-        req = self.factory.post(
+        req = self._signed_post(
             '/api/v1/company/external/hrms-handoff-ack/',
             {
                 'tenant_id': str(self.tenant_id),
                 'callback_reference': 'hrms-ack-001',
                 'payload': {'status': 'received'},
             },
-            format='json',
         )
         response = CompanyHRMSHandoffAckCallbackView.as_view()(req)
 
@@ -208,7 +226,7 @@ class TestCompanyExternalCallbacks(TestCase):
         instance.entity_id = offer.application_id
         instance.save(update_fields=['wait_reason', 'entity_type', 'entity_id', 'updated_at'])
 
-        req = self.factory.post(
+        req = self._signed_post(
             '/api/v1/company/external/candidate-offer-response/',
             {
                 'tenant_id': str(self.tenant_id),
@@ -218,7 +236,6 @@ class TestCompanyExternalCallbacks(TestCase):
                 'counter_salary': '1450000.00',
                 'notes': 'Can we revise compensation?',
             },
-            format='json',
         )
         response = CompanyCandidateOfferResponseCallbackView.as_view()(req)
         self.assertEqual(response.status_code, 200)
@@ -251,7 +268,7 @@ class TestCompanyExternalCallbacks(TestCase):
         instance.entity_id = offer.application_id
         instance.save(update_fields=['wait_reason', 'entity_type', 'entity_id', 'updated_at'])
 
-        req = self.factory.post(
+        req = self._signed_post(
             '/api/v1/company/external/candidate-offer-response/',
             {
                 'tenant_id': str(self.tenant_id),
@@ -259,7 +276,6 @@ class TestCompanyExternalCallbacks(TestCase):
                 'offer_id': str(offer.id),
                 'response': 'accepted',
             },
-            format='json',
         )
         response = CompanyCandidateOfferResponseCallbackView.as_view()(req)
         self.assertEqual(response.status_code, 200)
@@ -284,7 +300,7 @@ class TestCompanyExternalCallbacks(TestCase):
         instance.entity_id = onboarding.application_id
         instance.save(update_fields=['wait_reason', 'entity_type', 'entity_id', 'updated_at'])
 
-        req = self.factory.post(
+        req = self._signed_post(
             '/api/v1/company/external/candidate-document-uploaded/',
             {
                 'tenant_id': str(self.tenant_id),
@@ -293,7 +309,6 @@ class TestCompanyExternalCallbacks(TestCase):
                 'document_type': 'ID proof',
                 'document_status': 'uploaded',
             },
-            format='json',
         )
         response = CompanyCandidateDocumentUploadedCallbackView.as_view()(req)
         self.assertEqual(response.status_code, 200)
@@ -315,7 +330,7 @@ class TestCompanyExternalCallbacks(TestCase):
         instance.entity_id = onboarding.application_id
         instance.save(update_fields=['wait_reason', 'entity_type', 'entity_id', 'updated_at'])
 
-        req = self.factory.post(
+        req = self._signed_post(
             '/api/v1/company/external/hrms-handoff/',
             {
                 'tenant_id': str(self.tenant_id),
@@ -323,10 +338,37 @@ class TestCompanyExternalCallbacks(TestCase):
                 'onboarding_id': str(onboarding.id),
                 'status': 'acknowledged',
             },
-            format='json',
         )
         response = CompanyHRMSHandoffCallbackView.as_view()(req)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['resume_event'], 'hrms_handoff_acknowledged')
         onboarding.refresh_from_db()
         self.assertEqual(onboarding.status, 'handed_off')
+
+    def test_callback_missing_signature_headers_rejected(self):
+        req = self.factory.post(
+            '/api/v1/company/external/agency-submission/',
+            {
+                'tenant_id': str(self.tenant_id),
+                'callback_reference': 'agency-sub-unsigned',
+                'workflow_instance_id': str(uuid.uuid4()),
+                'payload': {'agency_submission_id': str(uuid.uuid4())},
+            },
+            format='json',
+        )
+        response = CompanyAgencySubmissionCallbackView.as_view()(req)
+        self.assertEqual(response.status_code, 401)
+
+    def test_callback_stale_timestamp_rejected(self):
+        req = self._signed_post(
+            '/api/v1/company/external/agency-submission/',
+            {
+                'tenant_id': str(self.tenant_id),
+                'callback_reference': 'agency-sub-stale',
+                'workflow_instance_id': str(uuid.uuid4()),
+                'payload': {'agency_submission_id': str(uuid.uuid4())},
+            },
+            timestamp=int(time.time()) - 1000,
+        )
+        response = CompanyAgencySubmissionCallbackView.as_view()(req)
+        self.assertEqual(response.status_code, 401)

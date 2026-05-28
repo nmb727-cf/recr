@@ -1,0 +1,2472 @@
+{
+  "frontend": [
+    {
+      "file": "types/index.ts",
+      "issues": [
+        "Uses 'any' type (5 times)"
+      ]
+    },
+    {
+      "file": "pages/Settings.tsx",
+      "issues": [
+        "Uses 'any' type (50 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/Messages.tsx",
+      "issues": [
+        "Uses 'any' type (1 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/Analytics.tsx",
+      "issues": [
+        "Uses 'any' type (4 times)"
+      ]
+    },
+    {
+      "file": "pages/auth/Login.tsx",
+      "issues": [
+        "Uses 'any' type (1 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/auth/RegisterCompany.tsx",
+      "issues": [
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/auth/RegisterCandidate.tsx",
+      "issues": [
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/auth/VerifyEmail.tsx",
+      "issues": [
+        "Uses 'any' type (1 times)",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/auth/RegisterAgency.tsx",
+      "issues": [
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/qa/ModuleReadiness.tsx",
+      "issues": [
+        "Uses 'any' type (1 times)"
+      ]
+    },
+    {
+      "file": "pages/organisation/IntegrationHub.tsx",
+      "issues": [
+        "Uses 'any' type (4 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/talent-pools/TalentPoolsList.tsx",
+      "issues": [
+        "Uses 'any' type (3 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/talent-pools/TalentPoolDetail.tsx",
+      "issues": [
+        "Uses 'any' type (9 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/dashboard/HiringCommandCenter.tsx",
+      "issues": [
+        "Uses 'any' type (4 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/dashboard/Dashboard.tsx",
+      "issues": [
+        "Uses 'any' type (25 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/dashboard/RecruiterWorkspace.tsx",
+      "issues": [
+        "Uses 'any' type (9 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/offers/OfferManagement.tsx",
+      "issues": [
+        "Uses 'any' type (16 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/automation/AutomationCommandCenter.tsx",
+      "issues": [
+        "Uses 'any' type (2 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/hdc/HiringDecisionWorkspace.tsx",
+      "issues": [
+        "Uses 'any' type (2 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/hdc/sections/OfferIntelligence.tsx",
+      "issues": [
+        "Uses 'any' type (16 times)"
+      ]
+    },
+    {
+      "file": "pages/hdc/sections/DecisionApproval.tsx",
+      "issues": [
+        "Uses 'any' type (26 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/hdc/sections/OfferAcceptance.tsx",
+      "issues": [
+        "Uses 'any' type (14 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/hdc/sections/OfferRelease.tsx",
+      "issues": [
+        "Uses 'any' type (14 times)"
+      ]
+    },
+    {
+      "file": "pages/hdc/sections/CandidateComparison.tsx",
+      "issues": [
+        "Uses 'any' type (22 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/hdc/sections/HiringCommittee.tsx",
+      "issues": [
+        "Uses 'any' type (28 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/hdc/sections/JoiningTracking.tsx",
+      "issues": [
+        "Uses 'any' type (24 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/hdc/sections/Compensation.tsx",
+      "issues": [
+        "Uses 'any' type (14 times)"
+      ]
+    },
+    {
+      "file": "pages/hdc/sections/Negotiation.tsx",
+      "issues": [
+        "Uses 'any' type (17 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/hdc/sections/DecisionDashboard.tsx",
+      "issues": [
+        "Uses 'any' type (4 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/system/GlobalAutomationOrchestrator.tsx",
+      "issues": [
+        "Uses 'any' type (6 times)"
+      ]
+    },
+    {
+      "file": "pages/interviews/CandidateSelfSchedule.tsx",
+      "issues": [
+        "Uses 'any' type (6 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/RecruiterBulkScheduling.tsx",
+      "issues": [
+        "Uses 'any' type (17 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewAssessmentCenterEngine.tsx",
+      "issues": [
+        "Uses 'any' type (17 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewPresentationEngine.tsx",
+      "issues": [
+        "Uses 'any' type (16 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewPrequalificationEngine.tsx",
+      "issues": [
+        "Uses 'any' type (30 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/RecruiterProductivityTools.tsx",
+      "issues": [
+        "Uses 'any' type (4 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewTechnicalEngine.tsx",
+      "issues": [
+        "Uses 'any' type (27 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/RecruiterInterviewDashboard.tsx",
+      "issues": [
+        "Uses 'any' type (1 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewTypeConfig.tsx",
+      "issues": [
+        "Uses 'any' type (2 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewBarRaiserEngine.tsx",
+      "issues": [
+        "Uses 'any' type (16 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewDecisionPanel.tsx",
+      "issues": [
+        "Uses 'any' type (7 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewGroupDiscussionEngine.tsx",
+      "issues": [
+        "Uses 'any' type (16 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewAutomation.tsx",
+      "issues": [
+        "Uses 'any' type (27 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewQuestionBank.tsx",
+      "issues": [
+        "Uses 'any' type (29 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewRolePlayEngine.tsx",
+      "issues": [
+        "Uses 'any' type (16 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewTypes.tsx",
+      "issues": [
+        "Uses 'any' type (5 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewAIEngine.tsx",
+      "issues": [
+        "Uses 'any' type (22 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewWalkinDriveEngine.tsx",
+      "issues": [
+        "Uses 'any' type (17 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewCampusHiringEngine.tsx",
+      "issues": [
+        "Uses 'any' type (17 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewIntegrations.tsx",
+      "issues": [
+        "Uses 'any' type (8 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewHumanEngine.tsx",
+      "issues": [
+        "Uses 'any' type (27 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewCommandCenter.tsx",
+      "issues": [
+        "Uses 'any' type (48 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewMockEngine.tsx",
+      "issues": [
+        "Uses 'any' type (16 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewSequentialRoundEngine.tsx",
+      "issues": [
+        "Uses 'any' type (17 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewFeedbackSubmit.tsx",
+      "issues": [
+        "Uses 'any' type (5 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/interviews/RecruiterInterviewQueue.tsx",
+      "issues": [
+        "Uses 'any' type (3 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewVideoEngine.tsx",
+      "issues": [
+        "Uses 'any' type (19 times)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewsList.tsx",
+      "issues": [
+        "Uses 'any' type (16 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/interviews/WalkinDriveWizard.tsx",
+      "issues": [
+        "Uses 'any' type (1 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewAssessmentEngine.tsx",
+      "issues": [
+        "Uses 'any' type (27 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewWhiteboardEngine.tsx",
+      "issues": [
+        "Uses 'any' type (18 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewLiveCenter.tsx",
+      "issues": [
+        "Uses 'any' type (18 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewTemplates.tsx",
+      "issues": [
+        "Uses 'any' type (25 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewScorecards.tsx",
+      "issues": [
+        "Uses 'any' type (22 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/WalkinDrivesList.tsx",
+      "issues": [
+        "Uses 'any' type (5 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewPortfolioReviewEngine.tsx",
+      "issues": [
+        "Uses 'any' type (16 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewKit.tsx",
+      "issues": [
+        "Uses 'any' type (3 times)"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewSchedulingEngine.tsx",
+      "issues": [
+        "Uses 'any' type (38 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/interviews/InterviewScreeningEngine.tsx",
+      "issues": [
+        "Uses 'any' type (22 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/workflows/AdvancedWorkflowBuilder.tsx",
+      "issues": [
+        "Uses 'any' type (7 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/workflows/AgencyOrchestrationEngine.tsx",
+      "issues": [
+        "Uses 'any' type (14 times)"
+      ]
+    },
+    {
+      "file": "pages/workflows/OrchestrationEngine.tsx",
+      "issues": [
+        "Uses 'any' type (17 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/workflows/GuidedWorkflowBuilder.tsx",
+      "issues": [
+        "Uses 'any' type (2 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/workflows/AgencyEventTriggers.tsx",
+      "issues": [
+        "Uses 'any' type (8 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/workflows/WorkflowEventWorkspace.tsx",
+      "issues": [
+        "Uses 'any' type (6 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/workflows/WorkflowSystemWorkspace.tsx",
+      "issues": [
+        "Uses 'any' type (5 times)"
+      ]
+    },
+    {
+      "file": "pages/admin/MasterAdminDashboard.tsx",
+      "issues": [
+        "Uses 'any' type (6 times)"
+      ]
+    },
+    {
+      "file": "pages/admin/MasterAdminTenantDetail.tsx",
+      "issues": [
+        "Uses 'any' type (1 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/admin/MasterAdminAudit.tsx",
+      "issues": [
+        "Uses 'any' type (1 times)"
+      ]
+    },
+    {
+      "file": "pages/admin/MasterAdminSettings.tsx",
+      "issues": [
+        "Uses 'any' type (5 times)",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/admin/MasterAdminTenants.tsx",
+      "issues": [
+        "Uses 'any' type (3 times)"
+      ]
+    },
+    {
+      "file": "pages/onboarding/AgencyOnboarding.tsx",
+      "issues": [
+        "Uses 'any' type (8 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/onboarding/OnboardingWizard.tsx",
+      "issues": [
+        "Uses 'any' type (2 times)"
+      ]
+    },
+    {
+      "file": "pages/onboarding/CompanyOnboarding.tsx",
+      "issues": [
+        "Uses 'any' type (6 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/candidates/CandidateQuickView.tsx",
+      "issues": [
+        "Uses 'any' type (51 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/candidates/CandidateDatabase.tsx",
+      "issues": [
+        "Uses 'any' type (9 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/candidates/CandidateRelations.tsx",
+      "issues": [
+        "Uses 'any' type (18 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/candidates/CandidateFullView.tsx",
+      "issues": [
+        "Uses 'any' type (3 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/candidates/CandidateWorkbench.tsx",
+      "issues": [
+        "Uses 'any' type (21 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/candidates/CandidateDetail.tsx",
+      "issues": [
+        "Uses 'any' type (4 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/candidates/AddToActiveModal.tsx",
+      "issues": [
+        "Uses 'any' type (17 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/candidates/candidates_backup/CandidateQuickView.tsx",
+      "issues": [
+        "Uses 'any' type (75 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/candidates/candidates_backup/CandidateDatabase_Backup.tsx",
+      "issues": [
+        "Uses 'any' type (19 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/candidates/candidates_backup/CandidateDatabase.tsx",
+      "issues": [
+        "Uses 'any' type (19 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/candidates/candidates_backup/CandidateFullView.tsx",
+      "issues": [
+        "Uses 'any' type (3 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/candidates/candidates_backup/CandidateWorkbench.tsx",
+      "issues": [
+        "Uses 'any' type (47 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/candidates/candidates_backup/CandidateDetail.tsx",
+      "issues": [
+        "Uses 'any' type (3 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/candidates/candidates_backup/AddToActiveModal.tsx",
+      "issues": [
+        "Uses 'any' type (17 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/prequalification/PrequalificationList.tsx",
+      "issues": [
+        "Uses 'any' type (7 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/prequalification/PrequalificationBuilder.tsx",
+      "issues": [
+        "Uses 'any' type (42 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/candidate/JobSearch.tsx",
+      "issues": [
+        "Uses 'any' type (2 times)",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/candidate/CandidatePrequalification.tsx",
+      "issues": [
+        "Uses 'any' type (5 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/candidate/CandidateInterviewRuntime.tsx",
+      "issues": [
+        "Uses 'any' type (8 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/candidate/CandidateInterviewDashboard.tsx",
+      "issues": [
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/candidate/CandidateCommandCenter.tsx",
+      "issues": [
+        "Uses 'any' type (22 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/candidate/ClaimProfile.tsx",
+      "issues": [
+        "Uses 'any' type (7 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/candidate/CandidateInterviewNotifications.tsx",
+      "issues": [
+        "Uses 'any' type (3 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/candidate/MyApplications.tsx",
+      "issues": [
+        "Uses 'any' type (6 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/candidate/Onboarding.tsx",
+      "issues": [
+        "Uses 'any' type (35 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/candidate/CandidateInterviewHelp.tsx",
+      "issues": [
+        "Uses 'any' type (1 times)"
+      ]
+    },
+    {
+      "file": "pages/candidate/CandidateInterviewExperience.tsx",
+      "issues": [
+        "Uses 'any' type (1 times)"
+      ]
+    },
+    {
+      "file": "pages/candidate/Passport.tsx",
+      "issues": [
+        "Uses 'any' type (18 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/candidate/CandidateInterviewFeedback.tsx",
+      "issues": [
+        "Uses 'any' type (1 times)"
+      ]
+    },
+    {
+      "file": "pages/intelligence/IntelligenceGovernance.tsx",
+      "issues": [
+        "Uses 'any' type (7 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/intelligence/AutomationPlaybooks.tsx",
+      "issues": [
+        "Uses 'any' type (18 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/intelligence/AutomationChangeImpact.tsx",
+      "issues": [
+        "Uses 'any' type (17 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/intelligence/AutomationNotifications.tsx",
+      "issues": [
+        "Uses 'any' type (8 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/intelligence/GovernanceCenter.tsx",
+      "issues": [
+        "Uses 'any' type (10 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/intelligence/IntelligenceHubWorkspace.tsx",
+      "issues": [
+        "Uses 'any' type (6 times)"
+      ]
+    },
+    {
+      "file": "pages/intelligence/AutomationOS.tsx",
+      "issues": [
+        "Uses 'any' type (14 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/intelligence/AutomationAnalytics.tsx",
+      "issues": [
+        "Uses 'any' type (18 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Contains TODOs or mock data"
+      ]
+    },
+    {
+      "file": "pages/intelligence/IntelligenceAnalytics.tsx",
+      "issues": [
+        "Uses 'any' type (8 times)"
+      ]
+    },
+    {
+      "file": "pages/intelligence/IntelligenceOptimization.tsx",
+      "issues": [
+        "Uses 'any' type (6 times)"
+      ]
+    },
+    {
+      "file": "pages/intelligence/IntelligenceLearning.tsx",
+      "issues": [
+        "Uses 'any' type (8 times)"
+      ]
+    },
+    {
+      "file": "pages/intelligence/AutomationPermissions.tsx",
+      "issues": [
+        "Uses 'any' type (6 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/intelligence/AutomationSandbox.tsx",
+      "issues": [
+        "Uses 'any' type (11 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/intelligence/IntelligenceHubWorkspace.test.tsx",
+      "issues": [
+        "Uses 'any' type (5 times)"
+      ]
+    },
+    {
+      "file": "pages/intelligence/WorkflowGovernance.tsx",
+      "issues": [
+        "Uses 'any' type (21 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/intelligence/AutomationSla.tsx",
+      "issues": [
+        "Uses 'any' type (14 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/intelligence/AutomationTasks.tsx",
+      "issues": [
+        "Uses 'any' type (11 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/intelligence/AutomationObservability.tsx",
+      "issues": [
+        "Uses 'any' type (12 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/intelligence/AutomationLibrary.tsx",
+      "issues": [
+        "Uses 'any' type (5 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/pipeline/PipelinePreview.tsx",
+      "issues": [
+        "Uses 'any' type (8 times)"
+      ]
+    },
+    {
+      "file": "pages/pipeline/PipelineBoard.tsx",
+      "issues": [
+        "Uses 'any' type (45 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/pipeline/ApplicationDetail.tsx",
+      "issues": [
+        "Uses 'any' type (3 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/pipeline/ApplicationQuickView.tsx",
+      "issues": [
+        "Uses 'any' type (2 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/pipeline/ApplicationFullView.tsx",
+      "issues": [
+        "Uses 'any' type (3 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/settings/CommunicationControlCenter.tsx",
+      "issues": [
+        "Uses 'any' type (5 times)"
+      ]
+    },
+    {
+      "file": "pages/search/GlobalSearch.tsx",
+      "issues": [
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/public/ApplyForm.tsx",
+      "issues": [
+        "Uses 'any' type (7 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/public/PublicPassportPage.tsx",
+      "issues": [
+        "Uses 'any' type (2 times)"
+      ]
+    },
+    {
+      "file": "pages/agency/AgencySubmissionQuickView.tsx",
+      "issues": [
+        "Uses 'any' type (2 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/agency/AgencyJobQuickView.tsx",
+      "issues": [
+        "Uses 'any' type (4 times)"
+      ]
+    },
+    {
+      "file": "pages/agency/MyJobs.tsx",
+      "issues": [
+        "Uses 'any' type (1 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/agency/AgencyDashboard.tsx",
+      "issues": [
+        "Uses 'any' type (4 times)"
+      ]
+    },
+    {
+      "file": "pages/agency/MyClients.tsx",
+      "issues": [
+        "Uses 'any' type (10 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/agency/MySubmissions.tsx",
+      "issues": [
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/agency/SubmitCandidate.tsx",
+      "issues": [
+        "Uses 'any' type (4 times)",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/jobs/JobSetupStudio.tsx",
+      "issues": [
+        "Uses 'any' type (60 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/jobs/JobDetailPanel.tsx",
+      "issues": [
+        "Uses 'any' type (4 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/jobs/JobsList.tsx",
+      "issues": [
+        "Uses 'any' type (33 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/jobs/JobAutomationView.tsx",
+      "issues": [
+        "Uses 'any' type (4 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/jobs/JobFullView.tsx",
+      "issues": [
+        "Uses 'any' type (15 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/jobs/JobTemplates.tsx",
+      "issues": [
+        "Uses 'any' type (8 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/jobs/JobInterviewsTab.tsx",
+      "issues": [
+        "Uses 'any' type (5 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/jobs/JobDetail.tsx",
+      "issues": [
+        "Uses 'any' type (44 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/jobs/JobTrackingView.tsx",
+      "issues": [
+        "Uses 'any' type (6 times)"
+      ]
+    },
+    {
+      "file": "pages/jobs/JobCommandCenterView.tsx",
+      "issues": [
+        "Uses 'any' type (59 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/jobs/JobQuickView.tsx",
+      "issues": [
+        "Uses 'any' type (5 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/jobs/backup_phase1_reset_20260405/JobSetupStudio.tsx",
+      "issues": [
+        "Uses 'any' type (26 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/jobs/backup_phase1_reset_20260405/JobDetailPanel.tsx",
+      "issues": [
+        "Uses 'any' type (1 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/jobs/backup_phase1_reset_20260405/JobsList.tsx",
+      "issues": [
+        "Uses 'any' type (33 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/jobs/backup_phase1_reset_20260405/JobAutomationView.tsx",
+      "issues": [
+        "Uses 'any' type (4 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/jobs/backup_phase1_reset_20260405/JobFullView.tsx",
+      "issues": [
+        "Uses 'any' type (15 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/jobs/backup_phase1_reset_20260405/JobCreate.tsx",
+      "issues": [
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/jobs/backup_phase1_reset_20260405/JobInterviewsTab.tsx",
+      "issues": [
+        "Uses 'any' type (5 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/jobs/backup_phase1_reset_20260405/JobDetail.tsx",
+      "issues": [
+        "Uses 'any' type (33 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/jobs/backup_phase1_reset_20260405/JobTrackingView.tsx",
+      "issues": [
+        "Uses 'any' type (6 times)"
+      ]
+    },
+    {
+      "file": "pages/jobs/backup_phase1_reset_20260405/JobCommandCenterView.tsx",
+      "issues": [
+        "Uses 'any' type (45 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/jobs/backup_phase1_reset_20260405/JobQuickView.tsx",
+      "issues": [
+        "Uses 'any' type (5 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/agencies/CompanyAgencies.tsx",
+      "issues": [
+        "Uses 'any' type (11 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/agencies/AgencyClients.tsx",
+      "issues": [
+        "Uses 'any' type (14 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/agencies/AgenciesList.tsx",
+      "issues": [
+        "Uses 'any' type (32 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "pages/analytics/UnifiedOperationsDashboard.tsx",
+      "issues": [
+        "Uses 'any' type (8 times)"
+      ]
+    },
+    {
+      "file": "pages/analytics/AgencyIntelligenceDashboard.tsx",
+      "issues": [
+        "Uses 'any' type (6 times)"
+      ]
+    },
+    {
+      "file": "pages/analytics/HiringIntelligenceDashboard.tsx",
+      "issues": [
+        "Uses 'any' type (4 times)"
+      ]
+    },
+    {
+      "file": "pages/analytics/SystemIntelligenceMemory.tsx",
+      "issues": [
+        "Uses 'any' type (13 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/analytics/RecruiterIntelligenceDashboard.tsx",
+      "issues": [
+        "Uses 'any' type (7 times)"
+      ]
+    },
+    {
+      "file": "pages/analytics/ExecutiveDecisionCenter.tsx",
+      "issues": [
+        "Uses 'any' type (12 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/analytics/HiringAIBrainDashboard.tsx",
+      "issues": [
+        "Uses 'any' type (7 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "pages/analytics/AutonomousHiringEngine.tsx",
+      "issues": [
+        "Uses 'any' type (6 times)"
+      ]
+    },
+    {
+      "file": "pages/analytics/TalentControlTower.tsx",
+      "issues": [
+        "Uses 'any' type (15 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "constants/candidateFields.ts",
+      "issues": [
+        "Uses 'any' type (1 times)"
+      ]
+    },
+    {
+      "file": "store/authStore.ts",
+      "issues": [
+        "Uses 'any' type (1 times)"
+      ]
+    },
+    {
+      "file": "store/drawerStore.ts",
+      "issues": [
+        "Uses 'any' type (4 times)"
+      ]
+    },
+    {
+      "file": "layouts/AppLayout.menu.test.tsx",
+      "issues": [
+        "Uses 'any' type (4 times)"
+      ]
+    },
+    {
+      "file": "layouts/AppLayout.tsx",
+      "issues": [
+        "Uses 'any' type (4 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "api/candidate.ts",
+      "issues": [
+        "Uses 'any' type (1 times)"
+      ]
+    },
+    {
+      "file": "api/automationSla.ts",
+      "issues": [
+        "Uses 'any' type (18 times)"
+      ]
+    },
+    {
+      "file": "api/documents.ts",
+      "issues": [
+        "Uses 'any' type (3 times)"
+      ]
+    },
+    {
+      "file": "api/workflowVisualBuilder.ts",
+      "issues": [
+        "Uses 'any' type (7 times)"
+      ]
+    },
+    {
+      "file": "api/workflowVersioning.ts",
+      "issues": [
+        "Uses 'any' type (11 times)"
+      ]
+    },
+    {
+      "file": "api/integrations.ts",
+      "issues": [
+        "Uses 'any' type (4 times)"
+      ]
+    },
+    {
+      "file": "api/talentPools.ts",
+      "issues": [
+        "Uses 'any' type (3 times)"
+      ]
+    },
+    {
+      "file": "api/interviews.ts",
+      "issues": [
+        "Uses 'any' type (107 times)"
+      ]
+    },
+    {
+      "file": "api/auth.ts",
+      "issues": [
+        "Uses 'any' type (6 times)"
+      ]
+    },
+    {
+      "file": "api/workflowRecovery.ts",
+      "issues": [
+        "Uses 'any' type (10 times)"
+      ]
+    },
+    {
+      "file": "api/automationObservability.ts",
+      "issues": [
+        "Uses 'any' type (6 times)"
+      ]
+    },
+    {
+      "file": "api/workflowHumanTasks.ts",
+      "issues": [
+        "Uses 'any' type (6 times)"
+      ]
+    },
+    {
+      "file": "api/workflowTemplateLibrary.ts",
+      "issues": [
+        "Uses 'any' type (11 times)"
+      ]
+    },
+    {
+      "file": "api/automationSandbox.ts",
+      "issues": [
+        "Uses 'any' type (13 times)"
+      ]
+    },
+    {
+      "file": "api/workflowExecutionOrchestrator.ts",
+      "issues": [
+        "Uses 'any' type (7 times)"
+      ]
+    },
+    {
+      "file": "api/passport.ts",
+      "issues": [
+        "Uses 'any' type (2 times)"
+      ]
+    },
+    {
+      "file": "api/analytics.ts",
+      "issues": [
+        "Uses 'any' type (11 times)"
+      ]
+    },
+    {
+      "file": "api/hdc.ts",
+      "issues": [
+        "Uses 'any' type (55 times)"
+      ]
+    },
+    {
+      "file": "api/automationPlaybooks.ts",
+      "issues": [
+        "Uses 'any' type (11 times)"
+      ]
+    },
+    {
+      "file": "api/workflowNotifications.ts",
+      "issues": [
+        "Uses 'any' type (5 times)"
+      ]
+    },
+    {
+      "file": "api/orchestration.ts",
+      "issues": [
+        "Uses 'any' type (3 times)"
+      ]
+    },
+    {
+      "file": "api/pipeline.ts",
+      "issues": [
+        "Uses 'any' type (1 times)"
+      ]
+    },
+    {
+      "file": "api/workflowScheduler.ts",
+      "issues": [
+        "Uses 'any' type (5 times)"
+      ]
+    },
+    {
+      "file": "api/agencies.ts",
+      "issues": [
+        "Uses 'any' type (10 times)"
+      ]
+    },
+    {
+      "file": "api/candidates.ts",
+      "issues": [
+        "Uses 'any' type (10 times)"
+      ]
+    },
+    {
+      "file": "api/intelligenceHub.ts",
+      "issues": [
+        "Uses 'any' type (94 times)"
+      ]
+    },
+    {
+      "file": "api/workflowMetricsAnalytics.ts",
+      "issues": [
+        "Uses 'any' type (9 times)"
+      ]
+    },
+    {
+      "file": "api/workflowConditions.ts",
+      "issues": [
+        "Uses 'any' type (10 times)"
+      ]
+    },
+    {
+      "file": "api/automationOs.ts",
+      "issues": [
+        "Uses 'any' type (13 times)"
+      ]
+    },
+    {
+      "file": "api/agencyWorkflowApi.ts",
+      "issues": [
+        "Uses 'any' type (41 times)"
+      ]
+    },
+    {
+      "file": "api/prequalification.ts",
+      "issues": [
+        "Uses 'any' type (18 times)"
+      ]
+    },
+    {
+      "file": "api/workflowInstanceTracker.ts",
+      "issues": [
+        "Uses 'any' type (12 times)"
+      ]
+    },
+    {
+      "file": "api/workflowActions.ts",
+      "issues": [
+        "Uses 'any' type (6 times)"
+      ]
+    },
+    {
+      "file": "api/qaApi.ts",
+      "issues": [
+        "Uses 'any' type (3 times)"
+      ]
+    },
+    {
+      "file": "api/jobs.ts",
+      "issues": [
+        "Uses 'any' type (15 times)"
+      ]
+    },
+    {
+      "file": "api/automationChangeImpact.ts",
+      "issues": [
+        "Uses 'any' type (9 times)"
+      ]
+    },
+    {
+      "file": "api/workflowSla.ts",
+      "issues": [
+        "Uses 'any' type (4 times)"
+      ]
+    },
+    {
+      "file": "api/workflowObservability.ts",
+      "issues": [
+        "Uses 'any' type (8 times)"
+      ]
+    },
+    {
+      "file": "api/automation.ts",
+      "issues": [
+        "Uses 'any' type (12 times)"
+      ]
+    },
+    {
+      "file": "utils/companyOnboarding.ts",
+      "issues": [
+        "Uses 'any' type (1 times)"
+      ]
+    },
+    {
+      "file": "utils/http.ts",
+      "issues": [
+        "Uses 'any' type (1 times)"
+      ]
+    },
+    {
+      "file": "utils/authAccess.test.ts",
+      "issues": [
+        "Uses 'any' type (5 times)"
+      ]
+    },
+    {
+      "file": "components/CandidateInteractionDrawer.tsx",
+      "issues": [
+        "Uses 'any' type (4 times)",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "components/JobMatchSuggestions.tsx",
+      "issues": [
+        "Uses 'any' type (2 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "components/RemindersWidget.tsx",
+      "issues": [
+        "Uses 'any' type (2 times)"
+      ]
+    },
+    {
+      "file": "components/InviteLinkGenerator.tsx",
+      "issues": [
+        "Uses 'any' type (11 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "components/communications/NewThreadDrawer.tsx",
+      "issues": [
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "components/communications/ThreadFilters.tsx",
+      "issues": [
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "components/candidates/AddCandidateWorkflowModal.tsx",
+      "issues": [
+        "Uses 'any' type (11 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "components/forms/JobCreateForm.tsx",
+      "issues": [
+        "Uses 'any' type (31 times)",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "components/drawers/GlobalDrawer.tsx",
+      "issues": [
+        "Uses 'any' type (9 times)"
+      ]
+    },
+    {
+      "file": "components/drawers/quickviews/OfferQVPanel.tsx",
+      "issues": [
+        "Uses 'any' type (1 times)",
+        "Found disconnected button (no onClick or submit type)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "components/drawers/quickviews/CandidateJobQVPanel.tsx",
+      "issues": [
+        "Uses 'any' type (2 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "components/drawers/quickviews/AgencyJobQVPanel.tsx",
+      "issues": [
+        "Uses 'any' type (2 times)",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "components/drawers/quickviews/CandidateApplicationQVPanel.tsx",
+      "issues": [
+        "Uses 'any' type (1 times)"
+      ]
+    },
+    {
+      "file": "components/drawers/quickviews/AgencyClientQVPanel.tsx",
+      "issues": [
+        "Uses 'any' type (1 times)"
+      ]
+    },
+    {
+      "file": "components/drawers/fullviews/AgencyJobFVPanel.tsx",
+      "issues": [
+        "Uses 'any' type (2 times)"
+      ]
+    },
+    {
+      "file": "components/drawers/fullviews/CandidateApplicationFVPanel.tsx",
+      "issues": [
+        "Uses 'any' type (1 times)"
+      ]
+    },
+    {
+      "file": "components/agencies/PaymentTermsField.tsx",
+      "issues": [
+        "Uses 'any' type (2 times)"
+      ]
+    },
+    {
+      "file": "components/notification-control/RulesTable.tsx",
+      "issues": [
+        "Uses 'any' type (1 times)"
+      ]
+    },
+    {
+      "file": "components/notification-control/RuleEditDrawer.tsx",
+      "issues": [
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "components/common/RequirePermission.tsx",
+      "issues": [
+        "Uses 'any' type (5 times)"
+      ]
+    },
+    {
+      "file": "components/common/ProtectedRoute.test.tsx",
+      "issues": [
+        "Uses 'any' type (6 times)"
+      ]
+    },
+    {
+      "file": "components/common/PhoneInput.tsx",
+      "issues": [
+        "Uses 'any' type (2 times)",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    },
+    {
+      "file": "components/common/OnboardingGuard.tsx",
+      "issues": [
+        "Uses 'any' type (1 times)"
+      ]
+    },
+    {
+      "file": "components/channel-control/ChannelHealthPanel.tsx",
+      "issues": [
+        "Uses 'any' type (2 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "components/channel-control/DeliveryLogTable.tsx",
+      "issues": [
+        "Uses 'any' type (1 times)",
+        "Found disconnected button (no onClick or submit type)"
+      ]
+    },
+    {
+      "file": "components/channel-control/ChannelOverviewCards.tsx",
+      "issues": [
+        "Uses 'any' type (4 times)"
+      ]
+    },
+    {
+      "file": "components/channel-control/ProviderConfigDrawer.tsx",
+      "issues": [
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field",
+        "Found uncontrolled/unvalidated input field"
+      ]
+    }
+  ],
+  "backend": [
+    {
+      "module": "automation_notifications",
+      "file": "models.py",
+      "issues": [
+        "Contains empty models ('pass')"
+      ]
+    },
+    {
+      "module": "communications",
+      "file": "models.py",
+      "issues": [
+        "Contains empty models ('pass')"
+      ]
+    },
+    {
+      "module": "automation_system_completion",
+      "file": "models.py",
+      "issues": [
+        "Contains empty models ('pass')"
+      ]
+    },
+    {
+      "module": "interviews",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)"
+      ]
+    },
+    {
+      "module": "interviews",
+      "file": "models.py",
+      "issues": [
+        "Contains empty models ('pass')"
+      ]
+    },
+    {
+      "module": "automation_permissions",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)"
+      ]
+    },
+    {
+      "module": "passport",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)"
+      ]
+    },
+    {
+      "module": "passport",
+      "file": "models.py",
+      "issues": [
+        "Contains empty models ('pass')"
+      ]
+    },
+    {
+      "module": "candidates",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)"
+      ]
+    },
+    {
+      "module": "candidates",
+      "file": "models.py",
+      "issues": [
+        "Contains empty models ('pass')"
+      ]
+    },
+    {
+      "module": "accounts",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)"
+      ]
+    },
+    {
+      "module": "accounts",
+      "file": "models.py",
+      "issues": [
+        "Contains empty models ('pass')"
+      ]
+    },
+    {
+      "module": "pipeline",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)"
+      ]
+    },
+    {
+      "module": "organisations",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)"
+      ]
+    },
+    {
+      "module": "documents",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)",
+        "Contains hardcoded API responses instead of DB logic"
+      ]
+    },
+    {
+      "module": "jobs",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)"
+      ]
+    },
+    {
+      "module": "jobs",
+      "file": "models.py",
+      "issues": [
+        "Contains empty models ('pass')"
+      ]
+    },
+    {
+      "module": "agencies",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)"
+      ]
+    },
+    {
+      "module": "analytics",
+      "file": "views.py",
+      "issues": [
+        "Contains 'pass' blocks (unimplemented views)"
+      ]
+    }
+  ],
+  "empty_modules": [
+    "qa",
+    "agency_workflows",
+    "cafe",
+    "workflow_execution",
+    "notifications",
+    "core",
+    "orchestration_center",
+    "marketplace"
+  ]
+}

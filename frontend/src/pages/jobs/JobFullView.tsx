@@ -672,10 +672,8 @@ function ActivityTab({ jobId }: { jobId: string }) {
 
 export default function JobFullView({ jobId, onRefresh, initialTab }: { jobId: string, onRefresh: () => void, initialTab?: string }) {
   const [activeTab, setActiveTab] = useState(initialTab || 'overview')
-  const [editModalOpen, setEditModalOpen] = useState(false)
   const user = useAuthStore((s) => s.user)
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
 
   const { data, isLoading, refetch } = useApiQuery(
     ['requisition', 'full', jobId],
@@ -690,7 +688,7 @@ export default function JobFullView({ jobId, onRefresh, initialTab }: { jobId: s
     mutationFn: () => requisitionsApi.submitForApproval(jobId!),
     onSuccess: () => {
       message.success('Requisition submitted for approval')
-      queryClient.invalidateQueries({ queryKey: ['requisition', 'full', jobId] })
+      refetch()
     }
   })
 
@@ -698,7 +696,7 @@ export default function JobFullView({ jobId, onRefresh, initialTab }: { jobId: s
     mutationFn: () => requisitionsApi.approve(jobId!),
     onSuccess: () => {
       message.success('Requisition approved')
-      queryClient.invalidateQueries({ queryKey: ['requisition', 'full', jobId] })
+      refetch()
     }
   })
 
@@ -706,7 +704,7 @@ export default function JobFullView({ jobId, onRefresh, initialTab }: { jobId: s
     mutationFn: () => requisitionsApi.publish(jobId!),
     onSuccess: () => {
       message.success('Requisition published and is now ACTIVE')
-      queryClient.invalidateQueries({ queryKey: ['requisition', 'full', jobId] })
+      refetch()
     }
   })
 
@@ -744,9 +742,15 @@ export default function JobFullView({ jobId, onRefresh, initialTab }: { jobId: s
                 {requisition.job_ref_id || requisition.id}
               </div>
               <div className="flex flex-wrap items-center gap-4 text-slate-400 text-[11px] font-bold uppercase tracking-[0.1em]">
-                <span className="flex items-center gap-1.5"><MapPin size={12} className="text-slate-300" /> {requisition.location_id || 'Remote'}</span>
+                <span className="flex items-center gap-1.5">
+                  <MapPin size={12} className="text-slate-300" /> 
+                  {(requisition as any).location_name || 'Remote'}
+                </span>
                 <span className="text-slate-200">•</span>
-                <span className="flex items-center gap-1.5"><Building2 size={12} className="text-slate-300" /> {requisition.department_id || 'General'}</span>
+                <span className="flex items-center gap-1.5">
+                  <Building2 size={12} className="text-slate-300" /> 
+                  {(requisition as any).department_name || 'General'}
+                </span>
                 <span className="text-slate-200">•</span>
                 <span className="flex items-center gap-1.5"><Users size={12} className="text-slate-300" /> {requisition.headcount} Openings</span>
                 <span className="text-slate-200">•</span>
@@ -763,7 +767,7 @@ export default function JobFullView({ jobId, onRefresh, initialTab }: { jobId: s
               type="primary" 
               icon={<Edit size={16} />} 
               className="h-10 px-6 flex items-center gap-2 font-black text-xs uppercase tracking-widest rounded-xl bg-indigo-600 border-none shadow-lg shadow-indigo-100"
-              onClick={() => setEditModalOpen(true)}
+              onClick={() => navigate(`/jobs/${jobId}/setup`)}
             >
               Edit Job
             </Button>
@@ -856,28 +860,6 @@ export default function JobFullView({ jobId, onRefresh, initialTab }: { jobId: s
           ]}
         />
       </div>
-
-      <Modal
-        open={editModalOpen}
-        onCancel={() => setEditModalOpen(false)}
-        width={720}
-        title={<span className="text-xl font-black tracking-tight text-slate-900 uppercase tracking-widest">Edit Requisition</span>}
-        footer={null}
-        destroyOnClose
-        className="rounded-3xl overflow-hidden"
-      >
-        <div className="pt-4">
-          <JobCreateForm 
-            onSuccess={() => {
-              setEditModalOpen(false)
-              refetch()
-              onRefresh()
-              queryClient.invalidateQueries({ queryKey: ['requisition', 'full', jobId] })
-            }} 
-            initialValues={requisition} 
-          />
-        </div>
-      </Modal>
     </div>
   )
 }

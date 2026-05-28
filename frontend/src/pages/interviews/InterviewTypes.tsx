@@ -496,7 +496,7 @@ export default function InterviewTypes() {
         onCancel={() => setCreateModalOpen(false)}
         onOk={() => form.submit()}
         confirmLoading={submitting}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={handleCreate} className="mt-6">
           <Form.Item name="name" label="Type Name" rules={[{ required: true }]}>

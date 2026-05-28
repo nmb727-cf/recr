@@ -1010,10 +1010,46 @@ export default function CompanyAgencies() {
                       <Form.Item name="contract_start_date" label="Contract Start Date">
                         <DatePicker className="w-full" />
                       </Form.Item>
-                      <Form.Item name="contract_end_date" label="Contract End Date">
+                      <Form.Item 
+                        name="contract_end_date" 
+                        label="Contract End Date"
+                        dependencies={['contract_start_date']}
+                        rules={[
+                          ({ getFieldValue }) => ({
+                            validator(_, value) {
+                              const start = getFieldValue('contract_start_date')
+                              if (!value || !start || value.isAfter(start) || value.isSame(start)) {
+                                return Promise.resolve()
+                              }
+                              return Promise.reject(new Error('End Date must be on or after Start Date'))
+                            },
+                          }),
+                        ]}
+                      >
                         <DatePicker className="w-full" />
                       </Form.Item>
                     </div>
+
+                    {/* Real-time Calculation Summary */}
+                    <Form.Item noStyle dependencies={['commission_percentage', 'commission_type']}>
+                      {({ getFieldsValue }) => {
+                        const { commission_percentage, commission_type } = getFieldsValue()
+                        if (!commission_percentage) return null
+                        return (
+                          <div className="mt-4 p-4 bg-[#F9FAFB] rounded-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Terms Calculation Preview</div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs text-slate-600">
+                                <span>Expected Payout:</span>
+                                <span className="font-bold text-[#4F46E5]">
+                                  {commission_type === 'percentage' ? `${commission_percentage}% of CTC` : `${commission_percentage} Fixed`}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      }}
+                    </Form.Item>
 
                     <Form.Item name="notes" label="Notes">
                       <Input.TextArea rows={2} placeholder="Internal notes about this agency..." />
@@ -1059,10 +1095,46 @@ export default function CompanyAgencies() {
                       <Form.Item name="contract_start_date" label="Contract Start Date">
                         <DatePicker className="w-full" />
                       </Form.Item>
-                      <Form.Item name="contract_end_date" label="Contract End Date">
+                      <Form.Item 
+                        name="contract_end_date" 
+                        label="Contract End Date"
+                        dependencies={['contract_start_date']}
+                        rules={[
+                          ({ getFieldValue }) => ({
+                            validator(_, value) {
+                              const start = getFieldValue('contract_start_date')
+                              if (!value || !start || value.isAfter(start) || value.isSame(start)) {
+                                return Promise.resolve()
+                              }
+                              return Promise.reject(new Error('End Date must be on or after Start Date'))
+                            },
+                          }),
+                        ]}
+                      >
                         <DatePicker className="w-full" />
                       </Form.Item>
                     </div>
+
+                    {/* Real-time Calculation Summary */}
+                    <Form.Item noStyle dependencies={['commission_percentage', 'commission_type']}>
+                      {({ getFieldsValue }) => {
+                        const { commission_percentage, commission_type } = getFieldsValue()
+                        if (!commission_percentage) return null
+                        return (
+                          <div className="mt-4 p-4 bg-[#F9FAFB] rounded-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Terms Calculation Preview</div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-xs text-slate-600">
+                                <span>Expected Payout:</span>
+                                <span className="font-bold text-[#4F46E5]">
+                                  {commission_type === 'percentage' ? `${commission_percentage}% of CTC` : `${commission_percentage} Fixed`}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      }}
+                    </Form.Item>
 
                     <div className="grid grid-cols-2 gap-4">
                       <Form.Item label="Contract File">

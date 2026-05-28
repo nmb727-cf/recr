@@ -2,6 +2,9 @@ from django.utils import timezone
 from datetime import timedelta
 from django.db import models
 from django.utils.dateparse import parse_datetime
+from django.core.cache import cache
+from django.conf import settings
+import logging
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
@@ -54,10 +57,29 @@ from apps.interviews.permissions import (
 from apps.pipeline.models import Application
 from apps.candidates.models import Candidate, CandidateProfile
 from apps.jobs.models import JobRequisition
+from apps.jobs.policy_guardrails import validate_interview_rounds_change, get_policy_context
 from apps.core.responses import success_response, error_response
 from apps.core import events
 from apps.interviews.scheduling import compute_common_slots
 from shared.actor_access import require_candidate, require_non_candidate, require_tenant_or_platform_admin
+
+logger = logging.getLogger(__name__)
+
+
+def _policy_error(requisition, message: str):
+    ctx = get_policy_context(requisition)
+    return error_response(
+        message,
+        errors={
+            'code': 'POLICY_GUARDRAIL_BLOCKED',
+            'policy_mode': ctx.mode,
+            'strictness': ctx.strictness,
+            'process_started': ctx.process_started,
+            'active_candidates': ctx.active_candidates,
+            'furthest_stage_order': ctx.furthest_stage_order,
+            'furthest_interview_round': ctx.furthest_interview_round,
+        },
+    )
 
 
 def _require_candidate_role(user):
@@ -193,6 +215,29 @@ class JobInterviewBindingView(InternalInterviewOpsAPIView):
         except InterviewPackage.DoesNotExist:
             return error_response("Interview package not found.", status_code=status.HTTP_404_NOT_FOUND)
 
+        requisition = JobRequisition.objects.filter(
+            id=requisition_id,
+            tenant_id=request.user.tenant_id,
+            is_deleted=False,
+        ).first()
+        if not requisition:
+            return error_response("Requisition not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        existing_binding = InterviewPackageBinding.objects.filter(
+            tenant_id=request.user.tenant_id,
+            job_id=requisition_id,
+            is_deleted=False,
+        ).first()
+
+        if existing_binding and get_policy_context(requisition).process_started:
+            err = validate_interview_rounds_change(
+                requisition,
+                existing_binding.get_rounds() or [],
+                request.data.get('rounds_override', []),
+            )
+            if err:
+                return _policy_error(requisition, err)
+
         binding, created = InterviewPackageBinding.objects.update_or_create(
             job_id=requisition_id,
             defaults={
@@ -223,6 +268,22 @@ class JobInterviewBindingView(InternalInterviewOpsAPIView):
         
         if not binding:
             return error_response("No binding found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        requisition = JobRequisition.objects.filter(
+            id=requisition_id,
+            tenant_id=request.user.tenant_id,
+            is_deleted=False,
+        ).first()
+        if not requisition:
+            return error_response("Requisition not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        err = validate_interview_rounds_change(
+            requisition,
+            binding.get_rounds() or [],
+            request.data.get('rounds_override', []),
+        )
+        if err:
+            return _policy_error(requisition, err)
             
         serializer = InterviewPackageBindingSerializer(binding, data=request.data, partial=True)
         if not serializer.is_valid():
@@ -243,6 +304,18 @@ class JobInterviewBindingView(InternalInterviewOpsAPIView):
         
         if not binding:
             return error_response("No binding found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        requisition = JobRequisition.objects.filter(
+            id=requisition_id,
+            tenant_id=request.user.tenant_id,
+            is_deleted=False,
+        ).first()
+        if not requisition:
+            return error_response("Requisition not found.", status_code=status.HTTP_404_NOT_FOUND)
+
+        ctx = get_policy_context(requisition)
+        if ctx.process_started:
+            return _policy_error(requisition, "Interview flow cannot be removed after process start.")
             
         binding.soft_delete()
         return success_response(
@@ -785,7 +858,10 @@ class InterviewListView(InternalInterviewOpsAPIView):
                         'order_index': i,
                     })
             except InterviewTemplate.DoesNotExist:
-                pass
+                logger.warning(
+                    "Interview template not found during schedule request",
+                    extra={'tenant_id': str(request.user.tenant_id), 'template_id': str(data.get('template_id') or '')},
+                )
 
         interview = serializer.save(
             tenant_id=request.user.tenant_id,
@@ -959,7 +1035,10 @@ class InterviewCompleteView(InternalInterviewOpsAPIView):
                 request=request
             )
         except Application.DoesNotExist:
-            pass
+            logger.warning(
+                "Interview completion could not emit application.interviewed event because application was missing",
+                extra={'interview_id': str(interview.id), 'application_id': str(interview.application_id or '')},
+            )
 
         return success_response(
             data={'interview': InterviewSerializer(interview).data},
@@ -1817,10 +1896,49 @@ class InterviewSchedulingLinkPublicView(APIView):
     authentication_classes = []
     permission_classes = []
 
+    def _client_ip(self, request):
+        forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR', '')
+        if forwarded_for:
+            return forwarded_for.split(',')[0].strip()
+        return request.META.get('REMOTE_ADDR', '') or 'unknown'
+
+    def _public_rate_limit_exceeded(self, request, token):
+        ip_addr = self._client_ip(request)
+        method = request.method.upper()
+        ttl_seconds = int(getattr(settings, 'INTERVIEW_SCHEDULING_PUBLIC_RATE_WINDOW_SECONDS', 60))
+        if method == 'POST':
+            limit = int(getattr(settings, 'INTERVIEW_SCHEDULING_PUBLIC_POST_RATE_LIMIT', 10))
+        else:
+            limit = int(getattr(settings, 'INTERVIEW_SCHEDULING_PUBLIC_GET_RATE_LIMIT', 30))
+        key = f'interview_schedule_public:{method}:{token}:{ip_addr}'
+        current = cache.get(key)
+        if current is None:
+            cache.set(key, 1, timeout=ttl_seconds)
+            return False
+        if int(current) >= limit:
+            return True
+        try:
+            cache.incr(key)
+        except ValueError:
+            cache.set(key, int(current) + 1, timeout=ttl_seconds)
+        return False
+
+    def _public_interview_payload(self, interview):
+        return {
+            'id': str(interview.id),
+            'title': interview.title,
+            'interview_type': interview.interview_type,
+            'duration_minutes': interview.duration_minutes,
+            'scheduled_at': interview.scheduled_at,
+            'status': interview.status,
+        }
+
     def _get_link(self, token):
         return InterviewSchedulingLink.objects.filter(token=token, is_active=True).first()
 
     def get(self, request, token):
+        if self._public_rate_limit_exceeded(request, token):
+            return error_response("Too many requests. Please retry shortly.", status_code=status.HTTP_429_TOO_MANY_REQUESTS)
         link = self._get_link(token)
         if not link:
             return error_response("Scheduling link not found.", status_code=status.HTTP_404_NOT_FOUND)
@@ -1847,13 +1965,15 @@ class InterviewSchedulingLinkPublicView(APIView):
         return success_response(
             data={
                 'link': InterviewSchedulingLinkSerializer(link).data,
-                'interview': InterviewSerializer(interview).data,
+                'interview': self._public_interview_payload(interview),
                 'slots': slots,
             },
             message="Candidate scheduling options retrieved.",
         )
 
     def post(self, request, token):
+        if self._public_rate_limit_exceeded(request, token):
+            return error_response("Too many requests. Please retry shortly.", status_code=status.HTTP_429_TOO_MANY_REQUESTS)
         link = self._get_link(token)
         if not link:
             return error_response("Scheduling link not found.", status_code=status.HTTP_404_NOT_FOUND)
@@ -1886,7 +2006,7 @@ class InterviewSchedulingLinkPublicView(APIView):
 
         events.interview.scheduled.send(sender=self.__class__, interview=interview)
         return success_response(
-            data={'interview': InterviewSerializer(interview).data},
+            data={'interview': self._public_interview_payload(interview)},
             message="Interview slot confirmed.",
         )
 

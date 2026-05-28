@@ -38,8 +38,35 @@ class TranslationOverrideListView(APIView):
 
         overrides = {obj.key: obj.value for obj in qs}
 
-        # Layer tenant-specific overrides on top
+        # Layer tenant-specific overrides on top only when caller is authorized
         if tenant_id:
+            user = getattr(request, 'user', None)
+            is_authenticated = bool(user and getattr(user, 'is_authenticated', False))
+            is_super_admin = bool(user and getattr(user, 'role', '') == 'super_admin')
+            user_tenant_id = str(getattr(user, 'tenant_id', '')) if user else ''
+
+            if not is_authenticated:
+                return success_response(
+                    data={
+                        'language': lang,
+                        'overrides': overrides,
+                        'count': len(overrides),
+                        'warning': 'Tenant overrides require authentication.',
+                    },
+                    message='Global overrides retrieved.',
+                )
+
+            if not is_super_admin and user_tenant_id != str(tenant_id):
+                return success_response(
+                    data={
+                        'language': lang,
+                        'overrides': overrides,
+                        'count': len(overrides),
+                        'warning': 'Tenant override access denied for requested tenant.',
+                    },
+                    message='Global overrides retrieved.',
+                )
+
             tenant_qs = TranslationOverride.objects.filter(
                 language_code=lang,
                 is_active=True,

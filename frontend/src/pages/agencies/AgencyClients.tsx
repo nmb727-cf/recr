@@ -861,7 +861,23 @@ export default function AgencyClients() {
         </Form.Item>
       </div>
 
-      <Form.Item name="payment_terms_field" label="Payment Terms">
+      <Form.Item 
+        name="payment_terms_field" 
+        label="Payment Terms"
+        rules={[
+          {
+            validator: async (_, value) => {
+              if (value?.schedule?.length > 0) {
+                const total = value.schedule.reduce((acc: number, item: any) => acc + (Number(item.percentage) || 0), 0)
+                if (total !== 100) {
+                  return Promise.reject(new Error(`Payment percentages must total 100% (Current: ${total}%)`))
+                }
+              }
+              return Promise.resolve()
+            }
+          }
+        ]}
+      >
         <PaymentTermsField />
       </Form.Item>
 
@@ -878,7 +894,22 @@ export default function AgencyClients() {
         <Form.Item name="contract_start_date" label="Contract Start Date">
           <DatePicker className="w-full" />
         </Form.Item>
-        <Form.Item name="contract_end_date" label="Contract End Date">
+        <Form.Item 
+          name="contract_end_date" 
+          label="Contract End Date"
+          dependencies={['contract_start_date']}
+          rules={[
+            ({ getFieldValue }) => ({
+              validator(_, value) {
+                const start = getFieldValue('contract_start_date')
+                if (!value || !start || value.isAfter(start) || value.isSame(start)) {
+                  return Promise.resolve()
+                }
+                return Promise.reject(new Error('End Date must be on or after Start Date'))
+              },
+            }),
+          ]}
+        >
           <DatePicker className="w-full" />
         </Form.Item>
       </div>
@@ -1085,11 +1116,40 @@ export default function AgencyClients() {
                           
                           {contractDetailsFields}
 
+                          {/* Real-time Calculation Summary */}
+                          <Form.Item noStyle dependencies={['commission_percentage', 'commission_type', 'retention_days', 'retention_enabled']}>
+                            {({ getFieldsValue }) => {
+                              const { commission_percentage, commission_type, retention_enabled, retention_days } = getFieldsValue()
+                              if (!commission_percentage && !retention_enabled) return null
+                              return (
+                                <div className="mt-4 p-4 bg-[#F9FAFB] rounded-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+                                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Terms Calculation Preview</div>
+                                  <div className="space-y-1">
+                                    {commission_percentage && (
+                                      <div className="flex justify-between text-xs text-slate-600">
+                                        <span>Expected Payout:</span>
+                                        <span className="font-bold text-[#4F46E5]">
+                                          {commission_type === 'percentage' ? `${commission_percentage}% of CTC` : `${commission_percentage} Fixed`}
+                                        </span>
+                                      </div>
+                                    )}
+                                    {retention_enabled && (
+                                      <div className="flex justify-between text-xs text-slate-600">
+                                        <span>Data Protection Window:</span>
+                                        <span className="font-bold text-indigo-600">{retention_days || 90} Days</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )
+                            }}
+                          </Form.Item>
+
                           <Button 
                             type="primary" 
                             htmlType="submit"
                             block 
-                            className="mt-4 bg-[#4F46E5] h-10 rounded-lg"
+                            className="mt-4 bg-[#4F46E5] h-10 rounded-lg font-bold"
                             loading={submitting}
                           >
                             Send Connection Request

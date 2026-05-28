@@ -423,7 +423,7 @@ export default function RecruiterInterviewQueue() {
         onCancel={closeActionModal}
         onOk={() => runAction(actionModal.interview ? [actionModal.interview] : selectedInterviews)}
         okText="Apply Action"
-        destroyOnClose
+        destroyOnHidden
         title="Queue Action"
       >
         <div className="space-y-4">

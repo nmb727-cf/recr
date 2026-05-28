@@ -1,6 +1,7 @@
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from ..models import AgencyWorkflowDefinition, AgencyWorkflowNode, AgencyWorkflowEdge
 from .serializers import (
     AgencyWorkflowDefinitionSerializer, 
@@ -11,10 +12,27 @@ from .serializers import (
 class AgencyWorkflowViewSet(viewsets.ModelViewSet):
     queryset = AgencyWorkflowDefinition.objects.all()
     serializer_class = AgencyWorkflowDefinitionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def _effective_tenant_id(self):
+        user = self.request.user
+        if getattr(user, 'role', '') == 'super_admin':
+            requested = self.request.query_params.get('tenant_id') or self.request.data.get('tenant_id')
+            if requested:
+                return requested
+        return getattr(user, 'tenant_id', None)
+
+    def get_queryset(self):
+        tenant_id = self._effective_tenant_id()
+        if tenant_id:
+            return self.queryset.filter(tenant_id=tenant_id)
+        return self.queryset.none()
 
     def create(self, request, *args, **kwargs):
         # Basic create implementation
-        serializer = self.get_serializer(data=request.data)
+        payload = dict(request.data)
+        payload['tenant_id'] = self._effective_tenant_id()
+        serializer = self.get_serializer(data=payload)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         return Response(serializer.data, status=status.HTTP_201_CREATED)

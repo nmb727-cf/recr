@@ -27,6 +27,7 @@ import AgencyOnboarding from '@/pages/onboarding/AgencyOnboarding'
 import ApplyForm from '@/pages/public/ApplyForm'
 import PublicPassportPage from '@/pages/public/PublicPassportPage'
 import ClaimProfile from '@/pages/candidate/ClaimProfile'
+import PortalAcceptPage from '@/pages/portal/PortalAcceptPage'
 
 // App pages
 import Dashboard from '@/pages/dashboard/Dashboard'
@@ -38,6 +39,7 @@ import CandidateDatabase from '@/pages/candidates/CandidateDatabase'
 import CandidateRelations from '@/pages/candidates/CandidateRelations'
 import AllApplications from '@/pages/candidates/AllApplications'
 import PipelineBoard from '@/pages/pipeline/PipelineBoard'
+import PipelineBoardV2 from '@/pages/pipeline/PipelineBoardV2'
 import OfferManagement from '@/pages/offers/OfferManagement'
 import InterviewsList from '@/pages/interviews/InterviewsList'
 import InterviewCommandCenter from '@/pages/interviews/InterviewCommandCenter'
@@ -341,6 +343,7 @@ export default function App() {
               <Route path="/passport/public/:token" element={<PublicPassportPage />} />
               {/* Claim flow: recruiter-added candidates follow this link to claim/link their profile */}
               <Route path="/candidate/claim/:token" element={<ClaimProfile />} />
+              <Route path="/portal/accept/:token" element={<PortalAcceptPage />} />
 
               {/* ── Onboarding wizard (no AppLayout, no OnboardingGuard) ── */}
               <Route path="/onboarding/wizard" element={
@@ -628,6 +631,15 @@ export default function App() {
                 element={
                   <Protected roles={NON_CANDIDATE_ROLES}>
                     <PipelineBoard />
+                  </Protected>
+                }
+              />
+
+              <Route
+                path="/pipeline/v2"
+                element={
+                  <Protected roles={NON_CANDIDATE_ROLES}>
+                    <PipelineBoardV2 />
                   </Protected>
                 }
               />

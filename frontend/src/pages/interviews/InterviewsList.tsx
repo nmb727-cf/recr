@@ -72,7 +72,7 @@ const FeedbackModal = ({ interviewId, open, onClose }: { interviewId: string; op
       onOk={() => form.submit()}
       okText="Submit"
       confirmLoading={loading}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" onFinish={onFinish} className="mt-4">
         <Row gutter={12}>

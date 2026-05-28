@@ -83,7 +83,7 @@ export default function CandidateInteractionDrawer({
       onClose={onClose}
       width={480}
       styles={{ body: { padding: '24px' } }}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form
         form={form}

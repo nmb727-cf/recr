@@ -427,7 +427,7 @@ export const GlobalDrawer = () => {
       onClose={closeQuickView}
       width={quickViewType === 'candidate_job' ? 560 : 480}
       title={drawerTitle[quickViewType ?? ''] ?? 'Quick View'}
-      destroyOnClose
+      destroyOnHidden
       styles={{ body: { padding: '24px' } }}
     >
       {quickViewType === 'job' && quickViewData && (
@@ -482,7 +482,7 @@ export const GlobalDrawer = () => {
         onClose={closeFullView}
         width={800}
         title="Full Details"
-        destroyOnClose
+        destroyOnHidden
         styles={{ wrapper: { width: 800 } }}
         style={{ position: 'absolute' }}
         extra={<Button onClick={closeFullView}>Back</Button>}

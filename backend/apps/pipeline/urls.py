@@ -12,6 +12,8 @@ urlpatterns = [
     path('pipeline/applications/<uuid:pk>/make-offer/', views.ApplicationMakeOfferView.as_view(), name='application-make-offer'),
 
     # Pipeline view
+    path('pipeline/applications/<uuid:pk>/history/', views.ApplicationUnifiedHistoryView.as_view(), name='application-history'),
+    path('candidates/<uuid:candidate_id>/cross-jobs/', views.CandidateCrossJobView.as_view(), name='candidate-cross-jobs'),
     path('pipeline/<uuid:requisition_id>/', views.PipelineView.as_view(), name='pipeline-view'),
     path('pipeline/<uuid:requisition_id>/activity/', views.RequisitionActivityView.as_view(), name='requisition-activity'),
     path('pipeline/bulk-action/', views.BulkActionView.as_view(), name='pipeline-bulk-action'),

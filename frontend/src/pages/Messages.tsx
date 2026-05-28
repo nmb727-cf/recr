@@ -227,7 +227,7 @@ export default function Messages() {
         open={newMsgOpen}
         onClose={() => setNewMsgOpen(false)}
         width={400}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={handleCreate}>
           <Form.Item name="recipient_id" label="Recipient User ID" rules={[{ required: true }]}>

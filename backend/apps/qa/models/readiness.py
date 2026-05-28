@@ -24,6 +24,7 @@ class ModuleReadinessResult(BaseModel):
     tested_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        app_label = 'qa'
         db_table = 'qa_module_readiness_results'
         ordering = ['-tested_at']
 
@@ -61,6 +62,7 @@ class ModuleCheckResult(BaseModel):
     tested_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        app_label = 'qa'
         db_table = 'qa_module_check_results'
         ordering = ['-tested_at']
 
@@ -80,6 +82,7 @@ class EndToEndScenarioResult(BaseModel):
     tested_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        app_label = 'qa'
         db_table = 'qa_e2e_scenario_results'
         ordering = ['-tested_at']
 
@@ -114,5 +117,6 @@ class ReadinessBlocker(BaseModel):
     detected_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        app_label = 'qa'
         db_table = 'qa_readiness_blockers'
         ordering = ['-detected_at']

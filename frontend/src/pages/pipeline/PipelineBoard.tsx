@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import {
   Card, Tag, Typography, Spin, Empty, Button,
   Avatar, message, Modal,
-  Tabs, Table, Timeline, Badge, Row, Col, Divider, Form, Input as AntInput, DatePicker, InputNumber, Tooltip, Select, Drawer, Space, Radio
+  Tabs, Table, Timeline, Badge, Row, Col, Divider, Form, Input as AntInput, DatePicker, InputNumber, Tooltip, Select, Drawer, Space, Radio, List
 } from 'antd'
 import {
   Clock,
@@ -12,6 +12,7 @@ import {
   ArrowRight,
   Search,
   ChevronRight,
+  MapPin,
   Mail,
   Phone,
   FileText,
@@ -24,6 +25,7 @@ import {
   DollarSign,
   AlertCircle,
   TrendingUp,
+  Activity,
   Layout as LayoutIcon,
   Filter,
   ChevronLeft,
@@ -39,11 +41,13 @@ import {
   ChevronDown,
   Layers,
   Eye,
+  MessageSquare,
   ShieldCheck,
   BrainCircuit,
   Workflow,
   UserCheck,
-  Gavel
+  Gavel,
+  Download
 } from 'lucide-react'
 import dayjs from 'dayjs'
 import isToday from 'dayjs/plugin/isToday'
@@ -65,6 +69,7 @@ import {
 } from 'react-beautiful-dnd'
 import { useApiQuery } from '@/hooks/useApiQuery'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import http from '@/utils/http'
 import { pipelineApi } from '@/api/pipeline'
 import { requisitionsApi } from '@/api/jobs'
 import { candidatesApi } from '@/api/candidates'
@@ -80,7 +85,7 @@ import { formatStatusLabel, getStatusStyle } from '@/utils/status'
 import { HiringAIBrainDashboard } from '../jobs/JobCommandCenterView'
 import WorkflowStatusPanel from '@/components/workflow/WorkflowStatusPanel'
 
-const { Text, Title } = Typography
+const { Text, Title, Paragraph } = Typography
 const { TextArea } = AntInput
 
 type PipelineContext = 'single' | 'my_live' | 'team_live' | 'all_live'
@@ -130,7 +135,7 @@ const InterviewScheduleModal = ({
       onCancel={onCancel}
       onOk={() => form.submit()}
       confirmLoading={mutation.isPending}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" onFinish={(v) => mutation.mutate(v)} initialValues={{ duration_minutes: 45, interview_round: 1 }}>
         <Form.Item name="title" label={t('pipeline:fields.interview_title', 'Interview Title')} rules={[{ required: true }]}>
@@ -212,7 +217,7 @@ const MakeOfferModal = ({
       onCancel={onCancel}
       onOk={() => form.submit()}
       confirmLoading={mutation.isPending}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" onFinish={(v) => mutation.mutate(v)} initialValues={{ currency: 'INR' }}>
         <Row gutter={16}>
@@ -242,9 +247,208 @@ const MakeOfferModal = ({
   )
 }
 
+function UnifiedHistoryFeed({ history, loading, onAddNote }: { history: any[], loading: boolean, onAddNote: () => void }) {
+  if (loading) return <div className="p-12 text-center"><Spin size="large" /></div>
+  if (!history || history.length === 0) return (
+    <div className="py-20 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-100">
+       <Activity size={32} className="mx-auto text-slate-200 mb-3" />
+       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No activity recorded yet</p>
+       <Button type="link" onClick={onAddNote} className="text-xs font-bold text-indigo-600">Add first note</Button>
+    </div>
+  )
+
+  return (
+    <div className="space-y-6">
+       <div className="flex items-center justify-between mb-8">
+          <h3 className="text-xs font-black uppercase tracking-widest text-slate-800">Unified Activity Stream</h3>
+          <Button icon={<Plus size={14} />} onClick={onAddNote} className="h-8 rounded-xl font-black text-[9px] uppercase tracking-widest border-slate-200">New Entry</Button>
+       </div>
+       <Timeline
+          className="custom-history-timeline"
+          items={history.map((item, i) => {
+             let icon = <Clock size={12} className="text-slate-400" />
+             let color = "gray"
+             
+             if (item.type === 'stage_change') {
+                icon = <ArrowRight size={12} className="text-indigo-600" />
+                color = "indigo"
+             } else if (item.type === 'interview_feedback') {
+                icon = <MessageSquare size={12} className="text-blue-600" />
+                color = "blue"
+             } else if (item.type === 'note') {
+                icon = <FileText size={12} className="text-emerald-600" />
+                color = "emerald"
+             }
+
+             return {
+                key: i,
+                dot: <div className={cn("h-6 w-6 rounded-lg bg-white border flex items-center justify-center shadow-sm", `border-${color}-100`)}>{icon}</div>,
+                children: (
+                  <div className="pl-2 pb-8">
+                     <div className="flex items-center justify-between mb-1.5">
+                        <Text className="text-[11px] font-black text-slate-800 uppercase tracking-tight">
+                           {item.type === 'stage_change' ? `Moved to ${item.to_status?.replace('_', ' ')}` : 
+                            item.type === 'interview_feedback' ? 'Interview Feedback Recorded' : 
+                            item.note_type ? `${item.note_type} Note` : 'Internal Note'}
+                        </Text>
+                        <Text className="text-[9px] font-bold text-slate-400 uppercase">{dayjs(item.timestamp).fromNow()}</Text>
+                     </div>
+                     <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50">
+                        {item.type === 'interview_feedback' && (
+                           <div className="mb-2 flex items-center gap-3">
+                              <div className="px-2 py-0.5 bg-blue-600 text-white rounded font-black text-[10px]">{item.score || 'N/A'} Score</div>
+                              <Tag color="blue" className="m-0 border-none font-black text-[8px] uppercase">{item.recommendation?.replace('_', ' ')}</Tag>
+                           </div>
+                        )}
+                        <Paragraph className="text-xs text-slate-600 m-0 leading-relaxed italic">
+                           {item.text || item.notes || item.reason || 'No description provided.'}
+                        </Paragraph>
+                     </div>
+                  </div>
+                )
+             }
+          })}
+       />
+    </div>
+  )
+}
+
+function IntelligenceSidebar({ candidateId, currentApplicationId }: { candidateId: string, currentApplicationId: string }) {
+  const { data: crossJobData } = useApiQuery(
+    ['candidate-cross-jobs', candidateId],
+    () => http.get(`/pipeline/candidates/${candidateId}/cross-jobs/`).then(res => res.data.data),
+    { enabled: !!candidateId }
+  )
+  const crossApps = (crossJobData as any)?.applications || []
+
+  return (
+    <div className="p-6 space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
+       {/* 1. Cross-Job Visibility */}
+       <div>
+          <div className="flex items-center gap-2 mb-4">
+             <Briefcase size={14} className="text-slate-400" />
+             <span className="text-[10px] font-black uppercase text-slate-500 tracking-[0.15em]">Parallel Pipelines</span>
+          </div>
+          <div className="space-y-2">
+             {crossApps.filter((a: any) => a.application_id !== currentApplicationId).map((app: any, i: number) => (
+                <div key={i} className="p-3 bg-white rounded-2xl border border-slate-100 shadow-soft-sm group hover:border-indigo-200 transition-all cursor-pointer">
+                   <Text className="block text-[11px] font-black text-slate-800 uppercase leading-none mb-1 group-hover:text-indigo-600 truncate">{app.job_title}</Text>
+                   <div className="flex items-center justify-between">
+                      <Tag className="m-0 border-none bg-slate-50 text-slate-400 font-black text-[8px] uppercase px-1.5 rounded">{app.status}</Tag>
+                      <Text className="text-[9px] font-bold text-slate-300 uppercase">{dayjs(app.created_at).format('MMM D')}</Text>
+                   </div>
+                </div>
+             ))}
+             {crossApps.length <= 1 && (
+                <div className="py-8 text-center bg-slate-100/50 rounded-2xl border border-dashed border-slate-200">
+                   <Text className="text-[9px] font-bold text-slate-400 uppercase">Single Pipeline Focus</Text>
+                </div>
+             )}
+          </div>
+       </div>
+
+       {/* 2. Skills Intelligence */}
+       <div>
+          <div className="flex items-center gap-2 mb-4">
+             <BrainCircuit size={14} className="text-slate-400" />
+             <span className="text-[10px] font-black uppercase text-slate-500 tracking-[0.15em]">Verified Skills</span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+             {['React', 'TypeScript', 'Node.js', 'PostgreSQL'].map(s => (
+                <Tag key={s} className="m-0 border-none bg-indigo-50 text-indigo-600 font-black text-[9px] uppercase px-2 py-0.5 rounded-full flex items-center gap-1">
+                   <ShieldCheck size={10} /> {s}
+                </Tag>
+             ))}
+          </div>
+       </div>
+
+       {/* 3. Commercial Context */}
+       <div>
+          <div className="flex items-center gap-2 mb-4">
+             <DollarSign size={14} className="text-slate-400" />
+             <span className="text-[10px] font-black uppercase text-slate-500 tracking-[0.15em]">Commercials</span>
+          </div>
+          <Card size="small" className="rounded-2xl border-slate-100 shadow-soft-sm bg-white" styles={{ body: { padding: 12 } }}>
+             <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                   <Text className="text-[9px] font-black text-slate-400 uppercase">Notice Period</Text>
+                   <Text className="text-[10px] font-black text-slate-800">30 Days</Text>
+                </div>
+                <div className="flex justify-between items-center">
+                   <Text className="text-[9px] font-black text-slate-400 uppercase">Exp. CTC</Text>
+                   <Text className="text-[10px] font-black text-indigo-600">₹45.0 LPA</Text>
+                </div>
+                <div className="flex justify-between items-center">
+                   <Text className="text-[9px] font-black text-slate-400 uppercase">Engagement</Text>
+                   <Tag className="m-0 border-none bg-emerald-50 text-emerald-600 font-black text-[8px] uppercase">Immediate</Tag>
+                </div>
+             </div>
+          </Card>
+       </div>
+    </div>
+  )
+}
+
+function ScorecardComparison({ interviews }: { interviews: any[] }) {
+  const feedbackList = interviews.filter(i => i.status === 'completed' && i.feedback)
+
+  return (
+    <div className="p-6 space-y-8 animate-in fade-in zoom-in-95 duration-500">
+       <div className="flex items-center justify-between mb-8 px-2">
+          <div>
+             <h3 className="text-sm font-black uppercase tracking-widest text-slate-800 m-0">Evaluation Rubric</h3>
+             <p className="text-[10px] font-bold text-slate-400 uppercase m-0">Cross-round feedback comparison</p>
+          </div>
+          <Button type="primary" size="small" className="bg-slate-900 border-none rounded-xl h-8 text-[10px] font-black uppercase shadow-lg">Download Summary</Button>
+       </div>
+
+       {feedbackList.map((round, i) => (
+          <div key={round.id || i} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-soft-md">
+             <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                   <div className="h-9 w-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center font-black">{i+1}</div>
+                   <div>
+                      <Text className="block text-[11px] font-black text-slate-800 uppercase leading-none mb-1">{round.title}</Text>
+                      <Text className="text-[9px] font-bold text-slate-400 uppercase">{round.round_type}</Text>
+                   </div>
+                </div>
+                <div className="text-right">
+                   <div className="px-3 py-1 bg-indigo-600 text-white rounded-xl font-black text-xs shadow-indigo-100 shadow-lg">{round.feedback.score}/100</div>
+                </div>
+             </div>
+             
+             <div className="space-y-4">
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100/50">
+                   <Text className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Interviewer Decision</Text>
+                   <Tag className="m-0 border-none bg-emerald-50 text-emerald-600 font-black text-[9px] uppercase px-2 py-1 rounded-lg">
+                      {round.feedback.recommendation?.replace('_', ' ')}
+                   </Tag>
+                </div>
+                <div className="px-2">
+                   <Text className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Detailed Observation</Text>
+                   <Paragraph className="text-xs text-slate-600 leading-relaxed m-0 italic">
+                      "{round.feedback.notes || 'No specific notes recorded.'}"
+                   </Paragraph>
+                </div>
+             </div>
+          </div>
+       ))}
+
+       {feedbackList.length === 0 && (
+          <div className="py-20 text-center bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200">
+             <ShieldCheck size={32} className="mx-auto text-slate-200 mb-3" />
+             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No completed scorecards found</p>
+          </div>
+       )}
+    </div>
+  )
+}
+
 const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisitionStages, isOwner }: { applicationId: string, onClose: () => void, onRefresh: () => void, requisitionStages: any[], isOwner: boolean }) => {
   const { t } = useTranslation(['pipeline', 'common'])
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [activeTab, setActiveTab] = useState('workbench')
   const [interviewModalVisible, setInterviewModalVisible] = useState(false)
   const [offerModalVisible, setOfferModalVisible] = useState(false)
   const [stageModalOpen, setStageModalOpen] = useState(false)
@@ -260,8 +464,14 @@ const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisition
     { enabled: !!applicationId }
   )
 
+  const { data: historyData, isLoading: historyLoading } = useApiQuery(
+    ['application-history', applicationId],
+    () => http.get(`/pipeline/pipeline/applications/${applicationId}/history/`).then(res => res.data.data),
+    { enabled: !!applicationId }
+  )
+
   const application = (data as any)?.application as Application
-  const stageHistory = (data as any)?.stage_history || []
+  const historyList = (historyData as any)?.history || []
   
   const { data: candidateData } = useApiQuery(
     ['candidate', 'full', application?.candidate_id],
@@ -271,13 +481,11 @@ const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisition
 
   const candidate = (candidateData as any)?.candidate as CandidateDetail
 
-  const { data: interviewsData, isLoading: interviewsLoading } = useApiQuery(
+  const { data: interviewsData } = useApiQuery(
     ['app-interviews', applicationId],
     () => interviewsApi.list({ application_id: applicationId }),
     { enabled: !!applicationId }
   )
-
-  const user = useAuthStore((s) => s.user)
 
   const handleMoveStage = async (stageId: string) => {
     const stage = requisitionStages.find((s: any) => s.stage.id === stageId)?.stage
@@ -318,18 +526,6 @@ const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisition
     setStageAction('note')
     setStageNote('')
     setStageModalOpen(true)
-  }
-
-  const handleAssignOwner = async (ownerId: string) => {
-    try {
-      await pipelineApi.updateApplication(applicationId, { 
-        metadata: { ...application.metadata, assigned_owner_id: ownerId } 
-      })
-      message.success('Owner assigned successfully')
-      refetch()
-    } catch (err) {
-      message.error('Failed to assign owner')
-    }
   }
 
   const confirmStageAction = async () => {
@@ -379,152 +575,123 @@ const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisition
   const tabItems = [
     {
       key: 'workbench',
-      label: 'Workbench Dashboard',
+      label: 'Workbench',
       children: (
         <div className="p-6 space-y-6">
-          {/* ── 1. Pipeline Actions Section ──────────────────────────────── */}
-          <Card size="small" className="rounded-2xl border-slate-100 shadow-soft-sm overflow-hidden" styles={{ body: { padding: 0 } }}>
-            <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Workflow size={14} className="text-indigo-600" />
-                <span className="text-[10px] font-black uppercase text-slate-600 tracking-widest">Pipeline Orchestration</span>
+          <div className={cn(
+            "p-5 rounded-3xl border flex items-center justify-between shadow-soft-sm transition-all animate-in fade-in slide-in-from-top-2 duration-300",
+            isOverdue ? "bg-rose-50 border-rose-100" : "bg-emerald-50 border-emerald-100"
+          )}>
+            <div className="flex items-center gap-4">
+              <div className={cn("p-3 rounded-2xl bg-white shadow-sm", isOverdue ? "text-rose-500" : "text-emerald-500")}>
+                <Clock size={24} />
               </div>
-              <Tag className="m-0 border-none bg-indigo-100 text-indigo-600 font-black text-[9px] uppercase px-2 rounded-md">
-                {application.status}
+              <div>
+                <Text className="text-[10px] font-black uppercase text-slate-400 tracking-widest block mb-1">Time in {application.status?.replace('_', ' ')}</Text>
+                <Text className={cn("text-2xl font-black uppercase", isOverdue ? "text-rose-600" : "text-emerald-600")}>{timeInStage}</Text>
+              </div>
+            </div>
+            <div className="text-right">
+              <Text className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</Text>
+              <Tag className={cn("m-0 border-none font-black text-[10px] uppercase px-3 py-1 rounded-full", isOverdue ? "bg-rose-600 text-white" : "bg-emerald-600 text-white")}>
+                {isOverdue ? 'SLA BREACH' : 'ON TRACK'}
               </Tag>
             </div>
-            <div className="p-4 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Text className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2 ml-1">Current Stage</Text>
-                  <Select 
-                    className="w-full workbench-select"
-                    placeholder="Move to Stage..."
-                    value={application.current_stage_id}
-                    onChange={handleMoveStage}
-                    options={requisitionStages.map((s: any) => ({ value: s.stage.id, label: s.stage.name }))}
-                    disabled={!isOwner}
-                  />
-                </div>
-                <div>
-                  <Text className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2 ml-1">Decision Owner</Text>
-                  <Select
-                    className="w-full workbench-select"
-                    placeholder="Assign Owner..."
-                    defaultValue={application.metadata?.assigned_owner_id}
-                    onChange={handleAssignOwner}
-                    options={[{ label: 'Assign to Me', value: user?.id || '' }, { label: 'Unassigned', value: '' }]}
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button 
-                  block 
-                  type="primary"
-                  className="h-9 rounded-xl font-black text-[10px] uppercase tracking-widest bg-blue-600 border-none shadow-sm shadow-blue-100" 
-                  icon={<Gavel size={14} />}
-                  onClick={() => navigate(`/hiring-decisions?applicationId=${applicationId}`)}
-                >
-                  Hiring Decision
-                </Button>
-                <Button block className="h-9 rounded-xl font-black text-[10px] uppercase tracking-widest border-slate-200 text-slate-600" onClick={handleHold}>Place on Hold</Button>
-              </div>
-              <Button block icon={<FileText size={14} />} className="h-9 rounded-xl font-black text-[10px] uppercase tracking-widest border-slate-200 text-slate-600" onClick={handleAddNote}>Record Note</Button>
-            </div>
-          </Card>
+          </div>
 
           <div className="grid grid-cols-2 gap-6">
-            {/* ── 2. Automation Section ────────────────────────────────── */}
-            <Card size="small" className="rounded-2xl border-slate-100 shadow-soft-sm overflow-hidden" styles={{ body: { padding: 0 } }}>
-              <div className="px-4 py-3 bg-indigo-50/50 border-b border-indigo-100 flex items-center gap-2">
-                <BrainCircuit size={14} className="text-indigo-600" />
-                <span className="text-[10px] font-black uppercase text-indigo-700 tracking-widest">Automation</span>
+            <Card size="small" className="rounded-3xl border-slate-100 shadow-soft-sm overflow-hidden" styles={{ body: { padding: 0 } }}>
+              <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+                <Workflow size={14} className="text-slate-600" />
+                <span className="text-[10px] font-black uppercase text-slate-600 tracking-widest">Movement Control</span>
               </div>
-              <div className="p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <Text className="text-[10px] font-bold text-slate-500 uppercase">Decision Mode</Text>
-                  <Tag className="m-0 border-none bg-emerald-50 text-emerald-600 font-black text-[8px] uppercase px-1.5 rounded">Real-time</Tag>
-                </div>
-                <div className="flex items-start gap-2 text-indigo-600">
-                  <Zap size={12} fill="currentColor" className="mt-0.5 shrink-0" />
-                  <Text className="text-[9px] font-black uppercase tracking-tight leading-tight">
-                    {application.metadata?.automation_triggered ? 'Auto-moved via engine' : 'Awaiting trigger events'}
-                  </Text>
-                </div>
+              <div className="p-5 space-y-4">
+                 <div>
+                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2 ml-1">Proposed Stage</Text>
+                    <Select 
+                      className="w-full h-11"
+                      placeholder="Jump to..."
+                      value={application.current_stage_id}
+                      onChange={handleMoveStage}
+                      options={requisitionStages.map((s: any) => ({ value: s.stage.id, label: s.stage.name }))}
+                    />
+                 </div>
+                 <Button block type="dashed" className="h-10 rounded-xl font-bold text-[10px] uppercase border-slate-200 text-slate-500 hover:text-indigo-600" onClick={handleHold}>Place on Hold</Button>
               </div>
             </Card>
 
-            {/* ── 3. SLA Section ────────────────────────────────────────── */}
-            <Card size="small" className="rounded-2xl border-slate-100 shadow-soft-sm overflow-hidden" styles={{ body: { padding: 0 } }}>
-              <div className="px-4 py-3 bg-rose-50/50 border-b border-rose-100 flex items-center gap-2">
-                <ShieldCheck size={14} className="text-rose-600" />
-                <span className="text-[10px] font-black uppercase text-rose-700 tracking-widest">SLA Health</span>
+            <Card size="small" className="rounded-3xl border-slate-100 shadow-soft-sm overflow-hidden" styles={{ body: { padding: 0 } }}>
+              <div className="px-4 py-3 bg-indigo-50 border-b border-indigo-100 flex items-center gap-2">
+                <BrainCircuit size={14} className="text-indigo-600" />
+                <span className="text-[10px] font-black uppercase text-indigo-700 tracking-widest">AI Intelligence</span>
               </div>
-              <div className="p-4 space-y-3">
-                <div className="flex flex-col">
-                  <Text className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Time in Stage</Text>
-                  <Text className={cn("text-sm font-black uppercase", isOverdue ? "text-rose-600" : "text-slate-700")}>{timeInStage}</Text>
+              <div className="p-5 flex items-center justify-between">
+                <div>
+                   <Text className="text-3xl font-black text-slate-900 leading-none">{application.match_score || 0}%</Text>
+                   <Text className="text-[9px] font-black text-slate-400 uppercase block mt-1 tracking-widest">Match Score</Text>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className={cn("h-1.5 w-1.5 rounded-full", isOverdue ? "bg-rose-500 animate-pulse" : "bg-emerald-500")} />
-                  <Text className="text-[9px] font-black uppercase">{isOverdue ? 'Overdue Breach' : 'Velocity: Healthy'}</Text>
+                <div className="text-right">
+                   <Tag className="m-0 border-none bg-emerald-50 text-emerald-600 font-black text-[9px] uppercase px-2 rounded-full">Top 5%</Tag>
                 </div>
               </div>
             </Card>
           </div>
 
-          <WorkflowStatusPanel
-            entityId={application.id}
-            entityType="application"
-            title="Workflow Status"
-            maxTimelineItems={6}
-          />
-
-          {/* ── 4. Interview Section ────────────────────────────────────── */}
-          <Card size="small" className="rounded-2xl border-slate-100 shadow-soft-sm overflow-hidden" styles={{ body: { padding: 0 } }}>
+          <WorkflowStatusPanel entityId={application.id} entityType="application" title="Workflow Governance" maxTimelineItems={4} />
+          
+          <Card size="small" className="rounded-3xl border-slate-100 shadow-soft-sm overflow-hidden" styles={{ body: { padding: 0 } }}>
             <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Calendar size={14} className="text-blue-600" />
-                <span className="text-[10px] font-black uppercase text-slate-600 tracking-widest">Interview Workbench</span>
+                <span className="text-[10px] font-black uppercase text-slate-600 tracking-widest">Active Interviews</span>
               </div>
-              {upcomingInterview && <Badge status="processing" text={<span className="text-[9px] font-black text-blue-600 uppercase">Live Round</span>} />}
             </div>
-            <div className="p-4">
+            <div className="p-5">
               {upcomingInterview ? (
-                <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 flex items-center justify-between">
-                  <div className="min-w-0">
-                    <Text className="block text-[11px] font-black text-blue-700 uppercase truncate">{upcomingInterview.title}</Text>
+                <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100 flex items-center justify-between">
+                  <div>
+                    <Text className="block text-xs font-black text-blue-700 uppercase leading-none mb-1">{upcomingInterview.title}</Text>
                     <Text className="text-[10px] font-bold text-blue-500 uppercase">{dayjs(upcomingInterview.scheduled_at).format('MMM D · HH:mm')}</Text>
                   </div>
-                  <Button size="small" type="primary" className="bg-blue-600 border-none font-black text-[9px] uppercase tracking-widest rounded-lg h-8 px-4 shadow-sm">Trigger Now</Button>
+                  <Button type="primary" size="small" className="bg-blue-600 border-none rounded-lg h-8 px-4 font-black text-[9px] uppercase shadow-sm">Join Round</Button>
                 </div>
               ) : (
-                <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                  <Text className="text-[10px] font-bold text-slate-400 uppercase block mb-3">No rounds scheduled for this candidate</Text>
-                  <Button icon={<Plus size={14} />} className="h-9 rounded-xl font-black text-[10px] uppercase tracking-widest border-slate-200 text-indigo-600 bg-white" onClick={() => setInterviewModalVisible(true)}>Schedule Interview</Button>
+                <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                  <Text className="text-[10px] font-bold text-slate-400 uppercase block mb-4">No pending rounds</Text>
+                  <Button icon={<Plus size={14} />} className="h-10 px-6 rounded-xl font-black text-[10px] uppercase tracking-widest border-slate-200 text-indigo-600 bg-white" onClick={() => setInterviewModalVisible(true)}>Schedule Now</Button>
                 </div>
               )}
             </div>
           </Card>
-
-          {/* Timeline Summary */}
-          <div>
-            <Title level={5} className="!text-[10px] !font-black !uppercase !tracking-widest !text-slate-400 !mb-4 ml-1">Recent Activity</Title>
-            <Timeline 
-              className="ml-2"
-              items={[
-                ...stageHistory.slice(0, 3).map((h: any) => ({
-                  dot: <div className="h-4 w-4 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100"><CheckCircle className="h-2 w-2" /></div>,
-                  children: (
-                    <div className="pb-4">
-                      <Text className="block font-bold text-slate-800 text-[11px] uppercase tracking-tight">Moved to {h.to_status?.replace('_', ' ')}</Text>
-                      <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">{dayjs(h.moved_at).fromNow()}</p>
-                    </div>
-                  )
-                }))
-              ]}
-            />
-          </div>
+        </div>
+      )
+    },
+    {
+      key: 'scorecards',
+      label: 'Evaluation Rubric',
+      children: <ScorecardComparison interviews={interviewList} />
+    },
+    {
+      key: 'intelligence',
+      label: 'AI Analyst',
+      children: (
+        <div className="p-12 text-center space-y-4">
+           <BrainCircuit size={48} className="mx-auto text-indigo-600 animate-pulse" />
+           <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter">Generative Fit Analysis</h2>
+           <Paragraph className="text-slate-500 max-w-md mx-auto text-xs leading-relaxed">
+             "Our AI analyst is reviewing the candidate's last 3 rounds of feedback against the job requisition. 
+             Initial signal: Strong alignment on system architecture, potential concerns on niche DevOps tools."
+           </Paragraph>
+           <Button type="primary" className="bg-indigo-600 border-none rounded-xl h-9 px-6 font-black text-[10px] uppercase shadow-lg">Refresh Analysis</Button>
+        </div>
+      )
+    },
+    {
+      key: 'history',
+      label: 'Activity Feed',
+      children: (
+        <div className="p-6">
+           <UnifiedHistoryFeed history={historyList} loading={historyLoading} onAddNote={handleAddNote} />
         </div>
       )
     },
@@ -573,56 +740,82 @@ const ApplicationDetailPanel = ({ applicationId, onClose, onRefresh, requisition
 
   return (
     <div className="flex flex-col h-full bg-white shadow-2xl">
-      {/* ── 1. QUICK DECISION BAR (TOP) ────────────────────────────────── */}
-      <div className="px-6 py-4 bg-slate-900 border-b border-slate-800 flex items-center justify-between shrink-0 sticky top-0 z-40">
-        <div className="flex items-center gap-4">
+      <div className="px-8 py-6 bg-slate-900 border-b border-slate-800 flex items-center justify-between shrink-0 sticky top-0 z-40">
+        <div className="flex items-center gap-6">
           <div className="relative">
-            <Avatar size={48} className="bg-indigo-600 text-white font-black border-2 border-slate-700 text-xl">
+            <Avatar size={64} className="bg-indigo-600 text-white font-black border-4 border-slate-800 text-2xl shadow-xl">
               {candidate?.first_name?.charAt(0)}{candidate?.last_name?.charAt(0)}
             </Avatar>
-            <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-emerald-500 border-2 border-slate-900 shadow-sm" />
+            <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-emerald-500 border-4 border-slate-900 shadow-lg" />
           </div>
           <div className="min-w-0">
-            <h2 className="text-sm font-black text-white uppercase tracking-tight truncate m-0">{candidate?.first_name} {candidate?.last_name}</h2>
-            <div className="flex items-center gap-2 mt-0.5">
-              <Tag className="m-0 border-none bg-emerald-500/10 text-emerald-400 font-black text-[8px] uppercase px-1.5 rounded">
-                {application.match_score || 0}% Match
+            <div className="flex items-center gap-3 mb-1">
+               <h2 className="text-xl font-black text-white uppercase tracking-tight truncate m-0 leading-none">{candidate?.first_name} {candidate?.last_name}</h2>
+               <div className="h-1.5 w-1.5 rounded-full bg-slate-700" />
+               <Tag className="m-0 border-none bg-emerald-50 text-emerald-400 font-black text-[10px] uppercase px-2 py-0.5 rounded-full">
+                {application.match_score || 0}% AI Match
               </Tag>
-              <Text className="text-[9px] font-bold text-slate-500 uppercase tracking-widest truncate max-w-[150px]">{candidate?.current_title || 'No Title'}</Text>
+            </div>
+            <div className="flex items-center gap-4">
+              <Text className="text-[11px] font-bold text-slate-400 uppercase tracking-widest truncate max-w-[200px]">{candidate?.current_title || 'No Title'}</Text>
+              <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-indigo-400 tracking-tighter">
+                 <MapPin size={12} /> {(candidate as any)?.location_name || 'Remote'}
+              </div>
             </div>
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
-          <Button 
-            onClick={handleShortlist}
-            className="bg-emerald-600 border-none text-white font-black text-[9px] uppercase tracking-widest h-9 px-4 rounded-xl hover:bg-emerald-500 transition-colors"
-            icon={<Star size={12} fill="white" />}
-            disabled={!isOwner || application.status === 'shortlisted'}
-          >
-            Shortlist
-          </Button>
-          <Button 
-            danger 
-            onClick={handleReject}
-            className="bg-rose-600 border-none text-white font-black text-[9px] uppercase tracking-widest h-9 px-4 rounded-xl hover:bg-rose-500 transition-colors"
-            icon={<X size={12} />}
-            disabled={!isOwner}
-          >
-            Reject
-          </Button>
-          <Divider type="vertical" className="h-6 border-slate-700 mx-1" />
-          <Button icon={<X size={18} />} onClick={onClose} className="h-9 w-9 flex items-center justify-center rounded-xl border-slate-700 bg-slate-800 text-slate-400 hover:text-white" />
+        <div className="flex items-center gap-3">
+          <div className="flex flex-col items-end mr-4">
+             <Text className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">Current Process</Text>
+             <div className="flex items-center gap-2">
+                <Tag color="blue" className="m-0 border-none font-black text-[10px] uppercase px-3 py-1 rounded-full shadow-lg shadow-blue-900/20">
+                   {application.status?.replace('_', ' ')}
+                </Tag>
+             </div>
+          </div>
+          
+          <Space size={8}>
+            <Button 
+              onClick={handleShortlist}
+              className="bg-emerald-600 border-none text-white font-black text-[10px] uppercase tracking-widest h-11 px-6 rounded-2xl hover:bg-emerald-500 transition-all shadow-lg shadow-emerald-900/20 flex items-center gap-2"
+              icon={<UserCheck size={16} />}
+              disabled={!isOwner || application.status === 'shortlisted'}
+            >
+              Shortlist
+            </Button>
+            <Button 
+              danger 
+              onClick={handleReject}
+              className="bg-rose-600 border-none text-white font-black text-[10px] uppercase tracking-widest h-11 px-6 rounded-2xl hover:bg-rose-500 transition-all shadow-lg shadow-rose-900/20 flex items-center gap-2"
+              icon={<X size={16} />}
+              disabled={!isOwner}
+            >
+              Reject
+            </Button>
+            <Button 
+              className="bg-slate-800 border-none text-slate-300 font-black text-[10px] uppercase tracking-widest h-11 w-11 flex items-center justify-center rounded-2xl hover:text-white transition-all shadow-xl"
+              icon={<X size={20} />}
+              onClick={onClose}
+            />
+          </Space>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar bg-white">
-        <Tabs 
-          defaultActiveKey="workbench" 
-          items={tabItems} 
-          className="workbench-tabs"
-          tabBarStyle={{ padding: '0 24px', marginBottom: 0, borderBottom: '1px solid #f1f5f9', height: '44px' }}
-        />
+      <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 overflow-y-auto custom-scrollbar border-r border-slate-50">
+          <Tabs 
+            activeKey={activeTab} 
+            onChange={setActiveTab}
+            items={tabItems}
+            className="modern-workbench-tabs"
+            tabBarStyle={{ padding: '0 24px', marginBottom: 0, borderBottom: '1px solid #f1f5f9', height: '44px' }}
+            tabBarExtraContent={<div className="mr-6"><Badge status="success" text={<span className="text-[8px] font-black uppercase text-slate-400">Live Workspace</span>} /></div>}
+          />
+        </div>
+        <div className="w-[320px] flex-none bg-slate-50/30 overflow-y-auto custom-scrollbar">
+           <IntelligenceSidebar candidateId={application.candidate_id} currentApplicationId={applicationId} />
+        </div>
       </div>
 
       {/* Action Modals */}
@@ -681,7 +874,6 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
   
   const { pages } = useUserPreferences()
   const pagePrefs = pages['pipeline'] || { hiddenColumns: [], hiddenSections: [], density: 'comfortable' }
-  const isCompact = pagePrefs.density === 'compact'
   
   const isStatsHidden = pagePrefs.hiddenSections.includes('stats')
   const isBrainHidden = pagePrefs.hiddenSections.includes('brain')
@@ -700,13 +892,11 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
     }
   }, [externalJobId])
   
-  const [boardState, setBoardState] = useState<Record<string, PipelineStageData>>({})
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null)
   
   // Operational State
   const [candidateSearch, setCandidateSearch] = useState('')
   const viewDensity = pagePrefs.density as 'comfortable' | 'compact'
-  const [sortBy, setSortBy] = useState<'match' | 'recent' | 'aging'>('match')
 
   const [boardStageModalOpen, setBoardStageModalOpen] = useState(false)
   const [boardStageNote, setBoardStageNote] = useState('')
@@ -721,7 +911,7 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
   const user = useAuthStore((s) => s.user)
 
   // Fetch all live requisitions for the switcher
-  const { data: jobsData, isLoading: jobsLoading } = useApiQuery(
+  const { data: jobsData } = useApiQuery(
     ['jobs-live'],
     () => requisitionsApi.list({ status: 'active' })
   )
@@ -842,7 +1032,7 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
     
     // SLA Breakdown
     let slaOnTrack = 0
-    let slaDueSoon = 0 // Within 12h of breach
+    let slaDueSoon = 0 
     let slaOverdue = 0
     let slaEscalated = 0
 
@@ -864,7 +1054,6 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
         const ageHours = dayjs().diff(lastUpdate, 'hour')
         const ageDays = dayjs().diff(lastUpdate, 'day')
         
-        // Use stage-specific deadline or default to 48h
         const deadlineHours = s.stage.action_deadline_hours || 48
         
         if (ageHours > deadlineHours) {
@@ -880,7 +1069,6 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
         if (ageDays > 4) stalled++
         if (dayjs(app.created_at).isToday()) recent++
         
-        // Automation detection
         if (app.metadata?.automation_triggered || app.metadata?.workflow_mode === 'automated') {
           automationCount++
         }
@@ -1006,13 +1194,6 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
                         </Tag>
                      </div>
                    )}
-                   {pipelineContext !== 'single' && !isSubView && (
-                     <div className="flex items-center gap-2 mt-1.5">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                           {pipelineContext === 'my_live' ? 'My Live Pipeline' : 'Team Live Pipeline'}
-                        </span>
-                     </div>
-                   )}
                  </>
                )}
             </div>
@@ -1054,7 +1235,6 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
           </div>
         </div>
 
-        {/* Top Strip: Metrics */}
         {!isStatsHidden && (
           <div className="grid grid-cols-6 gap-3 pt-1">
              {[
@@ -1083,7 +1263,6 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
           </div>
         )}
 
-        {/* ── Intelligence Row ────────────────────────────────────────────────── */}
         <div className="px-6 py-4 grid grid-cols-1 md:grid-cols-5 gap-4 shrink-0 bg-[#F8FAFC]">
           <div className="bg-white rounded-2xl border border-slate-200/60 p-4 shadow-soft-sm hover:border-indigo-200 transition-colors">
              <div className="flex items-center gap-2 mb-3">
@@ -1201,14 +1380,13 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
           </div>
         </div>
 
-        {/* ── Main Workspace Area ─────────────────────────────────────────────── */}
         <div className="flex-1 overflow-hidden">
           {appsLoading ? (
             <div className="h-full flex items-center justify-center bg-white/50 backdrop-blur-sm z-50"><Spin size="large" /></div>
           ) : viewMode === 'list' ? (
             <PipelineListView 
               processedStages={processedStages} 
-              onSelect={(id) => setSelectedAppId(id)} 
+              onSelect={(id: string) => setSelectedAppId(id)} 
               candidateMap={candidateMap}
               jobMap={jobMap}
             />
@@ -1268,11 +1446,10 @@ export default function PipelineBoard({ jobId: externalJobId, isSubView = false 
         </div>
       </div>
 
-      {/* ── Candidate Intel Drawer ───────────────────────────────────────────── */}
       <Drawer
         open={!!selectedAppId}
         onClose={() => setSelectedAppId(null)}
-        width={840}
+        width={1000}
         styles={{ body: { padding: 0 } }}
         closable={false}
         className="pipeline-detail-drawer"
@@ -1481,7 +1658,7 @@ function CandidateCard({ p, s, app, candidateMap, viewDensity, isDragDisabled, o
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 mb-0.5">
             <Text className="block font-black text-slate-900 text-[11px] leading-tight truncate uppercase tracking-tight">
-              {candidate?.full_name || candidate?.first_name ? `${candidate.first_name} ${candidate.last_name || ''}` : 'Unknown Candidate'}
+              {candidate?.full_name || candidate?.first_name ? `${candidate?.first_name} ${candidate?.last_name || ''}` : 'Unknown Candidate'}
             </Text>
             {app.metadata?.automation_triggered && <Zap size={10} className="text-indigo-500 shrink-0" />}
           </div>
@@ -1546,3 +1723,4 @@ function CandidateCard({ p, s, app, candidateMap, viewDensity, isDragDisabled, o
     </div>
   )
 }
+

@@ -476,7 +476,7 @@ export default function AddCandidateWorkflowModal({
           {busy ? 'Please wait...' : primaryText}
         </button>,
       ]}
-      destroyOnClose
+      destroyOnHidden
     >
       <div className="space-y-4 pt-2">
         <Steps

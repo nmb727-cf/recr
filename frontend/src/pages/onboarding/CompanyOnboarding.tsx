@@ -1,267 +1,416 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Alert, Button, Card, Col, Form, Input, Row, Select, Typography, message, Spin } from 'antd'
+import { useState } from 'react'
+import { Button, Card, Col, Form, Input, Row, Select, Typography, message, Steps, Divider, Space } from 'antd'
 import { useNavigate } from 'react-router-dom'
-import { useApiQuery } from '@/hooks/useApiQuery'
 import { organisationApi } from '@/api/organisation'
 import { useAuth } from '@/hooks/useAuth'
-import { clearCompanySignupPrefill, isOrganisationSetupIncomplete, readCompanySignupPrefill } from '@/utils/companyOnboarding'
 import { COUNTRIES, TIMEZONES } from '@/utils/locale'
-import { BankOutlined, GlobalOutlined, InfoCircleOutlined } from '@ant-design/icons'
+import { 
+  BankOutlined, 
+  EnvironmentOutlined, 
+  ClusterOutlined, 
+  TeamOutlined,
+  PlusOutlined,
+  DeleteOutlined,
+  CheckCircleOutlined,
+  GlobalOutlined
+} from '@ant-design/icons'
 
-const { Title, Text } = Typography
+const { Title, Text, Paragraph } = Typography
+const { Step } = Steps
 
 export default function CompanyOnboarding() {
-  const [form] = Form.useForm()
+  const [currentStep, setCurrentStep] = useState(0)
   const [saving, setSaving] = useState(false)
-  const [editMode, setEditMode] = useState(false)
+  const [form] = Form.useForm()
   const navigate = useNavigate()
-  const { user, fetchMe } = useAuth()
+  const { fetchMe } = useAuth()
 
-  const signupPrefill = useMemo(() => readCompanySignupPrefill(), [])
+  // State for hierarchy data
+  const [locations, setLocations] = useState([{ name: 'Headquarters', city: '', is_headquarters: true }])
+  const [departments, setDepartments] = useState([{ name: 'Engineering' }, { name: 'Human Resources' }, { name: 'Sales' }])
+  const [teams, setTeams] = useState([{ name: 'Backend Team', department_name: 'Engineering', location_name: 'Headquarters' }])
 
-  const { data, isLoading, refetch } = useApiQuery(
-    ['org_profile_onboarding'],
-    () => organisationApi.getProfile()
-  )
-  const org = (data as any)?.organisation || (data as any)?.data?.organisation
-  const isFirstSetup = isOrganisationSetupIncomplete(org)
-
-  useEffect(() => {
-    setEditMode(isFirstSetup)
-    
-    // Redirect if already onboarded and not in some explicit edit mode
-    if (org && !isFirstSetup && !editMode && window.location.pathname.includes('onboarding')) {
-      navigate('/dashboard', { replace: true })
-    }
-  }, [isFirstSetup, org, editMode, navigate])
-
-  useEffect(() => {
-    if (!org && !signupPrefill) return
-
-    form.setFieldsValue({
-      name: org?.name && !org.name.toLowerCase().includes('new company') && org.name !== 'My Organisation' 
-        ? org.name 
-        : signupPrefill?.company_name || '',
-      industry: org?.industry || '',
-      website: org?.website || '',
-      size_range: org?.size_range || '11-50',
-      country_code: org?.country_code || signupPrefill?.country_code || 'IN',
-      timezone: org?.timezone || 'Asia/Kolkata',
-    })
-  }, [org, signupPrefill, form])
+  const next = () => setCurrentStep(currentStep + 1)
+  const prev = () => setCurrentStep(currentStep - 1)
 
   const onFinish = async (values: any) => {
     setSaving(true)
     try {
+      // 1. Update Profile
       await organisationApi.updateProfile({
         name: values.name,
         industry: values.industry,
         website: values.website,
         size_range: values.size_range,
         country_code: values.country_code,
+        primary_language: values.primary_language,
+        primary_currency: values.primary_currency,
         timezone: values.timezone,
-      } as any)
+        cin: values.cin,
+        gst_number: values.gst_number,
+      })
 
-      clearCompanySignupPrefill()
-      await fetchMe() // Refresh user context
-      await refetch()
-      if (isFirstSetup) {
-        message.success('Organisation setup completed')
-        navigate('/dashboard', { replace: true })
-      } else {
-        message.success('Organisation profile updated')
-        setEditMode(false)
-      }
+      // 2. Setup Hierarchy
+      await organisationApi.setupHierarchy({
+        locations,
+        departments,
+        teams
+      })
+
+      message.success('Enterprise setup completed successfully')
+      await fetchMe()
+      navigate('/dashboard', { replace: true })
     } catch (err: any) {
-      const errorMsg = err?.response?.data?.message || 'Failed to save organisation setup'
-      const fieldErrors = err?.response?.data?.errors
-      
-      if (fieldErrors) {
-        const errors = Object.entries(fieldErrors).map(([name, msgs]: any) => ({
-          name,
-          errors: msgs
-        }))
-        form.setFields(errors)
-      }
-      
-      message.error(errorMsg)
+      message.error(err?.response?.data?.message || 'Failed to complete onboarding')
     } finally {
       setSaving(false)
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center p-12">
-        <Spin size="large" tip="Loading your setup..." />
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-6">
-      {isFirstSetup && (
-        <Alert
-          type="info"
-          showIcon
-          message="Setup required"
-          description="Complete this once. After setup, you can edit everything from Settings."
-        />
-      )}
-
-      {!isFirstSetup && !editMode && (
-        <Card bordered={false} className="shadow-soft-sm border border-slate-100">
-          <div className="space-y-4">
-            <div>
-              <Text type="secondary">Organisation Name</Text>
-              <div className="font-semibold text-slate-900">{org?.name || 'N/A'}</div>
-            </div>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Text type="secondary">Country</Text>
-                <div className="font-semibold text-slate-900">{org?.country_code || 'N/A'}</div>
-              </Col>
-              <Col span={12}>
-                <Text type="secondary">Timezone</Text>
-                <div className="font-semibold text-slate-900">{org?.timezone || 'N/A'}</div>
-              </Col>
-            </Row>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Text type="secondary">Industry</Text>
-                <div className="font-semibold text-slate-900">{org?.industry || 'N/A'}</div>
-              </Col>
-              <Col span={12}>
-                <Text type="secondary">Company Size</Text>
-                <div className="font-semibold text-slate-900">{org?.size_range || 'N/A'}</div>
-              </Col>
-            </Row>
-            <div>
-              <Text type="secondary">Website</Text>
-              <div className="font-semibold text-slate-900">{org?.website || 'N/A'}</div>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <Button type="primary" onClick={() => setEditMode(true)}>Edit</Button>
-              <Button onClick={() => navigate('/dashboard', { replace: true })}>Go to Dashboard</Button>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {(isFirstSetup || editMode) && (
-        <Card bordered={false} className="shadow-soft-sm border border-slate-100">
-          <Form
-            form={form}
-            layout="vertical"
-            onFinish={onFinish}
-            className="p-2"
-            requiredMark={false}
-          >
-            <Form.Item 
-              name="name" 
-              label={<Text className="font-bold text-slate-700">Organisation Name</Text>} 
-              rules={[{ required: true, message: 'Please enter your company name' }]}
-            >
-              <Input size="large" placeholder="Acme Corp" className="rounded-xl h-11" prefix={<BankOutlined className="text-slate-400 mr-2" />} />
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 0: // Organisation Profile
+        return (
+          <div className="space-y-6">
+            <Title level={4}>Basic Information</Title>
+            <Form.Item name="name" label="Company Name" rules={[{ required: true }]}>
+              <Input size="large" prefix={<BankOutlined />} placeholder="Acme Corp" />
             </Form.Item>
-
             <Row gutter={16}>
-              <Col xs={24} md={12}>
-                <Form.Item 
-                  name="country_code" 
-                  label={<Text className="font-bold text-slate-700">Country</Text>} 
-                  rules={[{ required: true, message: 'Select your country' }]}
-                >
-                  <Select
-                    size="large"
-                    showSearch
-                    className="rounded-xl"
-                    optionFilterProp="label"
-                    prefix={<GlobalOutlined className="text-slate-400 mr-2" />}
-                    options={COUNTRIES.map((c) => ({ value: c.code, label: c.name }))}
-                  />
+              <Col span={12}>
+                <Form.Item name="industry" label="Industry" rules={[{ required: true }]}>
+                  <Input size="large" placeholder="e.g. Technology" />
                 </Form.Item>
               </Col>
-              <Col xs={24} md={12}>
-                <Form.Item 
-                  name="timezone" 
-                  label={<Text className="font-bold text-slate-700">Default Timezone</Text>} 
-                  rules={[{ required: true }]}
-                >
-                  <Select
-                    size="large"
-                    showSearch
-                    className="rounded-xl"
-                    optionFilterProp="label"
-                    options={TIMEZONES}
-                  />
+              <Col span={12}>
+                <Form.Item name="size_range" label="Company Size">
+                  <Select size="large">
+                    <Select.Option value="1-10">1-10</Select.Option>
+                    <Select.Option value="11-50">11-50</Select.Option>
+                    <Select.Option value="51-200">51-200</Select.Option>
+                    <Select.Option value="201-500">201-500</Select.Option>
+                    <Select.Option value="500+">500+</Select.Option>
+                  </Select>
                 </Form.Item>
               </Col>
             </Row>
-
+            
             <Row gutter={16}>
-              <Col xs={24} md={12}>
-                <Form.Item 
-                  name="industry" 
-                  label={<Text className="font-bold text-slate-700">Industry</Text>} 
-                  rules={[{ required: true, message: 'Industry is required' }]}
-                >
-                  <Input size="large" placeholder="e.g. Technology" className="rounded-xl h-11" />
+              <Col span={8}>
+                <Form.Item name="country_code" label="Country" rules={[{ required: true }]}>
+                  <Select 
+                    size="large" 
+                    showSearch 
+                    options={COUNTRIES.map(c => ({ label: c.name, value: c.code }))} 
+                  />
                 </Form.Item>
               </Col>
-              <Col xs={24} md={12}>
-                <Form.Item 
-                  name="size_range" 
-                  label={<Text className="font-bold text-slate-700">Company Size</Text>}
-                >
-                  <Select size="large" className="rounded-xl">
-                    <Select.Option value="1-10">1-10 employees</Select.Option>
-                    <Select.Option value="11-50">11-50 employees</Select.Option>
-                    <Select.Option value="51-200">51-200 employees</Select.Option>
-                    <Select.Option value="201-500">201-500 employees</Select.Option>
-                    <Select.Option value="500+">500+ employees</Select.Option>
+              <Col span={8}>
+                <Form.Item name="primary_language" label="Language" rules={[{ required: true }]}>
+                  <Select size="large">
+                    <Select.Option value="en">English</Select.Option>
+                    <Select.Option value="hi">Hindi</Select.Option>
+                    <Select.Option value="es">Spanish</Select.Option>
+                    <Select.Option value="fr">French</Select.Option>
+                    <Select.Option value="de">German</Select.Option>
+                  </Select>
+                </Form.Item>
+              </Col>
+              <Col span={8}>
+                <Form.Item name="primary_currency" label="Currency" rules={[{ required: true }]}>
+                  <Select size="large">
+                    <Select.Option value="INR">INR (₹)</Select.Option>
+                    <Select.Option value="USD">USD ($)</Select.Option>
+                    <Select.Option value="GBP">GBP (£)</Select.Option>
+                    <Select.Option value="EUR">EUR (€)</Select.Option>
+                    <Select.Option value="AED">AED</Select.Option>
                   </Select>
                 </Form.Item>
               </Col>
             </Row>
 
-            <Form.Item name="website" label={<Text className="font-bold text-slate-700">Website</Text>}>
-              <Input size="large" placeholder="https://example.com" className="rounded-xl h-11" />
+            <Form.Item name="timezone" label="Timezone" rules={[{ required: true }]}>
+              <Select size="large" showSearch options={TIMEZONES} />
             </Form.Item>
 
-            <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 mb-8">
-              <div className="flex items-start gap-3">
-                <InfoCircleOutlined className="text-blue-500 mt-1" />
-                <div>
-                  <Text className="block font-bold text-slate-700 text-sm">Administrator Account</Text>
-                  <Text className="block text-xs text-slate-500 mt-1">
-                    You are setting up this organisation as <strong>{user?.full_name}</strong> ({user?.email}). 
-                    You will be the primary administrator.
-                  </Text>
-                </div>
-              </div>
-            </div>
+            <Divider orientation="left">Statutory Details (Optional)</Divider>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item name="cin" label="CIN / Registration No.">
+                  <Input size="large" placeholder="Registration ID" />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="gst_number" label="GST / Tax ID">
+                  <Input size="large" placeholder="Tax Identification" />
+                </Form.Item>
+              </Col>
+            </Row>
+          </div>
+        )
 
-            <Button 
-              type="primary" 
-              htmlType="submit" 
-              loading={saving} 
-              size="large"
-              className="h-11 rounded-xl font-bold bg-blue-600 border-none shadow-soft-sm"
-            >
-              {isFirstSetup ? 'Save and Continue' : 'Save Changes'}
-            </Button>
-            {!isFirstSetup && (
-              <Button
-                style={{ marginLeft: 12 }}
-                onClick={() => navigate('/settings?tab=organisation')}
+      case 1: // Locations
+        return (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <Title level={4}>Office Locations</Title>
+              <Button 
+                type="dashed" 
+                icon={<PlusOutlined />} 
+                onClick={() => setLocations([...locations, { name: '', city: '', is_headquarters: false }])}
               >
-                Open Settings
+                Add Location
+              </Button>
+            </div>
+            <Paragraph type="secondary">Define your physical offices or remote hubs.</Paragraph>
+            {locations.map((loc, i) => (
+              <Card key={i} size="small" className="mb-4 bg-slate-50 border-slate-200">
+                <Row gutter={16} align="middle">
+                  <Col span={10}>
+                    <Input 
+                      placeholder="Location Name (e.g. London Office)" 
+                      value={loc.name} 
+                      onChange={e => {
+                        const newLocs = [...locations]
+                        newLocs[i].name = e.target.value
+                        setLocations(newLocs)
+                      }}
+                    />
+                  </Col>
+                  <Col span={10}>
+                    <Input 
+                      placeholder="City" 
+                      value={loc.city} 
+                      onChange={e => {
+                        const newLocs = [...locations]
+                        newLocs[i].city = e.target.value
+                        setLocations(newLocs)
+                      }}
+                    />
+                  </Col>
+                  <Col span={4}>
+                    <Button 
+                      danger 
+                      type="text" 
+                      icon={<DeleteOutlined />} 
+                      onClick={() => setLocations(locations.filter((_, idx) => idx !== i))}
+                      disabled={locations.length === 1}
+                    />
+                  </Col>
+                </Row>
+              </Card>
+            ))}
+          </div>
+        )
+
+      case 2: // Departments
+        return (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <Title level={4}>Functional Departments</Title>
+              <Button 
+                type="dashed" 
+                icon={<PlusOutlined />} 
+                onClick={() => setDepartments([...departments, { name: '' }])}
+              >
+                Add Department
+              </Button>
+            </div>
+            <Paragraph type="secondary">Create the primary departments in your organization.</Paragraph>
+            {departments.map((dept, i) => (
+              <div key={i} className="flex gap-2 mb-3">
+                <Input 
+                  size="large"
+                  placeholder="e.g. Engineering, Sales, Product" 
+                  value={dept.name} 
+                  onChange={e => {
+                    const newDepts = [...departments]
+                    newDepts[i].name = e.target.value
+                    setDepartments(newDepts)
+                  }}
+                  prefix={<ClusterOutlined className="text-slate-400" />}
+                />
+                <Button 
+                  danger 
+                  className="h-11"
+                  icon={<DeleteOutlined />} 
+                  onClick={() => setDepartments(departments.filter((_, idx) => idx !== i))}
+                  disabled={departments.length === 1}
+                />
+              </div>
+            ))}
+          </div>
+        )
+
+      case 3: // Teams
+        return (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <Title level={4}>Team Structure</Title>
+              <Button 
+                type="dashed" 
+                icon={<PlusOutlined />} 
+                onClick={() => setTeams([...teams, { name: '', department_name: departments[0]?.name, location_name: locations[0]?.name }])}
+              >
+                Add Team
+              </Button>
+            </div>
+            <Paragraph type="secondary">Map your squads/teams to departments and locations.</Paragraph>
+            {teams.map((team, i) => (
+              <Card key={i} size="small" className="mb-4 bg-slate-50 border-slate-200">
+                <Row gutter={12} align="middle">
+                  <Col span={8}>
+                    <Input 
+                      placeholder="Team Name (e.g. API SRE)" 
+                      value={team.name} 
+                      onChange={e => {
+                        const newTeams = [...teams]
+                        newTeams[i].name = e.target.value
+                        setTeams(newTeams)
+                      }}
+                    />
+                  </Col>
+                  <Col span={7}>
+                    <Select 
+                      className="w-full"
+                      placeholder="Dept" 
+                      value={team.department_name}
+                      options={departments.map(d => ({ label: d.name, value: d.name }))}
+                      onChange={val => {
+                        const newTeams = [...teams]
+                        newTeams[i].department_name = val
+                        setTeams(newTeams)
+                      }}
+                    />
+                  </Col>
+                  <Col span={7}>
+                    <Select 
+                      className="w-full"
+                      placeholder="Location" 
+                      value={team.location_name}
+                      options={locations.map(l => ({ label: l.name, value: l.name }))}
+                      onChange={val => {
+                        const newTeams = [...teams]
+                        newTeams[i].location_name = val
+                        setTeams(newTeams)
+                      }}
+                    />
+                  </Col>
+                  <Col span={2}>
+                    <Button 
+                      danger 
+                      type="text" 
+                      icon={<DeleteOutlined />} 
+                      onClick={() => setTeams(teams.filter((_, idx) => idx !== i))}
+                      disabled={teams.length === 1}
+                    />
+                  </Col>
+                </Row>
+              </Card>
+            ))}
+          </div>
+        )
+
+      case 4: // Summary
+        return (
+          <div className="text-center py-8 space-y-6">
+            <CheckCircleOutlined style={{ fontSize: 64, color: '#52c41a' }} />
+            <div>
+              <Title level={3}>Ready to Launch</Title>
+              <Text type="secondary">
+                We've configured your enterprise profile with {locations.length} locations, 
+                {departments.length} departments, and {teams.length} teams.
+              </Text>
+            </div>
+            <Divider />
+            <div className="text-left bg-slate-50 p-6 rounded-2xl border border-slate-200">
+              <div className="mb-4">
+                <Text strong>Hierarchy Summary:</Text>
+              </div>
+              <Space direction="vertical" className="w-full">
+                <div className="flex justify-between">
+                  <Text>Office Hubs:</Text>
+                  <Text strong>{locations.map(l => l.name).join(', ')}</Text>
+                </div>
+                <div className="flex justify-between">
+                  <Text>Functional Units:</Text>
+                  <Text strong>{departments.map(d => d.name).join(', ')}</Text>
+                </div>
+              </Space>
+            </div>
+          </div>
+        )
+
+      default:
+        return null
+    }
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto py-12 px-4">
+      <div className="text-center mb-12">
+        <Title level={2}>Enterprise Onboarding</Title>
+        <Paragraph type="secondary">Complete your organization's hierarchy to unlock full role management.</Paragraph>
+      </div>
+
+      <Steps current={currentStep} className="mb-12">
+        <Step title="Profile" icon={<GlobalOutlined />} />
+        <Step title="Locations" icon={<EnvironmentOutlined />} />
+        <Step title="Departments" icon={<ClusterOutlined />} />
+        <Step title="Teams" icon={<TeamOutlined />} />
+        <Step title="Finish" icon={<CheckCircleOutlined />} />
+      </Steps>
+
+      <Card bordered={false} className="shadow-lg rounded-3xl border border-slate-100 overflow-hidden">
+        <Form 
+          form={form} 
+          layout="vertical" 
+          onFinish={onFinish}
+          initialValues={{
+            country_code: 'IN',
+            primary_language: 'en',
+            primary_currency: 'INR',
+            timezone: 'Asia/Kolkata',
+            size_range: '11-50'
+          }}
+        >
+          <div className="p-8">
+            {renderStepContent()}
+          </div>
+
+          <div className="bg-slate-50 p-6 flex justify-between items-center border-t border-slate-100">
+            <Button 
+              size="large" 
+              onClick={prev} 
+              disabled={currentStep === 0 || saving}
+              className="rounded-xl px-8"
+            >
+              Back
+            </Button>
+            
+            {currentStep < 4 ? (
+              <Button 
+                type="primary" 
+                size="large" 
+                onClick={next}
+                className="rounded-xl px-12 bg-blue-600 border-none shadow-md"
+              >
+                Continue
+              </Button>
+            ) : (
+              <Button 
+                type="primary" 
+                size="large" 
+                htmlType="submit"
+                loading={saving}
+                className="rounded-xl px-12 bg-green-600 border-none shadow-md"
+              >
+                Launch Workspace
               </Button>
             )}
-          </Form>
-        </Card>
-      )}
+          </div>
+        </Form>
+      </Card>
     </div>
   )
 }

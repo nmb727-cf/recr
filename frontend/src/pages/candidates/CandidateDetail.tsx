@@ -177,7 +177,7 @@ function NotesTab({ candidateId }: { candidateId: string }) {
         onCancel={() => setCreateOpen(false)}
         onOk={handleCreate}
         confirmLoading={submitting}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form
           form={form}

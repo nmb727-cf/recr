@@ -27,6 +27,8 @@ from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import serializers as drf_serializers
 from django.utils import timezone
+from django.conf import settings
+from django.core.cache import cache
 from drf_spectacular.utils import extend_schema, OpenApiResponse, inline_serializer
 
 from apps.candidates.models import Candidate
@@ -46,6 +48,26 @@ class CandidateClaimVerifyView(APIView):
     POST: Authenticated candidate submits after signup/login; link account.
     """
     permission_classes = [AllowAny]
+    
+    def _rate_limit_exceeded(self, request, token):
+        ip_addr = request.META.get('REMOTE_ADDR', '') or 'unknown'
+        method = request.method.upper()
+        ttl_seconds = int(getattr(settings, 'CANDIDATE_CLAIM_RATE_WINDOW_SECONDS', 60))
+        limit = int(getattr(settings, 'CANDIDATE_CLAIM_GET_RATE_LIMIT', 30))
+        if method == 'POST':
+            limit = int(getattr(settings, 'CANDIDATE_CLAIM_POST_RATE_LIMIT', 20))
+        key = f'candidate_claim:{method}:{token}:{ip_addr}'
+        current = cache.get(key)
+        if current is None:
+            cache.set(key, 1, timeout=ttl_seconds)
+            return False
+        if int(current) >= limit:
+            return True
+        try:
+            cache.incr(key)
+        except ValueError:
+            cache.set(key, int(current) + 1, timeout=ttl_seconds)
+        return False
 
     @extend_schema(
         responses={
@@ -54,6 +76,8 @@ class CandidateClaimVerifyView(APIView):
         }
     )
     def get(self, request, token):
+        if self._rate_limit_exceeded(request, token):
+            return error_response("Too many requests. Please retry shortly.", status_code=429)
         """
         Validate claim token and return prefilled candidate identity data.
         No authentication required — the candidate may not have an account yet.
@@ -98,6 +122,8 @@ class CandidateClaimVerifyView(APIView):
         }
     )
     def post(self, request, token):
+        if self._rate_limit_exceeded(request, token):
+            return error_response("Too many requests. Please retry shortly.", status_code=429)
         """
         Link the authenticated user to the candidate record identified by token.
         Must be called after the candidate has signed up or logged in.
@@ -176,6 +202,23 @@ class CandidateIdentityCheckView(APIView):
     """
     permission_classes = [AllowAny]
 
+    def _rate_limit_exceeded(self, request):
+        ip_addr = request.META.get('REMOTE_ADDR', '') or 'unknown'
+        key = f'candidate_identity_check:{ip_addr}'
+        ttl_seconds = int(getattr(settings, 'CANDIDATE_IDENTITY_CHECK_RATE_WINDOW_SECONDS', 60))
+        limit = int(getattr(settings, 'CANDIDATE_IDENTITY_CHECK_RATE_LIMIT', 60))
+        current = cache.get(key)
+        if current is None:
+            cache.set(key, 1, timeout=ttl_seconds)
+            return False
+        if int(current) >= limit:
+            return True
+        try:
+            cache.incr(key)
+        except ValueError:
+            cache.set(key, int(current) + 1, timeout=ttl_seconds)
+        return False
+
     @extend_schema(
         request=inline_serializer(
             name='CandidateIdentityCheckRequest',
@@ -190,6 +233,8 @@ class CandidateIdentityCheckView(APIView):
         }
     )
     def post(self, request):
+        if self._rate_limit_exceeded(request):
+            return error_response("Too many requests. Please retry shortly.", status_code=429)
         data = request.data if isinstance(request.data, dict) else {}
         email = data.get('email', '')
         phone = data.get('phone', '')

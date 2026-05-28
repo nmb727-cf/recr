@@ -1,5 +1,7 @@
 from rest_framework import serializers
 from apps.jobs.models import JobRequisition, JobPosting, JobStage, JobHiringTeamMember, JobDescriptionTemplate, JobLocation
+from apps.organisations.models import Department, Location
+from apps.accounts.models import CustomUser
 
 
 class JobStageSerializer(serializers.ModelSerializer):
@@ -36,6 +38,50 @@ class JobHiringTeamMemberSerializer(serializers.ModelSerializer):
 class JobRequisitionSerializer(serializers.ModelSerializer):
     department_name = serializers.SerializerMethodField()
     location_name = serializers.SerializerMethodField()
+    
+    department_id = serializers.PrimaryKeyRelatedField(
+        source='department',
+        queryset=Department.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    location_id = serializers.PrimaryKeyRelatedField(
+        source='location',
+        queryset=Location.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    job_owner_id = serializers.PrimaryKeyRelatedField(
+        source='job_owner',
+        queryset=CustomUser.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    hiring_manager_id = serializers.PrimaryKeyRelatedField(
+        source='hiring_manager',
+        queryset=CustomUser.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    recruiter_id = serializers.PrimaryKeyRelatedField(
+        source='recruiter',
+        queryset=CustomUser.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    backup_recruiter_id = serializers.PrimaryKeyRelatedField(
+        source='backup_recruiter',
+        queryset=CustomUser.objects.all(),
+        required=False,
+        allow_null=True
+    )
+    coordinator_id = serializers.PrimaryKeyRelatedField(
+        source='coordinator',
+        queryset=CustomUser.objects.all(),
+        required=False,
+        allow_null=True
+    )
+
     job_owner_name = serializers.SerializerMethodField()
     hiring_manager_name = serializers.SerializerMethodField()
     recruiter_name = serializers.SerializerMethodField()

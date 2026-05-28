@@ -23,6 +23,8 @@ class Organisation(models.Model):
         ]
     )
     country_code = models.CharField(max_length=5, default='IN')
+    primary_language = models.CharField(max_length=10, default='en')
+    primary_currency = models.CharField(max_length=5, default='INR')
     contact_phone_country_code = models.CharField(max_length=10, blank=True, default='IN')
     contact_phone_number = models.CharField(max_length=20, blank=True)
     timezone = models.CharField(max_length=50, default='UTC')
@@ -59,8 +61,20 @@ class Department(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant_id = models.UUIDField(db_index=True)
     name = models.CharField(max_length=255)
-    parent_department_id = models.UUIDField(null=True, blank=True)
-    head_user_id = models.UUIDField(null=True, blank=True)
+    parent = models.ForeignKey(
+        'self', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='sub_departments'
+    )
+    head_user = models.ForeignKey(
+        'accounts.CustomUser',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='headed_departments'
+    )
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -119,9 +133,27 @@ class Team(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant_id = models.UUIDField(db_index=True)
     name = models.CharField(max_length=255)
-    department_id = models.UUIDField(null=True, blank=True)
-    location_id = models.UUIDField(null=True, blank=True)
-    team_lead_id = models.UUIDField(null=True, blank=True)
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.CASCADE,
+        related_name='teams',
+        null=True,
+        blank=True
+    )
+    location = models.ForeignKey(
+        Location,
+        on_delete=models.SET_NULL,
+        related_name='teams',
+        null=True,
+        blank=True
+    )
+    team_lead = models.ForeignKey(
+        'accounts.CustomUser',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='led_teams'
+    )
     description = models.TextField(blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -147,14 +179,20 @@ class TeamMembership(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     tenant_id = models.UUIDField(db_index=True)
     team = models.ForeignKey(Team, on_delete=models.CASCADE, related_name='memberships')
-    user_id = models.UUIDField(db_index=True)  # Linking to accounts.CustomUser id
+    user = models.ForeignKey(
+        'accounts.CustomUser',
+        on_delete=models.CASCADE,
+        related_name='team_memberships',
+        null=True,  # Temporary to allow migration
+        blank=True
+    )
     role = models.CharField(max_length=50, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.UUIDField(null=True, blank=True)
 
     class Meta:
         db_table = 'organisations_team_membership'
-        unique_together = ('team', 'user_id')
+        unique_together = ('team', 'user')
 
     def __str__(self):
-        return f"User {self.user_id} in {self.team.name}"
+        return f"User {self.user.email if self.user else 'Unknown'} in {self.team.name}"

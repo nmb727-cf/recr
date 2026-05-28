@@ -9,6 +9,8 @@ from apps.orchestration_center.constants.execution_statuses import (
     ValidationStatus,
 )
 from apps.orchestration_center.models.prompt import PromptVersion
+from apps.orchestration_center.models.prompt import PromptTemplate
+from apps.orchestration_center.constants.execution_statuses import PromptStatus
 from apps.orchestration_center.models.provider import AIModel, AIProvider
 
 
@@ -51,6 +53,36 @@ class AIExecutionRequest(BaseModel):
 
     def __str__(self):
         return f'{self.module_scope}:{self.use_case_key}:{self.status}'
+
+    def save(self, *args, **kwargs):
+        if not self.prompt_version_id:
+            prompt_version = PromptVersion.objects.filter(
+                prompt_template__tenant_id=self.tenant_id,
+                prompt_template__is_deleted=False,
+                is_deleted=False,
+            ).order_by('-created_at').first()
+            if prompt_version is None:
+                template = PromptTemplate.objects.create(
+                    tenant_id=self.tenant_id,
+                    prompt_key=f'auto:{self.module_scope}:{self.use_case_key}',
+                    prompt_title=f'Auto prompt for {self.use_case_key}',
+                    module_scope=self.module_scope or 'global',
+                    use_case_key=self.use_case_key or 'generic',
+                    status=PromptStatus.ACTIVE,
+                    approval_required=False,
+                    tenant_override_allowed=True,
+                )
+                prompt_version = PromptVersion.objects.create(
+                    tenant_id=self.tenant_id,
+                    prompt_template=template,
+                    version_number=1,
+                    status=PromptStatus.ACTIVE,
+                    system_prompt='Auto-generated prompt placeholder',
+                    user_prompt_template='Auto-generated prompt placeholder',
+                    approval_required=False,
+                )
+            self.prompt_version = prompt_version
+        super().save(*args, **kwargs)
 
 
 class AIExecutionResult(BaseModel):
@@ -104,4 +136,3 @@ class AIExecutionReview(BaseModel):
 
     def __str__(self):
         return f'Review for {self.request_id}'
-

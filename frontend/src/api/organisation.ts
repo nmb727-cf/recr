@@ -1,53 +1,61 @@
 import http from '@/utils/http'
-import type { ApiResponse, Organisation, Department, Location, User } from '@/types'
+import type { ApiResponse } from '@/types/api'
+
+export interface OrganisationProfile {
+  id: string
+  tenant_id: string
+  name: string
+  industry?: string
+  website?: string
+  size_range?: string
+  country_code: string
+  primary_language: string
+  primary_currency: string
+  timezone: string
+  cin?: string
+  gst_number?: string
+  registration_number?: string
+}
+
+export interface DepartmentPayload {
+  name: string
+  parent_id?: string
+  description?: string
+}
+
+export interface LocationPayload {
+  name: string
+  address_line1?: string
+  city?: string
+  state?: string
+  country?: string
+  is_headquarters?: boolean
+}
+
+export interface TeamPayload {
+  name: string
+  department_id?: string
+  location_id?: string
+  description?: string
+}
+
+export interface HierarchySetupPayload {
+  locations: LocationPayload[]
+  departments: DepartmentPayload[]
+  teams: TeamPayload[]
+}
 
 export const organisationApi = {
-  // Organisation
-  getProfile: () =>
-    http.get<ApiResponse<{ organisation: Organisation }>>('/organisations/profile/'),
-  updateProfile: (data: Partial<Organisation>) =>
-    http.put<ApiResponse<{ organisation: Organisation }>>('/organisations/profile/', data),
+  getProfile: () => http.get<ApiResponse<{ organisation: OrganisationProfile }>>('/organisations/profile/'),
+  
+  updateProfile: (data: Partial<OrganisationProfile>) => 
+    http.patch<ApiResponse<{ organisation: OrganisationProfile }>>('/organisations/profile/', data),
 
-  // Users
-  listUsers: (params?: { search?: string; role?: string; status?: string }) =>
-    http.get<ApiResponse<{ users: User[] }>>('/organisations/users/', { params }),
-  inviteUser: (data: { email: string; role: string; first_name?: string; last_name?: string }) =>
-    http.post<ApiResponse<{ user: User }>>('/organisations/users/', data),
-  updateUser: (id: string, data: { role?: string; is_active?: boolean }) =>
-    http.put<ApiResponse<{ user: User }>>(`/organisations/users/${id}/`, data),
-  deleteUser: (id: string) =>
-    http.delete<ApiResponse<null>>(`/organisations/users/${id}/`),
+  // New Hierarchy Endpoints
+  setupHierarchy: (data: HierarchySetupPayload) =>
+    http.post<ApiResponse<any>>('/organisations/setup-hierarchy/', data),
 
-  globalSearch: (params?: { search?: string; q?: string; limit?: number }) =>
-    http.get<ApiResponse<{
-      query: string
-      candidates: Array<{ id: string; name: string; email?: string; current_title?: string; current_company?: string }>
-      jobs: Array<{ id: string; title: string; status?: string; job_ref_id?: string; work_mode?: string }>
-      agencies: Array<{ id: string; name: string; status?: string; contact_email?: string }>
-    }>>('/organisations/search/', { params }),
-
-  // Departments
-  listDepartments: () =>
-    http.get<ApiResponse<{ departments: Department[] }>>('/organisations/departments/'),
-  getDepartment: (id: string) =>
-    http.get<ApiResponse<{ department: Department }>>(`/organisations/departments/${id}/`),
-  createDepartment: (data: Partial<Department>) =>
-    http.post<ApiResponse<{ department: Department }>>('/organisations/departments/', data),
-  updateDepartment: (id: string, data: Partial<Department>) =>
-    http.put<ApiResponse<{ department: Department }>>(`/organisations/departments/${id}/`, data),
-  deleteDepartment: (id: string) =>
-    http.delete<ApiResponse<null>>(`/organisations/departments/${id}/`),
-
-  // Locations
-  listLocations: () =>
-    http.get<ApiResponse<{ locations: Location[] }>>('/organisations/locations/'),
-  getLocation: (id: string) =>
-    http.get<ApiResponse<{ location: Location }>>(`/organisations/locations/${id}/`),
-  createLocation: (data: Partial<Location>) =>
-    http.post<ApiResponse<{ location: Location }>>('/organisations/locations/', data),
-  updateLocation: (id: string, data: Partial<Location>) =>
-    http.put<ApiResponse<{ location: Location }>>(`/organisations/locations/${id}/`, data),
-  deleteLocation: (id: string) =>
-    http.delete<ApiResponse<null>>(`/organisations/locations/${id}/`),
-
+  listDepartments: () => http.get<ApiResponse<any[]>>('/organisations/departments/'),
+  listLocations: () => http.get<ApiResponse<any[]>>('/organisations/locations/'),
+  listTeams: () => http.get<ApiResponse<any[]>>('/organisations/teams/'),
 }

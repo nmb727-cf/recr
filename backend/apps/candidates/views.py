@@ -7,6 +7,7 @@ from django.db.models import Q, Count
 from django.utils import timezone
 from datetime import timedelta
 import uuid
+import logging
 
 from apps.candidates.models import (
     Candidate,
@@ -53,6 +54,8 @@ from shared.search_utils import (
     resolve_sort_order,
 )
 from shared.actor_access import is_candidate
+
+logger = logging.getLogger(__name__)
 
 class InternalCandidateOpsAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -551,15 +554,26 @@ class CandidateListView(TenantAccessMixin, APIView):
             # On successful auth the backend links the user to this candidate
             # record and marks account_status = 'claimed'.
             #
-            # TODO (Phase 2): Replace print stub with actual email/SMS/WhatsApp
-            # delivery via the communications service.
             claim_url = f"/candidate/claim/{candidate.claim_token}"
-            print(
-                f"[NOTIFICATION STUB] Source 1 — candidate profile added.\n"
-                f"  To: {candidate.email or candidate.phone}\n"
-                f"  Claim link: {claim_url}\n"
-                f"  Message: 'Your profile has been added. "
-                f"Click the link to view and claim your profile.'"
+            CandidateTimelineEvent.objects.create(
+                tenant_id=request.user.tenant_id,
+                candidate_id=candidate.id,
+                event_type='invite_link_issued',
+                source='system',
+                payload={
+                    'channel': 'pending_dispatch',
+                    'recipient': candidate.email or candidate.phone or '',
+                    'claim_url': claim_url,
+                    'message': 'Candidate claim link generated.',
+                },
+            )
+            logger.info(
+                "Candidate invite link generated for dispatch",
+                extra={
+                    'tenant_id': str(request.user.tenant_id),
+                    'candidate_id': str(candidate.id),
+                    'claim_url': claim_url,
+                },
             )
 
         candidate.save()

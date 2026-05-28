@@ -14,6 +14,37 @@ from apps.pipeline.serializers import (
 )
 from apps.core.responses import success_response, error_response
 from shared.actor_access import is_candidate
+from apps.candidates.protection import check_protected_action
+
+
+def validate_application_move(application, target_stage=None, reason=None, user=None):
+    """
+    Centralized guard for manual application progression.
+
+    Rules:
+    - Internal automation (no user) is allowed.
+    - Threshold automation actor is allowed.
+    - Agency users cannot move stages.
+    - Recruiters can move only when they own the requisition.
+    """
+    if user is None:
+        return True, None
+
+    actor_mode = str((getattr(user, 'metadata', {}) or {}).get('actor_mode', '')).strip().lower()
+    if actor_mode == 'threshold_automation':
+        return True, None
+
+    user_role = str(getattr(user, 'role', '') or '').strip().lower()
+    if user_role.startswith('agency_'):
+        return False, "Agency users cannot move application stages."
+
+    if user_role == 'recruiter':
+        from apps.jobs.models import JobRequisition
+        job = JobRequisition.objects.filter(id=application.requisition_id).first()
+        if job and getattr(job, 'created_by', None) and str(job.created_by) != str(user.id):
+            return False, "Only the requisition owner can move this application."
+
+    return True, None
 
 def perform_application_move(application, target_stage, user, notes=None, reason=None, request=None):
     """
@@ -262,6 +293,43 @@ class ApplicationDetailView(APIView):
         serializer.save()
         return success_response(data={'application': serializer.data})
 
+    def put(self, request, pk):
+        if is_candidate(request.user):
+            return error_response(
+                'You do not have permission to access pipeline operations.',
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        application = _get_application(pk, request.user.tenant_id)
+        if not application:
+            return error_response('Application not found.', status_code=status.HTTP_404_NOT_FOUND)
+
+        # Stage/status transitions through this endpoint are guarded and blocked.
+        if any(k in request.data for k in ('status', 'current_stage_id', 'stage_id')):
+            allowed, msg = validate_application_move(application, reason=request.data.get('note') or request.data.get('reason'), user=request.user)
+            if not allowed:
+                return error_response(msg or 'Stage transition is restricted.', status_code=status.HTTP_403_FORBIDDEN)
+
+            protection_allowed, protection_msg, _ = check_protected_action(
+                candidate_id=application.candidate_id,
+                tenant_id=request.user.tenant_id,
+                action='workflow_allowed_job',
+                job_id=application.requisition_id,
+                actor_user_id=request.user.id,
+            )
+            if not protection_allowed:
+                return error_response(protection_msg, status_code=status.HTTP_403_FORBIDDEN)
+
+            return error_response(
+                'Use move-stage endpoint for status/stage changes.',
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = ApplicationSerializer(application, data=request.data, partial=False)
+        if not serializer.is_valid():
+            return error_response('Validation failed.', serializer.errors)
+        serializer.save()
+        return success_response(data={'application': serializer.data})
+
 
 class ApplicationMoveStageView(APIView):
     permission_classes = [IsAuthenticated]
@@ -287,6 +355,25 @@ class ApplicationMoveStageView(APIView):
         ).first()
         if not target_stage:
             return error_response('Stage not found for this requisition.', status_code=status.HTTP_404_NOT_FOUND)
+
+        ownership_allowed, ownership_msg = validate_application_move(
+            application,
+            target_stage,
+            reason=notes,
+            user=request.user,
+        )
+        if not ownership_allowed:
+            return error_response(ownership_msg, status_code=status.HTTP_403_FORBIDDEN)
+
+        protection_allowed, protection_msg, _ = check_protected_action(
+            candidate_id=application.candidate_id,
+            tenant_id=request.user.tenant_id,
+            action='workflow_allowed_job',
+            job_id=application.requisition_id,
+            actor_user_id=request.user.id,
+        )
+        if not protection_allowed:
+            return error_response(protection_msg, status_code=status.HTTP_403_FORBIDDEN)
 
         # ─── Workflow Master Control ───
         from apps.jobs.models import JobRequisition
@@ -793,3 +880,129 @@ class OverdueDeadlineView(APIView):
             'deadlines': ActionDeadlineSerializer(qs[:200], many=True).data,
             'count': qs.count(),
         })
+
+class ApplicationUnifiedHistoryView(APIView):
+    """
+    Aggregates all candidate-related events for a specific application:
+    - Stage changes
+    - Interview feedback
+    - Internal notes
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        if is_candidate(request.user):
+            return error_response(
+                'You do not have permission to access pipeline operations.',
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        
+        tenant_id = request.user.tenant_id
+        
+        # 1. Stage History
+        stage_history = ApplicationStageHistory.objects.filter(
+            application_id=pk, 
+            tenant_id=tenant_id
+        ).order_by('-moved_at')
+        
+        # 2. Internal Notes
+        from apps.candidates.models import CandidateNote
+        notes = CandidateNote.objects.filter(
+            application_id=pk, 
+            tenant_id=tenant_id,
+            is_deleted=False
+        ).order_by('-created_at')
+        
+        # 3. Interview Feedback
+        from apps.interviews.models import Interview, InterviewFeedback
+        interviews = Interview.objects.filter(
+            application_id=pk, 
+            tenant_id=tenant_id,
+            is_deleted=False
+        )
+        feedback = InterviewFeedback.objects.filter(
+            interview_id__in=interviews.values('id'),
+            tenant_id=tenant_id,
+            is_deleted=False
+        ).order_by('-submitted_at')
+        
+        # Combine and Normalize
+        history = []
+        
+        for h in stage_history:
+            history.append({
+                'type': 'stage_change',
+                'id': str(h.id),
+                'timestamp': h.moved_at,
+                'from_status': h.from_status,
+                'to_status': h.to_status,
+                'moved_by': str(h.moved_by),
+                'reason': h.reason,
+            })
+            
+        for n in notes:
+            history.append({
+                'type': 'note',
+                'id': str(n.id),
+                'timestamp': n.created_at,
+                'text': n.note_text,
+                'note_type': n.note_type,
+                'created_by': str(n.created_by),
+            })
+            
+        for f in feedback:
+            history.append({
+                'type': 'interview_feedback',
+                'id': str(f.id),
+                'timestamp': f.submitted_at,
+                'score': f.score,
+                'notes': f.notes,
+                'recommendation': f.recommendation,
+                'panelist_id': str(f.panelist_id),
+            })
+            
+        # Final Sort
+        history.sort(key=lambda x: x['timestamp'], reverse=True)
+        
+        return success_response(data={'history': history})
+
+class CandidateCrossJobView(APIView):
+    """
+    Returns all applications for a specific candidate within the tenant.
+    Used for the 'Suitcase' icon/Cross-job visibility in the profile panel.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, candidate_id):
+        if is_candidate(request.user):
+            return error_response(
+                'You do not have permission to access pipeline operations.',
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+        
+        tenant_id = request.user.tenant_id
+        
+        from apps.pipeline.models import Application
+        from apps.jobs.models import JobRequisition
+        from apps.pipeline.serializers import ApplicationSerializer
+        
+        apps = Application.objects.filter(
+            candidate_id=candidate_id,
+            tenant_id=tenant_id,
+            is_deleted=False
+        ).select_related('requisition') # assuming relational link if exists, else manual lookup
+        
+        # Build enriched list
+        results = []
+        for app in apps:
+            job = JobRequisition.objects.filter(id=app.requisition_id).first()
+            results.append({
+                'application_id': str(app.id),
+                'job_id': str(app.requisition_id),
+                'job_title': job.title if job else 'Unknown Job',
+                'status': app.status,
+                'created_at': app.created_at,
+                'is_current': False # will be set on frontend
+            })
+            
+        return success_response(data={'applications': results})

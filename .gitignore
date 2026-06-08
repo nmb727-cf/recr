@@ -75,3 +75,26 @@ __pycache__/
 data/runtime/
 logs/
 *.log
+
+# Python virtual environments
+venv/
+.venv/
+env/
+ENV/
+**/venv/
+**/.venv/
+**/env/
+**/site-packages/
+
+# ML / binary libs
+*.so
+*.so.*
+*.dll
+*.dylib
+
+# Runtime / cache
+__pycache__/
+*.pyc
+data/runtime/
+logs/
+*.log

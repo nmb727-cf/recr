@@ -4548,8 +4548,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/agency-candidates/registry/{id}/:
-    get:
-      operationId: v1_agency_candidates_registry_retrieve
+    put:
+      operationId: v1_agency_candidates_registry_update
       parameters:
       - in: path
         name: id
@@ -4560,6 +4560,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidatePipelineRegistryRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidatePipelineRegistryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidatePipelineRegistryRequest'
+        required: true
       responses:
         '200':
           content:
@@ -4605,6 +4617,29 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_agency_candidates_registry_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this agency candidate pipeline registry.
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgencyCandidatePipelineRegistry'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_agency_candidates_registry_destroy
       parameters:
@@ -4620,41 +4655,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_agency_candidates_registry_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this agency candidate pipeline registry.
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidatePipelineRegistryRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidatePipelineRegistryRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidatePipelineRegistryRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgencyCandidatePipelineRegistry'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -4722,8 +4722,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/agency-candidates/candidates/{id}/:
-    get:
-      operationId: v1_agency_candidates_candidates_retrieve
+    put:
+      operationId: v1_agency_candidates_candidates_update
       parameters:
       - in: path
         name: id
@@ -4734,6 +4734,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateRequest'
+        required: true
       responses:
         '200':
           content:
@@ -4779,6 +4791,29 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_agency_candidates_candidates_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this agency candidate.
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgencyCandidate'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_agency_candidates_candidates_destroy
       parameters:
@@ -4794,41 +4829,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_agency_candidates_candidates_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this agency candidate.
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgencyCandidate'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -4992,8 +4992,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/agency-candidates/notes/{id}/:
-    get:
-      operationId: v1_agency_candidates_notes_retrieve
+    put:
+      operationId: v1_agency_candidates_notes_update
       parameters:
       - in: path
         name: id
@@ -5004,6 +5004,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateNoteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateNoteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateNoteRequest'
+        required: true
       responses:
         '200':
           content:
@@ -5049,6 +5061,29 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_agency_candidates_notes_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this agency candidate note.
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgencyCandidateNote'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_agency_candidates_notes_destroy
       parameters:
@@ -5064,41 +5099,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_agency_candidates_notes_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this agency candidate note.
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateNoteRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateNoteRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateNoteRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgencyCandidateNote'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -5154,8 +5154,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/agency-candidates/hotlists/{id}/:
-    get:
-      operationId: v1_agency_candidates_hotlists_retrieve
+    put:
+      operationId: v1_agency_candidates_hotlists_update
       parameters:
       - in: path
         name: id
@@ -5166,6 +5166,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateHotlistRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateHotlistRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateHotlistRequest'
+        required: true
       responses:
         '200':
           content:
@@ -5211,6 +5223,29 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_agency_candidates_hotlists_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this agency candidate hotlist.
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgencyCandidateHotlist'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_agency_candidates_hotlists_destroy
       parameters:
@@ -5226,41 +5261,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_agency_candidates_hotlists_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this agency candidate hotlist.
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateHotlistRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateHotlistRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateHotlistRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgencyCandidateHotlist'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -5316,8 +5316,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/agency-candidates/hotlist-members/{id}/:
-    get:
-      operationId: v1_agency_candidates_hotlist_members_retrieve
+    put:
+      operationId: v1_agency_candidates_hotlist_members_update
       parameters:
       - in: path
         name: id
@@ -5328,6 +5328,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateHotlistMemberRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateHotlistMemberRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateHotlistMemberRequest'
+        required: true
       responses:
         '200':
           content:
@@ -5373,6 +5385,29 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_agency_candidates_hotlist_members_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this agency candidate hotlist member.
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgencyCandidateHotlistMember'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_agency_candidates_hotlist_members_destroy
       parameters:
@@ -5388,41 +5423,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_agency_candidates_hotlist_members_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this agency candidate hotlist member.
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateHotlistMemberRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateHotlistMemberRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateHotlistMemberRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgencyCandidateHotlistMember'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -5478,8 +5478,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/agency-candidates/resumes/{id}/:
-    get:
-      operationId: v1_agency_candidates_resumes_retrieve
+    put:
+      operationId: v1_agency_candidates_resumes_update
       parameters:
       - in: path
         name: id
@@ -5490,6 +5490,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateResumeVersionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateResumeVersionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateResumeVersionRequest'
+        required: true
       responses:
         '200':
           content:
@@ -5535,6 +5547,29 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_agency_candidates_resumes_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this agency candidate resume version.
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgencyCandidateResumeVersion'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_agency_candidates_resumes_destroy
       parameters:
@@ -5550,41 +5585,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_agency_candidates_resumes_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this agency candidate resume version.
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateResumeVersionRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateResumeVersionRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateResumeVersionRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgencyCandidateResumeVersion'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -5640,8 +5640,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/agency-candidates/submissions/{id}/:
-    get:
-      operationId: v1_agency_candidates_submissions_retrieve
+    put:
+      operationId: v1_agency_candidates_submissions_update
       parameters:
       - in: path
         name: id
@@ -5652,6 +5652,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateSubmissionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateSubmissionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AgencyCandidateSubmissionRequest'
+        required: true
       responses:
         '200':
           content:
@@ -5697,6 +5709,29 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_agency_candidates_submissions_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this agency candidate submission.
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgencyCandidateSubmission'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_agency_candidates_submissions_destroy
       parameters:
@@ -5712,41 +5747,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_agency_candidates_submissions_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this agency candidate submission.
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateSubmissionRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateSubmissionRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AgencyCandidateSubmissionRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgencyCandidateSubmission'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -8651,75 +8651,6 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/communications/communication/email-accounts/{id}/:
-    get:
-      operationId: v1_communications_communication_email_accounts_retrieve
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        required: true
-      tags:
-      - v1
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/EmailAccount'
-          description: ''
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    patch:
-      operationId: v1_communications_communication_email_accounts_partial_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedEmailAccountRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedEmailAccountRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedEmailAccountRequest'
-      responses:
-        '200':
-          description: Email account updated successfully
-        '404':
-          description: Email account not found
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-    delete:
-      operationId: v1_communications_communication_email_accounts_destroy
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        required: true
-      tags:
-      - v1
-      responses:
-        '204':
-          description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
     put:
       operationId: v1_communications_communication_email_accounts_update
       parameters:
@@ -8750,6 +8681,75 @@ paths:
           description: Email account not found
         '401':
           description: Authentication credentials were not provided or are invalid.
+    patch:
+      operationId: v1_communications_communication_email_accounts_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedEmailAccountRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedEmailAccountRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedEmailAccountRequest'
+      responses:
+        '200':
+          description: Email account updated successfully
+        '404':
+          description: Email account not found
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+    get:
+      operationId: v1_communications_communication_email_accounts_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmailAccount'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
+    delete:
+      operationId: v1_communications_communication_email_accounts_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      responses:
+        '204':
+          description: No response body
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
   /api/v1/communications/email/feature-status:
     get:
       operationId: v1_communications_email_feature_status_retrieve
@@ -10413,8 +10413,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/talent-pools/pools/{id}/:
-    get:
-      operationId: v1_talent_pools_pools_retrieve
+    put:
+      operationId: v1_talent_pools_pools_update
       parameters:
       - in: path
         name: id
@@ -10425,6 +10425,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TalentPoolRequest'
+        required: true
       responses:
         '200':
           content:
@@ -10470,6 +10482,29 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_talent_pools_pools_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Talent Pool.
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TalentPool'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_talent_pools_pools_destroy
       parameters:
@@ -10485,41 +10520,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_talent_pools_pools_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this Talent Pool.
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/TalentPoolRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/TalentPoolRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/TalentPoolRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TalentPool'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -10671,8 +10671,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/talent-pools/memberships/{id}/:
-    get:
-      operationId: v1_talent_pools_memberships_retrieve
+    put:
+      operationId: v1_talent_pools_memberships_update
       parameters:
       - in: path
         name: id
@@ -10683,6 +10683,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CandidateTalentPoolMembershipRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CandidateTalentPoolMembershipRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CandidateTalentPoolMembershipRequest'
+        required: true
       responses:
         '200':
           content:
@@ -10728,6 +10740,29 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_talent_pools_memberships_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this Candidate Talent Pool Membership.
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CandidateTalentPoolMembership'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_talent_pools_memberships_destroy
       parameters:
@@ -10743,41 +10778,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_talent_pools_memberships_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this Candidate Talent Pool Membership.
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CandidateTalentPoolMembershipRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/CandidateTalentPoolMembershipRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/CandidateTalentPoolMembershipRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CandidateTalentPoolMembership'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -11790,8 +11790,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/intelligence/workflow-orchestration/processes/{id}/:
-    get:
-      operationId: v1_intelligence_workflow_orchestration_processes_retrieve
+    put:
+      operationId: v1_intelligence_workflow_orchestration_processes_update
       parameters:
       - in: path
         name: id
@@ -11802,6 +11802,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowProcessInstanceRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WorkflowProcessInstanceRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WorkflowProcessInstanceRequest'
+        required: true
       responses:
         '200':
           content:
@@ -11847,6 +11859,29 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_intelligence_workflow_orchestration_processes_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this workflow process instance.
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowProcessInstance'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_intelligence_workflow_orchestration_processes_destroy
       parameters:
@@ -11862,41 +11897,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_intelligence_workflow_orchestration_processes_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this workflow process instance.
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkflowProcessInstanceRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/WorkflowProcessInstanceRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/WorkflowProcessInstanceRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowProcessInstance'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -14722,6 +14722,40 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/intelligence/workflow-events/subscriptions/{id}/:
+    put:
+      operationId: v1_intelligence_workflow_events_subscriptions_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowEventSubscriptionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WorkflowEventSubscriptionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WorkflowEventSubscriptionRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowEventSubscription'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     get:
       operationId: v1_intelligence_workflow_events_subscriptions_retrieve
       parameters:
@@ -14758,40 +14792,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_intelligence_workflow_events_subscriptions_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkflowEventSubscriptionRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/WorkflowEventSubscriptionRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/WorkflowEventSubscriptionRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowEventSubscription'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -14938,8 +14938,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/hdc/committees/{id}/:
-    get:
-      operationId: v1_hdc_committees_retrieve
+    put:
+      operationId: v1_hdc_committees_update
       parameters:
       - in: path
         name: id
@@ -14948,6 +14948,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HiringCommitteeRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/HiringCommitteeRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/HiringCommitteeRequest'
+        required: true
       responses:
         '200':
           content:
@@ -14991,6 +15003,27 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_hdc_committees_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HiringCommittee'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_hdc_committees_destroy
       parameters:
@@ -15004,39 +15037,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_hdc_committees_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/HiringCommitteeRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/HiringCommitteeRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/HiringCommitteeRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HiringCommittee'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -15126,8 +15126,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/hdc/comparisons/{id}/:
-    get:
-      operationId: v1_hdc_comparisons_retrieve
+    put:
+      operationId: v1_hdc_comparisons_update
       parameters:
       - in: path
         name: id
@@ -15136,6 +15136,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ComparisonSetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ComparisonSetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ComparisonSetRequest'
+        required: true
       responses:
         '200':
           content:
@@ -15179,6 +15191,27 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_hdc_comparisons_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComparisonSet'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_hdc_comparisons_destroy
       parameters:
@@ -15192,39 +15225,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_hdc_comparisons_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ComparisonSetRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ComparisonSetRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ComparisonSetRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ComparisonSet'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -15314,8 +15314,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/hdc/approvals/{id}/:
-    get:
-      operationId: v1_hdc_approvals_retrieve
+    put:
+      operationId: v1_hdc_approvals_update
       parameters:
       - in: path
         name: id
@@ -15324,6 +15324,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecisionApprovalRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/DecisionApprovalRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/DecisionApprovalRequest'
+        required: true
       responses:
         '200':
           content:
@@ -15367,6 +15379,27 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_hdc_approvals_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecisionApproval'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_hdc_approvals_destroy
       parameters:
@@ -15380,39 +15413,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_hdc_approvals_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DecisionApprovalRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/DecisionApprovalRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/DecisionApprovalRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DecisionApproval'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -15570,8 +15570,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/hdc/offer-recommendations/{id}/:
-    get:
-      operationId: v1_hdc_offer_recommendations_retrieve
+    put:
+      operationId: v1_hdc_offer_recommendations_update
       parameters:
       - in: path
         name: id
@@ -15580,6 +15580,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OfferRecommendationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OfferRecommendationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OfferRecommendationRequest'
+        required: true
       responses:
         '200':
           content:
@@ -15623,6 +15635,27 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_hdc_offer_recommendations_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfferRecommendation'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_hdc_offer_recommendations_destroy
       parameters:
@@ -15636,39 +15669,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_hdc_offer_recommendations_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OfferRecommendationRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/OfferRecommendationRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/OfferRecommendationRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OfferRecommendation'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -15758,8 +15758,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/hdc/negotiations/{id}/:
-    get:
-      operationId: v1_hdc_negotiations_retrieve
+    put:
+      operationId: v1_hdc_negotiations_update
       parameters:
       - in: path
         name: id
@@ -15768,6 +15768,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NegotiationCaseRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/NegotiationCaseRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/NegotiationCaseRequest'
+        required: true
       responses:
         '200':
           content:
@@ -15811,6 +15823,27 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_hdc_negotiations_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NegotiationCase'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_hdc_negotiations_destroy
       parameters:
@@ -15824,39 +15857,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_hdc_negotiations_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/NegotiationCaseRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/NegotiationCaseRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/NegotiationCaseRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NegotiationCase'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -15946,8 +15946,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/hdc/offer-release/{id}/:
-    get:
-      operationId: v1_hdc_offer_release_retrieve
+    put:
+      operationId: v1_hdc_offer_release_update
       parameters:
       - in: path
         name: id
@@ -15956,6 +15956,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OfferReleasePacketRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/OfferReleasePacketRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/OfferReleasePacketRequest'
+        required: true
       responses:
         '200':
           content:
@@ -15999,6 +16011,27 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_hdc_offer_release_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OfferReleasePacket'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_hdc_offer_release_destroy
       parameters:
@@ -16012,39 +16045,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_hdc_offer_release_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/OfferReleasePacketRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/OfferReleasePacketRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/OfferReleasePacketRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/OfferReleasePacket'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -16202,8 +16202,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/hdc/joining/{id}/:
-    get:
-      operationId: v1_hdc_joining_retrieve
+    put:
+      operationId: v1_hdc_joining_update
       parameters:
       - in: path
         name: id
@@ -16212,6 +16212,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JoiningCaseRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/JoiningCaseRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/JoiningCaseRequest'
+        required: true
       responses:
         '200':
           content:
@@ -16255,6 +16267,27 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_hdc_joining_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JoiningCase'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_hdc_joining_destroy
       parameters:
@@ -16268,39 +16301,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_hdc_joining_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/JoiningCaseRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/JoiningCaseRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/JoiningCaseRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JoiningCase'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -17273,8 +17273,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/workflow-sla/policies/{id}/:
-    get:
-      operationId: v1_workflow_sla_policies_retrieve
+    put:
+      operationId: v1_workflow_sla_policies_update
       parameters:
       - in: path
         name: id
@@ -17283,6 +17283,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowSLAPolicyRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WorkflowSLAPolicyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WorkflowSLAPolicyRequest'
+        required: true
       responses:
         '200':
           content:
@@ -17326,6 +17338,27 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_workflow_sla_policies_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowSLAPolicy'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_workflow_sla_policies_destroy
       parameters:
@@ -17339,39 +17372,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_workflow_sla_policies_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkflowSLAPolicyRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/WorkflowSLAPolicyRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/WorkflowSLAPolicyRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowSLAPolicy'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -17427,8 +17427,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/workflow-sla/executions/{id}/:
-    get:
-      operationId: v1_workflow_sla_executions_retrieve
+    put:
+      operationId: v1_workflow_sla_executions_update
       parameters:
       - in: path
         name: id
@@ -17437,6 +17437,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowSLAExecutionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WorkflowSLAExecutionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WorkflowSLAExecutionRequest'
+        required: true
       responses:
         '200':
           content:
@@ -17480,6 +17492,27 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_workflow_sla_executions_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowSLAExecution'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_workflow_sla_executions_destroy
       parameters:
@@ -17493,39 +17526,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_workflow_sla_executions_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkflowSLAExecutionRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/WorkflowSLAExecutionRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/WorkflowSLAExecutionRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowSLAExecution'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -17649,8 +17649,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/workflow-sla/escalation-rules/{id}/:
-    get:
-      operationId: v1_workflow_sla_escalation_rules_retrieve
+    put:
+      operationId: v1_workflow_sla_escalation_rules_update
       parameters:
       - in: path
         name: id
@@ -17659,6 +17659,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowSLAEscalationRuleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WorkflowSLAEscalationRuleRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WorkflowSLAEscalationRuleRequest'
+        required: true
       responses:
         '200':
           content:
@@ -17702,6 +17714,27 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_workflow_sla_escalation_rules_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowSLAEscalationRule'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_workflow_sla_escalation_rules_destroy
       parameters:
@@ -17715,39 +17748,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_workflow_sla_escalation_rules_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkflowSLAEscalationRuleRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/WorkflowSLAEscalationRuleRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/WorkflowSLAEscalationRuleRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowSLAEscalationRule'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -17882,8 +17882,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/automation-playbooks/playbooks/{id}/:
-    get:
-      operationId: v1_automation_playbooks_playbooks_retrieve
+    put:
+      operationId: v1_automation_playbooks_playbooks_update
       parameters:
       - in: path
         name: id
@@ -17892,6 +17892,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomationPlaybookRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AutomationPlaybookRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AutomationPlaybookRequest'
+        required: true
       responses:
         '200':
           content:
@@ -17935,6 +17947,27 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_automation_playbooks_playbooks_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationPlaybook'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_automation_playbooks_playbooks_destroy
       parameters:
@@ -17948,39 +17981,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_automation_playbooks_playbooks_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AutomationPlaybookRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AutomationPlaybookRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AutomationPlaybookRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AutomationPlaybook'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -18184,8 +18184,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/workflow-sandbox/runs/{id}/:
-    get:
-      operationId: v1_workflow_sandbox_runs_retrieve
+    put:
+      operationId: v1_workflow_sandbox_runs_update
       parameters:
       - in: path
         name: id
@@ -18194,6 +18194,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowSandboxRunRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WorkflowSandboxRunRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WorkflowSandboxRunRequest'
+        required: true
       responses:
         '200':
           content:
@@ -18237,6 +18249,27 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_workflow_sandbox_runs_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowSandboxRun'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_workflow_sandbox_runs_destroy
       parameters:
@@ -18250,39 +18283,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_workflow_sandbox_runs_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkflowSandboxRunRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/WorkflowSandboxRunRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/WorkflowSandboxRunRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowSandboxRun'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -18416,8 +18416,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/workflow-sandbox/scenarios/{id}/:
-    get:
-      operationId: v1_workflow_sandbox_scenarios_retrieve
+    put:
+      operationId: v1_workflow_sandbox_scenarios_update
       parameters:
       - in: path
         name: id
@@ -18426,6 +18426,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowSandboxScenarioRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WorkflowSandboxScenarioRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WorkflowSandboxScenarioRequest'
+        required: true
       responses:
         '200':
           content:
@@ -18469,6 +18481,27 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_workflow_sandbox_scenarios_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowSandboxScenario'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_workflow_sandbox_scenarios_destroy
       parameters:
@@ -18482,39 +18515,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_workflow_sandbox_scenarios_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkflowSandboxScenarioRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/WorkflowSandboxScenarioRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/WorkflowSandboxScenarioRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowSandboxScenario'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -18570,8 +18570,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/workflow-sandbox/approvals/{id}/:
-    get:
-      operationId: v1_workflow_sandbox_approvals_retrieve
+    put:
+      operationId: v1_workflow_sandbox_approvals_update
       parameters:
       - in: path
         name: id
@@ -18580,6 +18580,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowSandboxApprovalRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WorkflowSandboxApprovalRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WorkflowSandboxApprovalRequest'
+        required: true
       responses:
         '200':
           content:
@@ -18623,6 +18635,27 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_workflow_sandbox_approvals_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowSandboxApproval'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_workflow_sandbox_approvals_destroy
       parameters:
@@ -18636,39 +18669,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_workflow_sandbox_approvals_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkflowSandboxApprovalRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/WorkflowSandboxApprovalRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/WorkflowSandboxApprovalRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowSandboxApproval'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -18908,8 +18908,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/workflow-change/dependencies/{id}/:
-    get:
-      operationId: v1_workflow_change_dependencies_retrieve
+    put:
+      operationId: v1_workflow_change_dependencies_update
       parameters:
       - in: path
         name: id
@@ -18918,6 +18918,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowDependencyMapRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WorkflowDependencyMapRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WorkflowDependencyMapRequest'
+        required: true
       responses:
         '200':
           content:
@@ -18961,6 +18973,27 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_workflow_change_dependencies_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowDependencyMap'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_workflow_change_dependencies_destroy
       parameters:
@@ -18974,39 +19007,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_workflow_change_dependencies_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkflowDependencyMapRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/WorkflowDependencyMapRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/WorkflowDependencyMapRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowDependencyMap'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -19446,8 +19446,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/automation-os/engines/{id}/:
-    get:
-      operationId: v1_automation_os_engines_retrieve
+    put:
+      operationId: v1_automation_os_engines_update
       parameters:
       - in: path
         name: id
@@ -19456,6 +19456,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomationEngineRegistryRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AutomationEngineRegistryRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AutomationEngineRegistryRequest'
+        required: true
       responses:
         '200':
           content:
@@ -19499,6 +19511,27 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_automation_os_engines_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationEngineRegistry'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_automation_os_engines_destroy
       parameters:
@@ -19512,39 +19545,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_automation_os_engines_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AutomationEngineRegistryRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AutomationEngineRegistryRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AutomationEngineRegistryRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AutomationEngineRegistry'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -19702,8 +19702,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/automation-os/policies/{id}/:
-    get:
-      operationId: v1_automation_os_policies_retrieve
+    put:
+      operationId: v1_automation_os_policies_update
       parameters:
       - in: path
         name: id
@@ -19712,6 +19712,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutomationExecutionPolicyRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AutomationExecutionPolicyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AutomationExecutionPolicyRequest'
+        required: true
       responses:
         '200':
           content:
@@ -19755,6 +19767,27 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_automation_os_policies_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationExecutionPolicy'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_automation_os_policies_destroy
       parameters:
@@ -19768,39 +19801,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_automation_os_policies_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AutomationExecutionPolicyRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AutomationExecutionPolicyRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AutomationExecutionPolicyRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AutomationExecutionPolicy'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -20748,8 +20748,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/agency-workflow/agency-workflow/{id}/:
-    get:
-      operationId: v1_agency_workflow_agency_workflow_retrieve
+    put:
+      operationId: v1_agency_workflow_agency_workflow_update
       parameters:
       - in: path
         name: id
@@ -20760,6 +20760,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgencyWorkflowDefinitionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AgencyWorkflowDefinitionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AgencyWorkflowDefinitionRequest'
+        required: true
       responses:
         '200':
           content:
@@ -20805,6 +20817,29 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_agency_workflow_agency_workflow_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this agency workflow definition.
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgencyWorkflowDefinition'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_agency_workflow_agency_workflow_destroy
       parameters:
@@ -20820,41 +20855,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_agency_workflow_agency_workflow_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this agency workflow definition.
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AgencyWorkflowDefinitionRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AgencyWorkflowDefinitionRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AgencyWorkflowDefinitionRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgencyWorkflowDefinition'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -20994,8 +20994,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/agency-workflow/agency-workflow-events/subscriptions/{id}/:
-    get:
-      operationId: v1_agency_workflow_agency_workflow_events_subscriptions_retrieve
+    put:
+      operationId: v1_agency_workflow_agency_workflow_events_subscriptions_update
       parameters:
       - in: path
         name: id
@@ -21006,6 +21006,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgencyWorkflowEventSubscriptionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AgencyWorkflowEventSubscriptionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AgencyWorkflowEventSubscriptionRequest'
+        required: true
       responses:
         '200':
           content:
@@ -21051,6 +21063,29 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_agency_workflow_agency_workflow_events_subscriptions_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this agency workflow event subscription.
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgencyWorkflowEventSubscription'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_agency_workflow_agency_workflow_events_subscriptions_destroy
       parameters:
@@ -21066,41 +21101,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_agency_workflow_agency_workflow_events_subscriptions_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this agency workflow event subscription.
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AgencyWorkflowEventSubscriptionRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AgencyWorkflowEventSubscriptionRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AgencyWorkflowEventSubscriptionRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgencyWorkflowEventSubscription'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -21267,8 +21267,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/agency-workflow/agency-workflow-orchestration/processes/{id}/:
-    get:
-      operationId: v1_agency_workflow_agency_workflow_orchestration_processes_retrieve
+    put:
+      operationId: v1_agency_workflow_agency_workflow_orchestration_processes_update
       parameters:
       - in: path
         name: id
@@ -21279,6 +21279,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgencyWorkflowProcessInstanceRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AgencyWorkflowProcessInstanceRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AgencyWorkflowProcessInstanceRequest'
+        required: true
       responses:
         '200':
           content:
@@ -21324,6 +21336,29 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_agency_workflow_agency_workflow_orchestration_processes_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this agency workflow process instance.
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgencyWorkflowProcessInstance'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_agency_workflow_agency_workflow_orchestration_processes_destroy
       parameters:
@@ -21339,41 +21374,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_agency_workflow_agency_workflow_orchestration_processes_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this agency workflow process instance.
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AgencyWorkflowProcessInstanceRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AgencyWorkflowProcessInstanceRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AgencyWorkflowProcessInstanceRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AgencyWorkflowProcessInstance'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -22818,8 +22818,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/workflow/stage-transitions/{id}/:
-    get:
-      operationId: v1_workflow_stage_transitions_retrieve
+    put:
+      operationId: v1_workflow_stage_transitions_update
       description: |-
         GET    /api/v1/workflow/stage-transitions/
         POST   /api/v1/workflow/stage-transitions/
@@ -22837,6 +22837,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowStageTransitionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WorkflowStageTransitionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WorkflowStageTransitionRequest'
+        required: true
       responses:
         '200':
           content:
@@ -22889,6 +22901,36 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_workflow_stage_transitions_retrieve
+      description: |-
+        GET    /api/v1/workflow/stage-transitions/
+        POST   /api/v1/workflow/stage-transitions/
+        GET    /api/v1/workflow/stage-transitions/{id}/
+        PUT    /api/v1/workflow/stage-transitions/{id}/
+        PATCH  /api/v1/workflow/stage-transitions/{id}/
+        DELETE /api/v1/workflow/stage-transitions/{id}/
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this workflow stage transition.
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowStageTransition'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_workflow_stage_transitions_destroy
       description: |-
@@ -22911,48 +22953,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_workflow_stage_transitions_update
-      description: |-
-        GET    /api/v1/workflow/stage-transitions/
-        POST   /api/v1/workflow/stage-transitions/
-        GET    /api/v1/workflow/stage-transitions/{id}/
-        PUT    /api/v1/workflow/stage-transitions/{id}/
-        PATCH  /api/v1/workflow/stage-transitions/{id}/
-        DELETE /api/v1/workflow/stage-transitions/{id}/
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this workflow stage transition.
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkflowStageTransitionRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/WorkflowStageTransitionRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/WorkflowStageTransitionRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowStageTransition'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -23239,8 +23239,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/workflow/triggers/mappings/{id}/:
-    get:
-      operationId: v1_workflow_triggers_mappings_retrieve
+    put:
+      operationId: v1_workflow_triggers_mappings_update
       parameters:
       - in: path
         name: id
@@ -23251,12 +23251,24 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowTriggerMappingWriteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WorkflowTriggerMappingWriteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WorkflowTriggerMappingWriteRequest'
+        required: true
       responses:
         '200':
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/WorkflowTriggerMapping'
+                $ref: '#/components/schemas/WorkflowTriggerMappingWrite'
           description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
@@ -23296,6 +23308,29 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_workflow_triggers_mappings_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this workflow event subscription.
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowTriggerMapping'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_workflow_triggers_mappings_destroy
       parameters:
@@ -23311,41 +23346,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_workflow_triggers_mappings_update
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this workflow event subscription.
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkflowTriggerMappingWriteRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/WorkflowTriggerMappingWriteRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/WorkflowTriggerMappingWriteRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowTriggerMappingWrite'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':
@@ -23926,8 +23926,8 @@ paths:
         '404':
           description: Resource not found.
   /api/v1/workflow/routing-rules/{id}/:
-    get:
-      operationId: v1_workflow_routing_rules_retrieve
+    put:
+      operationId: v1_workflow_routing_rules_update
       description: |-
         GET    /api/v1/workflow/routing-rules/
         POST   /api/v1/workflow/routing-rules/
@@ -23945,6 +23945,18 @@ paths:
         required: true
       tags:
       - v1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkflowRoutingRuleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WorkflowRoutingRuleRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WorkflowRoutingRuleRequest'
+        required: true
       responses:
         '200':
           content:
@@ -23997,6 +24009,36 @@ paths:
           description: Authentication credentials were not provided or are invalid.
         '404':
           description: Resource not found.
+    get:
+      operationId: v1_workflow_routing_rules_retrieve
+      description: |-
+        GET    /api/v1/workflow/routing-rules/
+        POST   /api/v1/workflow/routing-rules/
+        GET    /api/v1/workflow/routing-rules/{id}/
+        PUT    /api/v1/workflow/routing-rules/{id}/
+        PATCH  /api/v1/workflow/routing-rules/{id}/
+        DELETE /api/v1/workflow/routing-rules/{id}/
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this workflow routing rule.
+        required: true
+      tags:
+      - v1
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkflowRoutingRule'
+          description: ''
+        '401':
+          description: Authentication credentials were not provided or are invalid.
+        '404':
+          description: Resource not found.
     delete:
       operationId: v1_workflow_routing_rules_destroy
       description: |-
@@ -24019,48 +24061,6 @@ paths:
       responses:
         '204':
           description: No response body
-        '401':
-          description: Authentication credentials were not provided or are invalid.
-        '404':
-          description: Resource not found.
-    put:
-      operationId: v1_workflow_routing_rules_update
-      description: |-
-        GET    /api/v1/workflow/routing-rules/
-        POST   /api/v1/workflow/routing-rules/
-        GET    /api/v1/workflow/routing-rules/{id}/
-        PUT    /api/v1/workflow/routing-rules/{id}/
-        PATCH  /api/v1/workflow/routing-rules/{id}/
-        DELETE /api/v1/workflow/routing-rules/{id}/
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this workflow routing rule.
-        required: true
-      tags:
-      - v1
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkflowRoutingRuleRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/WorkflowRoutingRuleRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/WorkflowRoutingRuleRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkflowRoutingRule'
-          description: ''
         '401':
           description: Authentication credentials were not provided or are invalid.
         '404':

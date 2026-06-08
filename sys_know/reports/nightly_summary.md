@@ -21,7 +21,7 @@ ERROR backend/apps/workflow_execution/tests/test_workflow_visual_builder_engine.
 ERROR backend/apps/workflow_execution/tests/test_workflow_visual_builder_engine.py::TestWorkflowVisualBuilderEngine::test_3_decision_node_multiple_paths_valid
 ERROR backend/apps/workflow_execution/tests/test_workflow_visual_builder_engine.py::TestWorkflowVisualBuilderEngine::test_4_invalid_workflow_returns_validation_error
 ERROR backend/apps/workflow_execution/tests/test_workflow_visual_builder_engine.py::TestWorkflowVisualBuilderEngine::test_5_end_to_end_workflow_execution_compatible
-====== 21 failed, 35 passed, 1 warning, 1110 errors in 238.56s (0:03:58) =======
+====== 21 failed, 35 passed, 1 warning, 1110 errors in 129.70s (0:02:09) =======
 ```
 ## Schema
 ```
@@ -50,7 +50,7 @@ Errors:   3648 (704 unique)
 ```
   ❌ Server error: 9
   ❌ API accepted schema-violating request: 1
-  ❌ API rejected schema-compliant request: 12
+  ❌ API rejected schema-compliant request: 14
   ❌ Undocumented HTTP status code: 22
   ❌ Unsupported methods: 2
 
@@ -59,15 +59,15 @@ Errors:
 
 Warnings:
   ⚠️ Missing authentication: 870 operations returned only 401/403 responses
-  ⚠️ Missing valid test data: 503 operations repeatedly returned 404 responses
+  ⚠️ Missing valid test data: 490 operations repeatedly returned 404 responses
   ⚠️ Schema validation mismatch: 1299 operations mostly rejected generated data
 
 Test cases:
-  138697 generated, 33 found 46 unique failures
+  138199 generated, 35 found 48 unique failures
 
-Seed: 198985161985024240562614982152074554599
+Seed: 338213578866119287793036912323664327494
 
-================ 46 failures, 1 error, 3 warnings in 13397.57s =================
+================= 48 failures, 1 error, 3 warnings in 8690.93s =================
 ```
 ## Vitest
 ```
@@ -95,5 +95,5 @@ SyntaxError: The requested module 'node:util' does not provide an export named '
 Running 1 test using 1 worker
 
 [1A[2K[1/1] tests/smoke.spec.ts:3:1 › app loads
-[1A[2K  1 passed (4.7s)
+[1A[2K  1 passed (4.3s)
 ```
